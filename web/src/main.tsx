@@ -4,6 +4,7 @@ import App from "./App";
 import "./font.css";
 import "./base.css";
 import "./map.css";
+import "./tooltip.css";
 import "./pages.css";
 import "./responsive.css";
 import "./feasibility.css";
