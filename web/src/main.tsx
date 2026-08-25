@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import "./font.css";
 import "./base.css";
 import "./map.css";
 import "./pages.css";
@@ -17,8 +18,13 @@ import "./sheet.css";
 import "./type.css";
 import "./dark.css";
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
+async function mountApp() {
+  await document.fonts?.load('400 16px "Libre Baskerville Variable"').catch(() => []);
+  ReactDOM.createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
+}
+
+void mountApp();

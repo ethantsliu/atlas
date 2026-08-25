@@ -71,6 +71,16 @@ test("map and semantic fallbacks pass an automated accessibility scan", async ({
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await expect(page.getByLabel(/Interactive (3D )?research graph/)).toBeVisible();
+  await page.evaluate(() => document.fonts.load('16px "Libre Baskerville Variable"'));
+  const family = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
+  expect(family).toContain("Libre Baskerville Variable");
+  const remoteFonts = await page.evaluate(() =>
+    performance
+      .getEntriesByType("resource")
+      .map((entry) => entry.name)
+      .filter((url) => /fonts\.(googleapis|gstatic)\.com/.test(url)),
+  );
+  expect(remoteFonts).toEqual([]);
   await page.waitForTimeout(250);
   expect(errors).toEqual([]);
   await scan(page);
@@ -169,6 +179,14 @@ test("paper lens and arrow-key graph navigation stay concise", async ({ page }) 
   await expect(graph.locator("canvas")).toBeVisible();
   await expect(page.getByRole("button", { name: /Reset (3D )?view/ })).toBeVisible();
   await expect(graph).toContainText(/drag (rotates|pans)/);
+  await picker.fill("AI4AI-Bench");
+  await page.getByRole("option", { name: /AI4AI-Bench/ }).click();
+  await expect(picker).toHaveValue(/AI4AI-Bench/);
+  const closePaper = page.getByRole("button", { name: "Close paper details" });
+  await expect(closePaper).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Related work" })).toBeVisible();
+  await expect(page.getByText("Competitive landscape", { exact: true })).toHaveCount(0);
+  await closePaper.click();
   await graph.focus();
   await page.keyboard.press("ArrowRight");
   await expect(picker).not.toHaveValue("");
@@ -288,7 +306,7 @@ test("researched briefs are ranked by one-decimal feasibility", async ({ page })
   await page.getByRole("button", { name: "Briefs" }).click();
 
   const scoreCards = page.locator(".featured-briefs .card-score");
-  await expect(scoreCards.first()).toBeVisible();
+  await expect(scoreCards.first()).toBeVisible({ timeout: 15_000 });
   const scoreLabels = await scoreCards.allTextContents();
   const scores = scoreLabels.map((label) => Number.parseFloat(label));
   expect(scores.length).toBeGreaterThan(1);

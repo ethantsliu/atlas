@@ -16,6 +16,7 @@ import type { GraphNode, GraphNodeKind } from "../types";
 const materials = new Map<string, Material>();
 const shapes = new Map<string, BufferGeometry>();
 const objects = new WeakMap<GraphNode, { key: string; group: Group }>();
+export const LABEL_FONT = "Libre Baskerville Variable";
 
 function nodeShape(kind: GraphNodeKind, detail: number): BufferGeometry {
   const key = `${kind}:${detail}`;
@@ -38,12 +39,13 @@ function nodeSize(node: GraphNode): number {
   return node.kind === "paper" ? base * 0.72 : base;
 }
 
-function nodeMat(node: GraphNode, emphasized: boolean): Material {
-  const key = `${node.kind}:${node.color}:${emphasized}`;
+function nodeMat(node: GraphNode, emphasized: boolean, simple = false): Material {
+  const key = `${node.kind}:${node.color}:${emphasized}:${simple}`;
   const cached = materials.get(key);
   if (cached) return cached;
 
-  const material = new MeshPhongMaterial({
+  const MaterialType = simple && !emphasized ? MeshBasicMaterial : MeshPhongMaterial;
+  const material = new MaterialType({
     color: node.color,
     emissive: emphasized ? node.color : "#000000",
     emissiveIntensity: emphasized ? 0.42 : 0,
@@ -82,7 +84,7 @@ function nodeLabel(
       ? `${node.label.slice(0, Math.max(1, maxChars - 2))}…`
       : node.label;
   const label = new SpriteText(text, 5.4);
-  label.fontFace = "Baskerville";
+  label.fontFace = LABEL_FONT;
   label.fontWeight = "600";
   label.color = theme === "dark" ? "#f4f0e7" : "#2d2722";
   label.backgroundColor =
@@ -103,14 +105,11 @@ export function buildNode(
   theme: Theme,
   detail = 10,
   maxChars = 42,
+  simple = false,
 ): Group {
-  const key = `${theme}:${detail}:${maxChars}`;
+  const key = `${theme}:${detail}:${maxChars}:${simple}`;
   const cached = objects.get(node);
-  if (
-    cached?.key === key &&
-    cached.group.getObjectByName("shape") &&
-    cached.group.getObjectByName("halo")
-  ) {
+  if (cached?.key === key && cached.group.getObjectByName("shape")) {
     return cached.group;
   }
   if (cached) dropLabel(cached.group);
@@ -118,14 +117,17 @@ export function buildNode(
   const size = nodeSize(node);
   const group = new Group();
   const geometry = nodeShape(node.kind, detail);
-  const shape = new Mesh(geometry, nodeMat(node, false));
+  const shape = new Mesh(geometry, nodeMat(node, false, simple));
   shape.name = "shape";
   shape.scale.setScalar(size);
-  const halo = new Mesh(geometry, haloMat(theme));
-  halo.name = "halo";
-  halo.scale.setScalar(size * 1.34);
-  halo.visible = false;
-  group.add(shape, halo);
+  group.add(shape);
+  if (!simple) {
+    const halo = new Mesh(geometry, haloMat(theme));
+    halo.name = "halo";
+    halo.scale.setScalar(size * 1.34);
+    halo.visible = false;
+    group.add(halo);
+  }
 
   objects.set(node, { key, group });
   return group;
@@ -146,11 +148,19 @@ export function markNode(
   theme: Theme,
   detail = 10,
   maxChars = 42,
+  simple = false,
 ): void {
-  const group = buildNode(node, theme, detail, maxChars);
+  const group = buildNode(node, theme, detail, maxChars, simple);
   const shape = group.getObjectByName("shape") as Mesh;
-  const halo = group.getObjectByName("halo") as Mesh;
-  shape.material = nodeMat(node, emphasized);
+  let halo = group.getObjectByName("halo") as Mesh | undefined;
+  if (emphasized && !halo) {
+    halo = new Mesh(shape.geometry, haloMat(theme));
+    halo.name = "halo";
+    halo.scale.setScalar(nodeSize(node) * 1.34);
+    group.add(halo);
+  }
+  shape.material = nodeMat(node, emphasized, simple);
+  if (!halo) return;
   halo.visible = emphasized;
 
   if (!emphasized) {

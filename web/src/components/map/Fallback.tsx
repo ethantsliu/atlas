@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState, type MutableRefObject } from "react";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import type { Theme } from "../../hooks/theme";
-import { applyLayout, type LayoutMode } from "../../hooks/layout";
+import {
+  applyLayout,
+  freeNodes,
+  layoutTicks,
+  pinNodes,
+  type LayoutMode,
+} from "../../hooks/layout";
 import { useQuality } from "../../hooks/quality";
 import { useRegions2d } from "../../hooks/regions2d";
+import { useScene } from "../../hooks/scene";
 import { graphChrome, type ClusterSet } from "../../lib/clusters";
 import { graphEndpointId } from "../../lib/graph";
 import { showCluster, showLink } from "../../lib/quality";
@@ -59,7 +66,7 @@ function drawLabel(
 ) {
   const fontSize = 12 / scale;
   const label = node.label.length > 34 ? `${node.label.slice(0, 32)}…` : node.label;
-  context.font = `600 ${fontSize}px Baskerville, "Libre Baskerville", serif`;
+  context.font = `600 ${fontSize}px "Libre Baskerville Variable", Baskerville, serif`;
   context.fillStyle = theme === "dark" ? "#f4f0e7" : "#2d2722";
   context.textAlign = "center";
   context.fillText(label, node.x!, node.y! + size + fontSize + 2 / scale);
@@ -81,10 +88,16 @@ export function FallbackGraph({
 }: FallbackProps) {
   const [hovered, setHovered] = useState<GraphNode | null>(null);
   const quality = useQuality(graph.nodes.length, width, height);
+  const scene = useScene(graph, layout, quality.tier, selected?.id);
   const activeIds = new Set(
     [selected?.id, hovered?.id].filter((id): id is string => Boolean(id)),
   );
   const regionNodes = useMemo(() => [selected, hovered], [hovered, selected]);
+  const activeRegion = selected?.id
+    ? clusters.nodeClusters[selected.id]
+    : hovered?.id
+      ? clusters.nodeClusters[hovered.id]
+      : null;
   const regions = useRegions2d({
     graph,
     graphRef,
@@ -95,7 +108,10 @@ export function FallbackGraph({
   });
 
   useEffect(() => {
-    if (graphRef.current) applyLayout(graphRef.current, layout);
+    if (!graphRef.current) return;
+    if (layout === "semantic") pinNodes(graph.nodes);
+    else freeNodes(graph.nodes);
+    applyLayout(graphRef.current, layout);
   }, [graph, graphRef, layout]);
 
   return (
@@ -104,7 +120,7 @@ export function FallbackGraph({
         ref={graphRef}
         width={width}
         height={height}
-        graphData={graph}
+        graphData={scene.graph}
         backgroundColor={theme === "dark" ? "#0f1511" : "#f0eadf"}
         linkColor={() =>
           theme === "dark"
@@ -119,7 +135,7 @@ export function FallbackGraph({
           return showLink(quality, { selected: active });
         }}
         linkWidth={layout === "connections" ? 0.8 : 1}
-        cooldownTicks={quality.cooldownTicks}
+        cooldownTicks={layoutTicks(layout, quality.cooldownTicks, scene.simple)}
         d3VelocityDecay={0.28}
         nodeCanvasObject={(node, context, scale) => {
           const size = nodeSize(node);
@@ -165,6 +181,7 @@ export function FallbackGraph({
           scale: regions.scale,
           enabled:
             regionsEnabled && showCluster(quality, regions.scale, graph.nodes.length),
+          activeId: activeRegion,
           reserved: [...regions.reserved, ...graphChrome(width)],
         }}
       />

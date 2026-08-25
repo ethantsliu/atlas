@@ -5,7 +5,7 @@ import { ModalSection } from "../shared/Section";
 export function ReadingCompetition({ reading }: { reading: FullReading }) {
   return (
     <>
-      <ModalSection title="Competitive landscape">
+      <ModalSection title="Related work">
         <div className="landscape">
           {reading.competitive_landscape.map((competitor) => (
             <a

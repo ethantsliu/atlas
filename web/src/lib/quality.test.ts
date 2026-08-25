@@ -39,9 +39,9 @@ describe("adaptive quality", () => {
       tier: "balanced",
       linkMode: "active",
       linkOpacity: 0.16,
-      geometryDetail: 10,
+      geometryDetail: 6,
       cooldownTicks: 80,
-      pixelRatioCap: 1.5,
+      pixelRatioCap: 1,
     });
   });
 

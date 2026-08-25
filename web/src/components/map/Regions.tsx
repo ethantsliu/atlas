@@ -16,14 +16,19 @@ export function RegionOverlay({ points, view }: RegionOverlayProps) {
   return (
     <div className="region-overlay" aria-hidden="true">
       {visible.map((point) => {
+        const active = point.region.id === view.activeId;
         const style: RegionStyle = {
           left: point.x,
           top: point.y,
-          opacity: point.opacity,
+          opacity: active ? 1 : point.opacity,
           "--region-color": point.region.color,
         };
         return (
-          <span className="region-label" style={style} key={point.region.id}>
+          <span
+            className={`region-label${active ? " active" : ""}`}
+            style={style}
+            key={point.region.id}
+          >
             <i />
             {point.region.label}
           </span>

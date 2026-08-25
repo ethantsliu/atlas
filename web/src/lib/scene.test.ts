@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { makeAtlas } from "../test/fixtures";
 import { createGraphNodes } from "./graph";
-import { buildNode } from "./scene";
+import { buildNode, LABEL_FONT } from "./scene";
 
 describe("scene cache", () => {
   it("rebuilds a group emptied by WebGL teardown", () => {
@@ -13,5 +13,9 @@ describe("scene cache", () => {
 
     expect(recovered.getObjectByName("shape")).toBeTruthy();
     expect(recovered.getObjectByName("halo")).toBeTruthy();
+  });
+
+  it("uses the bundled Baskerville face for interactive labels", () => {
+    expect(LABEL_FONT).toBe("Libre Baskerville Variable");
   });
 });

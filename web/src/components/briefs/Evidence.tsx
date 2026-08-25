@@ -13,7 +13,7 @@ export function EvidenceSections({ detail, papers, onOpenPaper }: EvidenceProps)
   return (
     <>
       {detail.competitive_landscape && (
-        <ModalSection title="Competitive landscape">
+        <ModalSection title="Related work">
           <Landscape competitors={detail.competitive_landscape} />
           {detail.novelty_assessment && (
             <p className="novelty">

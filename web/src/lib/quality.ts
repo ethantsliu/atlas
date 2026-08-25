@@ -98,6 +98,8 @@ export function qualityFor(input: QualityInput): QualityProfile {
     tier,
     linkMode: dense ? "active" : base.linkMode,
     linkOpacity: dense ? Math.min(base.linkOpacity, 0.16) : base.linkOpacity,
+    geometryDetail: dense ? 6 : base.geometryDetail,
+    pixelRatioCap: dense ? Math.min(base.pixelRatioCap, 1) : base.pixelRatioCap,
     cooldownTicks: input.reducedMotion
       ? Math.min(base.cooldownTicks, 30)
       : base.cooldownTicks,

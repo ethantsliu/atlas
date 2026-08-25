@@ -37,4 +37,14 @@ describe("cluster views", () => {
     expect(html).toContain("rl environments");
     expect(html).not.toContain("button");
   });
+
+  it("distinguishes an active region from ambient geography", () => {
+    const html = renderToStaticMarkup(
+      <RegionOverlay
+        points={[{ region, x: 200, y: 160, depth: 0 }]}
+        view={{ width: 500, height: 400, scale: 1, activeId: "envs" }}
+      />,
+    );
+    expect(html).toContain('class="region-label active"');
+  });
 });

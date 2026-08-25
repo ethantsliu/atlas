@@ -14,7 +14,7 @@ privacy leaks through the private process in [SECURITY.md](SECURITY.md).
 2. Use public research sources only. Never add local paths, private repositories,
    account-derived labels, credentials, or personal ranking fields.
 3. Add or update a test for behavioral changes. Paper claims need primary-source,
-   page-anchored evidence and a competitive landscape.
+   page-anchored evidence and related work.
 4. Use the CI reference environment, Python 3.12 and Node.js 22. Install with
    `.venv/bin/pip install -r dev.txt`, `npm --prefix web ci`, and
    `npm --prefix web exec playwright install chromium firefox webkit`. Run

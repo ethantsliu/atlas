@@ -565,6 +565,12 @@ type GraphNodeBase = {
   sx?: number;
   sy?: number;
   sz?: number;
+  fx?: number;
+  fy?: number;
+  fz?: number;
+  vx?: number;
+  vy?: number;
+  vz?: number;
 };
 
 export type GraphNode =

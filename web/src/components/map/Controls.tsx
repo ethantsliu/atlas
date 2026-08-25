@@ -24,7 +24,7 @@ export function GraphControls({
       <div className="graph-header">
         <div>
           <span className="live-dot" />
-          {`${mode === "3d" ? `3D ${space} space` : `2D ${space} compatibility view`} · ${count} visible nodes`}
+          {`${mode === "3d" ? `3D ${space} space` : `2D ${space} compatibility view`} · ${count} available nodes`}
         </div>
         <span>
           {count > 0
