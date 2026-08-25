@@ -9,14 +9,12 @@ import {
   type BufferGeometry,
   type Material,
 } from "three";
-import SpriteText from "three-spritetext";
 import type { Theme } from "../hooks/theme";
 import type { GraphNode, GraphNodeKind } from "../types";
 
 const materials = new Map<string, Material>();
 const shapes = new Map<string, BufferGeometry>();
 const objects = new WeakMap<GraphNode, { key: string; group: Group }>();
-export const LABEL_FONT = "Libre Baskerville Variable";
 
 function nodeShape(kind: GraphNodeKind, detail: number): BufferGeometry {
   const key = `${kind}:${detail}`;
@@ -73,47 +71,17 @@ function haloMat(theme: Theme): Material {
   return material;
 }
 
-function nodeLabel(
-  node: GraphNode,
-  size: number,
-  theme: Theme,
-  maxChars: number,
-): SpriteText {
-  const text =
-    node.label.length > maxChars
-      ? `${node.label.slice(0, Math.max(1, maxChars - 2))}…`
-      : node.label;
-  const label = new SpriteText(text, 5.4);
-  label.fontFace = LABEL_FONT;
-  label.fontWeight = "600";
-  label.color = theme === "dark" ? "#f4f0e7" : "#2d2722";
-  label.backgroundColor =
-    theme === "dark" ? "rgba(17,24,19,.88)" : "rgba(250,246,238,.9)";
-  label.borderColor = theme === "dark" ? "rgba(244,240,231,.24)" : "rgba(45,39,34,.2)";
-  label.borderWidth = 0.35;
-  label.borderRadius = 3;
-  label.padding = [2.4, 1.4];
-  label.position.y = size + 4.4;
-  label.material.depthTest = false;
-  label.material.depthWrite = false;
-  label.renderOrder = 1_000;
-  return label;
-}
-
 export function buildNode(
   node: GraphNode,
   theme: Theme,
   detail = 10,
-  maxChars = 42,
   simple = false,
 ): Group {
-  const key = `${theme}:${detail}:${maxChars}:${simple}`;
+  const key = `${theme}:${detail}:${simple}`;
   const cached = objects.get(node);
   if (cached?.key === key && cached.group.getObjectByName("shape")) {
     return cached.group;
   }
-  if (cached) dropLabel(cached.group);
-
   const size = nodeSize(node);
   const group = new Group();
   const geometry = nodeShape(node.kind, detail);
@@ -133,24 +101,14 @@ export function buildNode(
   return group;
 }
 
-function dropLabel(group: Group): void {
-  const label = group.getObjectByName("label") as SpriteText | undefined;
-  if (!label) return;
-  label.material.map?.dispose();
-  label.material.dispose();
-  label.geometry.dispose();
-  group.remove(label);
-}
-
 export function markNode(
   node: GraphNode,
   emphasized: boolean,
   theme: Theme,
   detail = 10,
-  maxChars = 42,
   simple = false,
 ): void {
-  const group = buildNode(node, theme, detail, maxChars, simple);
+  const group = buildNode(node, theme, detail, simple);
   const shape = group.getObjectByName("shape") as Mesh;
   let halo = group.getObjectByName("halo") as Mesh | undefined;
   if (emphasized && !halo) {
@@ -162,12 +120,4 @@ export function markNode(
   shape.material = nodeMat(node, emphasized, simple);
   if (!halo) return;
   halo.visible = emphasized;
-
-  if (!emphasized) {
-    dropLabel(group);
-  } else if (!group.getObjectByName("label")) {
-    const label = nodeLabel(node, nodeSize(node), theme, maxChars);
-    label.name = "label";
-    group.add(label);
-  }
 }

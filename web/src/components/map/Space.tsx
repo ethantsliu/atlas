@@ -75,9 +75,8 @@ export function GraphSpace({
   const scene = useScene(graph, layout, quality.tier, selected?.id);
   const { ids: rendered, simple } = scene;
   const makeNode = useCallback(
-    (node: GraphNode) =>
-      buildNode(node, theme, quality.geometryDetail, quality.labelMaxChars, simple),
-    [quality.geometryDetail, quality.labelMaxChars, simple, theme],
+    (node: GraphNode) => buildNode(node, theme, quality.geometryDetail, simple),
+    [quality.geometryDetail, simple, theme],
   );
   const regionNodes = useMemo(() => [selected, hovered], [hovered, selected]);
   const activeRegion = selected?.id
@@ -101,7 +100,6 @@ export function GraphSpace({
     hovered,
     theme,
     detail: quality.geometryDetail,
-    maxChars: quality.labelMaxChars,
     simple,
   });
 
@@ -154,7 +152,7 @@ export function GraphSpace({
         backgroundColor={theme === "dark" ? "#0f1511" : "#f0eadf"}
         showNavInfo={false}
         numDimensions={3}
-        nodeLabel={() => ""}
+        nodeLabel={(node) => node.label}
         nodeThreeObject={makeNode}
         linkColor={() => (theme === "dark" ? "#617065" : "#9d9285")}
         linkWidth={0}

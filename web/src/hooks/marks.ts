@@ -11,7 +11,6 @@ type MarkInput = {
   hovered: GraphNode | null;
   theme: Theme;
   detail: number;
-  maxChars: number;
   simple: boolean;
 };
 
@@ -30,14 +29,7 @@ export function useMarks(input: MarkInput): void {
     for (const id of changed) {
       const node = nodeById.get(id);
       if (!node) continue;
-      markNode(
-        node,
-        active.has(id),
-        input.theme,
-        input.detail,
-        input.maxChars,
-        input.simple,
-      );
+      markNode(node, active.has(id), input.theme, input.detail, input.simple);
     }
     activeRef.current = active;
     input.graphRef.current?.refresh();
@@ -45,7 +37,6 @@ export function useMarks(input: MarkInput): void {
     input.detail,
     input.graphRef,
     input.hovered?.id,
-    input.maxChars,
     input.selected?.id,
     input.simple,
     input.theme,
