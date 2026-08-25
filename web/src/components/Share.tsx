@@ -5,7 +5,7 @@ import "./share.css";
 type Clipboard = Pick<Navigator["clipboard"], "writeText">;
 
 type ShareProps = {
-  url: string;
+  getUrl: () => string;
   className?: string;
 };
 
@@ -19,7 +19,7 @@ export async function copyLink(url: string, clipboard?: Clipboard): Promise<bool
   }
 }
 
-export function Share({ url, className = "" }: ShareProps) {
+export function Share({ getUrl, className = "" }: ShareProps) {
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export function Share({ url, className = "" }: ShareProps) {
   }, [status]);
 
   async function copy() {
-    const copied = await copyLink(url, navigator.clipboard);
+    const copied = await copyLink(getUrl(), navigator.clipboard);
     setStatus(copied ? "copied" : "failed");
   }
 

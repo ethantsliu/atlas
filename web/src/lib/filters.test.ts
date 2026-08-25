@@ -4,6 +4,7 @@ import {
   filterPaperTitles,
   findPaperIds,
   findNodePapers,
+  resolvePaper,
   sortIdeaScores,
 } from "./filters";
 import { buildGraph, ALL_NODE_KINDS } from "./graph";
@@ -37,6 +38,14 @@ describe("title filters", () => {
       "idea-low",
     ]);
     expect(source.map((idea) => idea.id)).toEqual(["idea-low", "idea-high"]);
+  });
+
+  it("resolves exact and unique stable paper IDs", () => {
+    expect(resolvePaper(atlas.papers, atlas.papers[0].id)).toBe(atlas.papers[0]);
+    expect(resolvePaper(atlas.papers, atlas.papers[1].stable_id!)).toBe(
+      atlas.papers[1],
+    );
+    expect(resolvePaper(atlas.papers, "missing")).toBeNull();
   });
 });
 

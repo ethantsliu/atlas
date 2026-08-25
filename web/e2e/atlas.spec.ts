@@ -100,7 +100,7 @@ test("map remains usable without WebGL2", async ({ page }) => {
   await page.goto("/");
 
   const graph = page.getByLabel("Interactive research graph");
-  await expect(graph).toContainText("2D semantic compatibility view");
+  await expect(graph).toContainText("2D compatibility · semantic");
   await expect(graph.locator("canvas")).toBeVisible();
   await graph.focus();
   await page.keyboard.press("ArrowRight");
@@ -182,11 +182,13 @@ test("paper lens and arrow-key graph navigation stay concise", async ({ page }) 
   await picker.fill("AI4AI-Bench");
   await page.getByRole("option", { name: /AI4AI-Bench/ }).click();
   await expect(picker).toHaveValue(/AI4AI-Bench/);
+  await page.getByRole("button", { name: "Open paper", exact: true }).click();
   const closePaper = page.getByRole("button", { name: "Close paper details" });
   await expect(closePaper).toBeVisible();
   await expect(page.getByRole("heading", { name: "Related work" })).toBeVisible();
   await expect(page.getByText("Competitive landscape", { exact: true })).toHaveCount(0);
   await closePaper.click();
+  await expect(picker).toHaveValue(/AI4AI-Bench/);
   await graph.focus();
   await page.keyboard.press("ArrowRight");
   await expect(picker).not.toHaveValue("");

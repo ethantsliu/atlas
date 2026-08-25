@@ -19,8 +19,8 @@ import "./sheet.css";
 import "./type.css";
 import "./dark.css";
 
-async function mountApp() {
-  await document.fonts?.load('400 16px "Libre Baskerville Variable"').catch(() => []);
+function mountApp() {
+  void document.fonts?.load('400 16px "Libre Baskerville Variable"').catch(() => []);
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
       <App />
@@ -28,4 +28,4 @@ async function mountApp() {
   );
 }
 
-void mountApp();
+mountApp();

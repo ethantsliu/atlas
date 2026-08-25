@@ -19,6 +19,7 @@ export const ALL_NODE_KINDS: readonly GraphNodeKind[] = [
 export type GraphFilters = {
   kinds: ReadonlySet<GraphNodeKind>;
   focus: string | null;
+  selected?: string | null;
   query: string;
   minFeasibility: number;
 };
@@ -206,6 +207,7 @@ export function buildGraph(atlas: AtlasRead, filters: GraphFilters): GraphData {
         (node) =>
           filters.kinds.has(node.kind) ||
           node.id === filters.focus ||
+          node.id === filters.selected ||
           (node.kind === "paper" &&
             Boolean(normalizedQuery) &&
             node.label.toLocaleLowerCase().includes(normalizedQuery)),

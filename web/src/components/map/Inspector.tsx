@@ -86,6 +86,14 @@ export function Inspector({
             </b>
           </div>
           <p>{paper.reading.approach}</p>
+          <button
+            className="focus-button"
+            type="button"
+            onClick={() => onOpenPaper(paper)}
+          >
+            Open paper
+            <ChevronRight size={15} />
+          </button>
         </>
       )}
       <button
@@ -110,11 +118,7 @@ export function Inspector({
                   type="button"
                   aria-label={`${labelOf(entry.node.kind)} ${entry.node.label}`}
                   onClick={() => {
-                    if (entry.node.kind === "paper") {
-                      onOpenPaper(entry.node.payload);
-                    } else {
-                      onSelectNode(entry.node.id);
-                    }
+                    onSelectNode(entry.node.id);
                   }}
                 >
                   <span>{labelOf(entry.node.kind)}</span>
@@ -133,7 +137,11 @@ export function Inspector({
           </h3>
           <div className="paper-stack">
             {papers.slice(0, 6).map((paper) => (
-              <button type="button" onClick={() => onOpenPaper(paper)} key={paper.id}>
+              <button
+                type="button"
+                onClick={() => onSelectNode(paper.id)}
+                key={paper.id}
+              >
                 <span>
                   {paper.record_kind === "non_paper_context"
                     ? "context"

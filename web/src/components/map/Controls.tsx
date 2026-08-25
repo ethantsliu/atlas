@@ -5,6 +5,7 @@ export type RenderMode = "3d" | "2d";
 
 type ControlsProps = {
   count: number;
+  drawn: number;
   mode: RenderMode;
   layout: LayoutMode;
   onReset: () => void;
@@ -13,18 +14,22 @@ type ControlsProps = {
 
 export function GraphControls({
   count,
+  drawn,
   mode,
   layout,
   onReset,
   children,
 }: ControlsProps) {
-  const space = layout === "semantic" ? "semantic" : "connection";
+  const space =
+    layout === "semantic"
+      ? "semantic · similar meaning is nearby"
+      : "connections · linked nodes pull together";
   return (
     <>
       <div className="graph-header">
         <div>
           <span className="live-dot" />
-          {`${mode === "3d" ? `3D ${space} space` : `2D ${space} compatibility view`} · ${count} available nodes`}
+          {`${mode === "3d" ? `3D · ${space}` : `2D compatibility · ${space}`} · ${count} available${drawn === count ? " nodes" : ` · ${drawn} drawn`}`}
         </div>
         <span>
           {count > 0

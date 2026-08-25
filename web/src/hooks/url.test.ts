@@ -7,6 +7,7 @@ import {
   watchUrl,
   type AtlasUrlState,
 } from "./url";
+import type { CameraView } from "../lib/camera";
 
 type TestHost = Parameters<typeof saveUrl>[2] & EventTarget;
 
@@ -33,6 +34,7 @@ function fullState(): AtlasUrlState {
     minFeasibility: 6.5,
     focus: "topic:world-models",
     layout: "connections",
+    camera: null,
   };
 }
 
@@ -53,6 +55,27 @@ describe("atlas URLs", () => {
     const url = encodeUrl({ ...DEFAULT_URL_STATE, kinds: [] }, "https://example.com/");
     expect(url.hash).toBe("#?k=-");
     expect(decodeUrl(url).kinds).toEqual([]);
+  });
+
+  it("round trips a bounded camera snapshot in the fragment", () => {
+    const camera: CameraView = {
+      target: [12.3, -45.6, 0],
+      radius: 90,
+      yaw: 35,
+      pitch: -20,
+    };
+    const url = encodeUrl(
+      { ...DEFAULT_URL_STATE, camera },
+      "https://example.com/atlas/",
+    );
+    expect(url.hash).toBe("#?c=1_12.3_-45.6_0_90_35_-20");
+    expect(decodeUrl(url).camera).toEqual(camera);
+  });
+
+  it("ignores malformed camera state without losing valid filters", () => {
+    const state = decodeUrl("https://example.com/atlas/#?q=world&c=1_NaN_0_0_1_0_0");
+    expect(state.query).toBe("world");
+    expect(state.camera).toBeNull();
   });
 
   it("falls back safely for malformed and out-of-range parameters", () => {

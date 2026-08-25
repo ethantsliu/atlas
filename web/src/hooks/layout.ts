@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { ForceGraphMethods } from "react-force-graph-3d";
 import type { ForceGraphMethods as ForceGraph2D } from "react-force-graph-2d";
-import { pullCenter } from "../lib/force";
+import { pullCenter, pullSemantic } from "../lib/force";
 import type { GraphLink, GraphNode } from "../types";
 
 export type LayoutMode = "semantic" | "connections";
@@ -44,7 +44,7 @@ export function layoutTime(reduced: boolean, duration = 450): number {
 }
 
 export function layoutTicks(mode: LayoutMode, ticks: number, dense = false): number {
-  if (mode === "semantic") return 0;
+  if (mode === "semantic") return dense ? 0 : ticks;
   return dense ? Math.min(ticks, 30) : ticks;
 }
 
@@ -74,18 +74,27 @@ export function freeNodes(nodes: GraphNode[]): void {
   }
 }
 
-export function applyLayout(graph: LayoutGraph, mode: LayoutMode, reheat = true): void {
+export function applyLayout(
+  graph: LayoutGraph,
+  mode: LayoutMode,
+  reheat = true,
+  dense = false,
+): void {
   const spec = layoutSpec(mode);
   const target = graph as Pick<
     ForceGraphMethods<GraphNode, GraphLink>,
     "d3Force" | "d3ReheatSimulation"
   >;
-  target.d3Force("atlas-center", mode === "semantic" ? null : pullCenter(spec.center));
-  target.d3Force("atlas-semantic", null);
-  target.d3Force("link")?.strength?.(mode === "semantic" ? 0 : spec.link);
+  const fluid = mode !== "semantic" || !dense;
+  target.d3Force("atlas-center", fluid ? pullCenter(spec.center) : null);
+  target.d3Force(
+    "atlas-semantic",
+    mode === "semantic" && fluid ? pullSemantic(spec.anchor) : null,
+  );
+  target.d3Force("link")?.strength?.(fluid ? spec.link : 0);
   target.d3Force("link")?.distance?.(spec.distance);
-  target.d3Force("charge")?.strength?.(mode === "semantic" ? 0 : spec.charge);
-  if (reheat && mode === "connections") target.d3ReheatSimulation();
+  target.d3Force("charge")?.strength?.(fluid ? spec.charge : 0);
+  if (reheat && fluid) target.d3ReheatSimulation();
 }
 
 export function useLayout(initial: LayoutMode = "semantic") {

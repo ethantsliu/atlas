@@ -11,12 +11,14 @@ import { MapFilters } from "../components/map/Filters";
 import { PaperDetailModal } from "../components/papers/Paper";
 import { ResultStatus } from "../components/shared/Empty";
 import type { Theme } from "../hooks/theme";
+import type { CameraView } from "../lib/camera";
+import { resolvePaper } from "../lib/filters";
 
 type MapViewProps = {
   atlas: AtlasRead;
   theme: Theme;
   url: AtlasUrlState;
-  shareUrl: string;
+  shareUrl: (camera?: CameraView | null) => string;
   papersReady: boolean;
   papersLoading: boolean;
   papersError: string | null;
@@ -44,10 +46,11 @@ export function MapView({
       buildGraph(atlas, {
         kinds,
         focus: url.focus,
+        selected: url.selected,
         query: url.query,
         minFeasibility: url.minFeasibility,
       }),
-    [atlas, kinds, url.focus, url.minFeasibility, url.query],
+    [atlas, kinds, url.focus, url.minFeasibility, url.query, url.selected],
   );
   const graph = useGraph(nextGraph);
   const allNodes = useMemo(() => createGraphNodes(atlas, 1), [atlas]);
@@ -56,21 +59,15 @@ export function MapView({
     graph.nodes.find((candidate) => candidate.id === url.selected) ?? null;
 
   useEffect(() => {
-    if (!papersReady) return;
-    if (url.selected?.startsWith("paper-")) {
-      const paper = atlas.papers.find((item) => item.id === url.selected);
-      setSelectedPaper(paper ?? null);
-      if (!paper) onReplace({ selected: null });
-    } else {
-      setSelectedPaper(null);
-    }
-  }, [atlas.papers, onReplace, papersReady, url.selected]);
+    if (!papersReady || !url.selected || selected) return;
+    const paper = resolvePaper(atlas.papers, url.selected);
+    if (paper) onReplace({ selected: paper.id });
+  }, [atlas.papers, onReplace, papersReady, selected, url.selected]);
 
   useEffect(() => {
     const visibleIds = new Set(graph.nodes.map((node) => node.id));
-    const waitingSelection =
-      !papersReady && Boolean(url.selected?.startsWith("paper-"));
-    const hiddenPaper = atlas.papers.some((paper) => paper.id === url.selected);
+    const waitingSelection = !papersReady && Boolean(url.selected);
+    const hiddenPaper = Boolean(resolvePaper(atlas.papers, url.selected));
     const waitingFocus = !papersReady && Boolean(url.focus?.startsWith("paper-"));
     if (
       url.selected &&
@@ -101,7 +98,8 @@ export function MapView({
   function chooseNodeId(nodeId: string) {
     const node = allNodes.find((candidate) => candidate.id === nodeId);
     if (!node) return;
-    const nextKinds = new Set(kinds).add(node.kind);
+    const nextKinds = new Set(kinds);
+    if (node.kind !== "paper") nextKinds.add(node.kind);
     onReplace({
       kinds: ALL_NODE_KINDS.filter((kind) => nextKinds.has(kind)),
       focus: null,
@@ -172,6 +170,7 @@ export function MapView({
         query={url.query}
         theme={theme}
         layout={url.layout}
+        camera={url.camera}
         shareUrl={shareUrl}
         onLayout={(layout) => onReplace({ layout })}
         clusters={clusters}
@@ -192,7 +191,6 @@ export function MapView({
           paper={selectedPaper}
           close={() => {
             setSelectedPaper(null);
-            if (url.selected === selectedPaper.id) onReplace({ selected: null });
           }}
         />
       )}

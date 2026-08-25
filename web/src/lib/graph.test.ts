@@ -85,6 +85,18 @@ describe("buildGraph", () => {
     expect(graph.nodes.find((node) => node.id === "paper-1")?.kind).toBe("paper");
   });
 
+  it("retains one selected paper while its lens is off", () => {
+    const graph = buildGraph(makeAtlas(), {
+      kinds: new Set<GraphNodeKind>(["topic", "trick", "idea"]),
+      focus: null,
+      selected: "paper-1",
+      query: "",
+      minFeasibility: 1,
+    });
+
+    expect(graph.nodes.find((node) => node.id === "paper-1")?.kind).toBe("paper");
+  });
+
   it("returns an empty graph when no label matches", () => {
     const graph = buildGraph(makeAtlas(), {
       kinds: allKinds(),

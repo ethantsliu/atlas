@@ -49,8 +49,9 @@ describe("layoutSpec", () => {
     expect(layoutTime(false, 600)).toBe(600);
   });
 
-  it("does not simulate a published semantic layout", () => {
-    expect(layoutTicks("semantic", 150)).toBe(0);
+  it("keeps overview motion but freezes dense semantic layouts", () => {
+    expect(layoutTicks("semantic", 150)).toBe(150);
+    expect(layoutTicks("semantic", 150, true)).toBe(0);
     expect(layoutTicks("connections", 80)).toBe(80);
     expect(layoutTicks("connections", 80, true)).toBe(30);
   });
@@ -83,15 +84,15 @@ describe("layoutSpec", () => {
 });
 
 describe("applyLayout", () => {
-  it("disables physics in semantic mode", () => {
+  it("restores soft semantic physics in overview mode", () => {
     const { graph, link, writes } = makeGraph();
 
     applyLayout(graph, "semantic");
 
-    expect(writes.get("atlas-center")).toBeNull();
-    expect(writes.get("atlas-semantic")).toBeNull();
-    expect(link.strength).toHaveBeenCalledWith(0);
-    expect(graph.d3ReheatSimulation).not.toHaveBeenCalled();
+    expect(writes.get("atlas-center")).toEqual(expect.any(Function));
+    expect(writes.get("atlas-semantic")).toEqual(expect.any(Function));
+    expect(link.strength).toHaveBeenCalledWith(layoutSpec("semantic").link);
+    expect(graph.d3ReheatSimulation).toHaveBeenCalledOnce();
   });
 
   it("removes embedding anchors in connection mode", () => {
@@ -110,8 +111,19 @@ describe("applyLayout", () => {
 
     applyLayout(graph, "semantic", false);
 
+    expect(writes.get("atlas-center")).toEqual(expect.any(Function));
+    expect(writes.get("atlas-semantic")).toEqual(expect.any(Function));
+    expect(graph.d3ReheatSimulation).not.toHaveBeenCalled();
+  });
+
+  it("disables semantic physics for dense scenes", () => {
+    const { graph, link, writes } = makeGraph();
+
+    applyLayout(graph, "semantic", true, true);
+
     expect(writes.get("atlas-center")).toBeNull();
     expect(writes.get("atlas-semantic")).toBeNull();
+    expect(link.strength).toHaveBeenCalledWith(0);
     expect(graph.d3ReheatSimulation).not.toHaveBeenCalled();
   });
 });

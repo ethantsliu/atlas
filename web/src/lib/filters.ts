@@ -48,6 +48,17 @@ export function findPaperIds(
   );
 }
 
+export function resolvePaper(
+  papers: readonly Paper[],
+  id: string | null,
+): Paper | null {
+  if (!id) return null;
+  const exact = papers.find((paper) => paper.id === id);
+  if (exact) return exact;
+  const matches = papers.filter((paper) => paper.stable_id === id);
+  return matches.length === 1 ? matches[0] : null;
+}
+
 export function findNodePapers(node: GraphNode, papers: readonly Paper[]): Paper[] {
   switch (node.kind) {
     case "topic":

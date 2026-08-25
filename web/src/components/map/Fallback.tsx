@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MutableRefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import type { Theme } from "../../hooks/theme";
 import {
@@ -14,6 +14,7 @@ import { useScene } from "../../hooks/scene";
 import { graphChrome, type ClusterSet } from "../../lib/clusters";
 import { graphEndpointId } from "../../lib/graph";
 import { showCluster, showLink } from "../../lib/quality";
+import { formatCamera, show2d, type CameraView } from "../../lib/camera";
 import type { GraphData, GraphLink, GraphNode } from "../../types";
 import { RegionOverlay } from "./Regions";
 
@@ -29,6 +30,7 @@ type FallbackProps = {
   selected: GraphNode | null;
   theme: Theme;
   layout: LayoutMode;
+  camera: CameraView | null;
   clusters: ClusterSet;
   regionsEnabled: boolean;
   onChoose: (node: GraphNode) => void;
@@ -80,6 +82,7 @@ export function FallbackGraph({
   selected,
   theme,
   layout,
+  camera,
   clusters,
   regionsEnabled,
   onChoose,
@@ -87,6 +90,7 @@ export function FallbackGraph({
   onClear,
 }: FallbackProps) {
   const [hovered, setHovered] = useState<GraphNode | null>(null);
+  const restoredRef = useRef<string | null>(null);
   const quality = useQuality(graph.nodes.length, width, height);
   const scene = useScene(graph, layout, quality.tier, selected?.id);
   const activeIds = new Set(
@@ -109,10 +113,19 @@ export function FallbackGraph({
 
   useEffect(() => {
     if (!graphRef.current) return;
-    if (layout === "semantic") pinNodes(graph.nodes);
-    else freeNodes(graph.nodes);
-    applyLayout(graphRef.current, layout);
-  }, [graph, graphRef, layout]);
+    const dense = layout === "semantic" && scene.simple;
+    if (dense) pinNodes(scene.graph.nodes);
+    else freeNodes(scene.graph.nodes);
+    applyLayout(graphRef.current, layout, true, dense);
+  }, [graphRef, layout, scene.graph.nodes, scene.simple]);
+
+  useEffect(() => {
+    const key = formatCamera(camera);
+    if (!camera || !key || restoredRef.current === key) return;
+    restoredRef.current = key;
+    show2d(graphRef.current, camera, height);
+    regions.project(height / (2 * camera.radius));
+  }, [camera, graphRef, height, regions]);
 
   return (
     <>

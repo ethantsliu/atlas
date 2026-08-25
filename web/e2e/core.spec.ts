@@ -70,13 +70,55 @@ test("search fetches the paper shard once", async ({ page }) => {
   expect(hits).toHaveLength(1);
 });
 
-test("a paper deep link fetches its shard once", async ({ page }) => {
+test("a bare paper deep link selects it and opens evidence explicitly", async ({
+  page,
+}) => {
   const hits = trackShard(page);
-  await loadMap(page, "/#?s=paper-1&k=trpi");
+  await loadMap(page, "/#?s=paper-1");
+  await expect(page.getByLabel("Choose a visible graph node")).toHaveValue("paper-1");
+  await expect(page.getByRole("heading", { name: "In Two Minds" })).toBeVisible();
+  await page.getByRole("button", { name: "Open paper", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("In Two Minds", {
     timeout: 20_000,
   });
   expect(hits).toHaveLength(1);
+});
+
+test("copied view links include a camera snapshot", async ({ page, context }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: (value: string) => {
+          (window as typeof window & { __atlasCopied?: string }).__atlasCopied = value;
+          return Promise.resolve();
+        },
+      },
+    });
+  });
+  await loadMap(page);
+  await showFilters(page);
+  await page.getByRole("button", { name: /Paper\s+2205/ }).click();
+  const header = page.locator(".graph-header > div");
+  await expect(header).toContainText("drawn", { timeout: 20_000 });
+  const before = Number(
+    (await header.textContent())?.match(/([\d,]+) drawn/)?.[1].replace(",", ""),
+  );
+  const picker = page.getByLabel("Choose a visible graph node");
+  await picker.fill("Massive Spikes in LLMs are Bias Vectors");
+  await page.getByRole("option", { name: /Massive Spikes in LLMs/ }).click();
+  await expect(header).toContainText(`${before + 1} drawn`);
+  await page.getByRole("button", { name: "Center selected" }).click();
+  await page.getByRole("button", { name: "Copy a link to this atlas view" }).click();
+  const copied = await page.evaluate(
+    () => (window as typeof window & { __atlasCopied?: string }).__atlasCopied ?? "",
+  );
+  const camera = new URL(copied).hash
+    .match(/c=1_([^&]+)/)?.[1]
+    .split("_")
+    .map(Number);
+  expect(camera?.slice(0, 3)).toEqual([180.4, 17.1, -24.5]);
 });
 
 test("a failed paper shard retries once", async ({ page }) => {
@@ -223,7 +265,7 @@ test("context loss falls back to 2D", async ({ page }) => {
   if (await graph3d.count()) {
     await graph3d.locator("canvas").first().dispatchEvent("webglcontextlost");
     await expect(page.getByLabel("Interactive research graph")).toContainText(
-      "2D semantic compatibility view",
+      "2D compatibility · semantic",
     );
     await expect(page.locator(".graph-status")).toContainText(
       "3D view paused. You’re in the 2D compatibility view.",

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { APP_VIEWS, type AppView } from "../components/Header";
 import { ALL_NODE_KINDS } from "../lib/graph";
+import { formatCamera, parseCamera, type CameraView } from "../lib/camera";
 import type { GraphNodeKind } from "../types";
 import type { LayoutMode } from "./layout";
 
@@ -14,6 +15,7 @@ export type AtlasUrlState = {
   minFeasibility: number;
   focus: string | null;
   layout: LayoutMode;
+  camera: CameraView | null;
 };
 
 export type UrlPatch =
@@ -54,6 +56,7 @@ export const DEFAULT_URL_STATE: AtlasUrlState = {
   minFeasibility: 1,
   focus: null,
   layout: "semantic",
+  camera: null,
 };
 
 const CODE_VIEWS = new Map(
@@ -109,6 +112,7 @@ function cleanState(state: AtlasUrlState): AtlasUrlState {
       score >= 1 && score <= 10 && score * 2 === Math.round(score * 2) ? score : 1,
     focus: validId(state.focus),
     layout: state.layout === "connections" ? "connections" : "semantic",
+    camera: formatCamera(state.camera) ? state.camera : null,
   };
 }
 
@@ -137,6 +141,7 @@ export function decodeUrl(input: string | URL): AtlasUrlState {
     minFeasibility: readScore(params.get("f")),
     focus: validId(params.get("x")),
     layout: params.get("l") === "c" ? "connections" : "semantic",
+    camera: parseCamera(params.get("c")),
   };
 }
 
@@ -155,6 +160,8 @@ export function encodeUrl(state: AtlasUrlState, base: string | URL): URL {
   if (clean.minFeasibility !== 1) params.set("f", String(clean.minFeasibility));
   if (clean.focus) params.set("x", clean.focus);
   if (clean.layout === "connections") params.set("l", "c");
+  const camera = clean.view === "map" ? formatCamera(clean.camera) : null;
+  if (camera) params.set("c", camera);
   const encoded = params.toString();
   url.search = "";
   url.hash = encoded ? `?${encoded}` : priorHash;
@@ -199,7 +206,7 @@ export function useAtlasUrl() {
   const update = useCallback((patch: UrlPatch, mode: UrlMode = "replace") => {
     const current = stateRef.current;
     const changes = typeof patch === "function" ? patch(current) : patch;
-    const next = cleanState({ ...current, ...changes });
+    const next = cleanState({ ...current, ...changes, camera: null });
     stateRef.current = next;
     setState(next);
     saveUrl(next, mode);
@@ -207,8 +214,9 @@ export function useAtlasUrl() {
 
   const replace = useCallback((patch: UrlPatch) => update(patch, "replace"), [update]);
   const push = useCallback((patch: UrlPatch) => update(patch, "push"), [update]);
-  const shareUrl = useMemo(
-    () => encodeUrl(state, window.location.href).toString(),
+  const shareUrl = useCallback(
+    (camera: CameraView | null = null) =>
+      encodeUrl({ ...state, camera }, window.location.href).toString(),
     [state],
   );
 

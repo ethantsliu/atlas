@@ -1,21 +1,22 @@
 import { lazy, Suspense, useCallback, useRef, type KeyboardEvent } from "react";
-import { Share } from "../Share";
 import { layoutTime, type LayoutMode } from "../../hooks/layout";
 import { useElementSize } from "../../hooks/size";
 import type { Theme } from "../../hooks/theme";
 import { useWebgl } from "../../hooks/webgl";
+import { useDrawn } from "../../hooks/drawn";
 import { ALL_NODE_KINDS, NODE_COLORS } from "../../lib/graph";
 import { findNextNode, type ArrowKey } from "../../lib/nav";
 import { labelOf } from "../../lib/text";
 import type { ClusterSet } from "../../lib/clusters";
+import type { CameraView } from "../../lib/camera";
 import type { GraphData, GraphNode } from "../../types";
 import { GraphControls } from "./Controls";
-import { LayoutControl } from "./Layout";
 import type { GraphRef } from "./Driver";
 import type { FallbackRef } from "./Fallback";
-import { NodePicker } from "./Picker";
 import { WebglStatus } from "./Status";
 import { EmptyState } from "../shared/Empty";
+import { GraphTools } from "./Tools";
+import { GraphHelp } from "./Help";
 
 const GraphFallback = lazy(() =>
   import("./Fallback").then((module) => ({ default: module.FallbackGraph })),
@@ -35,10 +36,11 @@ type GraphCanvasProps = {
   query: string;
   theme: Theme;
   layout: LayoutMode;
-  shareUrl: string;
+  shareUrl: (camera?: CameraView | null) => string;
   onLayout: (mode: LayoutMode) => void;
   clusters: ClusterSet;
   focus: string | null;
+  camera: CameraView | null;
 };
 
 export function GraphCanvas({
@@ -55,6 +57,7 @@ export function GraphCanvas({
   onLayout,
   clusters,
   focus,
+  camera,
 }: GraphCanvasProps) {
   const { ref: containerRef, width, height } = useElementSize<HTMLElement>();
   const { mode, status, retry } = useWebgl(containerRef);
@@ -63,6 +66,7 @@ export function GraphCanvas({
   const selectedId = graph.nodes.some((node) => node.id === selected?.id)
     ? (selected?.id ?? "")
     : "";
+  const drawn = useDrawn(graph, width, height, layout, selected?.id);
 
   const resetView = useCallback(() => {
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -101,25 +105,27 @@ export function GraphCanvas({
         if (source) onChoose(source);
       }}
     >
-      <p className="sr-only" id="graph-help">
-        Use the arrow keys to move between visible nodes.
-        {mode === "3d"
-          ? " Drag to rotate the three dimensional map."
-          : " Drag to pan the compatibility map."}{" "}
-        Scroll or pinch to zoom. Select a node to inspect it.
-      </p>
-      <p className="sr-only" aria-live="polite">
-        {selected ? `${labelOf(selected.kind)} selected: ${selected.label}` : ""}
-      </p>
+      <GraphHelp mode={mode} selected={selected} />
       <GraphControls
         count={graph.nodes.length}
+        drawn={drawn}
         mode={mode}
         layout={layout}
         onReset={resetView}
       >
-        <NodePicker nodes={graph.nodes} selectedId={selectedId} onChoose={onChoose} />
-        <LayoutControl mode={layout} onChange={onLayout} />
-        <Share url={shareUrl} />
+        <GraphTools
+          graphRef={graphRef}
+          fallbackRef={fallbackRef}
+          height={height}
+          layout={layout}
+          mode={mode}
+          nodes={graph.nodes}
+          onChoose={onChoose}
+          onLayout={onLayout}
+          selected={selected}
+          selectedId={selectedId}
+          shareUrl={shareUrl}
+        />
       </GraphControls>
       <WebglStatus status={status} onRetry={retry} />
 
@@ -157,6 +163,7 @@ export function GraphCanvas({
             selected={selected}
             theme={theme}
             layout={layout}
+            camera={camera}
             clusters={clusters}
             regionsEnabled={!query.trim() && !focus && layout === "semantic"}
             onChoose={(node) => {
@@ -190,6 +197,7 @@ export function GraphCanvas({
             selected={selected}
             theme={theme}
             layout={layout}
+            camera={camera}
             clusters={clusters}
             regionsEnabled={!query.trim() && !focus && layout === "semantic"}
             onChoose={(node) => {

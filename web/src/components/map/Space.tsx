@@ -24,6 +24,7 @@ import type { Theme } from "../../hooks/theme";
 import { graphEndpointId } from "../../lib/graph";
 import { graphChrome, type ClusterSet } from "../../lib/clusters";
 import { showCluster, showLink } from "../../lib/quality";
+import { formatCamera, show3d, type CameraView } from "../../lib/camera";
 import { buildNode } from "../../lib/scene";
 import type { GraphData, GraphLink, GraphNode } from "../../types";
 import type { GraphRef } from "./Driver";
@@ -37,6 +38,7 @@ type SpaceProps = {
   selected: GraphNode | null;
   theme: Theme;
   layout: LayoutMode;
+  camera: CameraView | null;
   clusters: ClusterSet;
   regionsEnabled: boolean;
   onChoose: (node: GraphNode) => void;
@@ -52,6 +54,7 @@ export function GraphSpace({
   selected,
   theme,
   layout,
+  camera,
   clusters,
   regionsEnabled,
   onChoose,
@@ -64,6 +67,7 @@ export function GraphSpace({
   const fitRef = useRef(true);
   const fitFrameRef = useRef<number>();
   const timerRef = useRef<number>();
+  const restoredRef = useRef<string | null>(null);
   const topology = useMemo(
     () =>
       graph.nodes
@@ -104,8 +108,8 @@ export function GraphSpace({
   });
 
   useEffect(() => {
-    fitRef.current = true;
-  }, [graphRef, topology]);
+    fitRef.current = !selected;
+  }, [graphRef, selected, topology]);
 
   useEffect(
     () => () => {
@@ -117,15 +121,25 @@ export function GraphSpace({
 
   useEffect(() => {
     if (graphRef.current) {
-      if (layout === "semantic") pinNodes(graph.nodes);
-      else freeNodes(graph.nodes);
-      applyLayout(graphRef.current, layout, engineReadyRef.current);
+      const dense = layout === "semantic" && scene.simple;
+      if (dense) pinNodes(scene.graph.nodes);
+      else freeNodes(scene.graph.nodes);
+      applyLayout(graphRef.current, layout, engineReadyRef.current, dense);
       graphRef.current.refresh();
     }
-  }, [graph.nodes, graphRef, layout]);
+  }, [graphRef, layout, scene.graph.nodes, scene.simple]);
 
   useEffect(() => {
-    if (layout !== "semantic" || !graphRef.current) return;
+    const key = formatCamera(camera);
+    if (!camera || !key || restoredRef.current === key || !graphRef.current) return;
+    restoredRef.current = key;
+    fitRef.current = false;
+    show3d(graphRef.current, camera);
+    regionView.project();
+  }, [camera, graphRef, regionView]);
+
+  useEffect(() => {
+    if (camera || selected || layout !== "semantic" || !graphRef.current) return;
     const api = graphRef.current;
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const duration = layoutTime(Boolean(reduced), 700);
@@ -135,7 +149,7 @@ export function GraphSpace({
       api.zoomToFit(duration, 72, (node) => !rendered || rendered.has(node.id));
     });
     return () => window.cancelAnimationFrame(fitFrameRef.current ?? 0);
-  }, [graphRef, layout, rendered, topology]);
+  }, [camera, graphRef, layout, rendered, selected, topology]);
 
   const activeIds = useMemo(
     () => new Set([selected?.id, hovered?.id].filter(Boolean)),
