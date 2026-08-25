@@ -1,0 +1,88 @@
+{
+  "stable_id": "arxiv:2507.09846",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2507.09846",
+    "pdf_sha256": "00c967c4e4ea92d2151c915fd10be70ab7ba31bbc23b9a06f4273eda25c3cba6",
+    "text_sha256": "dc6f7cb81e0afdeb3db5ce477b88745f26de64024abf3ce176aca09d4643625b",
+    "page_count": 26,
+    "extracted_at": "2026-08-23T16:20:51.664615+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Why can Schedule-Free AdamW train language models without a precommitted decay horizon or a separate averaged model, why is it momentum-sensitive, and can its averaging dynamics be refined for large batches?",
+  "key_findings": [
+    {
+      "claim": "In the tested 124M language models, a tuned Schedule-Free AdamW trajectory receives little extra validation-loss benefit from either a terminal AdamW decay or exponential weight averaging.",
+      "evidence": "Checkpoint interventions show large loss drops after decay or EWA for constant-rate AdamW but minimal drops for tuned SF-AdamW; interpolation between checkpoints is comparatively flat, which the authors interpret as staying near the floor of a river-valley landscape.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 5, "section": "3, Figure 2"}, {"page": 6, "section": "Figure 3 and Observation 1"}]
+    },
+    {
+      "claim": "The returned x iterate is an implicit weighted average of gradient-evaluation y iterates, coupling momentum and averaging in vanilla Schedule-Free optimization.",
+      "evidence": "The reformulation writes y as a momentum-style update and algebraically expresses x as a weighted average of past y values. Empirically, y and its EWA remain closer to the inferred river under poor beta1 values even when x degrades.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 7, "section": "4.1–4.2, Figures 5–6"}, {"page": 8, "section": "4.4 Reformulation"}, {"page": 22, "section": "Appendix D.2"}]
+    },
+    {
+      "claim": "Quadratic stability analysis and small full-batch experiments connect Schedule-Free dynamics to the edge of stability, but the central-flow explanation is explicitly approximate.",
+      "evidence": "Propositions 4.1–4.2 derive thresholds involving (1-beta) and preconditioned curvature; toy and CIFAR-10 experiments place sharpness near those thresholds. The appendix labels the central-flow derivation an ansatz, assumes one top eigenvalue and negligible 1/t terms, and does not establish it for stochastic AdamW pretraining.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 8, "section": "4.3 Edge of Stability"}, {"page": 9, "section": "4.5 Central Flow"}, {"page": 23, "section": "Appendix D.3"}]
+    },
+    {
+      "claim": "A new coefficient C decouples the averaging window from beta1 and improves robustness in the reported momentum and 2M-token-batch sweeps.",
+      "evidence": "The refined update rescales the x-update coefficient by (1-beta1)C. Reported sweeps show gains over vanilla Schedule-Free across broad C ranges; at beta1=0.98 and a 2M-token batch, C=200 matches the final cosine-AdamW performance where vanilla SF lags.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 10, "section": "5 Refined Schedule-Free Method"}, {"page": 15, "section": "Algorithm 2"}, {"page": 19, "section": "Appendix C.1, Tables 5–6"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Interpret Schedule-Free optimization as implicit averaging of edge-of-stability iterates moving along a low-curvature river, then expose a coefficient that controls averaging independently of momentum.",
+    "mechanism": "The work combines checkpoint decay/EWA interventions, parameter-space interpolation, toy and CIFAR curvature measurements, quadratic stability propositions, a central-flow approximation, and 124M-parameter language-model sweeps on SlimPajama/OpenWebText2.",
+    "assumptions": [
+      "A short low-rate decay approximately removes high-curvature displacement without materially moving downstream, so its gain diagnoses distance from the river floor.",
+      "The largest preconditioned Hessian direction captures the relevant edge-of-stability behavior.",
+      "Findings at 124M parameters and 2.5–5B tokens transfer to genuinely large, continually extended pretraining."
+    ]
+  },
+  "techniques": [
+    {"id": "checkpoint-decay-intervention", "role": "Applies a short decay from saved iterates to estimate recoverable high-curvature loss."},
+    {"id": "schedule-free-reparameterization", "role": "Rewrites the three-sequence optimizer as momentum on y plus implicit averaging into x."},
+    {"id": "averaging-momentum-decoupling", "role": "Introduces C in the averaging coefficient so beta1 need not set both memory effects."}
+  ],
+  "evaluations": [
+    {"setting": "124M LLaMA-style model, SlimPajama, 0.5M-token batches, roughly 2.5B tokens", "metric": "Validation perplexity/loss before and after decay or EWA", "result": "Tuned SF-AdamW gains minimally from either intervention, unlike constant-rate AdamW; suboptimal beta1 restores a sizable decay gain.", "baseline": "AdamW with constant rate, decay, EWA, and cosine scheduling."},
+    {"setting": "Toy river objective and full-batch MLP on 5k CIFAR-10 examples", "metric": "Trajectory geometry and (preconditioned) top Hessian eigenvalue", "result": "y oscillates around the river and measured sharpness approaches the derived stability threshold.", "baseline": "Standard edge-of-stability threshold and x-iterate behavior."},
+    {"setting": "2M-token-batch 124M-model sweeps", "metric": "Held-out perplexity", "result": "Refined SF with C around 200 closes the reported gap between vanilla SF and cosine AdamW.", "baseline": "Vanilla SF-AdamW and cosine AdamW."}
+  ],
+  "limitations": [
+    "Author-stated: the central-flow analysis uses simplifying assumptions and the language-model experiments are small-scale.",
+    "Author-stated: momentum sensitivity and large-batch degradation motivate an additional hyperparameter rather than a parameter-free resolution.",
+    "Reviewer inference: the river diagnostic depends on interpreting decay as pure cross-river movement; it does not directly identify Hessian subspaces in the LM runs.",
+    "Reviewer inference: compute savings from avoiding an auxiliary average are not benchmarked in distributed frontier training."
+  ],
+  "failure_modes": [
+    "Poor beta1 can make the reported x iterate drift away from a good y trajectory even as optimization continues.",
+    "A fixed C may cease to be appropriate when batch size, curvature, or data distribution changes during open-ended training.",
+    "Multiple sharp modes or rapidly changing adaptive preconditioners can invalidate the single-mode central-flow picture."
+  ],
+  "reusable_insights": [
+    "Use terminal-decay and averaging interventions on saved checkpoints to distinguish optimization progress from oscillatory excess loss.",
+    "Optimizer state variables may play separable roles as evaluation points and returned averages; inspect them independently.",
+    "When one coefficient controls two kinds of memory, expose the coupling before adding more elaborate mechanisms."
+  ],
+  "open_questions": [
+    "Does refined Schedule-Free optimization preserve its advantage at multi-billion-parameter scale and after data-mixture shifts?",
+    "Can C be estimated online from curvature or iterate statistics without a sweep?",
+    "How accurate is the proposed central flow for stochastic, coordinatewise AdamW rather than scalar/full-batch surrogates?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2405.15682", "title": "The Road Less Scheduled", "url": "https://arxiv.org/abs/2405.15682", "relationship": "foundational method", "difference": "Defazio et al. introduce Schedule-Free optimization from online-to-batch theory; the reviewed paper supplies a river/edge-of-stability interpretation and a decoupled averaging coefficient for LM pretraining.", "source_kind": "arxiv", "checked_at": "2026-08-23"},
+    {"canonical_id": "openreview:Y13gSfTjGr", "title": "Scaling Laws and Compute-Optimal Training Beyond Fixed Training Durations", "url": "https://openreview.net/forum?id=Y13gSfTjGr", "relationship": "direct scalable-training alternative", "difference": "Hagele et al. use reusable constant-rate trunks with cooldowns and stochastic weight averaging; Schedule-Free seeks comparable visibility without explicit cooldown branches or an additional full parameter copy.", "source_kind": "openreview", "checked_at": "2026-08-23"},
+    {"canonical_id": "openreview:m51BgoqvbP", "title": "Understanding Warmup-Stable-Decay Learning Rates: A River Valley Loss Landscape View", "url": "https://openreview.net/forum?id=m51BgoqvbP", "relationship": "geometric predecessor", "difference": "Wen et al. develop the river-valley account for stable-then-decay schedules; this paper transfers that diagnostic to Schedule-Free trajectories and argues their returned averages already follow the floor.", "source_kind": "openreview", "checked_at": "2026-08-23"},
+    {"canonical_id": "arxiv:2502.02431", "title": "Connections between Schedule-Free Optimizers, AdEMAMix, and Accelerated SGD Variants", "url": "https://arxiv.org/abs/2502.02431", "relationship": "concurrent optimizer analysis", "difference": "Morwani et al. connect momentum variants and propose Simplified-AdEMAMix, reporting strong 150M language-model results; the reviewed work focuses on implicit averaging, river tracking, and decoupling its x-update from beta1.", "source_kind": "arxiv", "checked_at": "2026-08-23"}
+  ],
+  "novelty_assessment": "Author claim: Schedule-Free AdamW implicitly averages its edge-of-stability trajectory so it tracks a river without decay or extra model storage, and the new C coefficient improves momentum and large-batch robustness. Reviewer inference after comparison: the optimizer and river view are inherited, but the algebraic coupling diagnosis, checkpoint interventions, and C refinement form a coherent new contribution; evidence for frontier-scale continual pretraining remains prospective.",
+  "confidence": 0.92,
+  "reviewer_notes": "Read all twenty-six extracted pages, including algorithms, hyperparameters, sweeps, proofs, and the explicitly non-rigorous central-flow derivation. Quantitative results are author-reported; the scope of the geometric diagnostic and scale extrapolation are reviewer judgments. Competitor primary records were checked on 2026-08-23."
+}

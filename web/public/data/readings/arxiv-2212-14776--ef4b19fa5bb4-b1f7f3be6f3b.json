@@ -1,0 +1,183 @@
+{
+  "stable_id": "arxiv:2212.14776",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2212.14776",
+    "pdf_sha256": "bce22600474513c61b8c47701d19275bb465dae909f1ede1598521dcf0ba57da",
+    "text_sha256": "4d536ffe9eb9e0719829a946781a50b6d357aefd92a185a446faa9a76f0ca523",
+    "page_count": 24,
+    "extracted_at": "2026-08-23T20:17:04.359789+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "When does an attention model's learned focus identify the input segment that truly determines a label, how can that property be measured objectively, and do sparsity-promoting attention mechanisms improve it?",
+  "key_findings": [
+    {
+      "claim": "A COCO captioning case study finds that learned attention overlaps annotated objects more than a random sparse map, but the experiment is only a coarse plausibility check.",
+      "evidence": "For generated words manually associated with COCO object classes, cosine overlap between upsampled attention and the relevant bounding-box mask averages 0.539, versus 0.24 for a random 20-location vector and 0.429 after retaining the learned map's top 20 locations. The annotation-to-word mapping, bounding-box proxy, and single captioning architecture do not establish causal faithfulness.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Section 2, image-captioning case study"},
+        {"page": 4, "section": "Table 1 and quantified attention protocol"},
+        {"page": 18, "section": "Appendix C.1, overlap-measure illustration"}
+      ]
+    },
+    {
+      "claim": "Selective Dependence Classification (SDC) and the Focus-Classify Attention Model (FCAM) make one narrow notion of attention interpretability objectively measurable.",
+      "evidence": "An SDC example contains one foreground segment drawn from the label-conditional distribution and independently drawn background segments. FCAM scores segments, softmax-aggregates them, and classifies the aggregate; Focus Truth (FT) is the probability that the true foreground scores above every background segment. The paper explicitly acknowledges that one-segment dependence and conditional independence are cartoon-like assumptions.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "Section 3.1, SDC definition and assumptions"},
+        {"page": 6, "section": "Algorithm 1 and FCAM definition"},
+        {"page": 7, "section": "Focus Truth interpretability measure"}
+      ]
+    },
+    {
+      "claim": "High classification accuracy does not identify the intended foreground, even when an interpretable solution exists.",
+      "evidence": "Three two-dimensional constructions reach 100% classification accuracy with only about 67-70% FT: optimization can settle on a focus rule that treats one class as background; the focus hypothesis class can be unable to separate foreground from background; or a powerful classifier can decode an almost uniformly averaged input before useful focusing is learned. These are constructive synthetic failure modes, not an exhaustive theorem for modern Transformer attention.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Section 4.1, first error mode"},
+        {"page": 9, "section": "Section 4.2, second error mode"},
+        {"page": 10, "section": "Section 4.3, third error mode and training dynamics"}
+      ]
+    },
+    {
+      "claim": "On semi-synthetic CIFAR-SDC, sparsemax and spherical softmax improve foreground selection without a material accuracy gain.",
+      "evidence": "With input-level aggregation, vanilla softmax obtains 95.04% accuracy and 79.77% FT; sparsemax obtains 95.80% and 91.43%, and spherical softmax 95.17% and 91.07%. Entropy regularization remains at 79.97% FT, while hard attention reaches 87.63% FT but lowers accuracy to 92.13%. Results are averaged over three runs except some entropy configurations use fewer runs.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 12, "section": "Table 2 and CIFAR-SDC setup"},
+        {"page": 13, "section": "Section 6.2, interpretation of results"},
+        {"page": 21, "section": "Appendix D.0.1, seed and hyperparameter protocol"},
+        {"page": 22, "section": "Appendix E, CIFAR experiment details"}
+      ]
+    },
+    {
+      "claim": "The full results contradict any blanket claim that sparsity itself makes attention interpretable.",
+      "evidence": "On the fully synthetic SDC task, input-level sparsemax has slightly lower FT than softmax (77.076% versus 77.80%), spherical softmax falls to 71.83%, and hard attention collapses to 12.07% FT despite 97.264% accuracy. Later-layer aggregation, rather than sparsity alone, raises several FT values into the high 80s. The defensible conclusion is algorithm- and representation-dependent improvement, not a general sparsity guarantee.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 13, "section": "Section 6.2, hard-attention and aggregation caveats"},
+        {"page": 19, "section": "Appendix Table 1, synthetic SDC results"},
+        {"page": 20, "section": "Appendix D, synthetic setup"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Replace the ambiguous claim that attention is interpretable with a controlled classification problem whose label-relevant segment is known to the evaluator but hidden during training.",
+    "mechanism": "Generate mosaics with one foreground segment, train a focus network and classifier end to end from class labels, compare the focus network's top-ranked segment with the latent foreground index, and test softmax, entropy regularization, sparsemax, spherical softmax, hard attention, and different aggregation layers.",
+    "assumptions": [
+      "Exactly one segment determines the complete class label.",
+      "Foreground and background segments are conditionally independent and drawn from distinct base distributions.",
+      "Ranking the foreground first is a sufficient operational definition of interpretability for this task.",
+      "Semi-synthetic mosaic behavior is informative about attention failures in natural structured data.",
+      "The optimization and architecture comparisons are not dominated by unreported hyperparameter or seed effects."
+    ]
+  },
+  "techniques": [
+    {"id": "selective-dependence-classification", "role": "Creates a task with evaluator-known latent relevance and label-only training supervision."},
+    {"id": "focus-classify-attention-model", "role": "Separates segment scoring, weighted aggregation, and downstream classification."},
+    {"id": "focus-truth", "role": "Measures whether the true foreground segment receives the largest focus score."},
+    {"id": "sparsity-promoting-attention", "role": "Tests entropy regularization, sparsemax, spherical softmax, and hard selection as possible interpretability interventions."},
+    {"id": "aggregation-layer-ablation", "role": "Tests whether aggregating learned hidden features rather than raw segments improves focusing."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Show-Attend-and-Tell-style image captioning on COCO object words with bounding-box metadata.",
+      "metric": "Cosine overlap between an upsampled attention map and the corresponding object mask.",
+      "result": "Learned attention averages 0.539 overlap, above a random-20 baseline at 0.24 and a binarized top-20 learned map at 0.429.",
+      "baseline": "Random sparse locations and the learned attention map reduced to its top 20 locations."
+    },
+    {
+      "setting": "Three controlled two-dimensional SDC constructions with 200 training mosaics and nine segments per mosaic.",
+      "metric": "Classification accuracy and Focus Truth.",
+      "result": "Training produces fully accurate FCAMs with roughly one-third of examples focused incorrectly under three distinct mechanisms.",
+      "baseline": "Existence of simple accurate-and-interpretable focus/classifier solutions where the construction permits them."
+    },
+    {
+      "setting": "CIFAR-SDC with 40,000 mosaics, 10,000 test mosaics, three foreground classes, seven background classes, and CNN focus/classifier modules.",
+      "metric": "Accuracy, FT, attention nonzero count, distance to a coordinate vector, and entropy.",
+      "result": "Sparsemax and spherical softmax improve FT by more than ten points at similar accuracy; entropy regularization does not, and hard attention pays an accuracy cost.",
+      "baseline": "Vanilla softmax FCAM at raw-input and sixth-layer aggregation."
+    },
+    {
+      "setting": "Low-dimensional synthetic SDC with five seeds and input- versus hidden-layer aggregation.",
+      "metric": "Accuracy, FT, and three sparsity measures.",
+      "result": "No input-level sparse variant beats vanilla softmax FT, hard attention fails sharply, and hidden-layer aggregation is the more consistent improvement.",
+      "baseline": "Vanilla softmax under the same aggregation layer."
+    }
+  ],
+  "limitations": [
+    "SDC assumes one fully label-determining foreground segment and independent background segments, unlike most natural vision and language tasks.",
+    "FT measures localization against a generative index; it does not test counterfactual causal necessity, sufficiency, stability, or usefulness to a human.",
+    "FCAM is much simpler than multi-head self-attention with residual streams, value vectors, and information mixed across layers.",
+    "CIFAR-SDC is semi-synthetic: foreground and background are separated by class identity and every mosaic uses exactly nine complete images.",
+    "The COCO evaluation relies on manually grouped output words and rectangular object masks that may not represent the evidence actually required to generate a caption.",
+    "The CIFAR comparisons use only three runs, some entropy entries use two runs, and no uncertainty intervals are reported.",
+    "Hyperparameter selection is described only coarsely, and the many mechanism/layer combinations invite selection effects.",
+    "The study does not evaluate modern pretrained Transformers, cross-attention, long-context behavior, or real user judgments of explanations."
+  ],
+  "failure_modes": [
+    "The classifier learns to decode an average of all segments, leaving the focus module untrained or misleading.",
+    "The focus function treats a legitimate foreground class as if it were background while the classifier compensates.",
+    "The focus hypothesis class cannot represent the foreground/background boundary, so two wrong modules compose into an accurate predictor.",
+    "A sparse distribution confidently selects the wrong segment, increasing apparent decisiveness without faithfulness.",
+    "Contextual encoders move information between positions before attention, breaking the correspondence between a high weight and the original input segment.",
+    "An evaluator mistakes localization plausibility for a causal explanation of the complete model."
+  ],
+  "reusable_insights": [
+    "Evaluate predictive accuracy and explanation alignment separately; one cannot substitute for the other.",
+    "Use controlled latent-relevance tasks as unit tests before making interpretability claims on natural data.",
+    "Report counterexamples and per-mechanism results rather than compressing all sparsity interventions into one conclusion.",
+    "A good faithfulness benchmark should vary focus capacity, classifier capacity, aggregation depth, and data ambiguity independently.",
+    "Ground-truth localization is useful but should be paired with interventions that test whether selected information is necessary and sufficient."
+  ],
+  "open_questions": [
+    "Can SDC be generalized to multiple interacting foreground segments, structured rationales, and context-dependent relevance without losing objective evaluation?",
+    "Which training objectives make attention both causally faithful and calibrated rather than merely sparse?",
+    "How do residual connections and value-vector mixing change the three FCAM failure modes in Transformers?",
+    "Can a model know when its attention explanation is unreliable on an individual example?",
+    "Do attention explanations that score well under FT improve human decisions, debugging, or error discovery?",
+    "What benchmark combines latent ground truth, counterfactual interventions, naturalistic inputs, and human-usefulness tests?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1902.10186",
+      "title": "Attention is not Explanation",
+      "url": "https://arxiv.org/abs/1902.10186",
+      "relationship": "direct-faithfulness-predecessor",
+      "difference": "Jain and Wallace test correlations with gradient importance and construct alternative attention distributions on natural-language classifiers; the reviewed paper instead creates evaluator-known foreground labels and directly scores localization in a controlled FCAM."
+    },
+    {
+      "canonical_id": "acl:D19-1002",
+      "title": "Attention is not not Explanation",
+      "url": "https://aclanthology.org/D19-1002/",
+      "relationship": "direct-counterposition-and-evaluation-framework",
+      "difference": "Wiegreffe and Pinter argue that explanation must be defined model-relatively and propose seed-calibrated, uniform, diagnostic, and end-to-end adversarial tests; SDC supplies objective relevance labels but only under a far narrower data-generating process."
+    },
+    {
+      "canonical_id": "acl:P19-1282",
+      "title": "Is Attention Interpretable?",
+      "url": "https://aclanthology.org/P19-1282/",
+      "relationship": "direct-intervention-based-predecessor",
+      "difference": "Serrano and Smith erase or manipulate intermediate representations to measure attention weights' effect on predictions; the reviewed work compares attention to a known foreground index, which is clearer but does not itself measure causal effect."
+    },
+    {
+      "canonical_id": "acl:2022.blackboxnlp-1.10",
+      "title": "How (Un)Faithful is Attention?",
+      "url": "https://aclanthology.org/2022.blackboxnlp-1.10/",
+      "relationship": "contemporary-quantitative-faithfulness-metric",
+      "difference": "Amini and Kosseim derive AtteFa from one-shot adversarial attention and test contextual versus non-contextual encoders in text classification; FT instead requires ground-truth segment identity and tests whether the top focus is correct."
+    },
+    {
+      "canonical_id": "arxiv:2404.01415",
+      "title": "On the Faithfulness of Vision Transformer Explanations",
+      "url": "https://arxiv.org/abs/2404.01415",
+      "relationship": "later-transformer-faithfulness-evaluation",
+      "difference": "Wu et al. evaluate saliency faithfulness for Vision Transformer explanations with grouped perturbations and find gradient/multi-layer aggregation useful; this addresses modern attention stacks absent from the FCAM study, but lacks SDC's exact latent foreground variable."
+    }
+  ],
+  "novelty_assessment": "The paper's strongest contribution is not a universal verdict on attention but a clean, testable micro-world in which relevance is hidden from training and known to evaluation, enabling exact examples of accurate-but-misfocused models. The three failure constructions and layer/mechanism ablations are useful. Novelty should be scoped tightly: FT is one localization criterion under unrealistic SDC assumptions, the COCO study is plausibility rather than causal evidence, and the appendix contradicts a general claim that sparse attention is more interpretable.",
+  "confidence": 0.98,
+  "reviewer_notes": "Read all 24 cached pages, including the COCO protocol, SDC/FCAM definitions, all three error-mode constructions, both main and appendix result tables, seed/hyperparameter notes, manual object-word mappings, and references. Five direct primary-source competitors were checked on 2026-08-23. Scope audit: claims apply to one-segment SDC/FCAM localization, not attention interpretability in general. Contradiction audit: the synthetic appendix shows sparsemax, spherical softmax, and especially hard attention can fail to improve FT, so the main-text sparsity conclusion must remain conditional."
+}

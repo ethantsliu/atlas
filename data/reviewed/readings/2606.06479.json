@@ -1,0 +1,404 @@
+{
+  "stable_id": "arxiv:2606.06479",
+  "reading_depth": "verified",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2606.06479",
+    "pdf_sha256": "9bf19e76e900c0179c12220c759456438d3d6e61d6370c4cd7227c308494ed5c",
+    "text_sha256": "dbc044b943998258e4172de603f7174391e66407faa4d889cceca1a298e08c73",
+    "page_count": 30,
+    "extracted_at": "2026-08-23T09:52:26.563711+00:00",
+    "review_pass": "secondary-verified-v1"
+  },
+  "question": "Can a Transformer teacher learn predictive, approximately Markovian memory labels that turn nonlinear fixed-memory RNN pretraining into time-parallel one-step supervision, improve long-range sequence modeling over BPTT, and still yield useful recurrent inference after rollout-drift correction?",
+  "key_findings": [
+    {
+      "claim": "SMT separates memory representation from memory dynamics by jointly learning a predictive encoder-decoder and supervising an RNN on one-step latent transitions.",
+      "evidence": "A bidirectional Transformer encoder compresses a prefix into memory tokens, a causal decoder predicts future outputs from those tokens and teacher-forced future inputs, and the RNN predicts the next encoder memory from the current memory and next input. The objective combines future cross-entropy, one-step memory MSE, and a uniformity penalty; on natural tasks a single uniformly sampled timestep approximates the temporal expectation.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "2.2 Supervised Memory Training / predictive-state formulation"},
+        {"page": 4, "section": "Equations 2-5 / decoder, dynamics, and uniformity losses"},
+        {"page": 20, "section": "Appendix B.1 / encoder, decoder, and Transformer-RNN architectures"},
+        {"page": 21, "section": "Appendix B.1 / Figure 15 and alternative RNN backbones"},
+        {"page": 22, "section": "Appendix B.3 / natural-task sampling and default training setup"}
+      ]
+    },
+    {
+      "claim": "SMT removes recurrent credit propagation from its pretraining stage and gives a constant-depth gradient path, but this does not mean constant total work or unbounded context.",
+      "evidence": "The RNN is evaluated only on independent one-step teacher-memory pairs, so gradients never traverse an RNN rollout. Table 1 assigns SMT O(1) sequential operations and credit-path length, while also assigning O(Tc squared) training compute and O(M+Tc) memory. The actual natural-task setup truncates context to Tc=256 and future to Tf=64 by default, making the strongest computational claim about serial depth within a bounded teacher window rather than total FLOPs, memory traffic, or arbitrary-history training.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "2.2 Practice and Properties of SMT"},
+        {"page": 5, "section": "Table 1 resource requirements"},
+        {"page": 20, "section": "Appendix A / SeqFLOPs definition"},
+        {"page": 22, "section": "Appendix B.3 / Tc=256 and Tf=64 defaults"}
+      ]
+    },
+    {
+      "claim": "The paper's full reported method is not recurrence-free: DMT recurrently rolls out the student and is necessary for the headline SMT-to-DMT results.",
+      "evidence": "DMT computes the entire student memory trajectory on the student's own states and imitates encoder memories to correct covariate-shift drift. The paper explicitly says DMT is not time-parallel and may optionally propagate gradients through time. Under that optional through-time variant, Table 1's O(1) DMT credit-path entry conflicts with Appendix A's maximum-graph-distance definition because the unrolled recurrent graph contains O(T) paths. Figures 3-13 report the full method as SMT-to-DMT, not an SMT-only RNN, and Figure 12 shows DMT materially improves loss and rollout drift. Thus 'without recurrence' accurately describes SMT pretraining, not the complete best-performing training pipeline; DMT step count, learning rate, and cost share are not disclosed well enough to verify that it is lightweight.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "2.3 DAgger Memory Training / rollout drift"},
+        {"page": 5, "section": "DMT serial unrolling and experiment naming"},
+        {"page": 6, "section": "Figure 3 / SMT-to-DMT headline comparison"},
+        {"page": 9, "section": "Figure 12 / DMT drift and performance effects"},
+        {"page": 11, "section": "5 Discussion / DMT is not time-parallel"},
+        {"page": 20, "section": "Appendix A / maximum-distance credit-path definition"}
+      ]
+    },
+    {
+      "claim": "Across five synthetic diagnostic tasks, the displayed SMT-to-DMT RNN heatmaps outperform BPTT over the swept settings.",
+      "evidence": "The tasks vary sequence length and label noise for retrieval, memory length and state size for reverse copy, sequence length and stack complexity for state tracking, association count and complexity for key-value recall, and rule difficulty and examples for modular arithmetic. Figure 3 displays lower test loss for SMT-to-DMT than BPTT throughout the shown grid and compares both with the Transformer teacher, supporting attainable gains on controlled long-range credit-assignment problems.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "3.1 Synthetic Task Experiments / task definitions and summary"},
+        {"page": 6, "section": "Figure 3 synthetic-task heatmaps"},
+        {"page": 21, "section": "Appendix B.2.1 / retrieval, copy, and stack generators"},
+        {"page": 22, "section": "Appendix B.2.1 / associative recall and modular arithmetic"}
+      ]
+    },
+    {
+      "claim": "The paper reports important negative outcomes: hard associative recall remains unsolved, SMT-to-DMT cannot train the GRU setting, and memory collapse occurs without an adequate uniformity term.",
+      "evidence": "The synthetic-results discussion says SMT solves all harder credit-assignment cases except associative recall. In the real-task efficiency sweep, the authors state that the GRU architecture collapses the memory space during SMT and prevents useful rollout. The lambda ablation reports competitive task loss but collapsed memory geometry when lambda-uniformity is zero. The prose calls lambda-dynamics=0.1 and lambda-uniformity=0.001 best; Figure 16 supports that pair on MNIST (about 0.516 loss) but not TinyStories, whose lowest displayed cell is about 0.574 at lambda-dynamics=0.001 and lambda-uniformity=0.003, versus about 0.597 at the stated pair.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "3.1 / unresolved associative recall"},
+        {"page": 6, "section": "Figure 3 / associative-recall failure region"},
+        {"page": 7, "section": "3.3 / GRU memory-collapse failure"},
+        {"page": 8, "section": "3.6 / lambda coefficient ablation"},
+        {"page": 23, "section": "Appendix C / Figure 16 collapse measurements"}
+      ]
+    },
+    {
+      "claim": "On rasterized MNIST and Sketchy, SMT-to-DMT generations preserve long-range stroke structure more convincingly than the displayed BPTT samples, but the evidence is primarily qualitative.",
+      "evidence": "Figure 4 contrasts visibly streaked or locally reactive BPTT samples with digit-like SMT-to-DMT samples; Figures 5 and 18 show sketch-like strokes. The appendix supplies more images and state-space visualizations, yet there is no likelihood table, perceptual metric, classifier score, uncertainty interval, blinded human study, or equal-compute sample-quality comparison. The claim is therefore compelling as a visual failure demonstration but weak as a quantified generative-model result.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "3.2 / Figures 4-5 Attneave generation"},
+        {"page": 23, "section": "Appendix C / qualitative sample discussion"},
+        {"page": 24, "section": "Figure 17 additional MNIST samples"},
+        {"page": 27, "section": "Figure 18 additional Sketchy samples"},
+        {"page": 28, "section": "Figures 19-20 Attneave's cat analysis and continuation"},
+        {"page": 29, "section": "Figures 21-22 MNIST memory projections"},
+        {"page": 30, "section": "Figure 23 Sketchy memory projection"}
+      ]
+    },
+    {
+      "claim": "SMT-to-DMT reaches lower loss with fewer estimated sequential operations and roughly similar or better token counts in several TinyStories and MNIST settings, but the paper does not demonstrate an end-to-end wall-clock or total-compute advantage.",
+      "evidence": "Figure 6 sweeps steps, batch size, and sequence length under a one-day H200 cap. SMT-to-DMT is substantially left of BPTT in SeqFLOPs for Transformer and MLP backbones; token efficiency is approximately tied on TinyStories and better on MNIST, while GRU SMT fails. SeqFLOPs is defined as the critical path counted in atomic neural operations on an infinitely parallel computer, and the appendix reports 144 large runs but no measured throughput, total FLOPs, energy, peak memory, teacher amortization schedule, or statistical comparison.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "3.3 / sequential compute and data protocol"},
+        {"page": 7, "section": "Figure 6 / efficiency frontiers and GRU failure"},
+        {"page": 20, "section": "Appendix A / SeqFLOPs and data definitions"},
+        {"page": 23, "section": "Appendix D / compute resources"}
+      ]
+    },
+    {
+      "claim": "TinyStories sweeps show smooth improvement with longer context, larger memory, and more parameters, and an iso-loss tradeoff between memory size and training compute.",
+      "evidence": "Figures 7 and 8 display decreasing test loss as context grows from 16 to 512, memory increases, and teacher/student parameter counts rise. Figure 9 shows that more training FLOPs can achieve the same displayed loss with fewer memory dimensions. These plots establish monotone trends in the tested range, but the paper does not fit exponents, report uncertainty, test extrapolation, or separate width, depth, memory tokens, and teacher capacity cleanly enough to establish a predictive scaling law.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "3.4 / Figures 7-8 scaling sweeps"},
+        {"page": 8, "section": "3.5 / Figure 9 compression iso-loss contours"},
+        {"page": 22, "section": "Appendix B.3 / default model scale and training duration"}
+      ]
+    },
+    {
+      "claim": "Jointly letting the one-step dynamics loss shape encoder memories can solve retrieval even with future horizon one, which the authors interpret as credit amortized across optimizer steps.",
+      "evidence": "With encoder gradients detached from the dynamics loss, Figure 10 requires the decoder future window to cover the full 64-step retrieval dependency. Joint training succeeds across future lengths down to one. Because no recurrent computation graph connects early and late memories, the paper infers that each optimizer step propagates information one memory transition and that at least T optimization steps are needed for a T-step dependency. This is a plausible interpretation, but no direct gradient-flow or optimization-step intervention rules out alternative representation shaping.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 8, "section": "3.6 / predictive-state and detached-RNN ablation, Figure 10"}
+      ]
+    },
+    {
+      "claim": "The gradient diagnostic behaves as designed: BPTT memory gradients vanish or explode across time and initialization, while SMT gradients remain approximately time-invariant.",
+      "evidence": "On the needle task with loss at the final token, Figure 11 sweeps weight initializations and plots memory-gradient norms across 128 positions. BPTT traces decay or grow by orders of magnitude; SMT traces remain nearly flat because each supervised memory is connected through a fixed-depth teacher graph. This supports the credit-path analysis, though it is not an independent guarantee of good learned memory or rollout stability, as the separate need for DMT demonstrates.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Figure 11 gradient properties"},
+        {"page": 9, "section": "3.7 / gradient analysis"},
+        {"page": 20, "section": "Appendix A / credit-assignment path definition"}
+      ]
+    },
+    {
+      "claim": "On one synthetic stack task, the recurrent student extrapolates to longer sequences better than its Transformer teacher despite trailing at the training length.",
+      "evidence": "Both models are trained at length 64 with the same memory-information bottleneck. In Figure 13 the teacher has lower loss through the training range, but its loss rises much faster at 128-512 tokens, whereas the SMT-to-DMT RNN degrades more slowly. This is useful evidence for a recurrent finite-state inductive bias, but it is a single task, one training horizon, and no seeds or uncertainty are shown; it also contradicts describing the teacher as a universal performance upper bound.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "3 / SMT Encoder described as reference upper bound"},
+        {"page": 9, "section": "3.7 / Figure 13 sequence-length generalization"}
+      ]
+    },
+    {
+      "claim": "The sequence-to-set appendix proves only that timestamps make a sequence recoverable from a set; it does not prove arbitrary recurrent memory can be computed in bounded parallel depth.",
+      "evidence": "The constructed set function sorts timestamped tokens and then explicitly applies the original recurrent function up to t times. That implementation retains the sequential computation the main argument seeks to avoid. The appendix acknowledges that bounded-depth Transformers may require depth scaling with sequence length and that empirical shallow encoders lack full theoretical expressivity. Consequently, the exact theorem is a representation equivalence, while time-parallel learnability is an empirical approximation rather than a consequence of set notation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "1 / sequence-to-set key-insight claim"},
+        {"page": 25, "section": "Appendix E / constructive proof and sequential-depth qualification"}
+      ]
+    },
+    {
+      "claim": "Appendix F does not establish that the trained finite-horizon SMT memories are Markovian: it assumes an optimal minimal sufficient statistic and exact optimization, neither of which the objective enforces.",
+      "evidence": "The proof's decisive step says minimality forces m(t+1) to be a deterministic function of (m(t),x(t+1)); that conclusion relies on a formal minimal-sufficiency theorem and regularity not supplied in the paper. More importantly, the implication section assumes sufficient capacity, an infinite future horizon, and exact optimization, whereas experiments use finite Tf, finite networks, sampled timesteps, MSE transition matching, and a uniformity loss. The dynamics loss can encourage empirical predictability, but the ideal theorem cannot certify it.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "2.2 / claim that decoder loss is theoretically sufficient"},
+        {"page": 22, "section": "Appendix B.3 / finite-horizon finite-capacity training"},
+        {"page": 26, "section": "Appendix F / Encoder Markovian Training claim, proof, and assumptions"}
+      ]
+    },
+    {
+      "claim": "The paper itself identifies NextLat as highly related and potentially method-overlapping, narrowing SMT's novelty to the external-teacher, one-step nonlinear-RNN training emphasis.",
+      "evidence": "The related-work section says a particular NextLat configuration closely resembles DMT and resembles SMT when its rollout length is one, while still using BPTT for multi-step rollouts. It distinguishes the goals: NextLat regularizes a Transformer to form compact world models, whereas SMT centers on training a separate RNN one step at a time. Any novelty statement should preserve this acknowledged overlap rather than claim predictive latent transition supervision in general.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "4 Related Works / Relation with NextLat"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Use a time-parallel predictive-state teacher to label what a compact memory should be at each prefix, then train an arbitrary nonlinear fixed-memory RNN as a supervised one-step updater rather than propagating task gradients through recurrent time.",
+    "mechanism": "A bidirectional Transformer encoder maps a timestamped context window plus learned registers to memory tokens. A causal Transformer decoder predicts a future output window from those memories and future teacher-forced inputs. Joint loss combines future cross-entropy, next-memory MSE through the student RNN, and a memory-uniformity penalty. Natural-task pretraining samples one prefix per sequence, so student transitions are independent across time in the graph. The full method then freezes the teacher and performs DAgger Memory Training: it rolls out student memories on teacher-forced inputs, regresses each visited state toward the teacher trajectory, and adapts the readout to student states. Evaluation spans five synthetic diagnostics, character-level TinyStories, rasterized MNIST, and patched Sketchy across Transformer-, MLP-, and GRU-backed nonlinear RNNs.",
+    "assumptions": [
+      "Future prediction yields a useful compact sufficient statistic of the past rather than a task-specific shortcut.",
+      "Finite Transformer depth and a bounded context window can approximate the memory representation needed by the recurrent student.",
+      "The teacher memory coordinate system is smooth and one-step predictable enough for MSE imitation.",
+      "A uniformity penalty prevents collapse without forcing irrelevant distinctions into memory.",
+      "One uniformly sampled prefix per natural-task sequence adequately trains all temporal regions.",
+      "Teacher-forced future inputs do not leak away the long-range information the memory is meant to retain.",
+      "The decoder future horizon Tf contains the dependencies needed to shape memory, or joint dynamics training can amortize missing credit across optimization steps.",
+      "DMT on teacher-forced input sequences covers the student-state distribution that will occur during autoregressive deployment.",
+      "The Transformer teacher's bounded-depth expressivity is sufficient for pretraining even when the nonlinear RNN could represent harder sequential functions.",
+      "SeqFLOPs measured on an infinitely parallel critical path predicts practical training scalability.",
+      "Character-level TinyStories and rasterized images are representative tests of useful long-range language and visual memory.",
+      "Qualitative generated samples and test-loss frontiers are sufficient to compare long-horizon pixel models.",
+      "The ideal minimal-sufficiency assumptions in Appendix F are a useful model of the finite optimized encoder.",
+      "Lightweight recurrent post-training can recover behavior beyond the teacher without erasing SMT's advantages."
+    ]
+  },
+  "techniques": [
+    {"id": "predictive-state-memory-teacher", "role": "Compresses each observed prefix into memory tokens optimized to predict future outputs."},
+    {"id": "one-step-latent-transition-supervision", "role": "Trains the nonlinear RNN on independent (memory, next input) to next-memory examples."},
+    {"id": "bidirectional-register-encoder", "role": "Uses full attention over context tokens and learned registers to construct a fixed-size memory."},
+    {"id": "causal-future-decoder", "role": "Makes memory predictive by decoding a future output window with teacher-forced future inputs."},
+    {"id": "joint-markovian-shaping", "role": "Backpropagates one-step dynamics error into the encoder so adjacent teacher memories become easier to update."},
+    {"id": "memory-uniformity-regularization", "role": "Discourages latent collapse across prefixes."},
+    {"id": "single-prefix-time-sampling", "role": "Avoids constructing a recurrent or all-prefix student graph on natural data."},
+    {"id": "dagger-memory-training", "role": "Corrects rollout covariate shift by training on student-visited memory states while targeting teacher memories."},
+    {"id": "readout-state-adaptation", "role": "Finetunes the output head on imperfect student memories without sending task loss into recurrent dynamics."},
+    {"id": "sequential-critical-path-accounting", "role": "Measures estimated nonparallelizable operations separately from tokens processed."},
+    {"id": "memory-compression-scaling", "role": "Sweeps memory size and training compute to trace iso-loss contours."},
+    {"id": "gradient-path-diagnostic", "role": "Compares memory-gradient magnitude over time and initialization under BPTT versus SMT."},
+    {"id": "latent-drift-analysis", "role": "Measures one-step and rollout memory mismatch before and after DMT."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Five synthetic tasks varying retrieval horizon/noise, copy length/memory, stack depth, key-value complexity, and modular-arithmetic demonstrations.",
+      "metric": "Test loss heatmaps across task settings.",
+      "result": "SMT-to-DMT has lower displayed loss than BPTT throughout the shown grids, but the hardest associative-recall settings remain unsolved and uncertainty is not reported.",
+      "baseline": "BPTT RNN and the SMT Transformer encoder teacher."
+    },
+    {
+      "setting": "Raster-scan 28x28 grayscale MNIST modeled as 784 tokens.",
+      "metric": "Autoregressive sample appearance and test-loss/data-compute frontier.",
+      "result": "SMT-to-DMT produces digit-like samples and lower displayed loss; Transformer-BPTT samples are streaked and GRU-BPTT remains less structured.",
+      "baseline": "BPTT with Transformer and GRU recurrent backbones."
+    },
+    {
+      "setting": "64x64 binarized Sketchy images converted to 1024 non-overlapping 2x2-patch tokens.",
+      "metric": "Qualitative autoregressive stroke structure and memory-state projections.",
+      "result": "SMT-to-DMT samples frequently preserve stroke-like dependencies over hundreds of tokens, though many are not fully interpretable and no quantitative image metric is reported.",
+      "baseline": "Dataset examples and qualitative context continuations; no matched BPTT panel or external quality metric."
+    },
+    {
+      "setting": "Character-level TinyStories and rasterized MNIST, Transformer/MLP/GRU RNN backbones, hyperparameter sweeps capped at one day on an H200.",
+      "metric": "Test loss versus estimated sequential FLOPs and tokens processed.",
+      "result": "SMT-to-DMT is more serial-depth efficient for Transformer and MLP backbones, roughly tied in TinyStories token efficiency, and better on MNIST; SMT-to-DMT GRU fails.",
+      "baseline": "Separately tuned BPTT RNNs and the Transformer teacher."
+    },
+    {
+      "setting": "TinyStories context lengths 16-512, multiple memory sizes, and teacher/student width-depth sweeps.",
+      "metric": "Character-level test loss.",
+      "result": "Loss decreases smoothly with context, memory, and parameters in the plotted regime; no fitted exponent or held-out extrapolation is provided.",
+      "baseline": "Smaller contexts, memories, and models within SMT-to-DMT."
+    },
+    {
+      "setting": "TinyStories encoder training across memory-state sizes and FLOP budgets.",
+      "metric": "Iso-loss contours over memory size and training FLOPs.",
+      "result": "More training compute reaches a fixed displayed loss with smaller memory, demonstrating a finite-regime compression-compute tradeoff rather than a validated scaling law.",
+      "baseline": "Larger-memory, lower-compute SMT encoders at matched test loss."
+    },
+    {
+      "setting": "Length-64 synthetic retrieval with future-window sweep and encoder detachment from the dynamics loss.",
+      "metric": "SMT-to-DMT RNN loss.",
+      "result": "Detached training fails unless Tf covers the dependency, whereas joint dynamics shaping succeeds even at Tf=1.",
+      "baseline": "Detached encoder versus joint SMT across future lengths."
+    },
+    {
+      "setting": "SMT lambda-dynamics and lambda-uniformity sweep.",
+      "metric": "RNN test loss and uniformity loss.",
+      "result": "Zero uniformity remains task-loss competitive but collapses the latent space. The stated 0.1 dynamics/0.001 uniformity pair is best in the displayed MNIST grid, but Figure 16's lowest TinyStories cell instead uses 0.001 dynamics/0.003 uniformity, contradicting a task-general 'best' setting.",
+      "baseline": "Other coefficient pairs including zero uniformity."
+    },
+    {
+      "setting": "Multiple SMT hyperparameter settings before and after DMT.",
+      "metric": "RNN task loss, rollout memory 1-R-squared drift, and one-step error.",
+      "result": "DMT broadly lowers task loss and equilibrium rollout drift; one-step error only partially predicts rollout drift.",
+      "baseline": "The same RNN immediately after SMT and before DMT."
+    },
+    {
+      "setting": "Length-128 final-token retrieval across recurrent weight initializations.",
+      "metric": "Norm of the loss gradient with respect to memory at each timestep.",
+      "result": "BPTT gradients vanish or explode over time while SMT gradients remain nearly flat by construction of the nonrecurrent teacher graph.",
+      "baseline": "BPTT versus SMT gradient traces."
+    },
+    {
+      "setting": "Synthetic stack state tracking trained at length 64 and evaluated through length 512.",
+      "metric": "Test loss by sequence length.",
+      "result": "The Transformer teacher is better at the training horizon but degrades more sharply; the recurrent student extrapolates better beyond training.",
+      "baseline": "SMT Transformer encoder teacher with the same memory bottleneck."
+    }
+  ],
+  "limitations": [
+    "Author-stated: the time-parallel Transformer teacher has bounded sequential expressivity, so the student can inherit its limitations and may require BPTT post-training.",
+    "Author-stated: SMT learns sequence encodings, not necessarily multi-step reasoning, because intermediate reasoning steps are not supervised.",
+    "Author-stated: the current method trains only one sampled memory per natural sequence; training all memories did not help in the tested settings but may matter at scale.",
+    "Author-stated: student memories drift away from the teacher trajectory; DMT mitigates drift but is not time-parallel.",
+    "Author-stated: hard associative recall remains unresolved by SMT-to-DMT.",
+    "Author-stated: the GRU student collapses its memory space under SMT and cannot be trained in the reported real-task sweep.",
+    "Reviewer-identified: all main student comparisons use SMT-to-DMT, so the paper does not quantify how much SMT alone contributes before recurrent correction.",
+    "Reviewer-identified: DMT is called lightweight without a reported step count, learning rate, wall-clock share, or separate compute budget, and Table 1's O(1) DMT credit-path entry does not hold under the explicitly allowed through-time gradient variant.",
+    "Reviewer-identified: most experiments use hidden size 256, 16 memory tokens, character-level TinyStories, and toy or image-as-sequence tasks; there is no modern token-level language-model pretraining result.",
+    "Reviewer-identified: hyperparameter sweeps are broad but seeds, confidence intervals, and prospective model-selection rules are not reported.",
+    "Reviewer-identified: SeqFLOPs ignores total work, synchronization, hardware occupancy, teacher cost, and data movement; no end-to-end wall-clock speedup is measured.",
+    "Reviewer-identified: MNIST and Sketchy evidence is largely visual, without likelihood tables, perceptual metrics, or blinded ratings.",
+    "Reviewer-identified: the compression plots have no fitted law, exponent uncertainty, or out-of-range prediction test.",
+    "Reviewer-identified: Appendix E's exact construction sorts and executes the original recurrence, so sequence-to-set equivalence does not itself yield parallel computation.",
+    "Reviewer-identified: Appendix F assumes optimal minimal sufficiency, infinite future, and exact optimization; these properties are neither enforced nor verified for finite SMT training.",
+    "Reviewer-identified: DMT uses teacher-forced input tokens, leaving exposure bias from self-generated tokens untreated.",
+    "Reviewer-identified: the claimed best lambda-dynamics=0.1 and lambda-uniformity=0.001 setting is supported by the MNIST grid but not by the TinyStories grid in Figure 16.",
+    "Reviewer-identified: no equal-total-FLOP, equal-wall-clock, or equal-parameter comparison against current linear RNNs, state-space models, ParaRNN, or GTF-DEER is provided."
+  ],
+  "failure_modes": [
+    "The teacher memory can omit information that is unimportant for its finite future window but necessary much later or for a downstream task.",
+    "The decoder can use teacher-forced future inputs as a shortcut and place too little long-range information in memory.",
+    "One-step MSE can be small while the learned dynamics are unstable under repeated composition, causing exponential rollout drift.",
+    "DMT can overfit teacher trajectories under true input tokens and fail when both memory and generated tokens go off distribution.",
+    "Uniformity regularization can prevent collapse by preserving nuisance variation rather than task-sufficient state.",
+    "Memory-token coordinates can be non-identifiable across prefixes, making Euclidean one-step regression unnecessarily difficult.",
+    "A bounded-depth teacher cannot label states for a genuinely high sequential-depth task, so the more expressive student never receives the needed supervision.",
+    "The student can imitate the teacher in range yet learn a transition law that extrapolates incorrectly on new state combinations.",
+    "SeqFLOPs gains can disappear on finite hardware because Transformer teacher work and DMT trajectory construction dominate wall time.",
+    "GRU-style gating or other constrained state geometry can collapse under the teacher-memory objective.",
+    "Associative memories requiring many simultaneous key-value bindings can exceed the fixed bottleneck or evade one-step learning.",
+    "Qualitatively plausible pixel samples can mask worse density estimation, mode coverage, or calibration.",
+    "Compression curves can reflect teacher undercapacity or optimization failure rather than a fundamental compute-memory tradeoff."
+  ],
+  "reusable_insights": [
+    "Train state representation and state transition as separate objects, then measure both one-step prediction and long-rollout stability.",
+    "A fixed-memory sequence model can borrow global credit assignment from a parallel teacher while retaining constant-cost recurrent inference.",
+    "Predictive future windows determine what information becomes memory; their horizon is a controllable information-bottleneck parameter.",
+    "Allowing the transition loss to shape the teacher state can make the latent coordinate system easier to update, but this should be ablated against explicit canonicalization and contrastive dynamics losses.",
+    "State-space collapse needs a direct geometry diagnostic in addition to task loss.",
+    "On-policy latent imitation is a practical correction for compounding hidden-state error, analogous to DAgger for actions.",
+    "One-step error is not a reliable proxy for rollout drift; Jacobian spectra, contraction, and equilibrium error should be measured.",
+    "Separate serial depth, total FLOPs, tokens, peak memory, and wall-clock time when claiming time-parallel efficiency.",
+    "Test recurrent students beyond the teacher's training horizon because recurrence can supply an extrapolative inductive bias absent from the teacher.",
+    "A sequence represented as timestamped set elements is information-equivalent, but computational depth must be analyzed independently of representation format.",
+    "Compression should be evaluated as an iso-performance resource axis, with fitted prospective laws and downstream retention tests.",
+    "Negative architecture results such as GRU collapse are informative constraints on which latent geometries a memory teacher can supervise."
+  ],
+  "open_questions": [
+    "How much of each headline gain remains for an SMT-only RNN before DMT, and how much comes from recurrent on-policy correction?",
+    "Can DMT be replaced by a provably stable one-step objective using contraction, multi-step consistency, or Jacobian control while remaining time-parallel?",
+    "Does the method improve token-level language modeling at 1B-7B parameters under equal total FLOPs and wall-clock time against Mamba, xLSTM, ParaRNN, and GTF-DEER?",
+    "How should teacher future horizon and context horizon scale with memory size, dependency length, and downstream task horizon?",
+    "Can memory coordinates be made identifiable so transition MSE measures semantic state error rather than arbitrary latent rotation?",
+    "Which recurrent architectures avoid the GRU collapse, and what property of gating or normalization causes it?",
+    "Can associative recall be recovered with structured slots, sparse addressing, or external memory without giving up fixed-size inference?",
+    "What happens when DMT rolls out both student memories and student-generated tokens rather than teacher-forced inputs?",
+    "Do fitted compression-compute laws predict held-out budgets, architectures, datasets, and downstream performance?",
+    "Can a stronger sequential teacher or iterative post-training give the nonlinear RNN capabilities beyond bounded-depth Transformer labels without full BPTT?",
+    "What are the true throughput, energy, communication, and memory advantages on current accelerators once encoder, decoder, DMT, and hyperparameter-search costs are included?",
+    "Under what formal definition of predictive minimal sufficiency does Appendix F's recursive-function step hold, and can that property be approximately verified in learned memories?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2511.05963",
+      "title": "Next-Latent Prediction Transformers Learn Compact World Models",
+      "url": "https://arxiv.org/abs/2511.05963v4",
+      "relationship": "Closest acknowledged concurrent method using next-latent predictive supervision to induce compact, transition-consistent state.",
+      "difference": "NextLat adds a self-supervised next-latent objective inside a Transformer and retains Transformer training and inference; its official v4 reports belief-state convergence, downstream world-model and language gains, and speculative decoding. SMT trains a separate nonlinear fixed-memory RNN from encoder memories, and the target paper acknowledges that particular NextLat rollout settings closely resemble DMT and one-step SMT.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2511.05963v4"
+    },
+    {
+      "canonical_id": "arxiv:2605.12683",
+      "title": "Parallel-in-Time Training of Recurrent Neural Networks for Dynamical Systems Reconstruction",
+      "url": "https://arxiv.org/abs/2605.12683v1",
+      "relationship": "Direct pre-submission competitor for parallel training of nonlinear recurrent dynamics over very long sequences.",
+      "difference": "GTF-DEER combines the DEER equation-solving framework with generalized teacher forcing and trains on trajectories longer than 10,000 for nonlinear dynamical-system reconstruction. It preserves the target recurrence and parallelizes trajectory solution, whereas SMT avoids recurrent credit during pretraining by supervising one-step transitions from a Transformer teacher; GTF-DEER targets scientific dynamics rather than language and pixel generation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2605.12683v1"
+    },
+    {
+      "canonical_id": "arxiv:2510.21450",
+      "title": "ParaRNN: Unlocking Parallel Training of Nonlinear RNNs for Large Language Models",
+      "url": "https://arxiv.org/abs/2510.21450v2",
+      "relationship": "Direct large-scale nonlinear-RNN parallel-training competitor.",
+      "difference": "ParaRNN rewrites all recurrence constraints as a nonlinear equation system and uses Newton iterations plus parallel reductions, reporting up to 665x evaluation speedup and 7B-parameter LSTM/GRU language models comparable to Transformer and Mamba2 perplexity. SMT uses a predictive Transformer teacher and one-step imitation, avoids solving the full trajectory during pretraining, and is evaluated at much smaller scale; its DMT phase nevertheless reintroduces serial rollout.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2510.21450v2"
+    },
+    {
+      "canonical_id": "arxiv:2309.12252",
+      "title": "Parallelizing non-linear sequential models over the sequence length",
+      "url": "https://arxiv.org/abs/2309.12252v3",
+      "relationship": "Foundational DEER-style direct competitor for architecture-agnostic parallel evaluation and training of nonlinear recurrences.",
+      "difference": "Lim et al. solve the recurrence equations in parallel without changing the model and report up to three orders of magnitude faster evaluation and more than 10x training speedup with no meaningful output change. SMT instead changes the training problem by obtaining teacher memory labels; it offers constant student credit paths but can inherit teacher limits and requires DMT for rollout correction.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2309.12252v3"
+    },
+    {
+      "canonical_id": "arxiv:1709.08520",
+      "title": "Predictive-State Decoders: Encoding the Future into Recurrent Networks",
+      "url": "https://arxiv.org/abs/1709.08520v1",
+      "relationship": "Direct predictive-state supervision antecedent for shaping RNN hidden states with future observations.",
+      "difference": "Predictive-State Decoders add an auxiliary future-statistic decoder to recurrent hidden states and improve filtering, imitation learning, and reinforcement learning, but still unroll the RNN and optimize with BPTT. SMT moves future prediction into a parallel encoder-decoder teacher and trains student dynamics on detached one-step labels, making removal of recurrent credit propagation the main new combination.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:1709.08520v1"
+    },
+    {
+      "canonical_id": "arxiv:1705.09353",
+      "title": "Predictive State Recurrent Neural Networks",
+      "url": "https://arxiv.org/abs/1705.09353v2",
+      "relationship": "Predictive-state RNN foundation using state representations tied to future-observation distributions.",
+      "difference": "PSRNNs derive bilinear recurrent updates from predictive-state filtering and combine statistically consistent two-stage regression initialization with BPTT. SMT is architecture-agnostic over nonlinear student updates and learns memory labels with a Transformer future predictor, but lacks PSRNN's explicit filtering structure and theoretical consistency result.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:1705.09353v2"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims SMT is a new way to pretrain nonlinear fixed-memory RNNs without recurrent credit propagation: a time-parallel Transformer learns predictive memory states, the RNN learns one-step updates with O(1) gradient path length, and the resulting recurrent model gains long-range credit assignment, scalable compression, and constant-cost inference.",
+    "evidence": "The method combines a future-predictive memory bottleneck, joint transition and uniformity shaping, independent one-step student supervision, DAgger-style latent correction, broad synthetic sweeps, character-level TinyStories and pixel-sequence experiments, gradient diagnostics, and memory/compression plots.",
+    "reviewer_inference": "The strongest defensible novelty is the specific external predictive-memory teacher plus one-step nonlinear-RNN supervision and latent DAgger correction. Predictive-state decoders, predictive-state RNNs, Transformer-to-recurrent distillation, DEER/ParaRNN parallelization, GTF-DEER, and especially acknowledged NextLat substantially predate or overlap the ingredients. The title and O(1) rhetoric must be scoped to SMT pretraining: all headline students use recurrent DMT, DMT's optional through-time variant is inconsistent with an unconditional O(1) credit-path entry, the sequence-to-set proof does not yield bounded-depth computation, Appendix F assumes rather than verifies minimal predictive sufficiency, and practical wall-clock or modern token-level language-model gains are not established."
+  },
+  "confidence": 0.95,
+  "reviewer_notes": "A secondary pass read all 30 pages of the exact arXiv:2606.06479v2 PDF end to end, including the complete main text and references, Appendix A definitions, Appendix B architectures/datasets/algorithms, Appendix C ablations and samples, Appendix D compute disclosure, Appendix E sequence-to-set proof, Appendix F Markov-memory proof, all 23 figures, and Table 1. The immutable v2 PDF downloaded on 2026-08-23 matched the indexed PDF SHA-256 9bf19e76e900c0179c12220c759456438d3d6e61d6370c4cd7227c308494ed5c byte for byte; the indexed 30-page text hash is dbc044b943998258e4172de603f7174391e66407faa4d889cceca1a298e08c73. Rendered result and appendix pages were checked to repair the Figure 16 hyperparameter mismatch and qualify DMT's credit-path claim. Six exact current primary competitors were read at pinned revisions. Confidence is high on method, reported plots, and proof scope, but practical efficiency and generalization remain uncertain because there is no wall-clock comparison, seed uncertainty, SMT-only headline baseline, or modern token-level LM experiment.",
+  "verification": {
+    "reviewer_id": "reviewer-5e123265c49f",
+    "checked_at": "2026-08-23",
+    "passage_check": "Second-pass checked all 30 pages of arXiv:2606.06479v2 against extracted text and rendered PDF, including Equations 1-6, Table 1, Figures 1-23, all synthetic heatmaps, efficiency and scaling plots, every qualitative sample panel, the complete architecture/data/training appendix, and both proofs. Confirmed that headline students are SMT-to-DMT, DMT is serial and optionally backpropagates through its rollout, Figure 16's TinyStories minimum is not the prose-stated default pair, Appendix E sorts then executes the recurrence, and Appendix F assumes ideal minimal sufficiency, infinite horizon, and exact optimization.",
+    "competitor_check": "Opened official current records and read the exact primary PDFs for arXiv:2511.05963v4, 2605.12683v1, 2510.21450v2, 2309.12252v3, 1709.08520v1, and 1705.09353v2. Current titles, version histories, predictive-state objective, recurrence-parallelization mechanism, scale, speed or task claims, use of BPTT, and the precise overlap or distinction from SMT/DMT were independently checked on 2026-08-23."
+  }
+}

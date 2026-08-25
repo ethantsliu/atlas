@@ -1,0 +1,87 @@
+{
+  "stable_id": "arxiv:2507.11688",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2507.11688",
+    "pdf_sha256": "a99d414232746689b168daa903ea4046fc535e9c0e55bc237d1b4275f5670ef1",
+    "text_sha256": "32e03d439d1cd2c378029f72d8a46191cb37de11932cf1243358b891033beede",
+    "page_count": 35,
+    "extracted_at": "2026-08-23T16:20:25.189091+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can dense linear transformations be synthesized from a small differentiable vocabulary of Clifford-algebra bivectors and rotors, and do those modules preserve language-model behavior with far fewer learned parameters?",
+  "key_findings": [
+    {
+      "claim": "The construction represents orthogonal action as compositions of rotor sandwich products derived from simple bivectors.",
+      "evidence": "Sections 3-4 connect skew-symmetric matrices, invariant bivector decomposition, exponentiation into rotors, and a differentiable power-iteration procedure. A generalized gadget splits arbitrary-dimensional inputs and outputs into Clifford-algebra subspaces and pools several left/right rotor maps.",
+      "anchors": [{"page": 3, "section": "3, rotor algebra"}, {"page": 5, "section": "4.1, differentiable computation"}, {"page": 6, "section": "4.2, generalized rotor gadget"}]
+    },
+    {
+      "claim": "Rotor replacements use about one thousand learned scalars per projection while the dense attention projections contain millions.",
+      "evidence": "The implementation limits rotor width/depth and reports at most roughly 3,056 total learned parameters across LLaMA-3.2-1B Q/K/V versus 6,291,456 dense parameters; low-rank and Block-Hadamard baselines use more parameters than the rotor module.",
+      "anchors": [{"page": 10, "section": "Table 4"}, {"page": 29, "section": "C.1, rotor networks"}, {"page": 32, "section": "Table 7"}]
+    },
+    {
+      "claim": "Replacing a small number of attention layers often matches structured baselines but does not preserve the original model exactly and degrades as more layers are replaced.",
+      "evidence": "For one LLaMA-3.2-1B layer, rotor Wikitext log-perplexity is 2.629 versus 2.636 Block-Hadamard and original 2.575; Arc accuracy is 55.31% versus original 58.37%. Multi-layer results often worsen, and Qwen three-layer Arc accuracy drops to 47.28 despite good perplexity.",
+      "anchors": [{"page": 7, "section": "5.1 and Table 1"}, {"page": 9, "section": "5.2, results discussion"}]
+    },
+    {
+      "claim": "The present parameter compression is not a demonstrated systems speedup.",
+      "evidence": "The paper reports inference roughly width-times-depth slower in its experiments and explicitly says the implementation uses dense rotor matrices rather than the inherent block sparsity. The limitations call the result theoretical and require new kernels and backpropagation support.",
+      "anchors": [{"page": 9, "section": "5.2, Compute cost"}, {"page": 22, "section": "A, Limitations"}, {"page": 31, "section": "C.2, execution-time note"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Parameterize linear maps through composable geometric rotations: learn bivector coefficients, turn them into rotors, and assemble small rotor sandwich maps across input/output chunks.",
+    "mechanism": "A differentiable invariant decomposition extracts simple bivector components, exponentiation produces Spin-group rotors, and left/right sandwich products act on multivectors. Multiple subspace maps plus pooling handle non-power-of-two and rectangular dimensions. Calibration trains Q/K/V replacements by MSE on hidden activations while retraining the attention output projection.",
+    "assumptions": [
+      "Small compositions of rotor maps approximate the task-relevant behavior of dense projections.",
+      "Layerwise activation-matching is an adequate proxy for end-to-end model quality.",
+      "Warm-started power iteration is stable away from degenerate singular-value configurations.",
+      "Future sparse kernels can realize the theoretical operation-count advantage."
+    ]
+  },
+  "techniques": [
+    {"id": "bivector-to-rotor-parameterization", "role": "Maps a logarithmic-sized set of geometric coefficients into composable rotations."},
+    {"id": "differentiable-invariant-decomposition", "role": "Uses warm-started power iteration to decompose bivectors without backpropagating through every fixed-point step."},
+    {"id": "chunked-rotor-gadget", "role": "Covers arbitrary input/output dimensions by pooling rotor maps over coordinate subspaces."},
+    {"id": "layerwise-activation-distillation", "role": "Fits replacement Q/K/V modules to frozen dense-layer outputs before downstream evaluation."}
+  ],
+  "evaluations": [
+    {"setting": "One to three Q/K/V attention-layer replacements in LLaMA-3.2-1B and Qwen2.5-1.5B", "metric": "Log-perplexity and Arc/HellaSwag accuracy", "result": "Rotors are usually competitive with low-rank and Block-Hadamard approximations but remain below the untouched model in many settings", "baseline": "Dense model, rank-1/rank-4 factors, and one-block Hadamard"},
+    {"setting": "End-to-end Fashion-MNIST MLP", "metric": "Ten-epoch accuracy", "result": "Rotor network reaches 88.36%", "baseline": "Dense MLP reaches 89.67% and learns faster early"},
+    {"setting": "Reported resource accounting", "metric": "Learned parameters, FLOPs, and observed wall-clock inference", "result": "Large parameter/FLOP reductions are reported, but current inference is approximately width-times-depth slower", "baseline": "Dense matrix multiplication"}
+  ],
+  "limitations": [
+    "Author-stated: the benefits are primarily parameter-count reductions, not immediate compute speedups.",
+    "Author-stated: the dense implementation does not exploit rotor block sparsity and needs specialized software and backpropagation.",
+    "Reviewer-identified: only one to three LLM layers are replaced and calibrated in isolation, so the results do not demonstrate a fully rotor-based language model.",
+    "Reviewer-identified: the claim of O(log-squared d) parameters concerns the geometric core, while arbitrary rectangular gadgets, depth, width, pooling, and output retraining complicate end-to-end accounting.",
+    "Reviewer-identified: roughly 4,500 A100 GPU-hours is unusually high for a feasibility comparison and weakens the practical-efficiency narrative."
+  ],
+  "failure_modes": [
+    "Degenerate singular values can destabilize the differentiable bivector decomposition.",
+    "Aggressive layer replacement compounds activation mismatch and downstream accuracy loss.",
+    "Dense realization of sparse geometric operators can be slower and more memory-bound than ordinary GEMM.",
+    "Fixed coordinate splits and pooling may omit interactions needed by a particular dense matrix."
+  ],
+  "reusable_insights": [
+    "Separate parameter expressivity, arithmetic complexity, and realized hardware speed in structured-layer claims.",
+    "Evaluate structured replacements both by local reconstruction loss and end-task degradation.",
+    "Warm-start implicit algebraic decompositions when parameters change gradually during training."
+  ],
+  "open_questions": [
+    "Can optimized sparse rotor kernels outperform dense GEMM at realistic batch and sequence sizes?",
+    "Can a language model be trained end-to-end with rotor layers at scale without dense-teacher calibration?",
+    "Which dense transformations provably require large rotor width or depth?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2204.00595", "title": "Monarch: Expressive Structured Matrices for Efficient and Accurate Training", "url": "https://arxiv.org/abs/2204.00595", "relationship": "direct structured-matrix competitor", "difference": "Monarch uses products of block-diagonal matrices with an analytic dense-to-structured projection and demonstrates hardware speedups; rotors use Clifford geometry and far fewer coefficients but lack optimized runtime."},
+    {"canonical_id": "arxiv:2209.04934", "title": "Clifford Neural Layers for PDE Modeling", "url": "https://arxiv.org/abs/2209.04934", "relationship": "geometric-algebra predecessor", "difference": "Clifford neural layers encode interactions among multivector physical fields in convolution/Fourier operators; the reviewed paper decomposes generic linear projections into bivector-generated rotor actions."},
+    {"canonical_id": "arxiv:2106.09685", "title": "LoRA: Low-Rank Adaptation of Large Language Models", "url": "https://arxiv.org/abs/2106.09685", "relationship": "parameter-efficient matrix alternative", "difference": "LoRA learns low-rank additive updates to a frozen dense matrix rather than replacing the base linear operator; the rotor gadget attempts an extremely compact replacement and is evaluated against low-rank factors."}
+  ],
+  "novelty_assessment": "Reviewer inference: the distinctive contribution is a differentiable route from bivector primitives to generalized rotor gadgets for approximating attention projections. Structured matrices, low-rank replacements, and Clifford neural layers are established; the paper's evidence establishes parameterized feasibility, not practical compute efficiency or full-network equivalence.",
+  "confidence": 0.88,
+  "reviewer_notes": "Read through theory, main tables, limitations, and implementation appendix. Resource and accuracy claims are author-reported. Primary arXiv competitor records were checked on 2026-08-23."
+}

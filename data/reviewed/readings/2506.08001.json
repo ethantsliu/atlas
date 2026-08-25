@@ -1,0 +1,189 @@
+{
+  "stable_id": "arxiv:2506.08001",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2506.08001",
+    "pdf_sha256": "b8fefd91219ac02aafb00dbd4406642bf02952374943766b473f5bb566bbb10c",
+    "text_sha256": "5bdbd58e69a8dda60c2656dbb417d2b657556ede888d9710951d6e9cd986d9dc",
+    "page_count": 40,
+    "extracted_at": "2026-08-23T16:40:01.329335+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can language models be pretrained effectively while each weight matrix is restricted to the orthogonal-equivalence orbit of a fixed random initialization, and can that constraint reduce trainable optimizer state without sacrificing perplexity?",
+  "key_findings": [
+    {
+      "claim": "Exact POET freezes each random weight matrix and learns left and right orthogonal factors, preserving every singular value while changing both singular-vector bases.",
+      "evidence": "For W0 = U Sigma V-transpose, the effective weight R W0 P equals (R U) Sigma (V-transpose P), so exact orthogonal R and P leave the spectrum invariant. The paper cites a characterization of linear spectrum-preserving maps and proves a coverage lemma for products of randomly supported primitive orthogonal factors.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "2 Orthogonal Training and Spectrum-Preserving Transformation"},
+        {"page": 4, "section": "3.1 General Framework"},
+        {"page": 7, "section": "4 Theoretical properties and Lemma 1"},
+        {"page": 24, "section": "Appendix D proof of primitive-factor coverage"}
+      ]
+    },
+    {
+      "claim": "Scalability comes from stochastic or block-supported primitive factors, truncated Cayley-Neumann parameterization, and periodic merge-and-reset rather than from optimizing full orthogonal matrices.",
+      "evidence": "Only a sampled b-by-b submatrix or a permuted set of small diagonal blocks is trainable per primitive. A skew matrix is mapped approximately by a Cayley transform whose inverse is replaced by k Neumann terms. Every Tm steps, the approximate factor is multiplied into the stored weight and its parameter resets to zero, bounding accumulated approximation drift and optimizer memory.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "3.2.1 Stochastic Primitive Optimization"},
+        {"page": 6, "section": "3.2.2-3.2.3 Cayley-Neumann and training algorithm"},
+        {"page": 27, "section": "Appendix F CUDA acceleration"}
+      ]
+    },
+    {
+      "claim": "The practical algorithm only approximately preserves the spectrum, so exact spectral guarantees do not directly describe the executed large-model training path.",
+      "evidence": "A truncated Neumann series is orthogonal only when the approximation is exact; the paper reports nonzero R R-transpose minus I error, warns that too few terms cause exploding-gradient divergence, and attributes small singular-value changes to numerical and approximation error. Merge-and-reset then permanently incorporates these approximate products into W.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Figure 1 approximation caveat"},
+        {"page": 6, "section": "Equation 6 and convergence condition"},
+        {"page": 10, "section": "Table 7 and Figure 10"},
+        {"page": 37, "section": "Appendix J orthogonality approximation"},
+        {"page": 38, "section": "Figure 25 and divergence caveat"}
+      ]
+    },
+    {
+      "claim": "At the tested token budgets, high-budget POET variants beat AdamW validation perplexity from 60M through 3B parameters, while low-budget variants can be substantially worse.",
+      "evidence": "On C4, POET-FS b=1/2 reports 25.37/19.94/15.95/13.70 perplexity for 60M/130M/350M/1.3B versus AdamW 26.68/20.82/16.78/14.73. POET-BS b=64 is worse at 29.52/24.52/20.29/18.28 but uses far fewer trainable parameters. A 3B, 5B-token run reports 16.90 versus AdamW 19.61. Curves are single training runs with separately tuned learning rates and no uncertainty estimates.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "5.1 Table 2"},
+        {"page": 9, "section": "Figures 8-9 and Table 3"},
+        {"page": 25, "section": "Appendix E experimental details"},
+        {"page": 39, "section": "Appendix K full training dynamics"}
+      ]
+    },
+    {
+      "claim": "Downstream results support useful representations, but they do not isolate spectral preservation from parameter count, optimizer geometry, or additional tuning.",
+      "evidence": "POET-pretrained models outperform AdamW-pretrained models on all eight GLUE columns under three finetuning schemes. BART-large POET finetuning also exceeds LoRA, OFT, and full finetuning on reported ROUGE. However, the methods use different trainable parameter counts and parameterizations, and no ablation matches compute and update degrees of freedom while removing spectral preservation alone.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "5.2 Table 4"},
+        {"page": 10, "section": "GLUE discussion"},
+        {"page": 40, "section": "Appendix L Table 12"}
+      ]
+    },
+    {
+      "claim": "The margin-bound discussion motivates spectrum control but does not prove that POET's observed perplexity gain follows from a tighter generalization bound.",
+      "evidence": "Section 4 imports a spectrally normalized classification-margin bound for ReLU MLPs and notes that fixed random singular values bound spectral complexity. The LLaMA experiment measures next-token cross-entropy, not classification margin, and does not compute the bound, compare it across methods, or account for approximation drift and transformer nonlinearities.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Connection to generalization theory"},
+        {"page": 8, "section": "Hyperspherical energy and LLM experiments"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Restrict each learned matrix to rotations/reflections of a fixed random matrix so training changes singular vectors but retains a controlled singular-value spectrum.",
+    "mechanism": "POET writes W = R W0 P, represents R and P as products of sparse primitive orthogonal maps, approximates each map with a truncated Cayley-Neumann series, optimizes its small skew parameters, and periodically merges it into W0 before resampling support.",
+    "assumptions": [
+      "A useful solution exists on or near the fixed-spectrum orbit selected by random initialization.",
+      "Normalized Gaussian initialization supplies a sufficiently expressive singular spectrum for every layer.",
+      "Stochastic primitive supports eventually cover useful orthogonal directions.",
+      "Neumann truncation remains accurate between resets.",
+      "Validation perplexity at the selected token budgets predicts broader scaling behavior."
+    ]
+  },
+  "techniques": [
+    {"id": "bilateral-orthogonal-reparameterization", "role": "Learns both left and right singular-vector bases while freezing singular values in the exact formulation."},
+    {"id": "stochastic-primitive-orthogonalization", "role": "Reduces optimizer state by training randomly supported small orthogonal factors."},
+    {"id": "cayley-neumann-approximation", "role": "Avoids a matrix inverse by truncating the Neumann series of a skew-symmetric Cayley map."},
+    {"id": "merge-reset-resample", "role": "Accumulates a learned factor into the weight, restores identity, and changes support to expand long-run coverage."}
+  ],
+  "evaluations": [
+    {
+      "setting": "C4 pretraining of LLaMA 60M, 130M, 350M, and 1.3B for 30B-50B tokens",
+      "metric": "Validation perplexity and trainable parameter count",
+      "result": "POET-FS b=1/2 achieves 25.37/19.94/15.95/13.70 versus AdamW 26.68/20.82/16.78/14.73; smaller POET budgets trade accuracy for fewer parameters",
+      "baseline": "AdamW, GaLore, LoRA, and multiple POET budgets"
+    },
+    {
+      "setting": "LLaMA 3B on 5B C4 tokens",
+      "metric": "Validation perplexity",
+      "result": "POET-FS 16.90 versus AdamW 19.61",
+      "baseline": "AdamW with reused 1.3B-scale hyperparameter setup"
+    },
+    {
+      "setting": "GLUE finetuning from AdamW- and POET-pretrained checkpoints",
+      "metric": "Task-standard accuracy or correlation on eight tasks",
+      "result": "POET-pretrained checkpoint is higher in every reported column under full, OFT, and POET finetuning",
+      "baseline": "AdamW-pretrained checkpoint under the same three finetuning families"
+    },
+    {
+      "setting": "60M/130M ablations",
+      "metric": "Validation perplexity and approximation error",
+      "result": "Normalized Gaussian beats three initializations; merge period 200-400 is best; k=0 diverges and k=3 nearly matches k=4",
+      "baseline": "Alternative initial spectra, reset frequencies, and Neumann truncation depths"
+    }
+  ],
+  "limitations": [
+    "Author-stated: the mechanism behind POET's slower early but better late learning curve remains open, and choosing an optimal singular spectrum is unresolved.",
+    "Reviewer-identified: comparisons report trainable parameters but not complete optimizer memory, wall-clock, energy, or training FLOPs against all baselines.",
+    "Reviewer-identified: exact theory and approximate implementation are not cleanly separated in the headline spectral-preservation claim.",
+    "Reviewer-identified: large-model results use one data family and architecture family with no replicated seeds or uncertainty."
+  ],
+  "failure_modes": [
+    "A poor initial layer spectrum cannot adapt because exact POET can rotate but not rescale singular directions.",
+    "Neumann error can break orthogonality and trigger exploding gradients when reset intervals or learning rates are too large.",
+    "Small primitive budgets update weights unevenly and underfit relative to AdamW.",
+    "A fixed-spectrum constraint may become capacity-limiting at longer compute horizons or under domain shift."
+  ],
+  "reusable_insights": [
+    "Optimizer-memory comparisons should report the accuracy frontier across a spectrum of trainable budgets, not one favorable setting.",
+    "When a scalable approximation breaks an exact invariant, measure invariant drift and treat the theorem as an idealized reference.",
+    "Freezing singular values while learning singular vectors is a clean intervention for studying which spectral degrees of freedom LLM training actually needs.",
+    "Prospective scaling tests should compare matched tokens, FLOPs, wall-clock, and multiple seeds before claiming an optimizer scales."
+  ],
+  "open_questions": [
+    "Which layers require learnable singular values, and can a small adaptive spectrum budget improve the fixed-orbit frontier?",
+    "Do POET gains persist at compute-optimal token counts and above 3B dense parameters on independent corpora?",
+    "How much of the gain comes from spectral constraint versus stochastic preconditioning and update-scale changes?",
+    "Can exact or error-controlled orthogonal parameterizations match the approximation's efficiency?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "cvpr:liu2021orthogonal",
+      "title": "Orthogonal Over-Parameterized Training",
+      "url": "https://openaccess.thecvf.com/content/CVPR2021/html/Liu_Orthogonal_Over-Parameterized_Training_CVPR_2021_paper.html",
+      "relationship": "direct methodological predecessor",
+      "difference": "Fixes neurons and learns a layer-shared orthogonal coordinate transform to preserve hyperspherical energy; POET generalizes from one-sided energy preservation to bilateral spectrum preservation and targets LLM pretraining."
+    },
+    {
+      "canonical_id": "arxiv:2403.03507",
+      "title": "GaLore: Memory-Efficient LLM Training by Gradient Low-Rank Projection",
+      "url": "https://arxiv.org/abs/2403.03507",
+      "relationship": "direct memory-efficient pretraining competitor",
+      "difference": "Projects optimizer gradients into a changing low-rank subspace while retaining full-rank weights; POET instead restricts the weight trajectory to stochastic orthogonal-equivalence updates and can preserve the initialized spectrum."
+    },
+    {
+      "canonical_id": "arxiv:2502.16982",
+      "title": "Muon is Scalable for LLM Training",
+      "url": "https://arxiv.org/abs/2502.16982",
+      "relationship": "direct orthogonalized-optimization competitor",
+      "difference": "Orthogonalizes matrix updates and demonstrates compute-scaling gains through trillion-token MoE training; POET orthogonalizes the weight reparameterization and reports smaller dense-model experiments with lower optimizer-state budgets."
+    },
+    {
+      "canonical_id": "arxiv:2306.07280",
+      "title": "Controlling Text-to-Image Diffusion by Orthogonal Finetuning",
+      "url": "https://arxiv.org/abs/2306.07280",
+      "relationship": "orthogonal finetuning predecessor",
+      "difference": "Uses constrained rotations to preserve pretrained semantic structure during adaptation; POET begins from random weights, rotates both sides, and addresses pretraining rather than only adaptation."
+    },
+    {
+      "canonical_id": "arxiv:2506.19847",
+      "title": "Orthogonal Finetuning Made Scalable",
+      "url": "https://arxiv.org/abs/2506.19847",
+      "relationship": "concurrent scalable-orthogonality work",
+      "difference": "Introduces an input-centric quadratic OFT implementation and the same Cayley-Neumann idea for foundation-model finetuning; it narrows the computational novelty of Cayley-Neumann while POET's bilateral fixed-spectrum pretraining objective remains distinct."
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "POET is presented as a scalable spectrum-preserving reparameterized trainer that improves LLM pretraining and finetuning while reducing trainable parameters.",
+    "evidence": "Sections 3-4 provide the bilateral orthogonal formulation and stochastic approximation; Section 5 and appendices report C4 pretraining, GLUE, summarization, and ablations.",
+    "reviewer_inference": "Bilateral fixed-spectrum LLM pretraining plus stochastic primitive factors is a substantive extension of prior orthogonal training. The strongest invariant is exact only in the ideal formulation, and scaling superiority remains provisional because evidence stops at 3B/50B-token scale and lacks compute-matched replicated comparisons with current optimizers such as scalable Muon."
+  },
+  "confidence": 0.94,
+  "reviewer_notes": "Read all 40 pages, including proofs, complete C4/GLUE tables, implementation details, singular-value traces, approximation ablations, and summarization appendix. Competitors were checked against primary arXiv, CVF, and OpenReview records on 2026-08-23."
+}

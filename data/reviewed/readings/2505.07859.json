@@ -1,0 +1,133 @@
+{
+  "stable_id": "arxiv:2505.07859",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2505.07859",
+    "pdf_sha256": "f644d56d34f958bed5703e6e7537d97d656d5802e16460e5d49717f038ed332d",
+    "text_sha256": "8dbef7cc0464797e9dbe94b4aeb6b699d29f77d8412fb8a1f7e3b802454ad703",
+    "page_count": 15,
+    "extracted_at": "2026-08-23T16:54:33.208644+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can one modest open language model solve more ARC tasks by generating candidates efficiently and treating symmetry-transformed views as a product of experts at selection time?",
+  "key_findings": [
+    {
+      "claim": "The method uses ARC-valid transformations at three distinct stages: augmentation for fine-tuning, transformed views for candidate generation, and likelihood aggregation for candidate selection.",
+      "evidence": "Grid rotations/reflections, color permutations, and example reorderings are chosen to preserve a task's solution. A task-specific model is trained on augmented demonstrations, DFS explores token sequences, and the same model scores a proposed answer across sixteen transformed views by geometric-mean likelihood.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 3, "section": "3 Setup and augmentations"}, {"page": 5, "section": "4 Candidate generation and selection"}, {"page": 6, "section": "4.1 Product of experts"}]
+    },
+    {
+      "claim": "On the public ARC-AGI evaluation split, every major component contributes to the reported 71.6 percent two-guess accuracy.",
+      "evidence": "For the NeMo 8B configuration, Table 2 reports 18.3 for the base model, 44.5 after test-time training, 62.5 with sixteen-view sampling, 67.6 after product-of-experts selection, and 71.6 with DFS candidate exploration.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 7, "section": "5 Results / Table 2"}]
+    },
+    {
+      "claim": "Product-of-experts scoring improves ranking rather than merely increasing candidate coverage, while DFS trades compute for higher-probability unique solutions.",
+      "evidence": "Table 3 separates the number of tasks for which a correct candidate was generated from the number ultimately selected. Multi-view log-probability aggregation selects correct candidates more often, and DFS reaches useful coverage with fewer redundant samples than naive stochastic decoding.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 8, "section": "Sampling and selection ablation / Table 3"}]
+    },
+    {
+      "claim": "The headline result is a heavily ARC-specific public-split system result, not evidence that generic abstract reasoning has been solved.",
+      "evidence": "The pipeline uses hand-selected ARC symmetries, task-level fine-tuning, two allowed guesses, and extensive public-evaluation experimentation. It is not evaluated on the hidden ARC-AGI private set; ConceptARC and Sudoku provide useful but narrower transfer checks.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 2, "section": "Related-work comparison and public-evaluation claim"}, {"page": 9, "section": "6 Discussion and future work"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Exploit solution-preserving perspectives of the same ARC task as conditionally independent experts, so agreement across views identifies robust candidate grids.",
+    "mechanism": "A pretrained LLM is initially fine-tuned on ARC encodings and then adapted separately to each task's augmented examples. Depth-first search reuses prefix caches to enumerate high-probability outputs. Each candidate is transformed consistently with sixteen task views, scored by the adapted model, and ranked by pooled log likelihood before returning two guesses.",
+    "assumptions": [
+      "Every chosen augmentation preserves the intended latent transformation and correct output distribution.",
+      "Likelihoods from transformed views provide complementary evidence despite being produced by one shared model.",
+      "Model likelihood is sufficiently calibrated to rank semantically correct grids.",
+      "Public ARC-AGI evaluation performance transfers to unseen task distributions and is not overfit through iterative method development."
+    ]
+  },
+  "techniques": [
+    {"id": "task-specific-test-time-training", "role": "Adapts the model to each puzzle using its demonstrations and transformations."},
+    {"id": "solution-preserving-augmentation", "role": "Generates multiple equivalent task perspectives for training, generation, and scoring."},
+    {"id": "cached-depth-first-decoding", "role": "Explores high-probability grid completions with less duplicate sampling."},
+    {"id": "geometric-product-of-experts", "role": "Pools candidate likelihood across views to select transformation-consistent answers."}
+  ],
+  "evaluations": [
+    {
+      "setting": "400-task ARC-AGI public evaluation set with NeMo-Minitron 8B and a smaller Llama configuration.",
+      "metric": "Two-guess task accuracy.",
+      "result": "The full NeMo pipeline reaches 71.6 percent, with a monotonic ablation ladder from 18.3 percent base performance through test-time training, augmented sampling, PoE scoring, and DFS.",
+      "baseline": "Base fine-tuned model, test-time training alone, augmented stochastic sampling, and prior open ARC systems."
+    },
+    {
+      "setting": "Candidate generation and selection ablation on the public evaluation tasks.",
+      "metric": "Correct-candidate coverage, selected accuracy, candidate count, and runtime.",
+      "result": "DFS and multi-view scoring improve the coverage-to-selection conversion; the reported average inference cost is approximately two cents per task under the authors' GPU-price assumption.",
+      "baseline": "Naive stochastic sampling and single-view likelihood selection."
+    },
+    {
+      "setting": "ConceptARC and generated Sudoku variants.",
+      "metric": "Two-guess/top-one accuracy and whether a correct sampled Sudoku is selected.",
+      "result": "The system reports 73.3 percent on ConceptARC and 53 percent top-one Sudoku accuracy; when a correct Sudoku appears in the candidate set, the selector chooses it in the reported cases.",
+      "baseline": "Sampling without PoE-style selection and task-specific prior results."
+    }
+  ],
+  "limitations": [
+    "The primary score is on the repeatedly visible public ARC-AGI evaluation set, not the hidden private set.",
+    "The pipeline relies on hand-engineered ARC symmetries, encodings, and task-level fine-tuning.",
+    "The product-of-experts interpretation treats correlated views from one model as if they contribute distinct evidence.",
+    "Runtime and price claims depend on specific hardware, caching, stopping thresholds, and a low assumed GPU hourly cost."
+  ],
+  "failure_modes": [
+    "A transformation believed to preserve the rule can alter a puzzle with directional or color-semantic structure.",
+    "If no correct candidate is generated, likelihood aggregation cannot recover one.",
+    "Overconfident probability on a wrong but view-consistent grid can dominate the product.",
+    "Task-specific fine-tuning can overfit the few demonstrations or become unstable after an erroneous synthetic target."
+  ],
+  "reusable_insights": [
+    "Apply known invariances not only as training augmentation but also as a test-time consistency ensemble.",
+    "Separate candidate coverage from candidate ranking when evaluating reasoning systems.",
+    "Prefix-cached structured search can turn an autoregressive model into a practical discrete program enumerator."
+  ],
+  "open_questions": [
+    "How much of the public-set gain survives a frozen, previously unseen ARC-AGI test?",
+    "Can transformations be inferred and verified automatically rather than supplied as ARC-specific prior knowledge?",
+    "Would independently trained experts provide better-calibrated evidence than correlated views of one model?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2411.07279",
+      "title": "The Surprising Effectiveness of Test-Time Training for Abstract Reasoning",
+      "url": "https://arxiv.org/abs/2411.07279",
+      "relationship": "Establishes per-task test-time training as a strong open ARC-AGI strategy and is a direct system baseline.",
+      "difference": "This paper adds cached DFS candidate generation and product-of-experts scoring across transformations on top of task adaptation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2410.06405",
+      "title": "Tackling the Abstraction and Reasoning Corpus with Vision Transformers: The Importance of 2D Representation, Positions, and Objects",
+      "url": "https://arxiv.org/abs/2410.06405",
+      "relationship": "Develops an ARC solver whose architecture and representation preserve two-dimensional grid structure.",
+      "difference": "It modifies the learned representation and vision architecture; the present work retains an autoregressive LLM and improves adaptation, search, and view-consistent ranking.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:1911.01547",
+      "title": "On the Measure of Intelligence",
+      "url": "https://arxiv.org/abs/1911.01547",
+      "relationship": "Introduces ARC and its theory of skill-acquisition efficiency as a target for general intelligence evaluation.",
+      "difference": "It defines the benchmark and conceptual objective; this paper constructs a highly engineered solver for the grid tasks and does not validate the broader intelligence measure.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Transformation-pooled product-of-experts selection plus DFS exposes latent ARC ability in modest open LLMs at low cost.",
+    "evidence": "Component ablations attribute measurable public-set gains to PoE ranking and DFS beyond test-time training and augmented sampling.",
+    "reviewer_inference": "The integration and careful coverage-versus-selection ablation are useful, but the novelty is primarily systems composition and its generality remains uncertain without hidden-set replication."
+  },
+  "confidence": 0.95,
+  "reviewer_notes": "Read all 15 cached pages, including the DFS algorithm and product-of-experts proof appendix. ARC competitors were checked at primary arXiv records on 2026-08-23."
+}

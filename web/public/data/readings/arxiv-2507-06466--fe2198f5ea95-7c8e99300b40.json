@@ -1,0 +1,119 @@
+{
+  "stable_id": "arxiv:2507.06466",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2507.06466",
+    "pdf_sha256": "c14af4993a76155dced0a6aa2a09aab54c9008f25e4991b606b62837fa5a4aab",
+    "text_sha256": "8d9cfd550a8e790f68ad8fdc043ce113ceedef7e75b75e7e8bca7523379e50c1",
+    "page_count": 67,
+    "extracted_at": "2026-08-23T16:21:07.147284+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a foundation model serve as an open-ended mutation operator in self-play, discovering both diverse and high-performing executable strategies beyond local policy improvements?",
+  "key_findings": [
+    {
+      "claim": "Quality-Diversity Self-Play combines foundation-model novelty proposals with local archive replacement, yielding a behavior-descriptor-free approximation to MAP-Elites for two competing code-policy populations.",
+      "evidence": "QDSP embeds proposed policies, asks an FM judge whether a proposal is novel relative to nearest neighbors, adds novel policies, and otherwise replaces the closest policy only if performance improves. This couples divergent search with hill climbing without hand-designed behavior dimensions.",
+      "anchors": [{"page": 5, "section": "Figure 2 and Section 3"}, {"page": 6, "section": "3.3 Quality-Diversity Self-Play"}]
+    },
+    {
+      "claim": "In Car Tag, QDSP found strong pursuer and evader policies and achieved the highest average quality-diversity score, but champion-level superiority was not statistically resolved.",
+      "evidence": "Each method generated 250 policies per side and evaluated sparse terminal rewards over 100 randomized games. QDSP matched or exceeded named human policies on both roles and led the QD score; the paper states that statistical tests could not reject sampling as the cause of champion differences.",
+      "anchors": [{"page": 7, "section": "4 Evaluation on Car Tag"}, {"page": 8, "section": "Car Tag results"}, {"page": 9, "section": "Figure 5"}, {"page": 22, "section": "8.3.1 Additional Statistical Tests"}]
+    },
+    {
+      "claim": "In one-sided Gandalf red teaming, FMSP variants jointly discovered attacks through defense level six, while QDSP produced the strongest quality-diversity archive and none solved level seven.",
+      "evidence": "Attack policies combine generated prompts and response parsers and are tested ten times against each defense. QDSP's QD score exceeds alternatives with a reported Mann-Whitney p below 0.05; the open-loop baseline never beats levels five through seven, and all searched methods fail level seven.",
+      "anchors": [{"page": 9, "section": "5 Evaluation on Gandalf"}, {"page": 10, "section": "5.1 One-Sided"}, {"page": 11, "section": "Figure 6 and attack results"}]
+    },
+    {
+      "claim": "Two-sided search rapidly patched the selected attacks, but this experiment does not show robust security against adaptive attacks beyond the discovered set.",
+      "evidence": "New defenders block the chosen strong attackers within roughly ten defense-generation iterations, and even open-loop generation succeeds. The authors explain that defense may simply be easier in this toy setup, so the result demonstrates iterative patching rather than general adversarial robustness.",
+      "anchors": [{"page": 12, "section": "5.2 Two-Sided: Generating New Defenses"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Use a code-capable foundation model to propose, debug, diversify, and improve strategies inside alternating self-play archives.",
+    "mechanism": "Vanilla FMSP repeatedly improves a current policy; NSSP keeps proposals judged semantically novel; QDSP adds a proposal if novel or competes it against its nearest archived neighbor if similar. The algorithms alternate populations, execute generated Python policies, and use game outcomes plus policy text/embeddings as feedback.",
+    "assumptions": [
+      "The foundation model has enough domain knowledge and coding ability to produce executable policy leaps.",
+      "Text-embedding neighborhoods and an FM novelty judge track strategically meaningful diversity.",
+      "Unit tests and sandboxing catch unsafe or invalid generated code before evaluation.",
+      "The game payoff and archive evaluation population provide an informative quality signal."
+    ]
+  },
+  "techniques": [
+    {"id": "foundation-model-mutation", "role": "Generates executable policy variants conditioned on opponents and archive context."},
+    {"id": "semantic-novelty-archive", "role": "Uses embeddings and an FM judge to decide whether a proposal expands the archive."},
+    {"id": "two-population-quality-diversity", "role": "Alternates opponent populations and retains either novel or locally superior strategies."}
+  ],
+  "evaluations": [
+    {"setting": "Continuous-control Car Tag", "metric": "Elo, archive coverage, and QD score after 250 policies per side", "result": "QDSP is the only method producing champion policies that meet the strong human baselines in both roles and has the highest mean QD score; champion differences are not statistically conclusive.", "baseline": "Vanilla FMSP, novelty-only NSSP, open-loop FM proposals, program evolution, and human-designed pursuit/evasion policies."},
+    {"setting": "One-sided Gandalf LLM red teaming", "metric": "defense levels defeated and QD score", "result": "QDSP, NSSP, and vFMSP archives cover levels one through six; no method defeats level seven, and QDSP's QD score is reported significantly higher than alternatives.", "baseline": "Open-loop FM policy generation and other FMSP variants."},
+    {"setting": "Two-sided Gandalf patching", "metric": "defender success against selected strong attacks", "result": "All variants generated defenses that blocked the selected vulnerabilities within a few iterations.", "baseline": "Seed Gandalf defenses and open-loop generated defenders."}
+  ],
+  "limitations": [
+    "Author-stated: experiments cover only two simplified domains and rely on proprietary GPT models, so algorithm and model effects are entangled.",
+    "Author-stated: generated code creates safety risks and requires restricted testbeds and execution controls.",
+    "Reviewer inference: semantic code diversity can overstate behavioral diversity, and an FM-as-judge can import undocumented preferences.",
+    "Reviewer inference: patching a fixed discovered attack suite is not evidence of security against an adaptive red team."
+  ],
+  "failure_modes": [
+    "The generator repeatedly recombines familiar code patterns rather than producing strategically new behavior.",
+    "Embedding-based neighbors fail to recognize behaviorally equivalent policies with different code or distinct behaviors with similar descriptions.",
+    "Opponent cycling or archive overfitting produces high internal scores that fail against external policies.",
+    "Generated policies exploit evaluator bugs, unsafe execution surfaces, or prompt-specific weaknesses."
+  ],
+  "reusable_insights": [
+    "Foundation models can be used as semantic mutation operators, while execution supplies the external fitness signal.",
+    "Novelty-if-different and replace-if-better is a simple archive update that avoids predefining behavior descriptors.",
+    "Open-ended red-team systems should coevolve patches and attacks but evaluate both on held-out adversaries."
+  ],
+  "open_questions": [
+    "Do policy archives transfer to environments, models, and payoff structures not seen during search?",
+    "Can behavioral traces replace FM-judged source-code novelty and improve reproducibility?",
+    "How much of the gain comes from self-play feedback versus repeated inference-time compute and proprietary model knowledge?",
+    "What containment and human-review policy is necessary when the generated strategies target real systems?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1901.01753",
+      "title": "Paired Open-Ended Trailblazer (POET): Endlessly Generating Increasingly Complex and Diverse Learning Environments and Their Solutions",
+      "url": "https://arxiv.org/abs/1901.01753",
+      "relationship": "open-ended-search-prior",
+      "difference": "POET coevolves parameterized environments and neural-agent solutions with transfer between niches. FMSP fixes the game and instead uses a foundation model to generate semantically diverse executable strategies for both competing roles.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2310.12931",
+      "title": "Eureka: Human-Level Reward Design via Coding Large Language Models",
+      "url": "https://arxiv.org/abs/2310.12931",
+      "relationship": "foundation-model-search-prior",
+      "difference": "Eureka evolves reward-function code with an LLM and reinforcement-learning feedback for single-agent control. FMSP generates policy code directly and uses alternating competitive outcomes to bootstrap two populations.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2401.01335",
+      "title": "Self-Play Fine-Tuning Converts Weak Language Models to Strong Language Models",
+      "url": "https://arxiv.org/abs/2401.01335",
+      "relationship": "language-self-play-prior",
+      "difference": "SPIN improves one language model by discriminating human responses from its previous iteration's outputs. FMSP does not update foundation-model weights; it uses the model as a policy-program generator inside external competitive environments.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2010.00539",
+      "title": "Emergent Complexity and Zero-shot Transfer via Unsupervised Environment Design",
+      "url": "https://arxiv.org/abs/2010.00539",
+      "relationship": "adversarial-curriculum-prior",
+      "difference": "PAIRED adversarially proposes environment parameters to maximize regret and create curricula for a protagonist. FMSP searches code policies within a fixed game, optimizes diversity as well as payoff, and alternates both strategic roles.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": "Reviewer inference after comparison: the paper's clearest novelty is treating a general foundation model as a policy-code mutation operator inside two-population quality-diversity self-play, rather than updating model weights, reward code, or environment parameters. Evidence supports feasibility and diverse strategy discovery in two testbeds, not general open-endedness or safe autonomous deployment.",
+  "confidence": 0.91,
+  "reviewer_notes": "The full-text pass included algorithms, prompts, archive rules, Car Tag and Gandalf protocols, supplementary statistical tests, generated-policy examples, safety discussion, and references. Primary arXiv records for direct competitors were checked on 2026-08-23."
+}

@@ -1,0 +1,400 @@
+{
+  "stable_id": "urlhash:446b14f65f06887dc614",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://ml4physicalsciences.github.io/2022/files/NeurIPS_ML4PS_2022_109.pdf",
+    "pdf_sha256": "2cf84756f6bd227c2954c2157044e4df86b8d4437e2581e67f9ee852e0a44e7d",
+    "text_sha256": "cdd6dbd51f5128acc4351885e59c9cb0906ad5b48982207d58580c3e6f2d02e5",
+    "page_count": 7,
+    "extracted_at": "2026-08-23T23:01:57.806991+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can penalizing positive finite differences of autoregressive velocity-field prediction error, with a late-horizon weight schedule, make TF-Net's 60-step turbulent-flow forecasts more accurate and stable?",
+  "key_findings": [
+    {
+      "claim": "The proposed objective is a rollout-error monotonicity penalty, not a Lyapunov stability certificate for the learned turbulent dynamics.",
+      "evidence": "The paper defines x(t)=v_hat_t-v_t, chooses V=||x||^2, approximates V-dot by the difference between supervised squared errors at adjacent forecast steps, and penalizes positive differences. This V depends on the unavailable future ground truth and is checked only on sampled training rollouts; it is not a state-only certificate whose decrease is established over a domain. A negative empirical error difference could improve one tracked trajectory without proving boundedness, attractor stability, incremental stability, or convergence of the autonomous learned flow.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "Methodology, Equations 1-3"
+        },
+        {
+          "page": 3,
+          "section": "Lyapunov regularizer, Equation 7"
+        }
+      ]
+    },
+    {
+      "claim": "The paper's own RMSE curves contradict the stated asymptotic-stability condition while supporting a narrower claim of slower error growth.",
+      "evidence": "Equation 1 asks V-dot<0 whenever prediction differs from truth, which would make squared tracking error decrease. In Figure 1(a), RMSE rises strongly from the first through the sixtieth prediction step for TF-Net, ICNN, LRF-ReLU, and LRF-Log. The two LRF curves are lower than TF-Net over much of the later rollout, but they do not approach zero or even decrease. The result is therefore evidence for an error-growth regularizer, not an asymptotically stable forecaster.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "Asymptotic-stability objective"
+        },
+        {
+          "page": 4,
+          "section": "Figure 1(a) and results"
+        }
+      ]
+    },
+    {
+      "claim": "On the single reported benchmark, both proposed variants modestly improve late-step RMSE over TF-Net, whereas the learned-ICNN Lyapunov baseline is substantially worse.",
+      "evidence": "Figure 1 averages four random initializations and shows LRF-ReLU and LRF-Log generally below unregularized TF-Net at later steps. At step 60 the visual ordering is LRF-Log best, LRF-ReLU next, TF-Net next, and ICNN worst; exact means are not tabulated and the standard-deviation bars overlap for some neighboring curves. Figure 1(b) and Appendix Figure 2 show plausible velocity-field structure at steps 10, 20, 30, and 60, but provide no calibrated structural metric.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Experiments"
+        },
+        {
+          "page": 4,
+          "section": "Figure 1"
+        },
+        {
+          "page": 7,
+          "section": "Appendix Figure 2"
+        }
+      ]
+    },
+    {
+      "claim": "The evaluation split is not independent under the released data pipeline because adjacent 100-frame windows cross both split boundaries.",
+      "evidence": "The paper says one 2,000-frame simulation is divided spatially into seven strips and converted by a length-100 sliding window into 9,870 samples, then split 6,000/1,700/2,170 without stating a blocking or gap rule. The released script maps IDs to start time j=floor(ID/7): training spans j=0-857, validation j=857-1099, and test j=1100-1399. Thus train and validation share 100 physical frames, while the last validation and first test windows share 99 of 100 frames; the full-domain test window also contains the validation strips spatially. This leakage can make checkpoint selection and test rollouts substantially easier.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Data"
+        },
+        {
+          "page": 5,
+          "section": "Reproducibility checklist"
+        }
+      ]
+    },
+    {
+      "claim": "The released test loader repeats each unique full-domain test sequence seven times and does not match the paper's sample counts.",
+      "evidence": "The public run script defines 2,100 test IDs, not the paper's 2,170. In full-domain test mode the Dataset ignores the spatial-strip remainder ID mod 7 and indexes only j=ID//7, so the 2,100 entries reduce to 300 distinct temporal windows, each repeated seven times. The script also leaves the final 70 of 9,870 generated IDs unused. Repetition does not change a simple mean but invalidates an interpretation of 2,100 or 2,170 independent test samples and can distort uncertainty calculations.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Data split and test protocol"
+        },
+        {
+          "page": 4,
+          "section": "Figure 1 error bars"
+        }
+      ]
+    },
+    {
+      "claim": "The claimed log-barrier variant cannot be reproduced from the released implementation as written.",
+      "evidence": "Equations 4 and 7 describe a negative-log barrier for V-dot<0, and Figure 1 separately labels LRF-Log and LRF-ReLU. In public commit 635e51ff85bbd1b1d23712df740893800e8d78fe, train.py accumulates the log term for negative error differences but its active return statement discards that sum and returns only the ReLU sum over positive differences; the two log-return alternatives are commented out. The release therefore implements a weighted positive-increment penalty but supplies no executable path for the plotted LRF-Log result.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "Wrappers, Equations 4 and 5"
+        },
+        {
+          "page": 4,
+          "section": "Figure 1 legend"
+        },
+        {
+          "page": 5,
+          "section": "Code-availability footnote and checklist"
+        }
+      ]
+    },
+    {
+      "claim": "The weight scheduler trades early accuracy against late accuracy rather than resolving the stability objective.",
+      "evidence": "The sigmoid weight is nearly zero below an error threshold and approaches one for larger late-step errors. The authors report that removing it gives smoother, lower RMSE after step 20 but raises short-horizon error; adding it protects early steps but harms later ones. No scheduler-free curve, Pareto analysis, threshold sensitivity plot, or objective that jointly bounds early and late error is reported.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Weight scheduler, Equation 6"
+        },
+        {
+          "page": 4,
+          "section": "Limitations"
+        }
+      ]
+    },
+    {
+      "claim": "RMSE alone is inadequate evidence that turbulent dynamics remain physically faithful over a long rollout.",
+      "evidence": "The paper reports per-step velocity RMSE and selected heatmaps only. It does not evaluate divergence or mass conservation, vorticity, turbulent kinetic energy, energy spectrum and cascade slopes, autocorrelation time, invariant statistics, boundary-condition residuals, rare structures, or distributional climate. The underlying TF-Net paper evaluated several of these physical quantities, so omitting them leaves open whether the lower pointwise error comes from better dynamics or additional smoothing.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Results and evaluation metric"
+        },
+        {
+          "page": 4,
+          "section": "Figure 1"
+        },
+        {
+          "page": 7,
+          "section": "Appendix visualization"
+        }
+      ]
+    },
+    {
+      "claim": "The evidence is a narrow forecasting ablation and does not validate the paper's climate-change or architecture-agnostic generality claims.",
+      "evidence": "All results use TF-Net on one two-dimensional Lattice-Boltzmann Rayleigh-Benard-convection sequence at one Prandtl number, Rayleigh number, and Mach cap. There is no second initial condition family, Reynolds or Rayleigh shift, geometry, resolution, turbulence simulator, forecasting architecture, weather variable, or climate timescale. The broader-impact section acknowledges current limitation to this use case, then speculates about fire and drone prediction without experiments.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 1,
+          "section": "Abstract and Introduction"
+        },
+        {
+          "page": 3,
+          "section": "Data"
+        },
+        {
+          "page": 5,
+          "section": "Broader Impact"
+        }
+      ]
+    },
+    {
+      "claim": "The public artifact is insufficient to reproduce the four plotted curves even apart from the log-loss defect.",
+      "evidence": "The linked repository has a one-line README and no rbc_data.pt, requirements or environment lock, trained checkpoints, plotted LRF results, four-seed driver, license, or tests. It normalizes with the mean and standard deviation of the complete sequence, including later test frames. Its sweep scripts use slope 90 and thresholds 0.07-0.25, while the paper reports slope 300 and thresholds 0.5-0.8; absolute local paths remain in generation and evaluation code. The notebook concerns a broader TF-Net comparison and references missing Results files.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Training details"
+        },
+        {
+          "page": 5,
+          "section": "Code footnote and reproducibility checklist"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Augment TF-Net's autoregressive supervised loss with a late-weighted penalty on increases in squared velocity-field error between consecutive forecast steps, aiming to slow rollout-error accumulation.",
+    "mechanism": "For each predicted field v_hat_t and target v_t, define V_t=||v_hat_t-v_t||^2 and approximate V-dot by V_{t+1}-V_t. A ReLU wrapper penalizes positive increments; the paper also proposes a negative-log barrier for negative increments. A sigmoid scheduler w_t=1/(1+exp[-s(V_t-m)]) suppresses the regularizer while errors are small and activates it later. TF-Net is trained with teacher-forced short sequences and evaluated through a 60-step autoregressive rollout on downsampled two-component velocity fields from a single Lattice-Boltzmann simulation.",
+    "assumptions": [
+      "Monotone decrease of supervised tracking error is an appropriate proxy for stability of a chaotic turbulent predictor.",
+      "Finite differences across the short training rollout predict error behavior over the 60-step test rollout.",
+      "The future ground-truth-conditioned penalty teaches a property that persists when future truth is unavailable at inference.",
+      "The sigmoid threshold transfers across normalization, seeds, horizons, and datasets.",
+      "Adjacent sliding-window samples and spatial strips provide a valid estimate of generalization despite temporal and spatial dependence.",
+      "Velocity RMSE and selected heatmaps capture the physical fidelity relevant to turbulence.",
+      "Results at one Rayleigh-Benard parameter setting generalize to other flows, models, and climate-relevant regimes."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "tfnet",
+      "role": "Provide the RANS/LES-inspired convolutional turbulence forecaster to which the new loss is attached."
+    },
+    {
+      "id": "error-lyapunov",
+      "role": "Treat per-sample squared prediction error as a candidate V along a supervised rollout."
+    },
+    {
+      "id": "finite-difference",
+      "role": "Approximate the temporal derivative of V by adjacent-step error differences."
+    },
+    {
+      "id": "relu-wrapper",
+      "role": "Penalize only positive increases in rollout error."
+    },
+    {
+      "id": "log-barrier",
+      "role": "Propose a barrier objective for negative error derivatives, although the released active implementation discards this term."
+    },
+    {
+      "id": "sigmoid-scheduler",
+      "role": "Turn the stability penalty on as prediction MSE crosses a tuned threshold."
+    },
+    {
+      "id": "lattice-boltzmann",
+      "role": "Generate the single 2D turbulent velocity-field sequence used for training and evaluation."
+    },
+    {
+      "id": "autoregressive-rollout",
+      "role": "Feed each predicted two-channel frame back into the input context for 60 test steps."
+    },
+    {
+      "id": "visual-audit",
+      "role": "Inspect all seven pages, the RMSE/error-bar panel, the step-60 comparison, and all Appendix step-10/20/30/60 heatmaps."
+    },
+    {
+      "id": "code-audit",
+      "role": "Inspect the linked repository, full git history, data generator, ID-to-window mapping, training loss, test loader, run scripts, and evaluation notebook."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "One Lattice-Boltzmann 2D velocity sequence with Pr=0.71, Ra=2.5e8, maximum Mach 0.1, downsampled from seven 256-by-256 strips to 64-by-64 fields.",
+      "metric": "Per-step velocity RMSE over a 60-step autoregressive forecast, averaged over four random initializations with plotted standard deviations.",
+      "result": "LRF-Log and LRF-ReLU are generally below unregularized TF-Net at later steps; all four methods' errors rise sharply, and exact means or significance tests are not provided.",
+      "baseline": "TF-Net without the proposed regularizer and TF-Net coupled to the learned-ICNN Lyapunov method of Manek and Kolter."
+    },
+    {
+      "setting": "A displayed test example at forecast step 60.",
+      "metric": "Qualitative similarity of one plotted velocity component.",
+      "result": "Both LRF variants preserve broad target structures and appear visually closer than ICNN; no color scale, structural score, or representative-sample rule is supplied.",
+      "baseline": "Ground truth, TF-Net, and ICNN heatmaps."
+    },
+    {
+      "setting": "Appendix visualization at forecast steps 10, 20, 30, and 60.",
+      "metric": "Qualitative evolution of one velocity-field component.",
+      "result": "Errors become visually more apparent with horizon and all models retain coarse wave structure; the images do not establish conservation or turbulent-spectrum fidelity.",
+      "baseline": "Ground truth at each horizon."
+    },
+    {
+      "setting": "Scheduler ablation described in prose.",
+      "metric": "Relative early- versus late-step RMSE with and without the sigmoid scheduler.",
+      "result": "Without the scheduler, post-step-20 RMSE is reportedly smoother and lower but early RMSE is higher; no curve, numerical table, seed variation, or operating-point selection rule is shown.",
+      "baseline": "The reported LRF using the scheduler."
+    }
+  ],
+  "limitations": [
+    "Author-stated: the weight scheduler protects short-term predictions but can negatively affect long-term steps.",
+    "Author-stated: the regularizer has only been demonstrated on the climate/turbulence use case and broader domains remain future work.",
+    "Reviewer-identified: empirical supervised error differences do not satisfy the premises of a Lyapunov certificate over the learned state space.",
+    "Reviewer-identified: all reported RMSE curves increase, directly refuting the claimed V-dot<0 asymptotic behavior.",
+    "Reviewer-identified: one simulated trajectory, one parameter setting, one architecture, and one spatial resolution are evaluated.",
+    "Reviewer-identified: length-100 windows overlap across train/validation and validation/test boundaries in the released pipeline.",
+    "Reviewer-identified: the test loader repeats 300 unique full-domain windows seven times, while its counts disagree with the paper.",
+    "Reviewer-identified: normalization uses the complete sequence rather than training-only statistics.",
+    "Reviewer-identified: only velocity RMSE and heatmaps are reported; no invariant, spectrum, correlation, conservation, or long-run distribution is tested.",
+    "Reviewer-identified: four runs are too few for a strong stability claim, exact scores and paired significance are absent, and some plotted error bars overlap.",
+    "Reviewer-identified: the released code does not implement the active log-barrier loss claimed by the LRF-Log curve and does not reproduce the paper's hyperparameters.",
+    "Reviewer-identified: data, checkpoints, result files, dependencies, seeds, tests, and a usable reproduction guide are absent."
+  ],
+  "failure_modes": [
+    "Penalizing error increases can raise early error so that later increments look smaller without improving the absolute forecast, as the no-scheduler observation illustrates.",
+    "For a chaotic trajectory beyond its predictability horizon, pointwise truth error should grow even for a statistically faithful simulator, making monotone tracking error an inappropriate stability target.",
+    "A model can lower pixel RMSE by damping small scales, while corrupting vorticity, energy spectra, dissipation, or invariant statistics.",
+    "Near-duplicate windows on both sides of a split can turn temporal memorization into apparent long-horizon generalization.",
+    "Full-sequence normalization can leak future test-distribution scale and mean into training.",
+    "Teacher-forced short training rollouts can expose a different state distribution from 60 recursively generated steps, leaving error growth uncontrolled off manifold.",
+    "The log barrier is undefined on positive V differences unless a feasible-point or hybrid rule is specified; the public code silently replaces it with a ReLU violation penalty.",
+    "A threshold tuned in normalized MSE units can activate at the wrong horizon after a resolution, variable, flow-regime, or normalization change.",
+    "Averaging the penalty only over violating samples, as in the release, keeps its scale discontinuous as the number of violations changes and differs from Equation 7's stated sum.",
+    "Equilibrium-style asymptotic stability can collapse a turbulent attractor instead of preserving its sustained chaotic statistics."
+  ],
+  "reusable_insights": [
+    "Distinguish forecast-error growth, bounded rollouts, numerical zero-stability, attractor fidelity, incremental stability, and asymptotic equilibrium stability; they require different definitions and tests.",
+    "For sliding windows, split the underlying trajectory first and leave a gap at least as long as the complete context-plus-target window before constructing samples.",
+    "Fit normalization only on the training interval and report the number of unique trajectories and windows after deduplication.",
+    "Pair pointwise rollout error with divergence, vorticity, kinetic-energy spectra, autocorrelation, invariant distributions, and forecast skill relative to the system's Lyapunov time.",
+    "Compare error-difference penalties against multi-step unrolling, pushforward training, input noise, temporal subsampling, spectral losses, and probabilistic refinement under the same splits.",
+    "A genuine learned Lyapunov claim needs a clearly defined autonomous or time-varying error system, domain-wide decrease conditions, verification coverage, and a statement of what stability property follows.",
+    "Show scheduler-free and multiple-threshold curves as an early/late Pareto frontier rather than selecting one operating point by prose.",
+    "Treat exact trajectory tracking and long-run climate statistics separately; after a chaotic predictability horizon, statistical fidelity can matter more than pixel agreement.",
+    "Release immutable data IDs, seed lists, checkpoints, exact commands, dependency locks, and tests that numerically confirm every plotted loss variant."
+  ],
+  "open_questions": [
+    "Does the gain survive a leakage-free blocked split with a 100-frame exclusion gap and training-only normalization?",
+    "How many statistically independent simulations and initial conditions are needed to estimate the gain rather than resample one trajectory?",
+    "Does LRF improve energy spectra, divergence, vorticity, autocorrelation, and invariant statistics, or merely smooth high-frequency structure?",
+    "Can an incremental or contraction-based objective control perturbation growth without forcing a chaotic attractor toward an equilibrium?",
+    "What is the effective forecast-skill gain in units of the flow's largest Lyapunov time?",
+    "Which scheduler or constrained optimization method gives a principled early/late error tradeoff without threshold retuning?",
+    "Can the log-barrier result be reproduced with a released, numerically defined feasible-point algorithm?",
+    "Does the regularizer help FNOs, graph solvers, recurrent models, and modern neural operators across Reynolds/Rayleigh shifts, geometries, and resolutions?",
+    "How does it compare with pushforward/noise training and PDE-Refiner on identical turbulence benchmarks and physical metrics?",
+    "Can uncertainty estimates detect when recursive forecasts leave the learned distribution and exact tracking is no longer meaningful?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1911.08655",
+      "title": "Towards Physics-informed Deep Learning for Turbulent Flow Prediction",
+      "url": "https://arxiv.org/abs/1911.08655",
+      "relationship": "direct base model and benchmark",
+      "difference": "Wang et al. introduce TF-Net itself, with trainable RANS/LES-inspired filtering, and evaluate 60-frame forecasts using mass conservation, turbulent kinetic energy, and energy spectra in addition to error. The reviewed workshop paper changes only the loss and omits most of those physical diagnostics, so its incremental value is a small late-RMSE gain rather than a new simulator architecture.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4"
+    },
+    {
+      "canonical_id": "arxiv:2001.06116",
+      "title": "Learning Stable Deep Dynamics Models",
+      "url": "https://arxiv.org/abs/2001.06116",
+      "relationship": "direct Lyapunov-method prior and reported baseline",
+      "difference": "Manek and Kolter jointly learn a dynamics model and Lyapunov function with a construction intended to guarantee non-expansiveness over the state space. Zheng et al. use it as an ICNN baseline but replace a learned state certificate with future-ground-truth tracking error; their cheaper penalty has no comparable guarantee and the ICNN baseline's poor turbulence RMSE does not validate the new stability claim.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2112.15275",
+      "title": "Learned Coarse Models for Efficient Turbulence Simulation",
+      "url": "https://arxiv.org/abs/2112.15275",
+      "relationship": "contemporary rollout-stability alternative",
+      "difference": "Stachenfeld et al. test training noise, temporal downsampling, loss constraints, and augmentation across several chaotic and turbulent systems and compare against coarse numerical solvers on scientific metrics. The reviewed paper cites this work but does not benchmark those simple stability interventions or test distribution shift.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2202.03376",
+      "title": "Message Passing Neural PDE Solvers",
+      "url": "https://arxiv.org/abs/2202.03376",
+      "relationship": "contemporary autoregressive-stability method",
+      "difference": "Brandstetter et al. frame rollout stability as train/inference domain adaptation, using temporal bundling and a pushforward strategy, and evaluate multiple PDEs, parameters, discretizations, and topologies. LRF instead regularizes adjacent teacher-supervised errors on one grid sequence and does not expose the model to its full 60-step off-distribution rollout during training.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2308.05732",
+      "title": "PDE-Refiner: Achieving Accurate Long Rollouts with Neural PDE Solvers",
+      "url": "https://arxiv.org/abs/2308.05732",
+      "relationship": "later strong long-rollout competitor",
+      "difference": "Lippe et al. identify neglected low-amplitude spatial frequencies as a key rollout failure, use iterative denoising refinement, benchmark complex fluid PDEs against neural, numerical, and hybrid solvers, and quantify predictive uncertainty. This directly addresses the spectral fidelity and failure detection that a scalar LRF RMSE-difference penalty leaves unmeasured.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2307.13517",
+      "title": "Towards Long-Term predictions of Turbulence using Neural Operators",
+      "url": "https://arxiv.org/abs/2307.13517",
+      "relationship": "later direct turbulence regularization study",
+      "difference": "Gonzalez et al. compare FNO and U-shaped neural operators at multiple turbulence conditions and study gradient and stability losses, finding architecture and regularization both important. LRF reports only one backbone and one parameter regime, so it cannot separate a general loss effect from TF-Net-specific behavior.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2506.04898",
+      "title": "Uncertainty quantification and stability of neural operators for prediction of three-dimensional turbulence",
+      "url": "https://arxiv.org/abs/2506.04898",
+      "relationship": "current reliability-focused turbulence competitor",
+      "difference": "Zou et al. evaluate 3D homogeneous isotropic turbulence with error distributions, perturbation sensitivity, autocorrelation, and uncertainty, and propose an implicit-factorized FNO. Their reliability protocol makes explicit that stability is multi-metric and probabilistic; LRF supplies only mean RMSE and selected 2D images.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2603.26800",
+      "title": "DSO: Dual-Scale Neural Operators for Stable Long-term Fluid Dynamics Forecasting",
+      "url": "https://arxiv.org/abs/2603.26800",
+      "relationship": "current architecture-level long-flow competitor",
+      "difference": "Dong et al. distinguish local-detail blurring from global-trend drift, build separate local and global processing paths, and report extensive turbulent-flow benchmarks. This is a more diagnostic response to two distinct rollout failures than forcing the aggregate ground-truth MSE increment downward.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "A time-based Lyapunov regularizer formed from adjacent forecast-error differences, plus a sigmoid horizon scheduler, improves TF-Net's long-term turbulent-flow predictions more than an unregularized model or a learned-ICNN Lyapunov baseline.",
+    "evidence": "Across four reported initializations on one 2D flow sequence, LRF-ReLU and LRF-Log have lower late-step RMSE curves than TF-Net and visually plausible 60-step fields; the authors also describe an early/late tradeoff from the scheduler.",
+    "reviewer_inference": "The useful novelty is a simple, model-adjacent penalty for slowing supervised rollout-error growth. It should not be described as Lyapunov-certified stability: the candidate depends on future truth, the required decrease is neither verified nor observed, the data split leaks overlapping frames, and the public code cannot reproduce the log variant. Contemporary noise/pushforward methods and later spectral, uncertainty-aware, and neural-operator approaches provide stronger evaluations of long-horizon turbulence."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Audit covered all seven workshop pages and every visual panel, including a high-resolution read of Figure 1 and the image-only Appendix page. The PDF footnote links to github.com/r2zheng/Lyapunov-Regularized-Forecaster, which resolves to the Rose-STL-Lab repository; its complete three-commit history was inspected at public head 635e51ff85bbd1b1d23712df740893800e8d78fe. The audit traced exact ID-to-time mappings: train frames reach 956, validation begins at 857 and reaches 1198, and test begins at 1100, so boundary overlap is material. Test-mode integer division duplicates each of 300 full-domain windows seven times. The active code computes but drops log_sum, uses whole-sequence normalization, disagrees with paper split and hyperparameters, and lacks its data/results. Competitor searches covered the TF-Net parent, formal Lyapunov learning, training-noise and pushforward alternatives, spectral refinement, neural-operator stability, uncertainty, and current 2026 fluid forecasting. Figure values were not digitized, so only visually defensible rankings and overlap statements are recorded."
+}

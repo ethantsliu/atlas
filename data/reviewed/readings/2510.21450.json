@@ -1,0 +1,613 @@
+{
+  "stable_id": "arxiv:2510.21450",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2510.21450",
+    "pdf_sha256": "9b4f612695ed5e15662e1ff67a21250650decd49ff315ddc63aac74013f817cc",
+    "text_sha256": "c3f169ab3869d44f5643227e5230f04c85f05ea3f3647bda3404ae784e51cc7d",
+    "page_count": 30,
+    "extracted_at": "2026-08-23T14:33:37.241905+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can an exact nonlinear RNN sequence be recovered with a small fixed number of parallel Newton/scan steps, implemented efficiently enough to train diagonalized GRU/LSTM-like language models at 7B scale while retaining the quality and inference advantages needed to compete with Transformers and Mamba2?",
+  "key_findings": [
+    {
+      "claim": "ParaRNN inherits the all-at-once nonlinear-system formulation and makes each Newton correction sequence-parallel with a scan over a block-bidiagonal linear system.",
+      "evidence": "Equations (2.1)-(2.3) stack the Markov recurrence h_l=f(h_{l-1},x_l) into L nonlinear residual equations. Newton linearization produces identity diagonal blocks and -J_f subdiagonal blocks. Equations (2.4)-(2.5) reinterpret forward substitution as a linear recurrence and use a prefix reduction for O(log L) parallel depth; equation (2.6) applies the same idea once to the inherently linear backward recurrence. Linear SSMs fall out as the one-Newton-step special case.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "2, equations (2.1)-(2.2)"
+        },
+        {
+          "page": 4,
+          "section": "Equations (2.3)-(2.6) and linear-SSM footnote"
+        },
+        {
+          "page": 5,
+          "section": "Algorithm 1"
+        }
+      ]
+    },
+    {
+      "claim": "The practical speedup depends on replacing classical dense recurrent mixing with diagonal or 2x2 block-diagonal Jacobians.",
+      "evidence": "Dense Jacobians would require O(L d_h^2) memory and O(d_h^3) pairwise products. The paper therefore diagonalizes every recurrent/peephole A and C matrix. This turns ParaGRU into d_h independent one-dimensional recurrences and ParaLSTM into diagonal 2x2 blocks; cross-channel mixing is deferred to surrounding MLPs. The cells remain nonlinear, but they are not full dense GRU/LSTM recurrences.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "2.1 Computational Efficiency"
+        },
+        {
+          "page": 6,
+          "section": "3, equations (3.1)-(3.3)"
+        },
+        {
+          "page": 7,
+          "section": "Jacobian simplification consequences"
+        }
+      ]
+    },
+    {
+      "claim": "Three-step Newton convergence is an empirical cell-specific operating assumption, not a general ParaRNN guarantee.",
+      "evidence": "Worst-case convergence in L Newton steps would eliminate the parallel advantage. Appendix A shows residuals reaching approximately machine precision after 3-4 iterations for randomly selected batches of size eight, sequence lengths 2^8-2^11, freshly initialized cells, and the last layer of trained 400M models; the first ParaLSTM residual can rise. Training fixes N_its=3. No theorem gives O(1) convergence, and the appendix does not audit every layer/batch of the 1B-7B runs or compare 7B outputs/gradients to exact sequential unrolling.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "2.1 Newton's Convergence"
+        },
+        {
+          "page": 14,
+          "section": "Appendix A, convergence setup and Figure 4"
+        },
+        {
+          "page": 15,
+          "section": "Appendix A, convergence interpretation"
+        }
+      ]
+    },
+    {
+      "claim": "The printed core pseudocode is internally inconsistent and cannot be implemented literally.",
+      "evidence": "The prose updates h^{k+1}=h^k+delta h^k, but Algorithm 1a computes Jacobians at h^k and then assigns h^k from h^{k-1} in the same iteration. Algorithm 1b loops l from 2^i yet references l-2^i+1; at i=0 that is the current l rather than its predecessor. Appendix Figure 12 instead describes reducing an equation l+2^i using l, which is consistent with the standard l-2^i offset. Equation (2.4) also labels J_f at h_l although f for row l is differentiated at h_{l-1}. The released code may embody the intended indexing, but the displayed algorithm/equations contain off-by-one/iteration-index errors.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Equation (2.3) and prose Newton update; equation (2.4)"
+        },
+        {
+          "page": 5,
+          "section": "Algorithm 1a-1b"
+        },
+        {
+          "page": 26,
+          "section": "Appendix D.2.2, Figures 11-12 and doubling-offset description"
+        }
+      ]
+    },
+    {
+      "claim": "The 665x headline is a best-case cell-kernel comparison against naïve sequential unrolling, whereas production-relevant Mamba comparisons are much smaller.",
+      "evidence": "Figure 1 reports 665x for ParaGRU and 447x for ParaLSTM at L=512 relative to sequential application. At the same length, the diagonal CUDA scan is about 1.1x faster than Mamba's scan while the 2x2 block scan is 0.84x as fast; the fully fused complete forward cell is about 2.6x (GRU) and 1.5x (LSTM) faster than a simplified Mamba cell. These are minimum kernel timings on one A100, not end-to-end training throughput or time-to-quality.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "Figure 1"
+        },
+        {
+          "page": 8,
+          "section": "5.1, Figure 2 and reported speedups"
+        },
+        {
+          "page": 16,
+          "section": "Appendix B, profiling protocol"
+        },
+        {
+          "page": 17,
+          "section": "Appendix B.1, Figure 5"
+        }
+      ]
+    },
+    {
+      "claim": "The fast-generation result is favorable for recurrence but is a lightly controlled 1B-model microbenchmark.",
+      "evidence": "Figure 3 reports asymptotic throughput around 37 tokens/s for ParaGRU, 35 for ParaLSTM, and 27 for Mamba2, while Transformer throughput decays with generated length. The appendix uses Python timeit and the minimum of only five runs because Transformer generation is slow. Batch size, prompt/prefill length, decoding implementation, memory, and quality-matched latency are not specified, and the recurrent models still generate autoregressively/sequentially.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "5.1 Fast Inference"
+        },
+        {
+          "page": 9,
+          "section": "Figure 3"
+        },
+        {
+          "page": 16,
+          "section": "Appendix B, throughput profiling setup"
+        }
+      ]
+    },
+    {
+      "claim": "At 7B, ParaGRU/ParaLSTM beat the study's Transformer baseline but lose to Mamba2 on perplexity and almost every downstream comparison.",
+      "evidence": "Table 2 gives perplexities 8.62 Mamba2, 9.16 ParaLSTM, 9.19 ParaGRU, and 9.55 Transformer. Mamba2 leads Arc-Challenge, HellaSwag, WinoGrande, and MMLU; it ties ParaGRU on PiQA and both Para cells on one OpenBookQA setting. The recurrent cells generally beat the DCLM Transformer, but the paper's direct Mamba2 baseline remains strongest. At 400M and 1B, Table 5 also has the Transformer ahead of both Para cells on perplexity; the Para cells only overtake it slightly at 2.9B and more clearly at 7B.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "5.2, Table 2"
+        },
+        {
+          "page": 10,
+          "section": "7B result interpretation"
+        },
+        {
+          "page": 22,
+          "section": "Appendix C.1, Table 5"
+        }
+      ]
+    },
+    {
+      "claim": "The printed end-to-end step-time table contains an unexplained 7B Mamba2 discontinuity that prevents a clean training-efficiency conclusion.",
+      "evidence": "Table 3 reports Mamba2 at 115, 221, 393, then 9,475 ms/step from 409M through 7B, while 7B ParaGRU/ParaLSTM/Transformer are 613/715/520 ms. The 24x jump from Mamba2's 2.83B row and roughly 18x gap to the 7B Transformer are not explained, reconciled with the A100 cell microbenchmarks, or flagged as a possible implementation/hardware issue. Thus the table cannot establish architecture-intrinsic full-model training superiority.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 21,
+          "section": "Appendix C.1, Table 3"
+        }
+      ]
+    },
+    {
+      "claim": "The synthetic tasks demonstrate useful nonlinear recurrence capacity under the chosen setup, but not a general language-modeling expressivity advantage.",
+      "evidence": "Single-layer ParaGRU/ParaLSTM reach 100% on MQAR, 2-hop, parity, and Keep-nth, versus Mamba2's 100/98/51/1 and Transformer's 100/78/53/100. Results report the best of three seeds after up to 3,000 epochs; model parameter counts differ, positional encoding is specially added for recurrent Keep-nth, and MQAR/k-hop require convolution, normalization, and gating because none of the recurrent mixers solves them alone. Norm clipping is disabled for parity because it harms the Para cells.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "5.2, Table 1"
+        },
+        {
+          "page": 23,
+          "section": "Appendix C.2, task/model/training setup and Table 6"
+        }
+      ]
+    },
+    {
+      "claim": "Model selection uses the reported SlimPajama test set, creating evaluation leakage for perplexity comparisons.",
+      "evidence": "For every architecture and scale, the authors sweep three learning rates and three weight-decay values and select the configuration with the lowest perplexity on the SPJ test set; Table 5 then reports final perplexity without identifying a separate untouched test set. Selecting among nine configurations on the evaluation target biases the reported architecture gaps, especially the 0.05-0.10 differences around 2.9B.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 21,
+          "section": "Appendix C.1, Training Setup and Tables 3-4"
+        },
+        {
+          "page": 22,
+          "section": "Table 5"
+        }
+      ]
+    },
+    {
+      "claim": "The language-model cells combine several modern components and explicit stability constraints, so performance is not attributable to classical GRU/LSTM recurrence alone.",
+      "evidence": "The block inherits Mamba's causal convolution and gated RMSNorm/residual layer, interleaves Transformer-style MLPs, and uses multi-head independent recurrences. Recurrent/peephole norms are clipped to 0.5 to avoid long-sequence overflow and bound Jacobians. The paper calls the resulting models adaptations, but its broad 'classical nonlinear RNNs' language can obscure that the recurrence, block, initialization, and stability regime all differ from standard dense GRU/LSTM.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "3, diagonalized cell definitions"
+        },
+        {
+          "page": 9,
+          "section": "5.2, architecture description"
+        },
+        {
+          "page": 20,
+          "section": "Appendix C.1, Figure 9"
+        },
+        {
+          "page": 21,
+          "section": "Initialization and norm clipping"
+        }
+      ]
+    },
+    {
+      "claim": "Automatic generality and high performance apply to different tiers of the released framework.",
+      "evidence": "The pure PyTorch route can derive generic Jacobians with autograd, but dense Jacobians are identified as de facto infeasible. The accelerated CUDA solver only supports diagonal or N x N block-diagonal structure unless users implement a new specialization. The fastest fully fused mode requires users to hand-write CUDA recurrence and Jacobian code. Therefore the claim that only a recurrence-step definition is needed is true for the slower generic path, not for the headline fused performance.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "4, three implementation tiers"
+        },
+        {
+          "page": 24,
+          "section": "Appendix D.1, framework classes"
+        },
+        {
+          "page": 28,
+          "section": "Appendix D.3, Python Jacobian specialization"
+        },
+        {
+          "page": 29,
+          "section": "CUDA fused requirement and Appendix D.4"
+        },
+        {
+          "page": 30,
+          "section": "Dense-structure CUDA limitation"
+        }
+      ]
+    },
+    {
+      "claim": "The paper benchmarks long kernels but does not show long-context language quality.",
+      "evidence": "All language models train on length-2,048 sequences, and downstream evaluation is standard lm-eval-harness rather than long-context recall, extrapolation, or state-tracking at scale. Timing curves extend to very long synthetic/random sequences, but no perplexity or retrieval quality is reported beyond the training length. Hence ParaRNN's claimed sequence-parallel scalability and recurrent memory advantage are not jointly validated on long language contexts.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "5.1, Figure 2 timing lengths"
+        },
+        {
+          "page": 9,
+          "section": "5.2, language-model evaluation"
+        },
+        {
+          "page": 21,
+          "section": "Appendix C.1, Table 4 sequence length"
+        }
+      ]
+    },
+    {
+      "claim": "Profiling favors best-case hardware/kernel behavior and does not quantify statistical or systems uncertainty.",
+      "evidence": "A100 kernel plots use 20 warmups, 100 random-input runs, and the minimum runtime; generation uses the minimum of five. Chunk size is selected after a hardware-specific sweep and the best choice changes with cell, sequence length, GPU, datatype, and mode. No dispersion, compilation overhead, energy, peak memory, multi-node communication, or repeated end-to-end training throughput is given. Appendix B also notes that the non-fused CUDA GRU can beat the fused kernel above L>2^12 due to register pressure.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 16,
+          "section": "Appendix B, profiling setup and minimum-timing footnote"
+        },
+        {
+          "page": 17,
+          "section": "Appendix B.1, register-pressure exception"
+        },
+        {
+          "page": 18,
+          "section": "Figures 7-8, chunk-size ablation"
+        },
+        {
+          "page": 19,
+          "section": "Chunk-size selection"
+        },
+        {
+          "page": 27,
+          "section": "Appendix D.2.2, device-dependent compile-time tuning"
+        }
+      ]
+    },
+    {
+      "claim": "The paper supports nonlinear recurrence as a viable option, but its categorical linear-expressivity motivation is not resolved by the language-model evidence.",
+      "evidence": "Para cells decisively solve parity while Mamba2 is at chance, but Mamba2 has the best perplexity at every scale and the best 7B downstream suite. Moreover, the surrounding Para network still relies on MLP channel mixing, while modern linear recurrences are nonlinear/input-selective as full blocks. The experiments therefore show a task-dependent trade-off rather than that linear SSMs broadly preclude complex sequence dependencies.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 1,
+          "section": "Abstract and Introduction, expressivity motivation"
+        },
+        {
+          "page": 3,
+          "section": "Previous work"
+        },
+        {
+          "page": 9,
+          "section": "Tables 1-2"
+        },
+        {
+          "page": 22,
+          "section": "Table 5"
+        },
+        {
+          "page": 23,
+          "section": "Table 6"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Replace sequential unrolling of a Markovian nonlinear recurrence with a globally solved nonlinear residual system, use a few Newton iterations, and solve each block-bidiagonal Newton correction with hierarchical parallel reductions tailored to structured Jacobians.",
+    "mechanism": "ParaRNN stacks all hidden states, starts from h_l^0=f(0,x_l), builds residuals and state Jacobians in parallel, and performs three Newton corrections. A custom CUDA scan mixes small thread-local forward substitutions with warp-, block-, and grid-level reductions; the backward recurrence needs one scan. ParaGRU diagonalizes recurrent matrices, while ParaLSTM yields diagonal 2x2 blocks. Three software tiers range from generic autograd/PyTorch to structured CUDA reduction and a hand-specialized fully fused kernel. The language models place multi-head Para cells inside DCLM/Mamba-inspired blocks and train 400M-7B models on 10.5B-138.4B SlimPajama tokens.",
+    "assumptions": [
+      "The nonlinear recurrence is Markovian and its all-at-once residual system has a usable Newton basin from h_l^0=f(0,x_l).",
+      "A fixed O(1), specifically three, Newton iterations approximate the exact sequence closely enough throughout every layer and training update.",
+      "Jacobians are invertible/well-conditioned enough that undamped Newton converges without ELK/Levenberg-Marquardt stabilization.",
+      "Diagonal or small block-diagonal recurrent Jacobians retain enough nonlinear expressivity once MLPs, convolution, gating, and residual channel mixing are added.",
+      "Clipping recurrent/peephole norms to 0.5 prevents overflow without erasing long-memory or state-tracking capabilities.",
+      "Gradients computed by the single-scan backward recurrence at approximately recovered states are close to gradients of exact sequential unrolling.",
+      "Parallel depth, rather than additional total work, memory traffic, synchronization, or kernel launch cost, is the relevant efficiency bottleneck for target lengths/hardware.",
+      "A100 minimum microbenchmarks at L=512 predict end-to-end, multi-node H100 training efficiency.",
+      "Nominal parameter and Chinchilla-token matching makes DCLM Transformer, Hugging Face Mamba2, and the hybrid Para blocks quality-comparable despite different depth/head layouts and kernels.",
+      "Selecting hyperparameters on the SlimPajama test set does not materially bias reported perplexity differences.",
+      "Best-of-three synthetic-task accuracy captures architecture expressivity rather than seed luck, bespoke clipping/position settings, or supporting convolution/gates.",
+      "Results at 2,048-token training length transfer to the much longer sequence lengths for which the scan kernel is profiled.",
+      "Users who define arbitrary cells will either accept generic dense cost or provide a structured Jacobian/CUDA implementation compatible with the accelerated path."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "all-at-once-rnn-residual-system",
+      "role": "Collates L nonlinear recurrent equations into one structured system over all hidden states."
+    },
+    {
+      "id": "fixed-iteration-newton",
+      "role": "Approximates the exact nonlinear sequence with three globally parallelizable linearizations."
+    },
+    {
+      "id": "block-bidiagonal-parallel-scan",
+      "role": "Solves each Newton correction and the backward recurrence with logarithmic parallel depth."
+    },
+    {
+      "id": "hierarchical-cuda-reduction",
+      "role": "Combines thread-local substitution with warp, block, and grid reductions to reduce memory traffic and synchronization."
+    },
+    {
+      "id": "diagonal-paragru",
+      "role": "Makes GRU state Jacobians elementwise so the scan has O(d_h) storage and multiplication."
+    },
+    {
+      "id": "block-diagonal-paralstm",
+      "role": "Retains coupled cell/output state through diagonal 2x2 blocks while making prefix products tractable."
+    },
+    {
+      "id": "custom-parallel-backward",
+      "role": "Computes BPTT gradients with one reverse scan rather than multiple Newton steps."
+    },
+    {
+      "id": "three-tier-pararnn-library",
+      "role": "Offers generic PyTorch/autograd, structured CUDA-solver, and fully fused hand-specialized modes."
+    },
+    {
+      "id": "hybrid-recurrent-llm-block",
+      "role": "Combines the nonlinear recurrent mixer with causal convolution, gated RMSNorm/residual layers, and Transformer-style MLPs."
+    },
+    {
+      "id": "norm-clipped-recurrent-parameters",
+      "role": "Bounds recurrent/peephole parameters for numerical stability and rapid Newton convergence."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Single-A100 kernel profiling over sequence lengths from small powers of two to very long random sequences",
+      "metric": "Minimum forward/scan runtime after warmup",
+      "result": "At L=512, fully fused ParaGRU/ParaLSTM are about 2.6x/1.5x faster than a simplified Mamba cell; diagonal scan alone is 1.1x Mamba scan and 2x2 scan is 0.84x.",
+      "baseline": "torch.compile-optimized Mamba parallel_scan or a simplified Mamba SSM module stripped of gate/convolution"
+    },
+    {
+      "setting": "Sequential versus parallel application of Para cells",
+      "metric": "Forward cell application runtime at L=512",
+      "result": "Figure 1 reports peak 665x ParaGRU and 447x ParaLSTM speedups.",
+      "baseline": "Naïve sequential RNN-cell unrolling, not a production competing architecture"
+    },
+    {
+      "setting": "Newton convergence for initialized and trained ParaGRU/ParaLSTM",
+      "metric": "Maximum normalized residual over batch size eight at L=256-2,048",
+      "result": "Residual reaches approximately machine precision in 3-4 iterations; ParaGRU grows from two to three steps after training, and initialized ParaLSTM initially increases.",
+      "baseline": "Initial parallel guess h_l^0=f(0,x_l); last layer of trained 400M models only"
+    },
+    {
+      "setting": "Autoregressive generation with 1B models",
+      "metric": "Tokens per second versus number of new tokens",
+      "result": "Asymptotic curves report about 37 ParaGRU, 35 ParaLSTM, and 27 Mamba2 tokens/s; Transformer throughput declines roughly inversely with generated length.",
+      "baseline": "Mamba2 and DCLM Transformer under minimum-of-five timeit runs"
+    },
+    {
+      "setting": "SlimPajama-minus-Books3 language modeling at 400M, 1B, 2.9B, and 7B with 2,048-token sequences",
+      "metric": "Test perplexity",
+      "result": "Mamba2 is best at every scale (16.49/12.26/10.13/8.62). ParaGRU is 18.56/13.20/10.92/9.19 and ParaLSTM 18.40/13.11/10.87/9.16; both trail Transformer at 400M/1B and lead it at 2.9B/7B.",
+      "baseline": "Hugging Face Mamba2 and DCLM Transformer at approximately matched parameter/token budgets"
+    },
+    {
+      "setting": "7B lm-eval-harness suite: Arc-Challenge, HellaSwag, OpenBookQA, WinoGrande, PiQA, MMLU",
+      "metric": "Few-shot and zero-shot accuracy",
+      "result": "Mamba2 generally leads; ParaGRU/ParaLSTM mostly sit between Mamba2 and Transformer, with selected ties such as 42.20 OpenBookQA and ParaGRU's 76.66 PiQA.",
+      "baseline": "6.96B Mamba2 and 6.89B DCLM Transformer trained on the same 138.4B-token budget"
+    },
+    {
+      "setting": "End-to-end model training on 8-H100 nodes, scaling to 32 nodes for 7B",
+      "metric": "Average milliseconds per training step",
+      "result": "At 7B Table 3 prints 613 ParaGRU, 715 ParaLSTM, 520 Transformer, and 9,475 Mamba2 ms/step; the Mamba number is an unexplained discontinuity.",
+      "baseline": "The four study architectures with different layer/head layouts"
+    },
+    {
+      "setting": "Single-layer length-100 synthetic Keep-nth, parity, MQAR, and 1-/2-hop tasks",
+      "metric": "Best test accuracy over three seeds after up to 3,000 epochs",
+      "result": "ParaGRU/ParaLSTM report 100% across all listed tasks; Mamba2 fails Keep-nth (1%) and parity (52%) and reaches 98% on 2-hop; Transformer is near chance on parity and 78% on 2-hop.",
+      "baseline": "Single-layer Transformer and Mamba2 with task-specific supporting components and different parameter counts"
+    },
+    {
+      "setting": "CUDA chunk-size ablation",
+      "metric": "Kernel runtime for c in {1,2,4}",
+      "result": "Optimal c varies by cell, mode, and length: c=2 is used for diagonal/block scans and the L=2,048 GRU training path, while c=1 is best for ParaLSTM fused and shorter sequences.",
+      "baseline": "Mamba scan and alternate ParaRNN compile-time configurations"
+    }
+  ],
+  "limitations": [
+    "Author-stated (pp.5,14-15): fast Newton convergence is not guaranteed for arbitrary RNN cells; O(L) iterations would erase the benefit.",
+    "Author-stated (pp.5-7): dense Jacobians are infeasible, so efficient cells need diagonal or other lean structure that reduces within-cell state mixing.",
+    "Author-stated (pp.14-15): a theoretical characterization of cell properties needed for O(1) convergence is future work.",
+    "Reviewer-identified: convergence validation covers the last layer of 400M models and short evaluation batches, not all layers/batches of 7B training or exact output/gradient error.",
+    "Reviewer-identified: Algorithm 1 and Jacobian indexing contain literal off-by-one/iteration-index inconsistencies, reducing paper-only reproducibility.",
+    "Reviewer-identified: the 665x figure is against naïve sequential cell application; direct Mamba core speedups are 0.84x-2.6x and omit end-to-end components.",
+    "Reviewer-identified: all A100 runtime curves report minima, not means/distributions, and the five-run generation protocol lacks prompt/batch/system details.",
+    "Reviewer-identified: high-performance behavior depends on hand-written fused CUDA and device/length/dtype-specific compile-time tuning; arbitrary autograd cells use the slow path.",
+    "Reviewer-identified: the recurrent cells are diagonalized, multi-head adaptations embedded in Mamba/Transformer-derived blocks, not classical dense GRU/LSTM models.",
+    "Reviewer-identified: norm clipping to 0.5 trades long-memory/expressivity for stability, and parity explicitly requires disabling a similar clipping constraint.",
+    "Reviewer-identified: Mamba2 is the strongest perplexity model at every scale and the strongest 7B downstream model, so quality parity is approximate rather than leadership.",
+    "Reviewer-identified: no uncertainty, repeated pretraining seeds, confidence intervals, or statistical tests accompany perplexity/downstream differences.",
+    "Reviewer-identified: hyperparameters are selected on the SlimPajama test set used for reported perplexity, creating optimistic selection bias.",
+    "Reviewer-identified: Table 3's printed 9,475-ms 7B Mamba step is unexplained and inconsistent with neighboring scales/core profiling.",
+    "Reviewer-identified: language training/evaluation is limited to 2,048-token sequences and standard tasks; no long-context quality test accompanies long-length kernel timing.",
+    "Reviewer-identified: no peak memory, energy, compilation cost, multi-node communication profile, end-to-end time-to-quality, or total training wall time is reported.",
+    "Reviewer-identified: only Transformer and Mamba2 are trained as large-scale baselines; xLSTM, minLSTM/minGRU, implicit SSMs, LrcSSM, RWKV/Griffin, and newer structured recurrence alternatives are not empirically compared."
+  ],
+  "failure_modes": [
+    "A cell outside Newton's rapid-convergence basin can require many iterations or diverge, eliminating sequence-parallel speedup.",
+    "Chaotic/unpredictable recurrent dynamics can make the all-at-once optimization ill-conditioned even when worst-case finite-step convergence exists.",
+    "Dense or large-block Jacobians exhaust memory/registers and make pairwise products too expensive for the supplied CUDA solver.",
+    "Norm clipping and diagonal recurrence can suppress the long-range state dynamics that motivated nonlinear RNNs.",
+    "Using only three Newton steps can silently train on approximate states and gradients if convergence degrades in an unseen layer/batch/model scale.",
+    "Fully fused kernels can become slower than the partially fused CUDA path at longer sequences because register pressure triggers earlier block-sequential behavior.",
+    "Kernel advantages can disappear on a different GPU, datatype, sequence regime, or untuned chunk/block configuration.",
+    "The generic 'define only recurrence_step' API can fall back to dense autograd Jacobians and lose every practical efficiency advantage.",
+    "Inference remains token-sequential, so single-request latency is still autoregressive even though per-token recurrent cost is length-flat.",
+    "At small model scales the Para cells have worse perplexity than the Transformer as well as Mamba2.",
+    "Synthetic parity/Keep-nth success can require task-specific unclipping or positional encoding that does not transfer to the constrained language model.",
+    "Test-set hyperparameter selection can reverse small architecture gaps on a genuinely held-out evaluation.",
+    "An anomalously slow baseline implementation, as suggested by the printed 7B Mamba step time, can inflate end-to-end efficiency claims.",
+    "Long-kernel correctness/runtime does not guarantee long-context language quality when all models were trained only at length 2,048."
+  ],
+  "reusable_insights": [
+    "A causal nonlinear recurrence yields a block-bidiagonal Newton system whose correction is itself a linear recurrence and therefore scan-parallelizable.",
+    "Separate parallel depth from total work, memory traffic, and convergence iterations when evaluating time-parallel sequence algorithms.",
+    "Structure the recurrent Jacobian by design rather than materializing dense Jacobians if exact parallel products are required.",
+    "Use a hardware-hierarchical hybrid of small sequential chunks and warp/block/grid scans instead of maximizing parallelism uniformly.",
+    "Validate solver residual and exact sequential output/gradient error continuously across layers and training, not only at initialization/endpoints.",
+    "Report naïve-sequential, optimized direct-competitor, cell-core, full-block, and end-to-end time-to-quality speedups separately.",
+    "Treat convergence-friendly parameter clipping as an architectural assumption and measure its memory/expressivity trade-off explicitly.",
+    "Offer a slow automatic reference path and a structured fast path, but state clearly which API guarantees apply to which performance tier.",
+    "For recurrent LMs, evaluate both length-flat generation and long-context quality; neither alone establishes a useful long-sequence model.",
+    "Use a validation split for architecture hyperparameter selection and reserve a separate test split for final perplexity."
+  ],
+  "open_questions": [
+    "What verifiable spectral, Lyapunov, contraction, or conditioning criteria guarantee O(1) Newton iterations for a learned nonlinear cell?",
+    "How often do three iterations fail, and what is the exact hidden-state/gradient error distribution across every layer and step of 7B training?",
+    "Can damping, line search, ELK/Kalman smoothing, or quasi-Newton updates improve robustness without erasing runtime gains?",
+    "Can richer sparse, low-rank, circulant, or larger block Jacobians restore within-cell mixing while remaining CUDA-efficient?",
+    "How much quality comes from nonlinear recurrence versus causal convolution, gated residuals, MLPs, depth, clipping, and multi-head decomposition?",
+    "Does ParaRNN retain its speed and numerical accuracy at 8K-1M language contexts and on non-A100/H100 hardware?",
+    "How do Para cells compare at matched tokens/FLOPs/code maturity with xLSTM, minGRU/minLSTM, LrcSSM, implicit LMs, Fixed-Point RNNs, RWKV/Griffin, and newer block-linear models?",
+    "Is the printed 7B Mamba2 9,475-ms step reproducible, a decimal/transcription error, or an implementation bottleneck?",
+    "What are peak training memory, communication, energy, compile time, and true end-to-end wall-clock/token costs for each architecture?",
+    "Do results hold with hyperparameters selected on validation data and multiple full pretraining seeds?",
+    "Can the fully fused code be generated automatically and safely from a recurrence/Jacobian specification rather than hand-written CUDA?",
+    "Do nonlinear recurrence gains persist on natural long-context recall/state-tracking tasks rather than best-of-three length-100 synthetic tasks?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2309.16318",
+      "title": "DeepPCR: Parallelizing Sequential Operations in Neural Networks",
+      "url": "https://arxiv.org/abs/2309.16318v2",
+      "relationship": "Direct methodological precursor by the same author team",
+      "difference": "DeepPCR already casts sequential neural operations as equation systems and uses parallel cyclic reduction/Newton-style ideas for ResNets and diffusion; ParaRNN's novelty is the structured RNN specialization, fused scan engineering, reusable library, and 7B language-model demonstration.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2023-10-27"
+    },
+    {
+      "canonical_id": "arxiv:2309.12252",
+      "title": "Parallelizing non-linear sequential models over the sequence length",
+      "url": "https://arxiv.org/abs/2309.12252v3",
+      "relationship": "Closest prior nonlinear-RNN time-parallel solver (DEER)",
+      "difference": "Lim et al. introduce the fixed-point/Newton sequence-parallel approach for generic nonlinear sequential models and report large time-series speedups; ParaRNN designs tractable GRU/LSTM Jacobians and production CUDA kernels and scales language models much further.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, 2024-01-16"
+    },
+    {
+      "canonical_id": "arxiv:2407.19115",
+      "title": "Towards Scalable and Stable Parallelization of Nonlinear RNNs",
+      "url": "https://arxiv.org/abs/2407.19115v3",
+      "relationship": "Direct solver-stability competitor",
+      "difference": "Gonzalez et al. reduce DEER's cubic cost with quasi-Newton approximations and add ELK/parallel Kalman smoothing for numerical stability; ParaRNN instead changes the cells to obtain exact diagonal/block Jacobians and relies on undamped three-step Newton.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3 / NeurIPS 2024, 2025-01-15"
+    },
+    {
+      "canonical_id": "arxiv:2508.16817",
+      "title": "Predictability Enables Parallelization of Nonlinear State Space Models",
+      "url": "https://arxiv.org/abs/2508.16817v4",
+      "relationship": "Current theoretical criterion for nonlinear time-parallel solvers",
+      "difference": "Gonzalez et al. connect Lyapunov predictability to optimization conditioning and prove polylogarithmic time for predictable systems while diagnosing slow convergence for chaotic ones; ParaRNN supplies a much larger engineering demonstration but no comparable convergence theory.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v4 / NeurIPS 2025, 2026-02-07"
+    },
+    {
+      "canonical_id": "arxiv:2505.21717",
+      "title": "Parallelization of Non-linear State-Space Models: Scaling Up Liquid-Resistance Liquid-Capacitance Networks for Efficient Sequence Modeling",
+      "url": "https://arxiv.org/abs/2505.21717v6",
+      "relationship": "Closest structured-Jacobian nonlinear SSM competitor",
+      "difference": "LrcSSM likewise enforces a diagonal Jacobian for O(TD) work/memory and O(log T) depth, but adds a formal gradient-stability guarantee and targets forecasting; ParaRNN targets GRU/LSTM-like LLMs, custom CUDA, and 7B scale.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v6 / NeurIPS 2025, 2025-12-14"
+    },
+    {
+      "canonical_id": "arxiv:2502.07827",
+      "title": "Implicit Language Models are RNNs: Balancing Parallelization and Expressivity",
+      "url": "https://arxiv.org/abs/2502.07827v3",
+      "relationship": "Direct implicit-recurrence language-model competitor",
+      "difference": "Implicit LMs use iterative fixed-point transformations and a convergence curriculum, scale to 1.3B/207B tokens, and emphasize state tracking; ParaRNN recovers an explicit nonlinear recurrence with Newton scans and scales parameters to 7B but trains on fewer tokens and lacks long-context/state-tracking LM evaluation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3 / ICML 2025 spotlight, 2025-06-12"
+    },
+    {
+      "canonical_id": "arxiv:2405.21060",
+      "title": "Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality",
+      "url": "https://arxiv.org/abs/2405.21060v1",
+      "relationship": "Primary efficiency/quality baseline and direct architecture competitor",
+      "difference": "Mamba2 uses a structured linear selective recurrence with mature scan algorithms and is the strongest perplexity/downstream model in ParaRNN's experiments; ParaRNN adds nonlinear state transitions and wins selected synthetic expressivity tasks at greater solver complexity.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 / ICML 2024, 2024-05-31"
+    },
+    {
+      "canonical_id": "arxiv:2410.01201",
+      "title": "Were RNNs All We Needed?",
+      "url": "https://arxiv.org/abs/2410.01201v3",
+      "relationship": "Parallelizable GRU/LSTM simplification competitor",
+      "difference": "minGRU/minLSTM remove dependencies to preserve linear-scan parallelism with simpler recurrence but no nonlinear state transition; ParaRNN retains nonlinear recurrence through iterative solving and tests far larger language models.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, 2024-11-28"
+    },
+    {
+      "canonical_id": "arxiv:2405.04517",
+      "title": "xLSTM: Extended Long Short-Term Memory",
+      "url": "https://arxiv.org/abs/2405.04517v2",
+      "relationship": "Billion-scale modern LSTM architecture competitor",
+      "difference": "xLSTM changes gating/memory and mixes sLSTM/mLSTM blocks, with the parallel component derived architecturally; ParaRNN focuses on automatically time-parallelizing nonlinear GRU/LSTM-like recurrences through a numerical solver and custom kernel.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2024-12-06"
+    },
+    {
+      "canonical_id": "openreview:KT8y9pFgJE",
+      "title": "Fixed-Point RNNs: Interpolating from Diagonal to Dense",
+      "url": "https://openreview.net/forum?id=KT8y9pFgJE",
+      "relationship": "Current expressivity-efficiency alternative",
+      "difference": "Fixed-Point RNNs parameterize implicitly dense linear state transitions as fixed points of parallelizable diagonal recurrences and target state tracking; ParaRNN directly solves nonlinear explicit recurrence and emphasizes kernel/training scale.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2025 spotlight, last modified 2026-04-21"
+    },
+    {
+      "canonical_id": "arxiv:2602.12021",
+      "title": "Improved state mixing in higher-order and block diagonal linear recurrent networks",
+      "url": "https://arxiv.org/abs/2602.12021v2",
+      "relationship": "Post-target structured state-mixing competitor",
+      "difference": "H-LRU/BD-LRU increase temporal/channel mixing with higher-order or block-linear recurrences while retaining a single scan and competitive throughput; they directly challenge the premise that expensive nonlinear solves are the only route beyond diagonal state mixing.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2026-03-02"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim the first training of classical nonlinear GRU/LSTM models at 7B language-model scale with sequence-parallel runtime, plus a general PyTorch/CUDA framework that automatically parallelizes a user-defined nonlinear cell and achieves up to 665x speedup while matching modern language-model quality.",
+    "evidence": "The paper presents three implementation tiers, custom hierarchical diagonal/block scans, fully fused Newton kernels, four architecture scales trained up to 6.76B parameters/138.4B tokens, synthetic nonlinear tasks, standard LM evaluation, and cell/inference timings. It explicitly credits DeepPCR, DEER, and stable quasi-Newton work for the all-at-once/Newton blueprint.",
+    "reviewer_inference": "The all-at-once equation system and Newton/parallel-scan method are not new. The defensible novelty is substantial systems and scaling engineering: exact structured Jacobians for GRU/LSTM adaptations, a modular GPU implementation, and a 7B demonstration. 'Classical nonlinear RNN' overstates continuity because the recurrent matrices are diagonalized and the LM block imports Mamba/Transformer components; 'automatic' applies to the slow generic tier while fused performance requires CUDA specialization. Current LrcSSM, predictability theory, implicit LMs, and Fixed-Point/structured-linear RNNs further narrow the conceptual frontier. The work remains a valuable scale proof and software contribution, but not evidence that nonlinear recurrence beats the best modern SSM in quality."
+  },
+  "confidence": 0.86,
+  "reviewer_notes": "Primary full-text audit covered all 30 indexed pages, including equations (2.1)-(3.3), Algorithm 1, Newton convergence, every timing/perplexity/downstream/synthetic table, training hyperparameters, kernel ablations, CUDA hierarchy, API code, and extension constraints. The indexed text reports 30/30 pages with text and no missing pages. Official arXiv history was checked on 2026-08-23: 2510.21450 is current v2 (2025-11-03). The current v2 PDF was downloaded independently and its SHA-256 exactly matched the indexed/cache value 9b4f612695ed5e15662e1ff67a21250650decd49ff315ddc63aac74013f817cc; the cache text SHA-256 was independently recomputed as c3f169ab3869d44f5643227e5230f04c85f05ea3f3647bda3404ae784e51cc7d. Key plot/table/equation pages 2, 5, 8, 9, 14, 16, 21, and 22 were visually inspected from the pinned PDF. Competitive entries were checked against exact current official arXiv/OpenReview versions through 2026-08-23. Confidence is high for the document-level equation, baseline, and negative-result audit; it is lower for whether printed pseudocode/timing anomalies are corrected in code because the released framework and large training runs were not executed in this reading pass."
+}

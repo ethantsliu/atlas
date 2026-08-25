@@ -1,0 +1,543 @@
+{
+  "stable_id": "arxiv:2507.13569",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2507.13569",
+    "pdf_sha256": "a06a4829b3f710f29e6189e992e36192a1731fc2634cf6ca2fde8cb2f882cf33",
+    "text_sha256": "3a2be1be9a7866e01b104a10ee2266e687d172ae3f12cc917452b2a424e1a05a",
+    "page_count": 21,
+    "extracted_at": "2026-08-23T16:16:39.948231+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can an encoder Transformer gain useful input-adaptive test-time computation by repeatedly applying a shared self-attention update until a residual tolerance is met, while retaining provable convergence, constant memory, credible efficiency, and better reasoning or benchmark performance?",
+  "key_findings": [
+    {
+      "claim": "SELF attention is a weight-tied hidden-state recurrence with static values and dynamically recomputed attention, stopped by a residual tolerance or 100-iteration cap.",
+      "evidence": "Each head starts from a projected input Z_0, recomputes Q and K from Z_k, forms a dense softmax alignment T_k, and sets Z_{k+1}=T_k XW_V. Heads or token-head elements whose relative change is below epsilon are frozen; the reported settings use max_iter=100 and epsilon 1e-4 for language or 1e-5 for vision/multimodal tasks. The FFN and LayerNorm are shown outside the recurrence. This is a concrete reusable recurrent-attention primitive, although the paper sometimes calls T a layer parameter even though it is an input-dependent activation.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "SELF-Transformer overview and Figure 1"
+        },
+        {
+          "page": 4,
+          "section": "3.2 Equations 1-6"
+        },
+        {
+          "page": 5,
+          "section": "Equation 7 and stopping safeguards"
+        },
+        {
+          "page": 16,
+          "section": "Algorithm 2 implemented iteration"
+        }
+      ]
+    },
+    {
+      "claim": "The paper does not prove that its attention recurrence converges, despite repeatedly describing convergence as proved.",
+      "evidence": "It cites a result that softmax attention is Lipschitz in a Wasserstein metric under suitable assumptions, then promotes bounded Lipschitz continuity to contraction and says this makes its update provably convergent. A Lipschitz constant need not be below one, and the paper never derives a contraction factor for its map, which also contains learned Q/K projections, temperature, static values, and finite input norms. Spectral-normalizing one qkv layer with coefficient 1.0 does not by itself make the whole nonlinear map contractive. The only quantified convergence study is a small MNIST ViT, where two of 60,000 examples fail and successful heads take up to 22 iterations.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "3.3 asserted Wasserstein contraction"
+        },
+        {
+          "page": 5,
+          "section": "finite cap and unconverged-token handling"
+        },
+        {
+          "page": 7,
+          "section": "4.1 toy MNIST convergence"
+        },
+        {
+          "page": 15,
+          "section": "B.2 spectral normalization and selective update"
+        }
+      ]
+    },
+    {
+      "claim": "Per-token freezing changes the globally coupled recurrence and does not certify a fixed point of the original self-attention map.",
+      "evidence": "Every token's key participates in every query row, so changing an unconverged token can change the next update of a token that previously met its local residual threshold. The implementation nevertheless permanently freezes each converged token-head element with torch.where while other elements continue moving. The resulting asynchronous masked process is a new state-dependent map; the paper supplies no theorem showing that its terminal mixed state satisfies Z=f(Z,X), is independent of update order, or retains the contraction and implicit-gradient properties of the unfrozen map.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Equations 2-4 globally coupled attention"
+        },
+        {
+          "page": 5,
+          "section": "selective convergence and discarded adjoints"
+        },
+        {
+          "page": 15,
+          "section": "B.2 Selective Update Mechanism"
+        }
+      ]
+    },
+    {
+      "claim": "The implicit-gradient specification is internally inconsistent and includes an incorrect central equation.",
+      "evidence": "For Z*=f(Z*,theta), implicit differentiation uses (I-J_f)^{-1} partial f/partial theta with no leading minus. Equation 8 instead writes a negative expression, defines J_g as the loss Jacobian rather than the parameter Jacobian, and is dimensionally incomplete. Equation 13 later gives a different, essentially standard formula. Section B then says it uses a last-iteration phantom approximation, while Algorithm 1 explicitly applies (I-J)^{-1}. These disagree on sign, exact versus approximate solve, and the object differentiated. Implicit differentiation is also applied to capped or selectively frozen states and unconverged token adjoints are discarded, so the returned gradient need not be the gradient of the executed finite-iteration forward computation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "3.3 Equation 8 implicit differentiation"
+        },
+        {
+          "page": 14,
+          "section": "A.1.2 Equation 13"
+        },
+        {
+          "page": 15,
+          "section": "B.1.1 Equation 16 and Algorithm 1"
+        }
+      ]
+    },
+    {
+      "claim": "No result connects SELF attention to the claimed escape from TC0 or to latent reasoning capacity.",
+      "evidence": "The introduction invokes fixed-depth circuit upper bounds and says recurrence recovers expressive power, but the paper contains no expressivity theorem, circuit simulation, depth-versus-iteration separation, or task requiring a complexity class beyond the baseline. Its evaluated tasks are ordinary classification, extractive QA, perplexity, image restoration/classification, retrieval, VQA, and one small induction lookup. A bounded max_iter=100 is itself fixed depth unless the iteration budget scales with input size, and the paper does not analyze that regime. Residual magnitude is called an input-difficulty signal without measuring correlation with difficulty, error, or required algorithmic steps.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 1,
+          "section": "Abstract and Introduction TC0 motivation"
+        },
+        {
+          "page": 3,
+          "section": "3 Path Towards Latent Reasoning"
+        },
+        {
+          "page": 5,
+          "section": "residual as asserted input-complexity indicator"
+        },
+        {
+          "page": 21,
+          "section": "F future need for explicit pondering and theory"
+        }
+      ]
+    },
+    {
+      "claim": "The induction-head experiment reports a large accuracy gain but does not establish the proposed retrieval mechanism or an equal-compute benefit.",
+      "evidence": "A one-layer, two-head, width-32 baseline reaches 63.1% and SELF reaches 91.1% after 100 epochs, but dataset size, vocabulary, generation distribution, train/test split, seed variation, parameter totals, and FLOPs are absent while SELF may apply up to 100 dense attention steps. The highlighted SELF head attends from MASK to the first A, yet the value at that position represents A rather than the following B; the text says B is 'presumably' recovered through the value pathway and subsequent layers even though the experiment is described as a single attention layer. No causal intervention or attention-value composition verifies that account.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "3.4 induction task setup"
+        },
+        {
+          "page": 6,
+          "section": "induction accuracy and Figure 2 interpretation"
+        }
+      ]
+    },
+    {
+      "claim": "The language benchmark evidence is not reproducible and contradicts itself within the paper.",
+      "evidence": "The paper says it ran 10+ benchmarks with ten seeds and nine-fold cross-validation, yet Table 1 provides no variance, folds, training corpus, preprocessing, schedules, checkpoints, complete GLUE task panel, or per-seed results and labels comparator values merely 'representative' published scores. Table 1 reports SELF GLUE 88.4 and SQuAD v1.1 F1 95.2; the conclusion reports 85.7 and 91.8. WikiText-2 perplexity is compared across encoder families without specifying a common likelihood objective. The claimed up-to-20% gain has no identified benchmark, numerator, or compute-matched test.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4 evaluation protocol"
+        },
+        {
+          "page": 7,
+          "section": "Table 1 language benchmark claims"
+        },
+        {
+          "page": 10,
+          "section": "5 contradictory conclusion metrics"
+        }
+      ]
+    },
+    {
+      "claim": "The vision tables mix incompatible or unexplained results and cannot support state-of-the-art claims.",
+      "evidence": "Table 2 gives one row per restoration model across denoising, super-resolution, and deblurring without showing that the same released configurations were trained for all tasks; it includes MIMIR with a 40.0 denoising PSNR even though the cited MIMIR paper is about adversarial robustness rather than image restoration. Table 3 says a ViT-B/16-shaped SELF model has 58M parameters and a ViT comparator 86M, while the text says replacing attention maintains the same parameter count. No ImageNet training or pretraining recipe is given. Table 5 then assigns image-restoration FPAFormer an object-detection mAP and combines PSNR, SSIM, mAP, and latency with mostly missing cells and no specified detector, dataset split, image size, hardware, or batch.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "Tables 2-3 restoration and ImageNet"
+        },
+        {
+          "page": 9,
+          "section": "4.4 same-parameter-count claim"
+        },
+        {
+          "page": 12,
+          "section": "References 41 and 43 identify FPformer restoration and MIMIR robustness"
+        },
+        {
+          "page": 20,
+          "section": "Table 5 mixed restoration/detection comparison"
+        },
+        {
+          "page": 21,
+          "section": "E unsupported object-detection conclusion"
+        }
+      ]
+    },
+    {
+      "claim": "The multimodal parameter and evaluation claims are arithmetically inconsistent with the components named in the paper.",
+      "evidence": "SELF-VL is said to contain a ViT-B/16 visual encoder, BERT-base text encoder, and six 768-wide, 12-head fusion layers, but Table 4 lists only 110M total parameters. The paper's own Tables 1 and 3 list BERT-base at 110M and ViT at 86M before any fusion block, already exceeding 196M. It does not explain sharing, pruning, freezing, or exclusion conventions. The table also reports ImageNet zero-shot, COCO/Flickr retrieval, and VQAv2 scores without the multimodal pretraining corpus, exact fine-tuning/evaluation splits, seed uncertainty, or a common training budget.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "Table 1 BERT parameter count"
+        },
+        {
+          "page": 8,
+          "section": "Table 3 ViT parameter count"
+        },
+        {
+          "page": 9,
+          "section": "4.5 architecture and Table 4"
+        }
+      ]
+    },
+    {
+      "claim": "The claimed sublinear sequence scaling and speedup are incompatible with the stated dense-attention algorithm unless an unreported implementation changes the computation.",
+      "evidence": "Algorithm 2 materializes an N-by-N QK^T matrix and softmax on every fixed-point iteration, so even one iteration is quadratic in sequence length and multiple iterations multiply that work. Figure 9 nevertheless says SELF has sublinear scaling and is 1.5 times faster than vanilla beyond 512 tokens, without axes values, model sizes, hardware, batch, warmup, precision, kernel, iteration distributions, or baseline configuration. Early stopping can reduce the iteration multiplier but cannot make a dense full-attention step subquadratic. The learnable per-head temperatures in Algorithm 2 also contradict the literal zero-additional-parameter claim.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "zero-additional-parameter and efficiency claims"
+        },
+        {
+          "page": 16,
+          "section": "Algorithm 2 dense QK attention and learnable temperature"
+        },
+        {
+          "page": 19,
+          "section": "Figure 9 and D.1 speedup claim"
+        }
+      ]
+    },
+    {
+      "claim": "The attention visualizations are qualitative anecdotes, not evidence of better contextual reasoning or interpretability.",
+      "evidence": "The paper labels off-diagonal weights for one sentence as meaningful subject-verb or modifier relations, calls diagonal attention undesirable, and asserts improved interpretability without a labeled relation target, faithfulness test, counterfactual intervention, head-selection protocol, baseline seeds, or task linkage. Figures 6 and 7 are both captioned as vanilla refinement, while Figures 5 and 8 repeat fixed-point 'fox' descriptions. Claims such as 80% CLS concentration and 63% diagonal heads are not accompanied by computation definitions, uncertainty, or raw matrices across the promised full set of layers and heads.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 16,
+          "section": "Figure 4 and C heatmap interpretation"
+        },
+        {
+          "page": 17,
+          "section": "Figures 5-6"
+        },
+        {
+          "page": 18,
+          "section": "Figures 7-8"
+        },
+        {
+          "page": 19,
+          "section": "unsubstantiated syntactic and diagonal-head statistics"
+        }
+      ]
+    },
+    {
+      "claim": "The central idea is substantially anticipated by recurrent-depth, adaptive-compute, and equilibrium Transformers, so novelty depends on a precise attention-state restriction that is not isolated empirically.",
+      "evidence": "Universal Transformers already recurrently reuse self-attention with adaptive computation; Deep Equilibrium Models already instantiate equilibrium self-attention Transformers with root solving, implicit differentiation, and constant-memory training; PonderNet learns an accuracy-compute tradeoff; looped Transformers reuse blocks for algorithmic learning; and FPformer/FPRformer/FPAformer already combine fixed-point unrolling, shared Transformer parameters, acceleration, and image restoration. SELF's distinctive choice is to keep XW_V static while iterating Q/K-derived alignments inside each layer with selective freezing. No ablation compares that choice against a tied full block, tied attention without freezing, DEQ solver, fixed K, spectral normalization alone, or a FLOP-matched deeper baseline.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "2 dynamic computation positioning"
+        },
+        {
+          "page": 3,
+          "section": "2 fixed-point, adaptive Transformer, and latent reasoning related work"
+        },
+        {
+          "page": 8,
+          "section": "image-restoration use of prior Uformer-like framework"
+        },
+        {
+          "page": 14,
+          "section": "A fixed-point formulation"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Replace each encoder self-attention call with a recurrent, weight-tied attention map that repeatedly recomputes queries and keys from its current hidden state while reusing values from the original layer input, stopping separately for converged elements.",
+    "mechanism": "For every head, SELF initializes Z from X, computes T_k=softmax(Q(Z_k)K(Z_k)^T), and updates Z_{k+1}=T_k XW_V. A relative Frobenius residual and max_iter cap control the forward loop; a per-token/head mask freezes elements after crossing tolerance. Spectral normalization and gradient clipping are intended to stabilize training. The paper alternately describes implicit differentiation, a phantom-gradient approximation, and an inverse-Jacobian adjoint loop. It replaces attention in small induction, BERT-family, ViT/Uformer-like, and vision-language models, then reports benchmark tables and qualitative attention maps.",
+    "assumptions": [
+      "Lipschitz continuity of a related self-attention operator implies strict contraction of the implemented learned recurrence.",
+      "Spectral normalization of the qkv projection at coefficient 1.0 is sufficient to make the entire softmax attention update converge.",
+      "A small consecutive-state residual is a reliable certificate of the desired fixed point and of input difficulty.",
+      "Permanently freezing token-head elements preserves the fixed point of a globally coupled attention map.",
+      "A state stopped at max_iter or assembled from asynchronously frozen elements can be differentiated as an exact equilibrium.",
+      "Discarding unconverged adjoints supplies a useful approximation to the gradient of the executed training objective.",
+      "Iteration at the attention-alignment level is more useful than recurrently applying a whole block, despite no matched ablation.",
+      "Constant parameter count and constant activation memory are sufficient measures of efficiency even when dense attention FLOPs are repeated up to 100 times.",
+      "Residual-driven iteration counts adapt to semantic or algorithmic difficulty rather than numerical conditioning alone.",
+      "Ordinary encoder benchmarks and attention heatmaps measure latent reasoning or recovery of autoregressive computational expressivity.",
+      "Published comparator scores with heterogeneous recipes are suitable controls for new model results.",
+      "The reported architecture descriptions, parameter totals, and table metrics use consistent counting and evaluation conventions."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "fixed-point-self-attention",
+      "role": "Recomputes attention from a recurrent hidden state until a tolerance or iteration cap is reached."
+    },
+    {
+      "id": "static-value-recurrence",
+      "role": "Keeps XW_V fixed while queries, keys, and alignments evolve across iterations."
+    },
+    {
+      "id": "token-head-selective-freezing",
+      "role": "Stops updating individual token-head elements after their local residual falls below epsilon."
+    },
+    {
+      "id": "dynamic-parameter-reuse",
+      "role": "Shares Q/K/V and output parameters across recurrent attention iterations to avoid depth-proportional parameter growth."
+    },
+    {
+      "id": "spectral-normalized-recurrence",
+      "role": "Constrains one projection's operator norm as an empirical stability heuristic."
+    },
+    {
+      "id": "implicit-adjoint-solve",
+      "role": "Attempts constant-memory backpropagation through a converged state with an inverse-Jacobian or iterative adjoint calculation."
+    },
+    {
+      "id": "iteration-count-adaptivity",
+      "role": "Uses convergence time as an implicit allocation of test-time compute."
+    },
+    {
+      "id": "attention-heatmap-analysis",
+      "role": "Qualitatively compares diagonal and cross-token attention patterns over recurrence."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Synthetic one-layer induction lookup with two heads, width 32, AdamW, 100 epochs; SELF max_iter 100 and epsilon 1e-4.",
+      "metric": "Masked-token accuracy and selected attention maps.",
+      "result": "The paper reports 91.1% for SELF versus 63.1% for vanilla, without seeds, data-generation details, or compute matching.",
+      "baseline": "A one-pass Transformer with nominally the same shallow architecture."
+    },
+    {
+      "setting": "Toy one-layer four-head ViT on 12-by-12 patches of MNIST.",
+      "metric": "Train/test accuracy and iteration count over 60,000 training examples.",
+      "result": "SELF is reported above 0.97 test accuracy versus 0.96 vanilla; 59,998 examples converge, with mean/median about five and per-head maxima 11-22.",
+      "baseline": "The same toy model with one-pass vanilla attention."
+    },
+    {
+      "setting": "Claimed BERT-family evaluations on GLUE, SQuAD, and WikiText-2, described as ten seeds and nine-fold cross-validation.",
+      "metric": "GLUE average and selected tasks, SQuAD F1, WikiText-2 perplexity.",
+      "result": "Table 1 reports 88.4 GLUE, 95.2/88.7 SQuAD, and 28.5 perplexity, while the conclusion gives different GLUE and SQuAD values; no variance or complete protocol is supplied.",
+      "baseline": "Representative published BERT, RoBERTa, ELECTRA, ALBERT, XLNet, and DistilBERT numbers rather than controlled reruns."
+    },
+    {
+      "setting": "Uformer-like restoration on DIV2K crops and claimed BSD68, Set14, and GoPro evaluation.",
+      "metric": "PSNR and SSIM for denoising, super-resolution, and deblurring.",
+      "result": "SELF is listed at 28.9 denoising PSNR, 28.8/0.788 super-resolution, and 33.0/0.963 deblurring; training details, variance, checkpoints, and compatible comparator recipes are absent.",
+      "baseline": "Uformer, SwinIR, Restormer, NAFNet, MAXIM, IPT, and an inapposite MIMIR robustness method."
+    },
+    {
+      "setting": "Claimed SELF-ViT-B/16 ImageNet-1K classification.",
+      "metric": "Top-1, Top-5, and parameter count.",
+      "result": "Table 3 reports 86.3/97.8 with 58M parameters but supplies no training recipe and conflicts with the text's same-parameter claim.",
+      "baseline": "Heterogeneously trained published EfficientNet-B7, ViT, ResNet-50, MobileNetV2, and InceptionV3 scores."
+    },
+    {
+      "setting": "Claimed multimodal fusion of pretrained ViT-B/16, BERT-base, and six SELF fusion layers on ImageNet, COCO, Flickr30k, and VQAv2.",
+      "metric": "Zero-shot accuracy, retrieval R@1, VQA accuracy, and parameter count.",
+      "result": "Table 4 reports 75.0, 62.0, 85.3, and 81.4 with 110M parameters, a total smaller than the paper's own counts for the named encoders before fusion.",
+      "baseline": "Published CLIP and FLAVA scores with different pretraining data and parameter conventions."
+    },
+    {
+      "setting": "Unspecified sequence-length timing and an unspecified restoration/detection system.",
+      "metric": "Inference scaling, milliseconds, PSNR/SSIM, and mAP@50.",
+      "result": "The paper claims sublinear scaling, 1.5x speedup beyond length 512, 87 ms latency, 35.14/0.927 restoration, and 86.7 mAP without an auditable protocol.",
+      "baseline": "Vanilla Transformer, Linformer, FPAFormer, Faster R-CNN, and SSD-MobileNet with missing or incompatible cells."
+    }
+  ],
+  "limitations": [
+    "Reviewer inference: no contraction coefficient or fixed-point existence/uniqueness theorem is derived for the implemented attention recurrence.",
+    "Reviewer inference: the cited attention result establishes Lipschitz continuity under assumptions, not the strict contraction claimed here.",
+    "Reviewer inference: selective per-token freezing changes the globally coupled map and invalidates a direct fixed-point interpretation.",
+    "Reviewer inference: capped and partially converged forward states do not satisfy the assumptions of exact implicit differentiation.",
+    "Reviewer inference: Equations 8, 13, 16, and Algorithm 1 disagree on the sign, Jacobian, and exact versus approximate backward method.",
+    "Reviewer inference: fixed precision/constant-depth circuit claims are invoked without carrying their assumptions into an expressivity theorem for SELF.",
+    "Reviewer inference: max_iter is fixed at 100, so no asymptotic computation-depth scaling or escape from constant depth is demonstrated.",
+    "Reviewer inference: no reasoning benchmark demonstrates that more fixed-point iterations implement more algorithmic steps.",
+    "Reviewer inference: residual size and iteration count are never validated as measures of semantic input difficulty.",
+    "Reviewer inference: nearly all large benchmark results lack datasets splits, recipes, seeds, variance, checkpoints, code, and controlled reruns.",
+    "Reviewer inference: language metrics conflict between Table 1 and the conclusion.",
+    "Reviewer inference: vision and multimodal parameter counts conflict with the named architectures and with the paper's own component counts.",
+    "Reviewer inference: restoration, robustness, classification, detection, retrieval, and VQA baselines are mixed across heterogeneous or inapplicable published configurations.",
+    "Reviewer inference: dense N-by-N attention repeated K times cannot have sublinear sequence complexity under Algorithm 2.",
+    "Reviewer inference: learnable temperatures add parameters despite a literal zero-additional-parameter claim.",
+    "Reviewer inference: attention maps are treated as semantic explanations without faithfulness or selection controls.",
+    "Author-reported: high iteration counts can create overhead, LLM scaling and robust convergence remain future work, and no explicit ponder cost is implemented."
+  ],
+  "failure_modes": [
+    "A learned recurrence with spectral norm one can be noncontractive, oscillatory, multi-stable, or divergent and hit max_iter on difficult inputs.",
+    "Local residual stopping can freeze a token before changes in other keys would move it again, yielding order-dependent mixed states.",
+    "Near a nonisolated fixed point, I-J_f can be singular or ill-conditioned, making the implicit adjoint unstable even when forward residuals are small.",
+    "Discarding unconverged token adjoints silently biases gradients toward easy-to-converge elements and may change the learned task objective.",
+    "A residual can be small because of saturation or vanishing updates rather than because useful reasoning is complete.",
+    "Repeated softmax attention can oversmooth token representations; the MNIST figure itself says all tokens converge to the same per-head representation.",
+    "Adaptive iteration without a ponder penalty can spend close to Kmax on many inputs and lose latency predictability.",
+    "Dense attention recurrence multiplies quadratic compute and can be substantially slower than a one-pass matched baseline.",
+    "Using static values across all iterations may prevent new features computed at one step from becoming values available at later steps.",
+    "Inconsistent exact/phantom gradient implementations can make reproduced training materially different from the claimed method.",
+    "Benchmark improvements can arise from extra FLOPs, spectral normalization, temperature, or differing pretraining rather than fixed-point alignment refinement.",
+    "Uncontrolled published-score comparisons can create apparent gains that disappear under matched data, augmentation, tuning, and evaluation."
+  ],
+  "reusable_insights": [
+    "Iterating Q/K alignments while holding values static is a clean architectural axis distinct from repeating an entire Transformer block.",
+    "Treat convergence guarantees, empirical stopping, and finite iteration caps as separate claims and report all three.",
+    "For token-coupled recurrences, stopping masks must be included in the mathematical map whose fixed point and derivative are analyzed.",
+    "Always test fixed K, adaptive K, full-block recurrence, attention-only recurrence, and FLOP-matched depth to identify the source of gains.",
+    "Report residual, fixed-point error, task error, and iteration count jointly; none alone certifies completed computation.",
+    "Use a learnable ponder cost or an explicit compute budget when claiming input-adaptive efficiency.",
+    "A constant-memory backward method still incurs solver time and can be numerically ill-conditioned; memory, FLOPs, and wall-clock need separate accounting.",
+    "Circuit-complexity motivation needs a formal model with precision, width, depth, uniformity, and iteration scaling stated explicitly.",
+    "Latent-reasoning claims should use tasks with known iterative depth and causal state probes, not only generic benchmark accuracy.",
+    "Before presenting cross-paper tables, reproduce all baselines or document identical data, recipes, metric definitions, and parameter-count conventions.",
+    "Check architecture arithmetic: named pretrained encoders plus fusion layers cannot have fewer parameters than one constituent without a documented compression rule.",
+    "Attention visualization needs preregistered head selection, labeled relations, causal interventions, and faithfulness metrics."
+  ],
+  "open_questions": [
+    "Under what explicit norm and parameter constraints is Z -> softmax(Q(Z)K(Z)^T)XW_V a contraction with a useful rate?",
+    "Can selective per-token/head stopping be redesigned as an asynchronous fixed-point algorithm with a convergence theorem?",
+    "What objective is differentiated when some states hit tolerance, some hit Kmax, and unconverged adjoints are discarded?",
+    "Does static-value recurrent attention outperform a tied full attention block under identical parameters, FLOPs, memory, and wall-clock?",
+    "Do iteration counts predict independently measured example difficulty after controlling for sequence length and numerical conditioning?",
+    "Can increasing iterations at test time beyond the training range improve accuracy monotonically, or does it oversmooth and destabilize?",
+    "Which algorithmic tasks require more SELF iterations, and does hidden state implement identifiable intermediate algorithm states?",
+    "How does SELF compare with Universal Transformers, DEQs, PonderNet, looped Transformers, recurrent-depth models, and Coconut in one shared benchmark suite?",
+    "Can approximate implicit gradients be bounded as a function of forward and adjoint residuals for this softmax recurrence?",
+    "What is the true FLOP/latency/energy Pareto frontier when dense attention kernels, batch divergence, and early stopping overhead are included?",
+    "Do the reported GLUE, SQuAD, ImageNet, restoration, detection, retrieval, and VQA numbers reproduce from released code and checkpoints under standard protocols?",
+    "Would an explicit low-rank latent attention operator make the claimed subquadratic scaling real, and how would that change fixed points and accuracy?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "openreview:HyzdRiR9Y7",
+      "title": "Universal Transformers",
+      "url": "https://openreview.net/forum?id=HyzdRiR9Y7",
+      "relationship": "foundational recurrent self-attention predecessor",
+      "difference": "Dehghani et al. recurrently apply a shared self-attentive transition across depth and incorporate adaptive computation, directly anticipating parameter-efficient, input-dependent encoder iteration. SELF narrows recurrence to Q/K alignment with static values inside every layer and freezes elements locally, but does not compare against a Universal Transformer or establish a corresponding computational universality result.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2019 conference version"
+    },
+    {
+      "canonical_id": "neurips:2019:01386bd6d8e091c2ab4c7c7de644d37b",
+      "title": "Deep Equilibrium Models",
+      "url": "https://proceedings.neurips.cc/paper/2019/hash/01386bd6d8e091c2ab4c7c7de644d37b-Abstract.html",
+      "relationship": "closest fixed-point and implicit-differentiation predecessor",
+      "difference": "Bai, Kolter, and Koltun already apply root-solved equilibrium models to weight-tied self-attention Transformers, derive implicit gradients, report constant activation memory, release code, and evaluate controlled language models including WikiText-103. SELF explicitly iterates only the alignment-state update and uses early freezing, but its convergence and backward formulas are less complete and it does not compare accuracy, solver time, or residuals with DEQ attention.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2019 proceedings version"
+    },
+    {
+      "canonical_id": "arxiv:2107.05407",
+      "title": "PonderNet: Learning to Ponder",
+      "url": "https://arxiv.org/abs/2107.05407",
+      "relationship": "direct adaptive-computation alternative",
+      "difference": "PonderNet learns a distribution over computation steps and explicitly optimizes the accuracy-compute tradeoff, demonstrating extrapolation and compute savings. SELF uses an unlearned numerical residual threshold with no ponder cost or budget; it is simpler, but it never validates that its stopping time tracks task difficulty or produces a favorable compute frontier.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv version available on checked date"
+    },
+    {
+      "canonical_id": "arxiv:2404.02258",
+      "title": "Mixture-of-Depths: Dynamically Allocating Compute in Transformer-Based Language Models",
+      "url": "https://arxiv.org/abs/2404.02258",
+      "relationship": "budgeted adaptive-compute competitor",
+      "difference": "Mixture-of-Depths routes a fixed top-k token budget through blocks, retaining a static graph and predictable total FLOPs while reporting matched-FLOP and wall-clock comparisons. SELF instead varies recurrent steps according to convergence and claims parameter/memory efficiency, but offers neither a hard budget nor a controlled wall-clock comparison and can reach 100 dense attention iterations.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv version available on checked date"
+    },
+    {
+      "canonical_id": "openreview:HHbRxoDTxE",
+      "title": "Looped Transformers are Better at Learning Learning Algorithms",
+      "url": "https://openreview.net/forum?id=HHbRxoDTxE",
+      "relationship": "direct weight-tied iterative-reasoning predecessor",
+      "difference": "Yang et al. loop Transformer blocks and train them to emulate iterative data-fitting algorithms, obtaining comparable performance to standard Transformers with under 10% of the parameters. SELF loops attention inside each encoder layer and asserts latent reasoning from generic tasks; the looped-Transformer work supplies a more direct algorithmic test, while SELF offers per-input numerical stopping but no identified learned algorithm.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2024 conference version"
+    },
+    {
+      "canonical_id": "openreview:H4BuhRezCV",
+      "title": "On Expressive Power of Looped Transformers: Theoretical Analysis and Enhancement via Timestep Encoding",
+      "url": "https://openreview.net/forum?id=H4BuhRezCV",
+      "relationship": "direct iterative expressivity theory competitor",
+      "difference": "Xu and Sato prove an approximation-rate result for looped Transformers, identify saturation from exact weight tying, and use timestep-conditioned scaling to improve expressivity. SELF motivates itself with circuit expressivity but provides no theorem or iteration encoding, so this work illustrates both the kind of formal separation needed and a failure mode that repeated identical attention may face.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2025 conference version"
+    },
+    {
+      "canonical_id": "openreview:T2TZ0RY4Zk",
+      "title": "Training Large Language Models to Reason in a Continuous Latent Space",
+      "url": "https://openreview.net/forum?id=T2TZ0RY4Zk",
+      "relationship": "direct latent-reasoning alternative",
+      "difference": "Coconut feeds an LLM's continuous hidden state back as the next reasoning state and evaluates planning/backtracking behavior, reporting emergent breadth-first search and releasing code. SELF cites the preprint but uses encoder attention refinement and ordinary classification/QA tables; it does not demonstrate a multi-step reasoning state or compare the information and compute carried by its full-sequence latent loop.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "COLM 2025 conference version"
+    },
+    {
+      "canonical_id": "openreview:D6o6Bwtq7h",
+      "title": "Scaling up Test-Time Compute with Latent Reasoning: A Recurrent Depth Approach",
+      "url": "https://openreview.net/forum?id=D6o6Bwtq7h",
+      "relationship": "current scalable latent test-time-compute competitor",
+      "difference": "Geiping et al. train recurrent-depth language models and test whether additional latent loops at inference improve reasoning, reporting modern language and reasoning evaluations and test-time scaling. The work is contemporaneous/post-submission and loops a model block rather than an attention alignment; it directly tests the scaling claim that SELF motivates but does not evaluate beyond a fixed 100-step cap on mostly encoder benchmarks.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2025 spotlight version"
+    },
+    {
+      "canonical_id": "arxiv:2301.12332",
+      "title": "Towards Vision Transformer Unrolling Fixed-Point Algorithm: a Case Study on Image Restoration",
+      "url": "https://arxiv.org/abs/2301.12332",
+      "relationship": "direct fixed-point Transformer vision predecessor",
+      "difference": "Qiao et al. propose FPformer, parameter-shared FPRformer, and Anderson-accelerated FPAformer for 161 image-restoration tasks, with controlled pretraining/fine-tuning and efficiency comparisons. SELF cites this work and uses an Uformer-like restoration setup, but does not isolate its attention-only fixed point against FPR/FPA variants; its Table 5 also assigns FPAFormer an unexplained detection mAP outside the cited paper's stated scope.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv version available on checked date"
+    },
+    {
+      "canonical_id": "openreview:NjNGlPh8Wh",
+      "title": "The Expressive Power of Transformers with Chain of Thought",
+      "url": "https://openreview.net/forum?id=NjNGlPh8Wh",
+      "relationship": "formal-theory motivation and comparator",
+      "difference": "Merrill and Sabharwal carefully parameterize precision, architecture, and scratchpad length to characterize how decoder CoT changes recognized language classes. SELF cites the high-level fixed-depth ceiling but gives no corresponding upper/lower bound for encoder fixed-point iterations, no growing-iteration regime, and no account of whether latent full-sequence state has the same memory resource as generated tokens.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2024 conference version"
+    },
+    {
+      "canonical_id": "arxiv:2007.02876",
+      "title": "A Mathematical Theory of Attention",
+      "url": "https://arxiv.org/abs/2007.02876",
+      "relationship": "direct theoretical dependency for convergence",
+      "difference": "Vuckovic, Baratin, and Tachet des Combes establish Lipschitz continuity of a measure-theoretic attention operator under suitable assumptions and study infinitely deep weight sharing. SELF treats this as a contraction theorem for its different learned recurrence; a bounded Lipschitz estimate alone does not give a coefficient below one, so the source supports a route to analysis but not the claimed convergence conclusion.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv version available on checked date"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims a new zero-parameter SELF-Transformer that refines attention alignments to a fixed point, adapts test-time compute to input difficulty, escapes fixed-depth expressivity limits without token autoregression, uses constant-memory implicit differentiation, gains up to 20% accuracy, and can be faster than vanilla attention.",
+    "evidence": "It specifies a static-value recurrent Q/K attention update, per-element residual stopping, spectral normalization, a toy induction comparison, a quantified MNIST convergence pass, multiple large benchmark tables, and attention/timing visualizations.",
+    "reviewer_inference": "Iterating alignments while freezing the value stream is a discernible architectural variant, and the small MNIST convergence statistics make it worth testing in a clean implementation. Nearly every broader claim remains unestablished. Universal Transformers, DEQs, PonderNet, looped Transformers, FPformer, and latent recurrent-depth work substantially precede or directly compete with the idea. The convergence argument confuses Lipschitz continuity with contraction; selective freezing changes the map; gradient equations conflict; no expressivity or reasoning theorem/benchmark is given; dense recurrence cannot be sublinear; and benchmark numbers, parameter totals, task scopes, and conclusion metrics contradict each other. Novelty should therefore be treated as an unverified static-value attention recurrence, not a validated adaptive-reasoning or state-of-the-art architecture, until code, controlled experiments, and corrected mathematics reproduce the claims."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "I reviewed all 21 extracted pages of arXiv v1, including the recurrence equations, convergence assertion, induction task, every language/vision/multimodal table, all references, fixed-point and backward appendices, heatmaps, timing claim, object-detection section, and stated limitations. Internal arithmetic and metric discrepancies are reported exactly rather than inferred from missing external artifacts. Eleven competing or dependency records were checked on official OpenReview, NeurIPS, arXiv, and proceedings pages on 2026-08-23. Because no code/checkpoint link or sufficient large-benchmark protocol appears in the paper, all non-toy scores remain author-reported and unverified."
+}

@@ -1,0 +1,205 @@
+{
+  "stable_id": "doi:10.1109/cvpr52729.2023.01546",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://openaccess.thecvf.com/content/CVPR2023/papers/Solodskikh_Integral_Neural_Networks_CVPR_2023_paper.pdf",
+    "pdf_sha256": "040462b69909938966599f30c4937b76011d496a24bd5af3d7d60eed60c2f14f",
+    "text_sha256": "1fd21bceecd45806efabc3003f74f5fd381eb74dc30ef4fdb4751f1603d21684",
+    "page_count": 10,
+    "extracted_at": "2026-08-23T17:46:14.102264+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can convolutional and fully connected weights be learned as smooth functions over channel indices so one trained model can be re-discretized to different channel counts at inference with little post-selection fine-tuning?",
+  "key_findings": [
+    {
+      "claim": "An Integral Neural Network stores a finite grid of interpolation coefficients, constructs a continuous kernel over normalized input/output-channel coordinates, then samples and quadrature-weights that kernel into an ordinary tensor for each forward pass.",
+      "evidence": "Equations 2-6 reinterpret linear layers as integral operators, parameterize their kernels by separable cubic-convolution basis functions, and generate a discrete tensor from input/output partitions. Lemma 1 states that the chosen composite quadrature can be evaluated and differentiated through the corresponding conventional discrete layer.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "Section 3.1, integral layer operators"},
+        {"page": 4, "section": "Lemma 1 and Section 3.2"},
+        {"page": 5, "section": "Equations 5-6"}
+      ]
+    },
+    {
+      "claim": "Elasticity comes from training across randomly sampled widths and from imposing an artificial smooth order on otherwise permutation-symmetric channels.",
+      "evidence": "Algorithm 1 samples a partition size for every layer during each iteration so the shared interpolation coefficients support many widths. To convert a discrete network, channels are ordered by a 2-opt approximation to a traveling-salesman total-variation objective, with corresponding permutations propagated across adjacent layers before interpolation and optional partition tuning.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "Section 4, DNN-to-INN conversion"},
+        {"page": 6, "section": "Optimization, equation 8, and Algorithm 1"}
+      ]
+    },
+    {
+      "claim": "The quadrature lemma does not guarantee accuracy after resizing; it only states how a fixed continuous kernel is numerically evaluated and differentiated.",
+      "evidence": "Approximation error can be small when a kernel is smooth and sampling is sufficiently dense, but the learned channel function has no natural continuum before ordering and interpolation. Performance at fewer channels is obtained empirically by width-randomized training or data-dependent conversion/tuning. Arbitrarily coarse partitions, unseen widths, and nonsmooth task-optimal weights are not covered by Lemma 1.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Section 1, arbitrary-size claim"},
+        {"page": 4, "section": "Lemma 1"},
+        {"page": 5, "section": "Continuous representation and conversion"},
+        {"page": 6, "section": "Random-width training"}
+      ]
+    },
+    {
+      "claim": "Converted-and-fine-tuned INNs match discrete full-size accuracy, while from-scratch classification INNs can lose several points.",
+      "evidence": "Table 1 reports full-size INN-init matching or slightly exceeding discrete models: e.g. ResNet-18 ImageNet 70.0 versus 69.8 and ResNet-50 74.1 versus 74.1. From-scratch INNs report 66.5 and 71.2 respectively, and VGG-19 drops from 72.3 to 68.5. The conclusion attributes this gap partly to the lack of a smooth batch-normalization analogue.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "Section 5, Pipeline A"},
+        {"page": 8, "section": "Table 1 and conclusion"}
+      ]
+    },
+    {
+      "claim": "The headline 'without fine-tuning' comparison means no training after choosing a smaller discretization, not zero adaptation of the original model.",
+      "evidence": "Pipeline A converts a pretrained network and fine-tunes the continuous representation with random widths. Pipeline B converts a discrete network and tunes an integration partition on a few samples. Only after these preparation steps is a smaller tensor sampled without further fine-tuning. This is a valid deployment property, but it differs from a purely post-hoc data-free pruning method.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract"},
+        {"page": 6, "section": "Section 5, Pipelines A-B"},
+        {"page": 7, "section": "Pipeline B and pruning comparison"}
+      ]
+    },
+    {
+      "claim": "INNs outperform the paper's simple no-fine-tuning channel-pruning controls, but the study omits the closest elastic-supernetwork baselines.",
+      "evidence": "Figure 1 compares uniform or tuned re-discretization against L1 and feature-statistic channel selection without post-pruning fine-tuning, reporting much smaller degradation, including the abstract's ResNet-18 ImageNet example. Once-for-All is cited as motivation, yet OFA, Slimmable, Universally Slimmable, sandwich-rule/distillation, and hardware-aware subnet selection are not evaluated under matched training and deployment budgets.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "Abstract and Introduction"},
+        {"page": 3, "section": "Figure 1"},
+        {"page": 7, "section": "Pipeline C and comparison discussion"}
+      ]
+    },
+    {
+      "claim": "The paper demonstrates accuracy/PSNR elasticity, not hardware-adaptive efficiency.",
+      "evidence": "Experiments cover CIFAR-10/ImageNet classification and SRCNN/EDSR super-resolution, reporting parameter compression, accuracy, and PSNR. No device latency, throughput, peak activation memory, energy, kernel efficiency, tensor-compilation cost, or width-switching overhead is measured, despite motivating diverse edge hardware and response-speed conditions.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "Introduction, edge-device motivation"},
+        {"page": 6, "section": "Section 5, Experiments"},
+        {"page": 8, "section": "Tables 1-2"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Impose a smooth functional coordinate system over channel and filter indices, then treat width changes as numerical re-sampling of one learned kernel rather than deleting independently stored channels.",
+    "mechanism": "Represent each layer's weight tensor by separable cubic-convolution interpolation coefficients over [0,1] input/output-channel coordinates. For a selected partition, sample the kernel, multiply by quadrature weights, and call a standard PyTorch layer. During training, randomly vary partition sizes. For an existing model, jointly permute neighboring channel axes to minimize total variation, interpolate its tensor into the continuous representation, and optionally tune weights or partition coordinates.",
+    "assumptions": [
+      "A useful ordering exists in which adjacent learned channels vary smoothly and can be recovered by approximate TSP permutation.",
+      "Separable cubic interpolation represents task-relevant channel structure without excessive smoothing or aliasing.",
+      "Widths sampled during training cover the deployment choices and shared coefficients optimize them without destructive interference.",
+      "Parameter count is an adequate proxy for diverse edge-device constraints.",
+      "Quadrature scaling and channel re-sampling interact safely with nonlinearities, residual connections, and normalization.",
+      "Matched no-post-pruning fine-tuning is the relevant baseline condition even when the elastic model receives additional conversion and multi-width training."
+    ]
+  },
+  "techniques": [
+    {"id": "continuous-channel-kernel", "role": "Models discrete weight entries as samples of a smooth function over normalized channel coordinates."},
+    {"id": "quadrature-discretized-layer", "role": "Evaluates and differentiates the continuous operator through standard tensor layers."},
+    {"id": "cubic-convolution-interpolation", "role": "Provides GPU-friendly separable basis functions for resampling weight tensors."},
+    {"id": "channel-tsp-permutation", "role": "Orders filters and paired downstream channels to reduce total variation before conversion."},
+    {"id": "random-partition-training", "role": "Trains shared coefficients across a predefined range of widths."},
+    {"id": "trainable-quadrature-partition", "role": "Learns nonuniform sampling coordinates for a selected compressed network."}
+  ],
+  "evaluations": [
+    {"setting": "CIFAR-10 classification with NIN, VGG-11, and ResNet-18", "metric": "Full-width accuracy and accuracy over parameter compression", "result": "INN-init matches discrete full-width accuracy and re-discretization degrades more slowly than the paper's no-fine-tuning pruning controls.", "baseline": "Discrete networks plus L1/activation-statistic structural pruning; no slimmable/OFA baseline."},
+    {"setting": "ImageNet with VGG-19, ResNet-18, and ResNet-50", "metric": "Top-1 accuracy and compression curve", "result": "INN-init full-width results are 72.4, 70.0, and 74.1; from-scratch INNs are 68.5, 66.5, and 71.2. The abstract reports about two-point ResNet-18 loss at 30% parameter removal.", "baseline": "Discrete full model and simple structural pruning without post-pruning tuning."},
+    {"setting": "3x SRCNN and 4x EDSR super-resolution", "metric": "PSNR on Set5, Set14, and B100 plus compression curves", "result": "INN-init matches the discrete full-size values; Figure 7 visually shows EDSR retaining quality after 40% pruning.", "baseline": "Discrete network, bicubic image interpolation, and simple structural channel selection."},
+    {"setting": "Converted models compressed by 40%", "metric": "Accuracy with versus without channel permutation", "result": "Permutation improves ResNet-18 from 91.3 to 93.0, NIN from 84.71 to 89.4, and VGG-11 from 85.2 to 88.7.", "baseline": "Same partition tuning without the TSP-like permutation."},
+    {"setting": "Image interpolation toy study", "metric": "Qualitative reconstruction", "result": "Trainable separable and non-separable partitions appear to reconstruct details better than a fixed partition at matched parameter count.", "baseline": "Fixed cubic interpolation partition; no quantitative downstream result for this ablation."}
+  ],
+  "limitations": [
+    "[Author-stated] From-scratch classification INNs need a smooth analogue of batch normalization; adaptive quadratures and data-free nonuniform partitions remain open.",
+    "[Reviewer-identified] Arbitrary-size accuracy is not guaranteed by quadrature theory and is evaluated only over selected compression ranges and architectures.",
+    "[Reviewer-identified] Channel coordinates are artificial and non-identifiable; 2-opt ordering may be unstable, costly, or locally suboptimal for large layers.",
+    "[Reviewer-identified] 'Without fine-tuning' obscures multi-width INN training or data-dependent partition tuning performed before deployment selection.",
+    "[Reviewer-identified] No comparison with Once-for-All, Slimmable, Universally Slimmable, dynamic widths, or other shared-weight elastic networks is provided.",
+    "[Reviewer-identified] Results omit seeds, uncertainty, training cost, conversion cost, partition-search cost, and Pareto-frontier statistics.",
+    "[Reviewer-identified] Device claims lack latency, energy, memory, and hardware measurements; structured parameter removal need not deliver proportional speedups.",
+    "[Reviewer-identified] The separable kernel constrains cross-channel structure and convolution spatial kernels are not re-sampled, limiting the stated continuous-network generality."
+  ],
+  "failure_modes": [
+    "If important filters alternate in the chosen ordering, interpolation blends incompatible features and coarse sampling destroys accuracy.",
+    "A TSP permutation optimized layerwise can conflict with residual additions, grouped/depthwise convolutions, attention heads, or other tied channel semantics.",
+    "Widths not sampled during training can lie between poorly conditioned interpolation nodes and underperform despite nominal continuity.",
+    "Quadrature weights change activation scale across widths, destabilizing normalization and residual pathways.",
+    "Optimizing one partition on a few samples can overfit the deployment sample and violate the data-free/no-fine-tuning interpretation.",
+    "Shared continuous coefficients can favor large widths and leave small widths undertrained without explicit balancing or distillation.",
+    "Fewer parameters may not reduce latency on hardware whose efficient kernels require aligned channel multiples.",
+    "Very coarse re-discretization violates the small-step premise behind numerical approximation."
+  ],
+  "reusable_insights": [
+    "Permutation symmetry can be exploited before interpolation: find a smooth channel ordering, then compress the ordered signal rather than pruning unordered filters.",
+    "A continuous parameterization is valuable when coupled to explicit multi-resolution training; continuity alone is not a performance certificate.",
+    "Elastic-model evaluation should separate preparation cost, post-selection adaptation, stored supernet size, and per-device runtime.",
+    "For evolutionary RL environments, a related design is to learn a continuous environment family and validate discrete complexity levels prospectively; interpolation validity must be tested rather than assumed.",
+    "Hardware deployment needs a measured cost model inside subnet selection, not parameter percentage as the only objective."
+  ],
+  "open_questions": [
+    "How do INNs compare with OFA and slimmable networks under matched training compute, stored parameters, device latency, and accuracy targets?",
+    "Can channel order be learned jointly and differentiably while respecting residual, attention, normalization, and grouped-operator constraints?",
+    "What approximation bound links kernel smoothness, partition size, network Lipschitz constants, and end-task error after re-discretization?",
+    "How stable are learned widths and permutations across seeds, datasets, architectures, and distribution shifts?",
+    "Can adaptive quadrature choose device-aligned channel counts and supply uncertainty about an unseen width's performance?",
+    "Does pretraining at small widths prospectively predict full-scale elasticity, or do ranking reversals appear with larger models?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2006.11120",
+      "title": "From Discrete to Continuous Convolution Layers",
+      "url": "https://arxiv.org/abs/2006.11120",
+      "relationship": "Closest predecessor parameterizing convolutional filters and channels continuously for resolution flexibility.",
+      "difference": "The predecessor uses continuous convolution representations in defined filter/channel sections. INNs connect the complete input/output channel axes through integral kernels and target structural width resampling, adding channel permutation and random-partition training.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:1908.09791",
+      "title": "Once-for-All: Train One Network and Specialize it for Efficient Deployment",
+      "url": "https://arxiv.org/abs/1908.09791v5",
+      "relationship": "Direct elastic-supernetwork competitor for post-training device-specific subnet selection.",
+      "difference": "OFA trains depth, width, kernel, and resolution choices and searches measured device constraints. INN gives a continuous width representation and simple resampling, but evaluates neither OFA's broader search space nor hardware-aware specialization under matched cost.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:1908.09791v5"
+    },
+    {
+      "canonical_id": "arxiv:1812.08928",
+      "title": "Slimmable Neural Networks",
+      "url": "https://arxiv.org/abs/1812.08928",
+      "relationship": "Direct prior method training one network at several channel widths.",
+      "difference": "Slimmable networks share tensor prefixes across discrete widths with switchable normalization. INNs interpolate a continuous ordered kernel and sample partitions, potentially covering more widths but inheriting interpolation/order assumptions and an unresolved normalization gap.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:1903.05134",
+      "title": "Universally Slimmable Networks and Improved Training Techniques",
+      "url": "https://arxiv.org/abs/1903.05134",
+      "relationship": "Closest arbitrary-width shared-network baseline.",
+      "difference": "Universally Slimmable Networks explicitly train a continuum of widths using sandwich sampling and in-place distillation. INN similarly randomizes partitions but changes weight representation; without this baseline, the evidence cannot isolate interpolation from established multi-width training.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2003.03485",
+      "title": "Neural Operator: Graph Kernel Network for Partial Differential Equations",
+      "url": "https://arxiv.org/abs/2003.03485",
+      "relationship": "Prior integral-kernel neural layers designed to be discretization invariant over signal domains.",
+      "difference": "Neural operators learn maps between functions and test across spatial discretizations. INNs apply integral language to channel/filter coordinates for model resizing; those coordinates lack the physical domain structure that makes neural-operator discretization invariance natural.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims a new family of continuously parameterized channel-wise integral networks that can be discretized to arbitrary sizes at inference and pruned structurally with small loss and no post-selection fine-tuning.",
+    "evidence": "Its distinctive machinery combines cubic channel-kernel interpolation, quadrature-scaled conventional layers, TSP-like channel ordering, trainable partitions, and random-width training on classification and super-resolution models.",
+    "reviewer_inference": "The continuous channel representation and conversion/permutation recipe are meaningful additions, but continuous convolutions, neural operators, slimmable networks, and OFA already establish the main ingredients and deployment goal. The current comparisons do not isolate novelty from multi-width training or support arbitrary-size and hardware-efficiency claims."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Read all ten extracted CVPR pages, including equations, algorithms, all experiment tables/figures, limitations, and references. Competitors were checked on official arXiv records. The source is pinned to the CVF Open Access proceedings PDF."
+}

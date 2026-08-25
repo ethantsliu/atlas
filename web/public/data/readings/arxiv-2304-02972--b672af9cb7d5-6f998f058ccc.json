@@ -1,0 +1,454 @@
+{
+  "stable_id": "arxiv:2304.02972",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2304.02972",
+    "pdf_sha256": "12cad0190196dcd173e77d6c289fe45022f21da799f570b4f0b3e157400d1492",
+    "text_sha256": "fa3792f0d98e4b0a9f9432620105b01da9290fac1911d819a03a56d981b91c4b",
+    "page_count": 19,
+    "extracted_at": "2026-08-23T19:53:01.621060+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a two-layer ReLU or leaky-ReLU regressor be trained faster and to lower loss by alternately solving exact ridge least-squares systems for the output layer and for a hidden-layer surrogate whose activation pattern is frozen?",
+  "key_findings": [
+    {
+      "claim": "ANMIN is a concrete full-batch alternating quadratic-surrogate optimizer and produces strong results on several of the paper's small-input regression tasks.",
+      "evidence": "Each iteration computes the current binary firing matrix, solves a dense ridge system for all hidden weights while holding that matrix and the output layer fixed, then exactly refits the output layer and retains the lowest-training-loss iterate. Across 100 random 80/20 splits, ANMIN has much lower mean test MSE than Adam on SDF (3.56 versus 12.36), bike sharing (1714 versus 2721), and the denoising autoencoder (160.4 versus 170.8), while taking less reported wall time on the stated hardware. These are useful empirical signals for shallow nonlinear least squares, even though the comparisons do not isolate the source of the gain.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "Contributions"},
+        {"page": 5, "section": "Algorithm 1"},
+        {"page": 9, "section": "Table 3"},
+        {"page": 10, "section": "Table 4 and Results"}
+      ]
+    },
+    {
+      "claim": "The hidden-layer solve is not an exact block minimization of the original ReLU loss because it omits the sign constraints that define the frozen activation region.",
+      "evidence": "For a fixed old pattern G, the paper minimizes a quadratic expression over every A in Euclidean space. A valid minimizer within that ReLU cell must additionally satisfy I(XA>0)=F (or the corresponding weak sign inequalities). Equation (9) imposes no such constraints, so its solution can cross activation boundaries and be inconsistent with the very G used to derive it. Theorem 1 therefore establishes stationarity only for the auxiliary loss L(A,B,b0,G), not for L(A,B,b0); the observed loss jumps after A updates are direct evidence that the surrogate and actual objectives can disagree.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Fitting the Hidden Layer Weights A"},
+        {"page": 6, "section": "Theorem 1 and proof"},
+        {"page": 12, "section": "Ablation discussion and Figure 9"}
+      ]
+    },
+    {
+      "claim": "ANMIN has no demonstrated descent, convergence, or stationarity guarantee for the network objective.",
+      "evidence": "The unconstrained frozen-pattern update can increase the true loss, the algorithm advances from that worse current iterate while separately storing a historical best, and the output best need not be block-stationary under its own current pattern. The ablation shows that returning the minimum-loss history is essential: on bike sharing, reporting the final iterate with the pseudoinverse gives train/test MSE 2199/2450 versus 1457/1714 with best-so-far selection. The conclusion explicitly says the work supplies no theoretical guarantee.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "Algorithm 1"},
+        {"page": 11, "section": "Ablation Study and Table 5"},
+        {"page": 12, "section": "Conclusion"}
+      ]
+    },
+    {
+      "claim": "The determinant-triggered numerical fallback is poorly matched to the stated ridge system.",
+      "evidence": "M is a Gram-type positive-semidefinite matrix for fixed B and G, so with the reported lambda=0.001, M+lambda I is positive definite in exact arithmetic. A fixed log-determinant threshold of -10000 is neither a condition-number test nor scale invariant: determinant magnitude varies exponentially with dimension and feature scaling, and can be tiny for a well-conditioned rescaled system or large for an ill-conditioned one. Thus the claimed degeneracy diagnostic and SVD trigger do not establish singularity or solve accuracy.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Materials and Methods"},
+        {"page": 5, "section": "Algorithm 1"},
+        {"page": 6, "section": "Quadratic form and Theorem 1"},
+        {"page": 9, "section": "Implementation Details"},
+        {"page": 12, "section": "Diagnosing the ANMIN Algorithm"}
+      ]
+    },
+    {
+      "claim": "The fallback introduces material tuning and contains a displayed inverse formula that is only harmless under exact symmetry.",
+      "evidence": "Algorithm 1 uses both tau=-10000 and a singular-value floor of 0.0001, in addition to lambda, iteration count, width, activation slope, and random initialization, so 'virtually no tuning parameters' is overstated. For an SVD H=UDV^T, the generic inverse action is VD^{-1}U^Tc, whereas line 12 prints UD^{-1}V^Tc. Because H should be symmetric positive definite, U and V can coincide in exact arithmetic, but the printed order is not the generic pseudoinverse and is precisely least trustworthy when numerical asymmetry motivates a fallback.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract"},
+        {"page": 4, "section": "Threshold definition"},
+        {"page": 5, "section": "Algorithm 1 lines 7-12"},
+        {"page": 9, "section": "Implementation Details"}
+      ]
+    },
+    {
+      "claim": "The claimed pass efficiency and large-data framing hide substantial dense linear-algebra cost.",
+      "evidence": "Every hidden update must aggregate full-data sufficient statistics for a ((d+1)h)-dimensional system, and every output refit also processes the full data; the experiments use 30 iterations, not a demonstrated ten-pass run. The dense hidden system needs quadratic memory in dh and the paper states O((dh)^3+(N+c)(dh)^2) computation. Mini-batching only streams the observations; it does not shrink the dense matrix. The admitted dh>30000 limit would entail roughly 900 million matrix entries before factorization.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "Introduction"},
+        {"page": 6, "section": "Computation Complexity"},
+        {"page": 8, "section": "Implementation Details"},
+        {"page": 12, "section": "Conclusion and limitations"}
+      ]
+    },
+    {
+      "claim": "The optimizer comparison does not establish that ANMIN beats well-tuned gradient training under a common objective and compute budget.",
+      "evidence": "Adam uses a single initial learning rate of 0.03 and one three-stage schedule; only SGD is said to be tuned per dataset. The paper specifies lambda=0.001 for ANMIN but does not say that SGD, Adam, or L-BFGS optimize the same ridge-regularized objective or receive comparable weight decay. There is no validation split, equal-time search budget, matched initialization report, learning-rate sweep, momentum/AdamW comparison, or modern structured second-order baseline. Comparing 30 dense solves with 300 epochs is informative as one implementation benchmark, not an optimizer-class conclusion.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Methods Compared and Implementation Details"},
+        {"page": 9, "section": "Shrinkage parameter"},
+        {"page": 10, "section": "Computation-time discussion"}
+      ]
+    },
+    {
+      "claim": "The paper's explanation for L-BFGS failure is mathematically unsupported, and the implemented baseline is not a reliable test of quasi-Newton methods.",
+      "evidence": "Nondifferentiability of ReLU on activation boundaries does not imply that an inverse Hessian is infinite, and L-BFGS does not explicitly invert the exact Hessian. The experiments use a fixed learning rate of 0.01, a 100,000-example batch, only 60 iterations, and retain a best-training-loss checkpoint after frequent blow-ups, without reporting line search, damping, closure, or tolerance settings. Those explosions can diagnose that configuration, but cannot rule out trust-region, Gauss-Newton, Levenberg-Marquardt, or competently globalized quasi-Newton alternatives.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Related Work"},
+        {"page": 8, "section": "Methods Compared and Implementation Details"},
+        {"page": 10, "section": "Real Data Experiments"}
+      ]
+    },
+    {
+      "claim": "Checkpoint selection is asymmetric across methods and can favor the nonmonotone solvers.",
+      "evidence": "ANMIN and L-BFGS are evaluated using the iterate with minimum training MSE, while SGD and Adam are described and tabulated at their final epoch. The ablation demonstrates that best-so-far selection materially improves ANMIN. Without also reporting best validation- or training-matched checkpoints for every baseline, part of the gap can arise from selection protocol rather than update quality.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 8, "section": "Methods Compared"},
+        {"page": 9, "section": "Table 3 and Results"},
+        {"page": 11, "section": "Ablation Study"}
+      ]
+    },
+    {
+      "claim": "Failure to reject at p>0.01 is repeatedly interpreted as evidence of parity, which the paired t-test does not provide.",
+      "evidence": "The table bolds the best method and every method whose paired comparison has p>0.01, and the prose concludes that ANMIN is never significantly outperformed. A nonsignificant difference is not an equivalence or noninferiority result; it depends on variance and power. The paper also conducts many dataset-by-method-by-metric comparisons without a multiplicity correction or effect-size confidence intervals, and it does not clarify whether the 100 splits share optimizer seeds or constitute independent optimization trials.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "Table 3 and significance procedure"},
+        {"page": 10, "section": "Real Data Experiments"}
+      ]
+    },
+    {
+      "claim": "Random observation-level splitting makes the strongest visual-task generalization results substantially easier than deployment-style evaluation.",
+      "evidence": "The SDF dataset contains adjacent coordinates from one shape, and the autoencoder dataset contains heavily overlapping 15x15 patches extracted at stride three from one image. The paper then randomly assigns individual observations or patches to 80/20 train/test sets. Test points therefore share spatial neighborhoods, and DAE patches share most pixels, with training examples. These results measure interpolation within the same artifact rather than generalization to unseen shapes or images; random splitting also ignores the prescribed YearPredictionMSD benchmark partition.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 7, "section": "Datasets Used"},
+        {"page": 8, "section": "DAE construction and random splits"},
+        {"page": 9, "section": "Table 3 protocol"}
+      ]
+    },
+    {
+      "claim": "The dimension simulation does not isolate input dimension as the cause of ANMIN's apparent advantage.",
+      "evidence": "When d changes, the target sin(||x||^2) changes its input distribution and oscillation structure because ||x||^2 follows a different chi-square law, while width stays fixed at 64 and the paper acknowledges poor fit at large d. At d=10 and 30, Adam has lower training loss but ANMIN has lower test loss, consistent with underfitting or implicit regularization rather than access to a deeper optimum. A causal dimension study would hold target complexity, approximation error, regularization, and compute capacity fixed.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "Simulations introduction"},
+        {"page": 11, "section": "Simulations"}
+      ]
+    },
+    {
+      "claim": "The broad generalization claim is more mixed than the headline suggests.",
+      "evidence": "ANMIN's mean test MSE is worse than SGD on Abalone (4.64 versus 4.45) and worse than all three gradient variants on YearPredictionMSD (76.88 versus 76.51-76.71), even though its training behavior differs. On the small-input Abalone task, where the paper's dimension hypothesis predicts an advantage, ANMIN lowers training MSE but generalizes worse than SGD. This is evidence that stronger training minimization and test risk are separable, not that analytic fitting generally improves generalization at small d.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 9, "section": "Table 3"},
+        {"page": 10, "section": "Real Data Experiments discussion"}
+      ]
+    },
+    {
+      "claim": "The method is narrowly demonstrated and its proposed extension to tree ensembles is speculative.",
+      "evidence": "All experiments use one-hidden-layer fully connected networks, squared regression loss, fixed widths of 32 or 64, and at most 225 inputs. There is no classification, cross-entropy, convolutional model, deeper network, learned architecture, distributed solve, or accuracy-matched large-scale benchmark. The conclusion merely observes that trees can be represented as networks and suggests ANMIN might enable better ensemble training; no correspondence between the frozen-pattern least-squares update and valid tree structures is derived or tested.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "Materials and Methods"},
+        {"page": 7, "section": "Datasets Used"},
+        {"page": 12, "section": "Conclusion"}
+      ]
+    },
+    {
+      "claim": "The main algorithmic motif was already explicit in prior work that the paper does not discuss.",
+      "evidence": "The paper presents alternation between an estimated ReLU activation pattern and least-squares weight updates as its central method, yet its related-work survey does not include Jagatap and Hegde's 2018 'Learning ReLU Networks via Alternating Minimization,' which describes that same pattern-estimation/least-squares family and supplies local linear recovery guarantees under teacher-student assumptions. ANMIN differs in algebra, multi-output ridge regression, unrestricted surrogate updates, and broad empirical datasets, but cannot support novelty of the high-level alternating-minimization concept.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Related Work"},
+        {"page": 3, "section": "Related Work continuation"},
+        {"page": 5, "section": "Algorithm 1 and Fitting the Hidden Layer"},
+        {"page": 6, "section": "Theorem 1"},
+        {"page": 13, "section": "References"}
+      ]
+    },
+    {
+      "claim": "Algorithm 1's stated output can be undefined in an edge case.",
+      "evidence": "The pseudocode initializes A, fits B, and stores the initial loss l0, but it does not initialize the hatted output parameters. The hats are assigned only when a later li is strictly smaller than l0. If no iteration improves the initialization, the declared output is undefined. A robust implementation should initialize the best model before entering the loop and define tie and numerical-failure behavior.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Algorithm 1 lines 1-20"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Exploit the piecewise-linear activation pattern of a shallow ReLU network to replace each hidden-layer update by a dense ridge least-squares solve, alternating it with an exact ridge fit of the output layer.",
+    "mechanism": "Initialize hidden weights randomly; fit output weights and bias by ridge OLS; compute the current firing matrix F=I(XA>0) and leaky gate G; assemble a Gram-like block matrix M and right-hand side c for the quadratic frozen-G surrogate; solve (M+lambda I)a=c or apply an SVD floor when a log-determinant threshold fires; reshape a into A; refit the output layer; continue for a fixed number of iterations while retaining the historically lowest training loss.",
+    "assumptions": [
+      "The task is supervised regression with square loss and a two-layer fully connected ReLU or leaky-ReLU network.",
+      "All data can be revisited repeatedly to form exact full-dataset sufficient statistics.",
+      "A fixed firing pattern provides a useful local surrogate even if the unconstrained solution leaves that pattern's polyhedral cell.",
+      "Crossing activation boundaries after a frozen-pattern solve will usually improve or eventually help the actual objective.",
+      "Historical minimum training loss is an appropriate iterate-selection rule for test evaluation.",
+      "Ridge parameter lambda=0.001 is appropriate across all tasks and scales.",
+      "A fixed log-determinant threshold diagnoses numerical instability across matrix dimensions and feature scalings.",
+      "Flooring every singular value below 0.0001 yields a useful and comparable update.",
+      "Thirty dense alternating iterations are affordable and adequately converged.",
+      "Random initialization variation is controlled by averaging over the reported splits.",
+      "The baseline learning rates, schedules, epochs, batches, and stopping rules are representative of strong tuning.",
+      "Observation-level random splits are suitable for spatial coordinate and overlapping-patch tasks.",
+      "The five tasks and one synthetic target reveal a general relationship between input dimension and optimizer quality.",
+      "A smaller training objective corresponds to a deeper or better local optimum rather than an objective or checkpoint mismatch.",
+      "Dense O((dh)^2) storage and O((dh)^3) factorization remain practical in the target shallow-network regime."
+    ]
+  },
+  "techniques": [
+    {"id": "alternating-layer-ridge-solves", "role": "Fits one layer analytically while holding the other layer fixed."},
+    {"id": "frozen-relu-activation-pattern", "role": "Turns the hidden-layer response into a linear expression for the surrogate update."},
+    {"id": "block-gram-matrix-assembly", "role": "Aggregates full-data hidden-feature cross-products into the dense matrix M."},
+    {"id": "multi-output-hidden-solve", "role": "Pools all output coordinates through output-weight products in one hidden-layer system."},
+    {"id": "output-layer-ordinary-least-squares", "role": "Refits output weights and bias exactly after every hidden update."},
+    {"id": "ridge-stabilization", "role": "Adds lambda times identity to the two analytic systems."},
+    {"id": "log-determinant-trigger", "role": "Chooses between a direct solve and an SVD-based fallback."},
+    {"id": "singular-value-flooring", "role": "Clips small singular values before applying the fallback inverse."},
+    {"id": "best-training-loss-checkpoint", "role": "Retains the lowest-loss iterate because raw ANMIN updates are nonmonotone."},
+    {"id": "streamed-sufficient-statistics", "role": "Uses minibatches to accumulate exact full-data matrices without storing all observations on device."},
+    {"id": "paired-random-split-evaluation", "role": "Compares optimizers across 100 common 80/20 data partitions."},
+    {"id": "relu-leaky-relu-comparison", "role": "Tests whether a nonzero negative slope changes the analytic optimizer's behavior."},
+    {"id": "dimension-sweep-simulation", "role": "Varies d and N for a radial sine target to probe the claimed small-input advantage."},
+    {"id": "component-ablation", "role": "Separately tests best-so-far selection and pseudoinverse fallback on bike sharing."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Signed-distance decoder from every pixel coordinate of one Weizmann horse mask, h=64",
+      "metric": "Mean train/test MSE and R-squared over 100 random 80/20 pixel splits; wall-clock seconds",
+      "result": "ANMIN-L reports test MSE 3.48 versus Adam-L 9.48 and SGD 22.36; ANMIN takes 12.8 seconds with ReLU versus Adam's 223 seconds",
+      "baseline": "Strong numerical gap, but adjacent pixels from the same shape are randomly separated, the common objective/tuning budget is unclear, and generalization to a new shape is untested"
+    },
+    {
+      "setting": "UCI Abalone regression, d=7 and h=64",
+      "metric": "Mean train/test MSE and R-squared over 100 random splits; runtime",
+      "result": "ANMIN has lower training MSE than SGD (3.94 versus 4.20) but higher test MSE (4.64 versus 4.45); ANMIN runs in 1.3 seconds versus 9.1 for SGD/Adam",
+      "baseline": "This small-d task contradicts a simple claim that deeper ANMIN training minima improve test risk"
+    },
+    {
+      "setting": "UCI hourly bike-sharing regression after removing registered-user count, d=13 and h=64",
+      "metric": "Mean train/test MSE and R-squared over 100 random splits; runtime",
+      "result": "ANMIN reports test MSE 1714 versus SGD 2681 and Adam 2721, with 4.7 seconds versus 40.2 and 36.7 seconds",
+      "baseline": "The result is favorable but lacks temporal splitting, equal-objective regularization, optimizer sweeps, and validation-selected checkpoints"
+    },
+    {
+      "setting": "YearPredictionMSD regression, d=90, h=64, N=515345",
+      "metric": "Mean train/test MSE and R-squared over 100 random 80/20 splits; runtime",
+      "result": "ANMIN is faster (203 seconds) but has test MSE 76.88 versus SGD 76.51 and Adam 76.71 and has higher training MSE than Adam",
+      "baseline": "Uses random splits instead of the dataset's prescribed benchmark partition and provides no accuracy-matched compute comparison"
+    },
+    {
+      "setting": "Denoising autoencoder on 15912 overlapping 15x15 patches from one Berkeley image, d=c=225 and h=32",
+      "metric": "Mean train/test MSE and R-squared over 100 random patch splits; runtime",
+      "result": "ANMIN-L reports test MSE 156.1 versus Adam-L 168.7 and takes 18.1 seconds versus 31.4",
+      "baseline": "Highly overlapping train/test patches from one image make this an interpolation benchmark; no held-out-image denoising metric or perceptual metric is reported"
+    },
+    {
+      "setting": "Synthetic x~N(0,I_d), y=sin(||x||^2), d in {1,3,10,30}, N in {1000,10000}, h=64",
+      "metric": "Train and test MSE distributions over 100 runs for 30 ANMIN versus 300 Adam iterations",
+      "result": "ANMIN has lower train/test loss at d=1,3; Adam has lower train loss but ANMIN lower test loss at d=10,30",
+      "baseline": "Changing d changes the target distribution and fixed-width approximation difficulty, so the experiment cannot attribute the result solely to dimension"
+    },
+    {
+      "setting": "Bike-sharing ablation of minimum-history selection and SVD fallback",
+      "metric": "Mean train/test MSE over 100 splits",
+      "result": "Neither mechanism gives 8919/9010, best-history only gives 1826/2092, fallback only gives 2199/2450, and both give 1457/1714",
+      "baseline": "Shows both heuristics are operationally important, but does not ablate tau, singular-value floor, lambda, constrained cell solves, or stable Cholesky/QR alternatives"
+    }
+  ],
+  "limitations": [
+    "The frozen-pattern hidden solve omits the sign inequalities required to remain in the selected ReLU region.",
+    "Theorem 1 concerns an auxiliary fixed-G quadratic, not a critical point of the original network loss.",
+    "No descent, convergence, local-optimality, or stationarity guarantee is provided for ANMIN.",
+    "Best-so-far checkpointing is needed because actual training loss can jump after hidden updates.",
+    "The returned historical best need not be stationary for either layer under its own activation pattern.",
+    "Algorithm 1 fails to initialize its hatted output before requiring a strict improvement.",
+    "The log determinant is scale- and dimension-dependent and is not a condition-number diagnostic.",
+    "With positive ridge regularization the theoretical system is positive definite, so apparent singularity reflects numerical conditioning or implementation rather than mathematical nonexistence.",
+    "The printed SVD inverse has U and V in the generic inverse order swapped.",
+    "Tau, singular-value floor, lambda, iteration count, activation slope, width, and initialization all undermine the claim of virtually no tuning.",
+    "Dense hidden-system memory is O((dh)^2) and factorization is O((dh)^3).",
+    "Streaming minibatches reduces data residency but not the dense-system dimension.",
+    "The evaluated 30 iterations require repeated full-data aggregation, so they are not a demonstrated ten-pass training run.",
+    "Adam receives one unusually large initial learning rate and a narrow fixed schedule rather than a reported per-dataset sweep.",
+    "It is unclear whether all optimizers minimize the same lambda-regularized objective.",
+    "No strong Gauss-Newton, Levenberg-Marquardt, K-FAC, Shampoo, block-coordinate, or constrained-QP baseline is tested.",
+    "The L-BFGS configuration and explanation do not constitute a fair evaluation of quasi-Newton methods.",
+    "Checkpoint rules differ across ANMIN/L-BFGS and SGD/Adam.",
+    "Nonsignificance at p>0.01 is treated as parity without equivalence tests or confidence intervals.",
+    "Multiple comparisons receive no reported correction.",
+    "The SDF and denoising tasks randomly split spatially dependent observations from one artifact.",
+    "YearPredictionMSD does not use its prescribed benchmark partition.",
+    "The dimension simulation changes target distribution and approximation difficulty along with d.",
+    "All demonstrated models are shallow fully connected square-loss regressors with width at most 64.",
+    "Classification, cross-entropy, convolution, depth, mixed precision, distributed training, and modern large models are not evaluated.",
+    "The tree-ensemble application is asserted without a compatible optimization derivation or experiment.",
+    "The paper does not cite the closest earlier activation-pattern/least-squares alternating-minimization work.",
+    "Code availability is stated, but the paper lacks package versions, hardware precision, initialization distribution, per-dataset SGD rates, stopping tolerances, and complete L-BFGS settings."
+  ],
+  "failure_modes": [
+    "The hidden ridge solution crosses many activation boundaries, making the frozen-G surrogate a poor predictor of actual loss.",
+    "A large loss-increasing hidden step is carried forward and sends later patterns into an unproductive region even though a historical best is retained.",
+    "No iterate beats the initialization, leaving the pseudocode's hatted return variables unset.",
+    "Feature rescaling changes the log determinant enough to activate or suppress the fallback without changing substantive conditioning.",
+    "A high-dimensional but well-conditioned system falls below the fixed determinant threshold simply because many eigenvalues are below one.",
+    "An ill-conditioned system with some very large eigenvalues passes the determinant test and is solved unstably.",
+    "The fixed singular-value floor overwhelms valid small-curvature directions or is too small for the chosen numerical precision.",
+    "Dense M exhausts device or host memory before the advertised dh=30000 boundary.",
+    "Cubic factorization dominates runtime as d or h grows even when N is streamed efficiently.",
+    "Different regularization objectives make lower ANMIN training MSE incomparable with baseline training MSE.",
+    "A poorly tuned Adam or L-BFGS baseline makes the analytic update appear uniquely effective.",
+    "Best-training-loss selection overfits optimization noise and chooses an iterate with worse validation risk.",
+    "Random spatial splits inflate SDF or DAE test performance through neighboring or overlapping examples.",
+    "At high d, fixed width underfits the radial sine target and creates apparent test advantages through regularization rather than optimization.",
+    "Multi-output dimension c makes the output refit or hidden statistics expensive even though the asymptotic expression is linear in c.",
+    "ReLU dead units or nearly collinear gates make the system badly scaled and cause updates to depend on arbitrary SVD flooring.",
+    "Classification or nonsquared losses remove the closed-form layer updates that define ANMIN.",
+    "A deeper network requires additional coupled activation patterns and loses the single quadratic hidden-block structure."
+  ],
+  "reusable_insights": [
+    "For shallow piecewise-linear networks, conditioning on activation patterns exposes a powerful linear least-squares surrogate.",
+    "A frozen-region optimizer should enforce the region's sign inequalities if it is claimed to minimize the original piecewise objective locally.",
+    "Activation-boundary crossings can be treated explicitly with trust regions, line search, or active-set correction rather than ignored.",
+    "Exact output-layer refitting is a strong low-cost complement to approximate hidden-layer updates in variable-projection methods.",
+    "Full-data sufficient statistics can be streamed without retaining the whole dataset, but matrix-state memory must be reported separately.",
+    "Condition number, residual, backward error, and Cholesky failure are more meaningful solver diagnostics than a raw determinant threshold.",
+    "Historical-best ablations are useful for exposing nonmonotonicity but should not substitute for convergence analysis.",
+    "Optimizer evaluations should match objective, regularization, checkpoint policy, hyperparameter-search compute, and wall-clock budget.",
+    "Spatial learning tasks need group-, scene-, subject-, or artifact-level splits to measure genuine generalization.",
+    "Failure to reject a difference is not evidence of equivalence; use paired confidence intervals or prespecified noninferiority margins.",
+    "Dimension sweeps should normalize target complexity and scale width or approximation capacity so optimizer effects are identifiable.",
+    "The Gram structure suggests matrix-free conjugate-gradient products and preconditioning as a scalable alternative to materializing M.",
+    "Kronecker, block-diagonal, low-rank, and sparse connectivity approximations could preserve some analytic curvature at lower memory cost.",
+    "The exact cell-constrained update is a convex quadratic program and supplies a clean reference for measuring the cost of ignoring gate consistency.",
+    "Direct prior-art searches should use the algorithmic motif—activation estimation plus least squares—not only the paper's chosen terminology."
+  ],
+  "open_questions": [
+    "How often does the unconstrained hidden solve violate I(XA_new>0)=F_old, and how does violation rate predict the true-loss jump?",
+    "Does adding the exact ReLU-cell sign constraints improve descent and final test risk enough to justify a quadratic-program solve?",
+    "Can a trust-region or line-search acceptance rule give monotone decrease without losing ANMIN's wall-clock advantage?",
+    "Under what assumptions does repeated frozen-pattern regression converge to a Clarke-stationary point of the original loss?",
+    "Can the method be interpreted rigorously as majorization-minimization, variable projection, or semismooth Newton after modifying its surrogate?",
+    "Would matrix-free conjugate gradients with Jacobian-vector products reduce O((dh)^2) memory while preserving update quality?",
+    "Which preconditioners exploit the Kronecker and gate structure of M without forming it densely?",
+    "How sensitive are results to lambda, tau, singular-value floor, width, activation slope, and initialization?",
+    "Does a residual-based stable Cholesky/QR solve eliminate the need for determinant heuristics and SVD flooring?",
+    "How does ANMIN compare with the 2018 alternating-minimization method under both teacher-student and noisy real-data settings?",
+    "How does it compare at matched objective and wall-clock search budget with Levenberg-Marquardt, structure-guided Gauss-Newton, K-FAC, Shampoo, and convex gated-ReLU solvers?",
+    "Do the gains survive per-method validation tuning and a common best-checkpoint rule?",
+    "Do SDF gains survive evaluation on unseen shapes and DAE gains survive held-out images?",
+    "Do bike-sharing results survive chronological or grouped splits and YearPredictionMSD results survive the canonical partition?",
+    "Can the small-d hypothesis be reproduced with a target family whose spectral complexity is invariant in dimension?",
+    "Is ANMIN's lower high-d test loss explained by implicit regularization, numerical damping, early stopping, or a different local basin?",
+    "Can the analytic update support classification through iteratively reweighted least squares without losing stability?",
+    "Can layerwise activation-constrained updates scale beyond one hidden layer?",
+    "What accuracy, memory, and numerical-precision tradeoffs arise from sparse or low-rank approximations to M?",
+    "Can any claimed tree-ensemble correspondence preserve valid split topology while allowing an ANMIN-style loss update?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1806.07863",
+      "title": "Learning ReLU Networks via Alternating Minimization",
+      "url": "https://arxiv.org/abs/1806.07863",
+      "relationship": "prior-most-direct-algorithmic-work",
+      "difference": "Jagatap and Hegde explicitly alternate ReLU activation-pattern estimation with least-squares weight updates and prove local linear recovery under well-initialized teacher-student assumptions. ANMIN broadens empirical regression settings and derives a different joint hidden-weight ridge system, but omits this work and provides weaker theoretical support, sharply narrowing high-level novelty."
+    },
+    {
+      "canonical_id": "arxiv:1803.00225",
+      "title": "Global Convergence of Block Coordinate Descent in Deep Learning",
+      "url": "https://arxiv.org/abs/1803.00225",
+      "relationship": "prior-block-coordinate-training",
+      "difference": "Zeng et al. split weights, preactivations, and activations into tractable blocks and prove convergence to a critical point at O(1/k) for broad deep-learning objectives. ANMIN's smaller shallow square-loss system is simpler and sometimes faster, but its unconstrained frozen-gate step lacks the consistency and convergence machinery central to the prior BCD framework."
+    },
+    {
+      "canonical_id": "arxiv:2002.10553",
+      "title": "Neural Networks are Convex Regularizers: Exact Polynomial-time Convex Optimization Formulations for Two-layer Networks",
+      "url": "https://arxiv.org/abs/2002.10553",
+      "relationship": "prior-exact-convex-training",
+      "difference": "Pilanci and Ergen give an exact convex representation for weight-decay-regularized two-layer ReLU training using activation-pattern cone constraints. ANMIN avoids enumerating or optimizing all cones and can be cheap at small dh, but sacrifices global optimality and even omits the constraints for its selected local cone."
+    },
+    {
+      "canonical_id": "arxiv:2006.05900",
+      "title": "The Hidden Convex Optimization Landscape of Two-Layer ReLU Neural Networks: an Exact Characterization of the Optimal Solutions",
+      "url": "https://arxiv.org/abs/2006.05900",
+      "relationship": "prior-optimal-solution-characterization",
+      "difference": "Wang, Lacotte, and Pilanci characterize global solutions and activation-cone geometry through a convex program and provide global-minimum checks. This supplies a principled reference for assessing ANMIN's historical best; ANMIN supplies no certificate that its frozen-pattern surrogate reaches even a stationary point of the original loss."
+    },
+    {
+      "canonical_id": "arxiv:2012.13329",
+      "title": "Vector-output ReLU Neural Network Problems are Copositive Programs: Convex Analysis of Two Layer Networks and Polynomial-time Algorithms",
+      "url": "https://arxiv.org/abs/2012.13329",
+      "relationship": "prior-vector-output-global-formulation",
+      "difference": "Sahiner et al. treat the vector-output case featured by ANMIN and connect its global training problem to a convex copositive program, with exact algorithms under restricted rank or convolutional regimes. ANMIN is a pragmatic dense local heuristic with better nominal dependence in some dimensions but no approximation or optimality bound."
+    },
+    {
+      "canonical_id": "arxiv:2202.01331",
+      "title": "Fast Convex Optimization for Two-Layer ReLU Networks: Equivalent Model Classes and Cone Decompositions",
+      "url": "https://arxiv.org/abs/2202.01331",
+      "relationship": "prior-fast-convex-competitor",
+      "difference": "Mishkin, Sahiner, and Pilanci develop accelerated proximal and augmented-Lagrangian solvers for cone-constrained convex and gated-ReLU models and scale them to MNIST and CIFAR-10. ANMIN is algebraically simpler for square regression but the paper does not empirically compare against this cited direct competitor."
+    },
+    {
+      "canonical_id": "arxiv:2212.08769",
+      "title": "Improving Levenberg-Marquardt Algorithm for Neural Networks",
+      "url": "https://arxiv.org/abs/2212.08769",
+      "relationship": "contemporary-nonlinear-least-squares-competitor",
+      "difference": "Pooladzandi and Zhou evaluate a globalized Levenberg-Marquardt method with momentum, line search, and uphill-step acceptance against SGD, Adam, L-BFGS, Hessian-free methods, and K-FAC. It is a much stronger nonlinear-least-squares baseline than ANMIN's fixed-rate L-BFGS run and directly challenges the claim that ReLU nonsmoothness makes second-order competitors explode."
+    },
+    {
+      "canonical_id": "arxiv:2402.03625",
+      "title": "Convex Relaxations of ReLU Neural Networks Approximate Global Optima in Polynomial Time",
+      "url": "https://arxiv.org/abs/2402.03625",
+      "relationship": "subsequent-guaranteed-relaxation",
+      "difference": "Kim and Pilanci bound the relative gap of tractable convex relaxations for random data and derive polynomial-time approximation guarantees. This subsequent work offers a principled accuracy-complexity tradeoff absent from ANMIN, although its guarantees and computational regime differ from ANMIN's small-d dense solves."
+    },
+    {
+      "canonical_id": "arxiv:2404.05064",
+      "title": "A Structure-Guided Gauss-Newton Method for Shallow ReLU Neural Network",
+      "url": "https://arxiv.org/abs/2404.05064",
+      "relationship": "subsequent-most-direct-numerical-optimizer",
+      "difference": "Cai et al. also alternate nonlinear hidden parameters with exact linear output solves, but update the hidden block using a damped structure-aware Gauss-Newton direction and analyze positive definiteness under assumptions. It preserves nonlinear least-squares geometry more faithfully than ANMIN's unconstrained stale-pattern solve and is now an essential head-to-head baseline."
+    },
+    {
+      "canonical_id": "arxiv:2410.02348",
+      "title": "Simplicity Bias and Optimization Threshold in Two-Layer ReLU Networks",
+      "url": "https://arxiv.org/abs/2410.02348",
+      "relationship": "subsequent-optimization-generalization-theory",
+      "difference": "Boursier and Flammarion show in a restricted setting that gradient training can converge to simpler noninterpolating solutions with better population loss beyond an optimization threshold. This supports the audit that a deeper ANMIN training minimum need not be desirable and that high-d lower test loss may reflect bias rather than superior optimization."
+    },
+    {
+      "canonical_id": "arxiv:2602.12559",
+      "title": "Convergence Analysis of Block Newton Methods for 1D Shallow Neural Network Approximation",
+      "url": "https://arxiv.org/abs/2602.12559",
+      "relationship": "current-block-newton-analysis",
+      "difference": "Cai et al. analyze local convergence for block Newton, nonlinear Gauss-Seidel/Jacobi, and reduced-neuron variants in one-dimensional shallow approximation. Its scope is narrower than ANMIN's datasets but it supplies the kind of block-update convergence statement and neuron reduction strategy that ANMIN leaves open."
+    },
+    {
+      "canonical_id": "arxiv:2606.04476",
+      "title": "When Both Layers Learn: Training Dynamics of Representing Linear Models via ReLU Networks",
+      "url": "https://arxiv.org/abs/2606.04476",
+      "relationship": "current-joint-layer-gradient-theory",
+      "difference": "Tinaz, Xie, and Soltanolkotabi prove linear convergence of joint gradient descent from moderate random initialization for a realizable Gaussian linear target and track alignment, growth, and refinement phases. The stylized assumptions do not settle ANMIN's general regression regime, but they refute any blanket implication that ordinary joint layer training cannot reach good shallow-ReLU optima."
+    },
+    {
+      "canonical_id": "pmlr:v37:martens15",
+      "title": "Optimizing Neural Networks with Kronecker-factored Approximate Curvature",
+      "url": "https://proceedings.mlr.press/v37/martens15.html",
+      "relationship": "prior-structured-curvature-baseline",
+      "difference": "K-FAC replaces a monolithic curvature matrix by invertible Kronecker factors and demonstrates faster progress than momentum SGD in stochastic regimes. It is not specific to shallow square loss, but its scalable structured-curvature tradeoff is directly relevant because ANMIN materializes a much larger dense (dh)-square system and compares only first-order methods and weak L-BFGS."
+    },
+    {
+      "canonical_id": "pmlr:v80:gupta18a",
+      "title": "Shampoo: Preconditioned Stochastic Tensor Optimization",
+      "url": "https://proceedings.mlr.press/v80/gupta18a",
+      "relationship": "prior-structured-preconditioning-baseline",
+      "difference": "Shampoo preserves tensor structure through per-axis preconditioners and scales curvature-informed updates to modern networks. It lacks ANMIN's exact layerwise solve but provides a better compute- and memory-scalable comparison for the claim that analytic curvature beats gradient optimization."
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper presents a novel analytic training method for two-layer ReLU-like networks that alternately finds layerwise critical points under a fixed firing pattern, reaches deeper optima than gradient methods on most tested datasets, is faster, and has virtually no tuning parameters.",
+    "evidence": "The explicit multi-output block matrix and the empirical study across SDF, tabular regression, and a patch autoencoder are useful engineering contributions. However, activation-pattern estimation interleaved with least-squares weight updates appeared explicitly in arXiv:1806.07863 in 2018, block-coordinate neural training had convergence theory by 2019, and exact or approximate convex two-layer ReLU solvers preceded ANMIN. The paper cites some convex work but omits the closest alternating-minimization predecessor and does not compare against it.",
+    "reviewer_inference": "Novelty is limited to this particular unconstrained frozen-gate ridge formulation, its multi-output algebra, fallback heuristics, and reported empirical profile—not the high-level idea of alternating activation patterns and least squares. The central 'analytic critical point' framing is also misleading because the solve can leave the frozen activation cell; the result need not be critical for the network loss. Claims of superior optimization and negligible tuning remain provisional under asymmetric checkpoints, unmatched objectives, weak baseline tuning, dependent test splits, and no convergence guarantee."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Primary review covered all 19 cached pages, including derivation, full tables, ablation, diagnostics, references, and figure-only appendix pages. The decisive audit is geometric: fixed-G linearity is valid only inside the corresponding sign-constrained polyhedron, while Equation (9) solves over all A. Primary-source competitor search was checked through 2026-08-23 and found a particularly material omitted predecessor, arXiv:1806.07863. A secondary review should reproduce the code with gate-consistency logging; compare the printed SVD update against a stable symmetric solve; rerun all methods with matched ridge objectives, per-method validation budgets, and checkpoint rules; and use unseen-shape/image and canonical tabular splits."
+}

@@ -1,0 +1,468 @@
+{
+  "stable_id": "arxiv:2311.11446",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2311.11446",
+    "pdf_sha256": "66c26b9b5a3b179208079944391d4934a42946b5172dd31b54b6da93d31cb501",
+    "text_sha256": "358220959bc65450ff8d06429775b2a9f9112df8735664ddd2d07236159bbd56",
+    "page_count": 7,
+    "extracted_at": "2026-08-23T18:51:55.602186+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can decoupled weight decay be generalized into a scheduled nonzero target for the global weight norm, and does this improve GPT-2 optimization relative to AdamW at comparable final norms?",
+  "key_findings": [
+    {
+      "claim": "AdamW's uniform decoupled shrinkage is algebraically a zero-target special case of the proposed radial norm controller.",
+      "evidence": "After the loss-based optimizer step, AdamWN applies theta <- theta - k_t(1 - rho_t/||theta||)theta with rho_t = r_t||theta_0||. Setting r_t=0 gives theta <- (1-k_t)theta; choosing k_t equal to the implementation's per-step decay factor recovers the corresponding AdamW update. The same wrapper can in principle be placed after another base optimizer because it depends only on the current parameter vector and target norm.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 1, "section": "Section 2, Equations 2-3"},
+        {"page": 2, "section": "Algorithm 1 and Section 3"},
+        {"page": 3, "section": "Section 3, special cases"}
+      ]
+    },
+    {
+      "claim": "The controller is an exact scalar feedback law for the norm, but only k_t=1 is a projection onto the target sphere.",
+      "evidence": "For nonnegative target rho_t and k_t in [0,1], the post-controller norm is exactly (1-k_t)||theta|| + k_t rho_t. Thus k_t controls a radial relaxation time and k_t=1 rescales immediately to rho_t. In the experiments k_t=0.01, so each loss update may move away from the target and the controller only pulls one percent of the norm error back per step; this is soft tracking, not an equality-constrained optimizer.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "Section 2, Equation 3"},
+        {"page": 2, "section": "Section 3, k_t interpretation"},
+        {"page": 4, "section": "Section 4, fixed k_t=0.01"}
+      ]
+    },
+    {
+      "claim": "The paper's geometric description is technically inaccurate: an L2 equality defines a hypersphere, not a hyper-ellipsoid, and k_t<1 does not keep iterates on its surface.",
+      "evidence": "Equation 3 uses the ordinary Euclidean norm of one parameter vector and a scalar target, whose level set is {theta: ||theta||=rho}. Sections 5-6 repeatedly call this a hyper-ellipsoid surface and say the algorithm searches on it. No anisotropic quadratic form is present, and the main k_t=0.01 experiments explicitly permit norm deviations after every gradient step. The projection interpretation is valid only for k_t=1 and a nonzero current vector.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Section 2, Equation 3"},
+        {"page": 4, "section": "Section 5, CPR comparison"},
+        {"page": 5, "section": "Sections 5-6, surface-of-hyper-ellipsoid language"}
+      ]
+    },
+    {
+      "claim": "The main empirical result is a small but potentially meaningful validation-loss improvement in one long GPT-2-small setup.",
+      "evidence": "The study trains a 124M-parameter GPT-2 on OpenWebText with NanoGPT, a 1e-3 initial learning rate and cosine decay. In the 100k-step, roughly 491k-token-per-batch runs, AdamW with decay 0.1 and AdamWN with final r=2.0 reach approximately the same global norm, while validation loss is reported as 2.902 versus 2.884. The paper notes that AdamW needs roughly 200k iterations to reach about 2.88 in its longer reference run.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "Section 4, setup and Figure 3"},
+        {"page": 4, "section": "Section 4, numerical comparison"},
+        {"page": 7, "section": "Appendix A and Figure 4"}
+      ]
+    },
+    {
+      "claim": "The experiment is exploratory rather than evidence that AdamWN generally outperforms AdamW.",
+      "evidence": "There is one architecture, one dataset, one initial learning rate, one apparent run per setting, three AdamW decay values, three AdamWN target values, and no seed variance, uncertainty, downstream task, generation metric, compute-normalized hyperparameter search, or optimizer overhead measurement. The claim that k_t is not very sensitive is unsupported by a displayed sweep. A loss difference of 0.018 cannot be separated from run-to-run variation or tuning luck with the evidence reported.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "Section 4, experimental setup and Figure 3"},
+        {"page": 4, "section": "Section 4, k_t sensitivity statement and result"},
+        {"page": 7, "section": "Appendix A, longer runs"}
+      ]
+    },
+    {
+      "claim": "The clearest matched-norm comparison chooses the AdamWN target after observing the AdamW trajectory, so it is diagnostic rather than a prospective tuning protocol.",
+      "evidence": "For Figure 2, the author first runs AdamW with decay 0.1, observes a final norm ratio of 2.415, and then linearly schedules AdamWN from 1.0 to exactly 2.415 over 2,500 iterations. This post hoc matching is useful for showing that norm path matters, but a practitioner cannot know the target without the reference run. Figure 3 adds a small target grid but supplies no rule for transferring r_t across budgets, models, initialization scales, data, or learning-rate schedules.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Figure 2 and Section 4"},
+        {"page": 4, "section": "Section 4, target construction and Figure 3"},
+        {"page": 5, "section": "Section 6, tuning argument"}
+      ]
+    },
+    {
+      "claim": "Matching the final norm does not isolate regularization, because AdamW and AdamWN induce different radial and angular optimization paths.",
+      "evidence": "AdamW continuously shrinks toward zero by a step-size-coupled factor, whereas a positive-target controller shrinks weights above rho_t and amplifies weights below it. Even when the endpoint norms match, the intermediate effective learning rates, directions, momentum interaction, and loss landscape path differ. The observed improvement therefore supports the narrower hypothesis that norm dynamics matter; it does not show that zero is a suboptimal regularization target or that final norm alone explains generalization.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "Sections 1-2, decay and target updates"},
+        {"page": 4, "section": "Section 4, matched-final-norm interpretation"},
+        {"page": 5, "section": "Section 6, explanation and tuning discussion"}
+      ]
+    },
+    {
+      "claim": "One global L2 norm is a coarse, parameterization-dependent control variable that can hide harmful layerwise redistribution.",
+      "evidence": "Algorithm 1 treats theta as one vector and the experiments exclude LayerNorm parameters but otherwise report a single norm ratio. Large matrices dominate that scalar, so one layer can grow while another collapses with no target violation. Neural networks also admit rescaling symmetries and heterogeneous embeddings, attention, and MLP matrices, making the same function representable at different global norms. CPR's per-matrix upper bounds, neuron-wise sphere methods, and later row/matrix norm controllers address a materially different granularity.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 2, "section": "Algorithm 1, single parameter vector"},
+        {"page": 4, "section": "Section 4, LayerNorm exclusion"},
+        {"page": 5, "section": "Section 5, CPR individual-group comparison"},
+        {"page": 7, "section": "Appendix A, LayerNorm control ablation"}
+      ]
+    },
+    {
+      "claim": "The method adds a target schedule and feedback-rate hyperparameter rather than eliminating tuning, and their transfer behavior is not established.",
+      "evidence": "AdamWN requires r_t over the full training horizon plus k_t, with the target optionally defined relative to the initialization or as an absolute norm. The experiments fix k_t=0.01 and use hand-designed linear target ramps. Although the paper argues weight decay is hard to transfer when total steps or learning-rate conventions change, the optimal r_t can likewise depend on architecture width/depth, initialization, parameter grouping, optimizer, batch size, data budget, and regularization goal; none is varied.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Section 2, relative versus absolute target"},
+        {"page": 2, "section": "Algorithm 1, r_t and k_t"},
+        {"page": 4, "section": "Section 4, chosen target ramps"},
+        {"page": 5, "section": "Section 6, claimed tuning advantage"}
+      ]
+    },
+    {
+      "claim": "The paper does not account for the systems cost of controlling a global norm, especially in distributed training.",
+      "evidence": "Every AdamWN step needs an L2 reduction over all controlled parameters and then a scalar rescaling. At GPT-2-small on one device this may be minor, but sharded or tensor-parallel models require extra local reductions and possibly cross-rank aggregation before the update is known. No step-time, memory, communication, mixed-precision accumulation, overflow, compiler, or billion-parameter test is reported.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "Section 2, Equation 3"},
+        {"page": 2, "section": "Algorithm 1, norm-control step"},
+        {"page": 3, "section": "Section 4, GPT-2-small/RTX 4090 setup"}
+      ]
+    },
+    {
+      "claim": "The credit-assignment section is commendably cautious, but even its narrow novelty framing misses exact or near-exact predecessors for hard global projection and scheduled nonzero norms.",
+      "evidence": "The author calls the idea simple, credits older constraints, weight normalization, max-norm, and concurrent CPR, and claims novelty for scheduling r_t under Equation 3. The omitted Omnigrok method already rescales the entire parameter vector to a selected fixed L2 norm after every update, algebraically identical to AdamWN with constant target and k_t=1. Projection-Based Weight Normalization, Norm Matters, and Weight Rescaling already impose fixed nonzero per-neuron/channel norms, and Norm Matters explicitly schedules them after gradient steps. The defensible distinction is therefore the particular soft global relaxation with k_t<1 and an arbitrary time-varying target, not nonzero norm control, sphere projection, or norm scheduling broadly.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Section 5, credit assignment"},
+        {"page": 5, "section": "Section 5, CPR and max-norm distinction"},
+        {"page": 6, "section": "References"}
+      ]
+    },
+    {
+      "claim": "The longer appendix run does not provide a clean replication of the main configuration.",
+      "evidence": "Appendix A reports 200k-step AdamWN runs where all parameters, including LayerNorm, are controlled, while AdamW continues to exclude LayerNorm from decay. The author then says better performance was obtained without controlling LayerNorm and therefore the main experiments exclude it. This is a useful negative ablation, but Figure 4 cannot serve as a same-implementation repetition of the main 100k-step comparison.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Section 4, reference to Figure 4"},
+        {"page": 7, "section": "Appendix A, LayerNorm configuration and Figure 4"}
+      ]
+    },
+    {
+      "claim": "The manuscript provides enough algebra to implement the update but not a reproducible research artifact.",
+      "evidence": "Algorithm 1 and the NanoGPT configuration describe the essential update and headline setup. Yet there is no linked AdamWN code revision, exact parameter-group construction, random seed, evaluation cadence/sample count, target schedule for every Figure 3 run, mixed-precision norm rule, checkpoint, or log. The arXiv record remains a seven-page v2 preprint without a venue result, so independent verification requires reconstructing substantial details.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 2, "section": "Algorithm 1"},
+        {"page": 3, "section": "Section 4, NanoGPT setup"},
+        {"page": 4, "section": "Section 4, experimental results"},
+        {"page": 6, "section": "References"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Replace uniform decay toward the zero vector with a post-optimizer radial feedback step toward a scheduled nonzero target L2 norm.",
+    "mechanism": "Run the ordinary Adam moment and parameter update, compute the norm of the controlled parameter vector, and multiply it by a scalar that moves a fraction k_t of the norm error toward rho_t=r_t||theta_0||. A target ratio of zero recovers decoupled weight decay; k_t=1 projects exactly onto the target sphere; smaller k_t permits loss gradients to perturb the norm between corrections.",
+    "assumptions": [
+      "A global Euclidean weight norm is a useful proxy for the optimization and regularization state of a heterogeneous Transformer.",
+      "The target can be chosen prospectively without first running AdamW to observe its final norm.",
+      "A hand-designed r_t schedule transfers across training budgets, learning-rate schedules, batch sizes, data, model scales, and initializations.",
+      "One global target is sufficient even when individual layers and neurons have different scale symmetries and effective learning rates.",
+      "The fixed feedback rate k_t=0.01 is near-optimal and insensitive across relevant settings.",
+      "Matching final global norms makes AdamW and AdamWN a meaningful regularization comparison despite different trajectories.",
+      "A lower validation loss in one GPT-2-small run reflects a robust optimizer advantage rather than stochastic or tuning variation.",
+      "The added full-parameter norm computation and distributed synchronization remain negligible at scale.",
+      "Relative-to-initialization targets remain meaningful under checkpoint resume, width/depth scaling, parameter tying, pruning, adapters, or changed initialization.",
+      "Mixed-precision norm accumulation and rescaling are numerically stable, including when the norm becomes very small.",
+      "Controlling norm does not counteract useful loss-driven radial motion or amplify weights in a way that harms calibration and generalization."
+    ]
+  },
+  "techniques": [
+    {"id": "radial-norm-feedback", "role": "Moves a fixed fraction of global norm error toward a scheduled target after each optimizer step."},
+    {"id": "target-initial-norm-ratio", "role": "Expresses the desired norm as r_t times the initialization norm for practical schedule design."},
+    {"id": "adamwn", "role": "Wraps Adam's adaptive moment update with weight norm control in place of AdamW decay."},
+    {"id": "zero-target-reduction", "role": "Recovers standard decoupled decay by setting r_t to zero and matching k_t to the decay multiplier."},
+    {"id": "soft-sphere-tracking", "role": "Uses k_t below one to allow loss-based norm deviations while slowly correcting them."},
+    {"id": "post-hoc-matched-norm-comparison", "role": "Sets an AdamWN target equal to the endpoint norm observed in an AdamW reference run."},
+    {"id": "global-decay-parameter-norm", "role": "Aggregates parameters normally subject to weight decay while excluding LayerNorm in the main experiments."}
+  ],
+  "evaluations": [
+    {
+      "setting": "GPT-2-small (124M parameters) on OpenWebText in NanoGPT with approximately 65k tokens per batch and 50k iterations.",
+      "metric": "Training loss, validation loss, and global norm ratio over time.",
+      "result": "An AdamWN target ramp ending at the AdamW-observed ratio 2.415 tracks the chosen norm and is reported to achieve slightly lower losses than AdamW decay 0.1.",
+      "baseline": "AdamW with weight decay 0.1, run first to choose the matched target."
+    },
+    {
+      "setting": "GPT-2-small on OpenWebText for 100k iterations with about 491k tokens per batch, initial learning rate 1e-3, and cosine multiplier from 1.0 to 0.1.",
+      "metric": "Validation loss and final global norm for three decay values versus three target ratios.",
+      "result": "AdamWN target 2.0 and AdamW decay 0.1 have similar final norms, with reported validation losses 2.884 and 2.902; no repetitions or uncertainty are given.",
+      "baseline": "AdamW decay in {0.05, 0.10, 0.15} versus AdamWN final r in {2.0, 2.4, 2.8}."
+    },
+    {
+      "setting": "A 200k-iteration appendix extension using AdamWN targets 1.8 and 2.0.",
+      "metric": "Training/validation loss and global norm trajectory.",
+      "result": "AdamWN is again reported below AdamW, but these AdamWN runs control LayerNorm while the AdamW baseline does not; the author later selects the no-LayerNorm-control setup for the main results.",
+      "baseline": "AdamW decay 0.1 with the standard NanoGPT LayerNorm exclusion."
+    }
+  ],
+  "limitations": [
+    "Author-stated: weight norm control is a very simple idea with extensive historical antecedents in constraints, max-norm, and weight normalization.",
+    "Author-stated: the longer preliminary runs controlled LayerNorm and performed worse than the main choice that excludes it.",
+    "Reviewer-identified: only GPT-2-small/OpenWebText is tested; there is no vision, larger LLM, fine-tuning, downstream, or non-Adam base-optimizer experiment.",
+    "Reviewer-identified: one apparent seed per setting and no uncertainty make the 0.018 validation-loss difference inconclusive.",
+    "Reviewer-identified: the most precise target is chosen post hoc from an AdamW endpoint, not by a deployable selection rule.",
+    "Reviewer-identified: r_t and k_t add a schedule and a feedback-rate hyperparameter whose sensitivity and transfer are not studied.",
+    "Reviewer-identified: the update controls one global norm, allowing arbitrary redistribution among layers and neurons.",
+    "Reviewer-identified: global L2 norm is parameterization-dependent and does not uniquely represent function complexity or generalization.",
+    "Reviewer-identified: matching final norms does not match radial/angular paths, effective learning rates, implicit bias, or optimization noise.",
+    "Reviewer-identified: the geometric claims confuse a Euclidean hypersphere with a hyper-ellipsoid and soft tracking with equality-constrained search.",
+    "Reviewer-identified: no theory establishes convergence, regret, stability, implicit bias, or generalization for time-varying positive targets.",
+    "Reviewer-identified: full-vector norm reduction and distributed communication overhead are not measured.",
+    "Reviewer-identified: mixed precision, sharding, parameter groups, tied weights, checkpoint resume, and zero-norm edge cases are unspecified.",
+    "Reviewer-identified: no code commit, checkpoints, logs, seed, or complete schedule details are released with the preprint.",
+    "Reviewer-identified: the related-work panel omits several direct sphere-projection, per-neuron norm, and angular-update optimizers."
+  ],
+  "failure_modes": [
+    "A global target is satisfied while an attention or MLP layer norm explodes and another collapses.",
+    "The controller amplifies a below-target parameter vector even when the loss gradient is intentionally reducing its scale.",
+    "An r_t tuned to one initialization, width, or training horizon transfers poorly and becomes another expensive hyperparameter sweep.",
+    "k_t is too small to control harmful norm excursions or too large and erases useful radial optimizer dynamics.",
+    "The current norm approaches zero, making rho_t/||theta|| numerically unstable or undefined.",
+    "Low-precision norm accumulation biases the controller, while repeated global rescaling perturbs small weights or optimizer-state consistency.",
+    "Distributed norm aggregation adds a synchronization barrier that erases any convergence-per-step benefit.",
+    "Scale-equivalent parameterizations receive different regularization and learning dynamics solely because their global norms differ.",
+    "A post hoc matched target looks superior in retrospective analysis but cannot be selected without paying for the AdamW reference run.",
+    "Validation-loss gains disappear across seeds, downstream tasks, larger models, or a budget-matched optimizer search.",
+    "Controlling all parameters or mistakenly including gains/biases/LayerNorm degrades training, as the appendix hints.",
+    "Checkpoint resume resets or changes the reference norm, silently altering the intended schedule."
+  ],
+  "reusable_insights": [
+    "Decoupled weight decay is best understood as a radial dynamical rule, not merely an L2 objective penalty.",
+    "For the proposed update, norm tracking can be analyzed exactly: the controller linearly interpolates the current and target norms before the next gradient step.",
+    "Separate magnitude dynamics from directional/angular learning; equal endpoint norms do not imply equal optimization or implicit bias.",
+    "Control norms at a geometry-aligned granularity such as matrix, row, neuron, or parameter group rather than defaulting to one global scalar.",
+    "Tune and report target selection prospectively; an oracle target derived from the baseline is a diagnostic, not an algorithm.",
+    "Compare hyperparameter-search budgets and multiple seeds when optimizer gaps are smaller than ordinary training variance.",
+    "A norm-control optimizer benchmark should report step time, communication, numerical precision, tokens-to-target loss, and downstream quality.",
+    "Explicit sphere projection is appropriate only when scale is functionally redundant or magnitude is separately parameterized; otherwise radial motion may carry signal.",
+    "Target schedules should be defined in dimensionless per-group terms that transfer across width, depth, initialization, and training horizon.",
+    "Optimizer state and parameter rescaling semantics must be specified together, especially for momentum/adaptive preconditioners and checkpoint resume."
+  ],
+  "open_questions": [
+    "Does AdamWN outperform fully tuned AdamW across seeds, model sizes, token budgets, and downstream evaluations under equal search compute?",
+    "Should targets be global, per tensor, per row/neuron, spectral, RMS, path-norm, or geometry-specific for Transformer matrices?",
+    "Can target norms be adapted online from angular update, trust ratio, sharpness, or representation change without oracle baseline runs?",
+    "What convergence and implicit-bias guarantees hold for stochastic adaptive optimizers with time-varying equality or soft norm targets?",
+    "How should k_t scale with learning rate, batch size, width, depth, momentum, and schedule so that control dynamics transfer?",
+    "When does positive-target amplification counteract beneficial feature learning or sparsification?",
+    "Can one decouple a learned magnitude variable from a unit-norm direction and optimize both with appropriate geometries more cleanly?",
+    "How much communication and step-time overhead does per-group norm control add under FSDP, tensor parallelism, and optimizer sharding?",
+    "Does norm control reduce warmup requirements or improve learning-rate transfer because it stabilizes angular updates?",
+    "Which parameters should be excluded: normalization gains, biases, embeddings, output heads, adapters, and tied matrices?",
+    "How robust is relative-to-initialization control under resume, pruning, quantization-aware training, LoRA insertion, and architecture surgery?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "openreview:Bkg6RiCqY7",
+      "title": "Decoupled Weight Decay Regularization",
+      "url": "https://openreview.net/forum?id=Bkg6RiCqY7",
+      "relationship": "foundational base optimizer and direct special case",
+      "difference": "AdamW separates uniform weight shrinkage from the adaptive loss gradient and establishes its empirical value. AdamWN retains decoupling but replaces the zero attractor with a scheduled positive global norm; its mathematical generalization is simple, while AdamW has vastly broader validation and implementation support.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2019 conference paper"
+    },
+    {
+      "canonical_id": "neurips:salimans-kingma-2016",
+      "title": "Weight Normalization: A Simple Reparameterization to Accelerate Training of Deep Neural Networks",
+      "url": "https://papers.neurips.cc/paper/2016/hash/ed265bc903a5a097f61d3ec064d96d2e-Abstract.html",
+      "relationship": "prior magnitude-direction reparameterization",
+      "difference": "Weight Normalization represents each weight vector as a learned scalar magnitude times a unit direction, explicitly decoupling the two during optimization. AdamWN leaves the parameterization unchanged and applies one external global target, which is easier to wrap around Adam but provides much less granular magnitude control.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2016"
+    },
+    {
+      "canonical_id": "arxiv:1710.02338",
+      "title": "Projection Based Weight Normalization for Deep Neural Networks",
+      "url": "https://arxiv.org/abs/1710.02338",
+      "relationship": "direct prior post-update sphere projection",
+      "difference": "PBWN takes an ordinary gradient step and projects each neuron's incoming vector onto the unit oblique manifold. AdamWN with k_t=1 is the same radial projection algebra on one aggregate vector, while its narrow additions are arbitrary/scheduled radii and soft k_t<1 tracking; PBWN has the more local constraint granularity.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:1803.01814",
+      "title": "Norm matters: efficient and accurate normalization schemes in deep networks",
+      "url": "https://arxiv.org/abs/1803.01814",
+      "relationship": "direct prior fixed and scheduled nonzero norm control",
+      "difference": "Bounded WeightNorm fixes each output-channel norm to an initialization-derived layer radius and explicitly applies norm scheduling after gradient steps to mimic learning-rate schedules. This predates the broad scheduled-norm idea; AdamWN's distinction is a single global target with its specific partial radial relaxation and GPT-2 experiment.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2102.03497",
+      "title": "Weight Rescaling: Effective and Robust Regularization for Deep Neural Networks with Batch Normalization",
+      "url": "https://arxiv.org/abs/2102.03497",
+      "relationship": "prior explicit rescaling alternative to weight decay",
+      "difference": "Weight Rescaling repeatedly enforces unit norms, analyzes norm/effective-learning-rate dynamics, and compares against weight decay, bounded WeightNorm, and AdamP across vision tasks. AdamWN permits changing nonunit global targets and tests a Transformer, but does not benchmark this close predecessor or match its breadth.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2210.01117",
+      "title": "Omnigrok: Grokking Beyond Algorithmic Data",
+      "url": "https://arxiv.org/abs/2210.01117",
+      "relationship": "exact prior constant-target global projection special case",
+      "difference": "Omnigrok performs constrained minimization by rescaling the entire model back to a selected fixed L2 norm after every unconstrained update. That is exactly theta <- R theta/||theta||, AdamWN's constant-target k_t=1 case. AdamWN adds soft interpolation, a time-varying target, and GPT-2 language modeling, but does not originate whole-model sphere projection.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:1706.05350",
+      "title": "L2 Regularization versus Batch and Weight Normalization",
+      "url": "https://arxiv.org/abs/1706.05350",
+      "relationship": "prior mechanistic analysis of norm and effective learning rate",
+      "difference": "This work explains that for scale-invariant normalized parameters L2/weight decay chiefly changes weight scale and therefore effective learning rate, and discusses unit-norm rescaling. AdamWN's suggestion that it avoids wasted radial work needs to be separated from this established angular-step mechanism, especially because its single GPT norm mixes scale-invariant and non-invariant weights.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:1810.12281",
+      "title": "Three Mechanisms of Weight Decay Regularization",
+      "url": "https://arxiv.org/abs/1810.12281",
+      "relationship": "prior causal account of weight-decay effects",
+      "difference": "Three Mechanisms distinguishes effective-learning-rate changes, approximate input-output Jacobian regularization, and altered second-order damping across optimizers and architectures. It shows why matching only AdamW and AdamWN's final aggregate norm cannot isolate which mechanism caused a loss difference.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "jmlr:srivastava14a",
+      "title": "Dropout: A Simple Way to Prevent Neural Networks from Overfitting",
+      "url": "https://www.jmlr.org/papers/v15/srivastava14a.html",
+      "relationship": "historical max-norm constraint baseline",
+      "difference": "The Dropout training recipe includes projecting incoming weight vectors back inside a fixed max-norm ball when they exceed it. That one-sided, local constraint predates AdamWN; AdamWN instead attracts a single global norm from both sides to a scheduled equality target and is not coupled to dropout.",
+      "source_kind": "publisher",
+      "checked_at": "2026-08-23",
+      "source_version": "JMLR 15 (2014)"
+    },
+    {
+      "canonical_id": "openreview:Iz3zU3M316D",
+      "title": "AdamP: Slowing Down the Slowdown for Momentum Optimizers on Scale-invariant Weights",
+      "url": "https://openreview.net/forum?id=Iz3zU3M316D",
+      "relationship": "prior optimizer targeting weight-norm growth",
+      "difference": "AdamP projects momentum updates away from radial directions for scale-invariant weights, limiting norm growth while preserving directional progress and evaluating broad vision tasks. AdamWN directly servos the norm of all controlled weights, including non-scale-invariant ones, but has only a single small language-model study.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2021 conference paper"
+    },
+    {
+      "canonical_id": "arxiv:2102.07227",
+      "title": "Learning by Turning: Neural Architecture Aware Optimisation",
+      "url": "https://arxiv.org/abs/2102.07227",
+      "relationship": "prior fixed-neuron-norm projected optimizer",
+      "difference": "Nero uses projected gradient descent on balanced networks and neuron-specific angular steps, training without momentum or weight decay. It already operationalizes fixed norm surfaces at a functionally meaningful granularity; AdamWN generalizes zero-target decay with a time schedule but controls one coarse aggregate and retains Adam states.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "pmlr:leimkuhler21a",
+      "title": "Better Training using Weight-Constrained Stochastic Dynamics",
+      "url": "https://proceedings.mlr.press/v139/leimkuhler21a.html",
+      "relationship": "prior general constrained-weight optimization framework",
+      "difference": "This work incorporates explicit normalization and orthogonality constraints into overdamped and underdamped stochastic dynamics and validates classification robustness/generalization. AdamWN is much simpler and specific to radial L2 tracking, but offers neither its constraint breadth nor stochastic-dynamics analysis.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "PMLR 139 (ICML 2021)"
+    },
+    {
+      "canonical_id": "neurips:kodryan-etal-2022",
+      "title": "Training Scale-Invariant Neural Networks on the Sphere Can Happen in Three Regimes",
+      "url": "https://papers.neurips.cc/paper_files/paper/2022/hash/5aea56eefab60e06f35016478e21aae6-Abstract-Conference.html",
+      "relationship": "prior direct sphere-projection theory and experiments",
+      "difference": "Kodryan et al. fix the total norm of scale-invariant parameters and analyze projected training on a sphere, finding convergence, chaotic-equilibrium, and divergence regimes governed by effective learning rate. AdamWN's k=1 case is closely related, but it studies soft scheduled tracking on a partly non-scale-invariant GPT without theory or regime analysis.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2022"
+    },
+    {
+      "canonical_id": "arxiv:2311.09058",
+      "title": "Improving Deep Learning Optimization through Constrained Parameter Regularization",
+      "url": "https://arxiv.org/abs/2311.09058",
+      "relationship": "near-concurrent direct constraint competitor",
+      "difference": "CPR places upper bounds on statistics of individual parameter matrices using an augmented-Lagrangian method and supplies low-hyperparameter initialization rules across vision and language pretraining/fine-tuning. AdamWN was developed independently and attracts a global L2 norm to an equality target from either side; its update is cheaper conceptually but its evidence and granularity are much narrower.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4; NeurIPS 2024"
+    },
+    {
+      "canonical_id": "arxiv:2210.11693",
+      "title": "Amos: An Adam-style Optimizer with Adaptive Weight Decay towards Model-Oriented Scale",
+      "url": "https://arxiv.org/abs/2210.11693",
+      "relationship": "prior adaptive target-scale optimizer for language models",
+      "difference": "Amos derives adaptive learning-rate and weight-decay schedules from model-specific target scales and reports BERT/T5 pretraining speedups. AdamWN asks the user to prescribe a single global r_t schedule and k_t; it is simpler algebraically but supplies neither adaptive scale selection nor comparable language-model evidence.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2310.08858",
+      "title": "Adam-family Methods with Decoupled Weight Decay in Deep Learning",
+      "url": "https://arxiv.org/abs/2310.08858",
+      "relationship": "immediate theoretical decoupled-decay baseline",
+      "difference": "This paper gives convergence guarantees for a broad Adam family with decoupled quadratic weight decay and proposes AdamD. AdamWN's r_t=0 reduction does not transfer those results to a moving nonzero equality attractor, for which it provides no stationarity, convergence, or regret analysis.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "pmlr:kosson24a",
+      "title": "Rotational Equilibrium: How Weight Decay Balances Learning Across Neural Networks",
+      "url": "https://proceedings.mlr.press/v235/kosson24a.html",
+      "relationship": "subsequent mechanistic alternative to endpoint norm control",
+      "difference": "Rotational Equilibrium explains weight decay through steady-state neuron magnitudes and angular updates across Adam, Lion, and SGD, then explicitly controls rotation to reduce warmup. It shows why angular per-neuron dynamics, not merely one final global norm, can drive AdamW's benefit and supplies much stronger analysis than AdamWN.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "PMLR 235 (ICML 2024)"
+    },
+    {
+      "canonical_id": "arxiv:2410.23922",
+      "title": "Analyzing & Reducing the Need for Learning Rate Warmup in GPT Training",
+      "url": "https://arxiv.org/abs/2410.23922",
+      "relationship": "subsequent GPT norm/angular-control optimizer study",
+      "difference": "This work analyzes L2, angular, and representation update sizes in GPTs and introduces normalized-update/LionAR variants with per-neuron fixed norms, showing reduced warmup need. It directly tests a deployment-relevant consequence of norm control that AdamWN leaves open, while targeting update geometry rather than a scheduled global endpoint.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1; NeurIPS 2024"
+    },
+    {
+      "canonical_id": "openreview:se4vjm7h4E",
+      "title": "nGPT: Normalized Transformer with Representation Learning on the Hypersphere",
+      "url": "https://openreview.net/forum?id=se4vjm7h4E",
+      "relationship": "same-author architectural successor",
+      "difference": "nGPT normalizes embeddings, attention/MLP matrices, and hidden states onto hyperspheres and reports 4x-20x fewer steps to matched accuracy. It turns the norm-control intuition into a comprehensive architecture with many local constraints; AdamWN is a minimally invasive optimizer wrapper but lacks comparable gains or scale.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2025 poster"
+    },
+    {
+      "canonical_id": "arxiv:2605.10797",
+      "title": "Muown: Row-Norm Control for Muon Optimization",
+      "url": "https://arxiv.org/abs/2605.10797",
+      "relationship": "current rowwise norm-control competitor",
+      "difference": "Muown decomposes Muon's spectral-norm drift, treats row magnitudes as explicit variables under aligned geometry, proves nonconvex rates, and evaluates 124M-2.7B GPT pretraining with negligible sharded overhead. It offers a far more granular and validated norm controller; AdamWN's virtue is only its optimizer-agnostic scalar simplicity.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2606.16899",
+      "title": "Fantastic Pretraining Optimizers and Where to Find Them II: Hyperball Optimization",
+      "url": "https://arxiv.org/abs/2606.16899",
+      "relationship": "current direct fixed-matrix-norm successor",
+      "difference": "Hyperball wraps Adam or Muon, fixes each weight matrix's Frobenius norm and update norm, improves learning-rate transfer, and reports 20%-30% token-equivalent gains up to 1.2B Qwen3-style models. It independently validates the broad norm-control direction at matrix granularity and scale, while superseding AdamWN's one-vector, hand-scheduled, single-run evidence.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims that decoupled weight decay is the zero-target member of a general weight-norm controller and that scheduling a positive target with Equation 3 can improve AdamW at a comparable final norm.",
+    "evidence": "It supplies a compact algebraic unification, AdamWN pseudocode, exact target tracking intuition, two GPT-2-small experiment groups, a LayerNorm ablation, and an unusually candid credit section distinguishing its equality target from CPR and max-norm bounds.",
+    "reviewer_inference": "The zero-target reduction and scheduled radial servo are correct and easy to reuse, and the 0.018 matched-norm loss gap is worth replicating. Broad novelty is weak: Omnigrok is exactly the constant-target k_t=1 global-projection case, while PBWN, Bounded WeightNorm, Weight Rescaling, sphere training, Nero, and AdamP predate nonzero fixed or scheduled norm control at better granularity. The defensible narrow novelty is the specific soft global relaxation toward an arbitrary time-varying target, framed as an AdamW superset. The study does not establish general optimizer improvement, easier tuning, true constrained search, or regularization advantage because the target is partly post hoc, geometry is misstated, one global norm is coarse, no seeds/theory/systems cost are supplied, and only GPT-2-small is tested. Later rotational, nGPT, Muown, and Hyperball work makes the direction credible while showing that per-neuron/row/matrix geometry is the key design choice."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Read all seven cached pages, including Algorithm 1, all figures, the CPR credit discussion, and the LayerNorm appendix. The exact radial norm recurrence was independently derived from Equation 3, and the hypersphere/soft-tracking geometry was audited. A parallel literature audit checked exact arXiv versions and surfaced Omnigrok's algebraically identical k_t=1 constant-target case plus earlier norm scheduling. Current primary sources were checked through arXiv, OpenReview, PMLR, NeurIPS, and JMLR on 2026-08-23, including later direct norm-control work through June 2026. No generated projections were rebuilt."
+}

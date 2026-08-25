@@ -1,0 +1,135 @@
+{
+  "stable_id": "arxiv:2402.01868",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2402.01868",
+    "pdf_sha256": "2f94074f9451b22a6141478b4d25a01a57614e3e0231cac9412dbbc545244722",
+    "text_sha256": "4b5802ac37beb4201d569ae594671b0f847f27c5ca000525348648340d36e4e9",
+    "page_count": 33,
+    "extracted_at": "2026-08-23T18:33:39.608641+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Why do physics-informed neural networks often stop at high residual error despite extensive first-order training, and can a curvature-aware optimizer reliably finish the solve?",
+  "key_findings": [
+    {
+      "claim": "Low PDE solution error requires driving the composite PINN loss much closer to zero than common first-order optimizers typically achieve.",
+      "evidence": "Across convection, reaction, and wave equations and multiple widths/seeds, final relative solution error correlates strongly with residual/boundary loss. Adam or L-BFGS alone frequently stalls, while sequential Adam plus L-BFGS is a stronger baseline but remains under-optimized.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 3, "section": "3 Optimizer comparison"}, {"page": 5, "section": "Loss versus L2 relative error / Figure 2"}]
+    },
+    {
+      "claim": "Differential operators create highly ill-conditioned curvature, explaining slow progress of scalar-step first-order methods near useful solutions.",
+      "evidence": "Empirical Hessian spectra separate loss components by scale, and the theoretical analysis links the PINN Gauss-Newton/tangent operator to the PDE differential operator. Eigenvalue decay yields large effective condition numbers under stated regularity and width assumptions.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "Loss-landscape and Hessian evidence"}, {"page": 9, "section": "8.2 Ill-conditioned differential operators"}, {"page": 23, "section": "Appendix F operator characterization"}]
+    },
+    {
+      "claim": "Nyström Newton-CG materially reduces the residual after the Adam-plus-L-BFGS baseline and improves solution error on all three main PDEs.",
+      "evidence": "NNCG uses a randomized low-rank Nyström approximation as a preconditioner and conjugate-gradient Hessian solves. Figure 4 and Table 2 report more than a tenfold loss reduction in every displayed instance, whereas matched gradient-descent fine-tuning largely fails to move.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 7, "section": "7.1 NNCG fine-tuning / Figure 4"}, {"page": 8, "section": "Table 2 loss and L2RE"}]
+    },
+    {
+      "claim": "The optimizer improves accuracy at a substantial per-iteration cost, and the theory is local/conditional rather than a guarantee that arbitrary PINNs reach the right PDE solution.",
+      "evidence": "The timing appendix reports NNCG iterations several times slower than L-BFGS, while the convergence proof assumes local PL-like geometry, wide networks, damping, and sufficiently accurate curvature approximations. Function-class and collocation error remain separate from optimization error.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 21, "section": "Table 3 per-iteration time"}, {"page": 27, "section": "Appendix G local convergence assumptions"}, {"page": 33, "section": "Theorem G.13"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Diagnose PINN failure as curvature ill-conditioning induced by differential residuals, then use a low-rank preconditioned second-order phase to finish optimization after robust first-order warm starts.",
+    "mechanism": "The study compares optimizer sequences, measures Hessian and component spectra, relates infinite-width Gauss-Newton curvature to the PDE operator, and implements Nyström Newton-CG: randomized Hessian-vector sketches build a low-rank preconditioner, and damped conjugate gradient approximately solves each Newton system.",
+    "assumptions": [
+      "Collocation losses and boundary terms faithfully represent the PDE solution within the chosen network class.",
+      "Hessian-vector products and Nyström sketches are accurate enough to expose the dominant stiff directions.",
+      "The first-order warm start enters a local region satisfying the proof's smoothness and PL-style conditions.",
+      "The benchmark PDEs and dense collocation grids represent the optimization pathologies encountered in larger scientific systems."
+    ]
+  },
+  "techniques": [
+    {"id": "pinn-hessian-spectral-analysis", "role": "Measures curvature scale and condition across PDE-loss components."},
+    {"id": "adam-lbfgs-staging", "role": "Provides a strong first-order/quasi-Newton warm-start baseline."},
+    {"id": "randomized-nystrom-preconditioner", "role": "Approximates dominant Hessian eigenspaces using matrix-vector products."},
+    {"id": "damped-newton-cg", "role": "Uses iterative curvature solves to reduce the residual beyond first-order plateaus."},
+    {"id": "operator-spectrum-theory", "role": "Connects PINN curvature conditioning to the underlying differential operator."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Convection, reaction, and wave PINNs across network widths, seeds, and tuned Adam/L-BFGS schedules.",
+      "metric": "Training loss and L2 relative solution error.",
+      "result": "Adam plus L-BFGS is consistently stronger than either alone, but many runs remain at losses high enough to cause visible solution error.",
+      "baseline": "Adam alone, L-BFGS alone, and tuned sequential Adam plus L-BFGS."
+    },
+    {
+      "setting": "Post-warm-start fine-tuning on the three PDEs.",
+      "metric": "Loss reduction and final L2RE.",
+      "result": "NNCG reduces loss by more than an order of magnitude in each displayed case and improves L2RE; plain GD makes little progress from the same checkpoints.",
+      "baseline": "Gradient-descent fine-tuning and the original Adam-plus-L-BFGS checkpoint."
+    },
+    {
+      "setting": "Empirical and theoretical Hessian conditioning analyses.",
+      "metric": "Spectral density, condition estimates, and convergence-rate dependence on curvature.",
+      "result": "Preconditioning compresses the stiff spectrum, while operator arguments predict severe conditioning for relevant differential losses under the stated assumptions.",
+      "baseline": "Unpreconditioned Hessian/gradient dynamics."
+    }
+  ],
+  "limitations": [
+    "The experimental suite is a small set of canonical PDEs with dense automatic differentiation, not large three-dimensional multiphysics.",
+    "NNCG requires extra Hessian-vector products, storage, and tuning, with materially slower iterations.",
+    "Local optimization theory assumes wide networks and regularity/PL properties that are not verified globally.",
+    "Low residual does not by itself certify uniform solution error between collocation points or uniqueness of the selected PDE solution."
+  ],
+  "failure_modes": [
+    "A poor first-order checkpoint may lie outside the local basin where Newton-CG is stable.",
+    "An undersized Nyström sketch can miss important stiff directions and yield ineffective or indefinite steps.",
+    "Unbalanced boundary and residual terms can make curvature improvement optimize the wrong composite objective.",
+    "Collocation aliasing can produce a low sampled residual while retaining large continuous-domain error."
+  ],
+  "reusable_insights": [
+    "Report both final residual loss and solution error; optimizer comparisons at a fixed loose loss can be misleading.",
+    "Differential-operator spectra predict optimizer stiffness and can guide preconditioner design.",
+    "A staged optimizer—cheap global progress followed by selective curvature solves—is a practical pattern for scientific ML."
+  ],
+  "open_questions": [
+    "Can structured PDE preconditioners replace costly generic Nyström sketches in high dimensions?",
+    "How should curvature methods jointly adapt residual, boundary, and data-loss weights?",
+    "Can continuous-domain certificates distinguish optimization error from collocation and approximation error during training?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2308.08468",
+      "title": "An Expert's Guide to Training Physics-informed Neural Networks",
+      "url": "https://arxiv.org/abs/2308.08468",
+      "relationship": "Provides reproducible architecture and optimizer best practices plus difficult PINN benchmarks.",
+      "difference": "It emphasizes a broad recipe of first-order training improvements; this paper centers on Hessian conditioning and a specific randomized second-order solver.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2305.10157",
+      "title": "Efficient Error Certification for Physics-Informed Neural Networks",
+      "url": "https://arxiv.org/abs/2305.10157",
+      "relationship": "Addresses whether a trained PINN has uniformly small continuous-domain PDE residual rather than only low sampled error.",
+      "difference": "It is a post-training certification framework; the loss-landscape paper improves optimization but does not supply worst-case residual guarantees.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2605.05217",
+      "title": "Physics-Informed Neural Networks with Learnable Loss Balancing and Transfer Learning",
+      "url": "https://arxiv.org/abs/2605.05217",
+      "relationship": "Targets PINN instability through adaptive weighting between physics and data terms plus transfer.",
+      "difference": "It changes the objective weighting and initialization source; this paper treats curvature ill-conditioning of a fixed PINN loss with preconditioned second-order optimization.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "PINN training difficulty is explained by differential-operator-induced ill-conditioning, and Nyström Newton-CG overcomes plateaus left by Adam and L-BFGS.",
+    "evidence": "Spectral measurements, operator theory, matched post-checkpoint fine-tuning, and consistent loss/L2RE gains support the account on three PDE classes.",
+    "reviewer_inference": "The mechanistic link and strong optimization baseline are valuable; general utility depends on amortizing curvature cost and validating continuous-domain correctness at larger scale."
+  },
+  "confidence": 0.94,
+  "reviewer_notes": "Read the complete 33-page paper including timing, operator-spectrum, and local-convergence appendices. Training and certification competitors were checked at primary arXiv pages on 2026-08-23."
+}

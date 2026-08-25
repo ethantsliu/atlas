@@ -1,0 +1,117 @@
+{
+  "stable_id": "arxiv:2507.00037",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2507.00037",
+    "pdf_sha256": "61c54fb5aca4a1226a80341f2bfc24dcb36f225d2e4c479233f1f4f54d4cddec",
+    "text_sha256": "dc4c4eefb963d8ac5e5b510dd9d1218b30810764559582174045b6f335cc7329",
+    "page_count": 26,
+    "extracted_at": "2026-08-23T16:22:44.361560+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can independently trained models be fused level by level by clustering their neurons into target representations and retrofitting one fused module to reproduce those targets, including under disjoint-label and non-IID data?",
+  "key_findings": [
+    {
+      "claim": "The representation objective assigns every base-model neuron to its nearest fused neuron, optionally weights it by attribution importance, and decomposes exactly into a grouping error plus a fused-module approximation error.",
+      "evidence": "Equation (1) defines weighted nearest-representative cost. Theorem 1 rewrites it around importance-weighted target centroids; equations (2)-(3) then separate clustering/matching from supervised fitting of the current fused level.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "Section 3, representation cost"},
+        {"page": 4, "section": "Section 4, Theorem 1 and equation (3)"}
+      ]
+    },
+    {
+      "claim": "The framework yields Hungarian variants for equal-width one-to-one alignment and K-means variants for many-to-one or unequal-width fusion, with either linear regression or gradient fitting used to retrofit each level.",
+      "evidence": "Section 4.2 distinguishes matching and clustering constraints and two approximation solvers. Sequentially recomputing fused activations makes later levels respond to approximation errors accumulated by earlier levels instead of aligning base layers in isolation.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "Section 4.1-4.2, proposed algorithm"},
+        {"page": 5, "section": "Algorithm variants and implementation"}
+      ]
+    },
+    {
+      "claim": "On extreme sharded ViT fusion, gradient retrofitting substantially outperforms prior zero-shot alignment but remains below the ensemble: 54.5% versus 63.7% for a two-way CIFAR-100 split, falling to 34.7% versus 45.4% for six-way fusion.",
+      "evidence": "Table 2 reports HF-Gradient/KF-Gradient and baselines. Optimal-transport fusion collapses near random, while KD and linear probing are weaker in the two-way case; the gap to the ensemble persists and grows with shard count.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "Table 2, sharded CIFAR-100 ViT fusion"}
+      ]
+    },
+    {
+      "claim": "The strongest image results depend materially on a fusion dataset and optimization, so the paper's 'zero-shot' terminology means no post-fusion task fine-tuning, not data-free or training-free merging.",
+      "evidence": "Gradient variants optimize each level on 1K-25K fusion examples. Table 7 shows accuracy rises with more data and augmentations; the authors list fusion-data efficiency and hyperparameter sensitivity as limitations.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "Section 5, experimental protocol"},
+        {"page": 7, "section": "Table 4 and fusion sample counts"},
+        {"page": 8, "section": "Table 7, data-size ablation"},
+        {"page": 9, "section": "Section 6, limitations"}
+      ]
+    },
+    {
+      "claim": "Neuron importance changes cluster assignments, but the evidence does not establish that attribution-weighted fusion is reliably better than uniform weighting across architectures and distributions.",
+      "evidence": "Figure 3 shows Conductance and DeepLIFT shift one VGG layer's clusters, with adjusted Rand indices 0.74 and 0.73 relative to uniform. Tables contain mixed winners among importance choices, and no held-out selection protocol or statistical aggregate isolates the value of importance itself.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 8, "section": "Robustness tables"},
+        {"page": 9, "section": "Figure 3, neuron-importance clustering"},
+        {"page": 21, "section": "Appendix full ablation tables"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Turn layer-wise fusion into target construction followed by module retrofitting, so the fused network explicitly learns to reproduce a compressed set of important base-model neurons.",
+    "mechanism": "Partition models into sequential levels; collect level activations; compute neuron importance; use Hungarian matching or weighted K-means to form target centroids; fit the fused level by closed-form linear regression or gradient descent; freeze it and continue upward.",
+    "assumptions": [
+      "Models can be partitioned into compatible sequential levels with comparable activation semantics.",
+      "A small fusion sample represents the union of base-model behavior well enough to form targets.",
+      "Euclidean activation proximity and selected attribution scores preserve task-relevant information."
+    ]
+  },
+  "techniques": [
+    {"id": "importance-weighted-neuron-clustering", "role": "Forms a compressed target representation from multiple models."},
+    {"id": "layerwise-retrofitting", "role": "Fits each fused module to its target while accounting for prior fused levels."},
+    {"id": "hungarian-fusion", "role": "One-to-one equal-width alignment."},
+    {"id": "kmeans-fusion", "role": "Many-to-one, compression, and unequal-width fusion."}
+  ],
+  "evaluations": [
+    {"setting": "Sharded and non-IID CIFAR-10/CIFAR-100/Tiny-ImageNet/BloodMNIST with VGG, ViT, and ResNet", "metric": "Joint test accuracy before and after optional fine-tuning", "result": "Retrofitting variants generally beat layer-wise OT and Git Re-Basin in hard zero-shot regimes and sometimes approach or exceed the prediction ensemble.", "baseline": "Vanilla averaging, ensemble, KD, linear probing, OTFusion, Git Re-Basin, and ZipIt!"},
+    {"setting": "Two disjoint 200-class ImageNet subsets with ResNet-50", "metric": "Joint and per-task top-1 accuracy", "result": "KF-Gradient improved with fusion sample count and outperformed fully zipped ZipIt! in the reported setup, but remained sensitive to available examples.", "baseline": "ZipIt! and individual/ensemble models"},
+    {"setting": "CIFAR-100 teacher compression", "metric": "Student accuracy with 5K examples", "result": "ResNet-34 to ResNet-18 achieved 70.6% versus 45.9% KD; ResNet-50 to ResNet-18 achieved 59.0% versus 44.0% KD.", "baseline": "Knowledge distillation with random student initialization"}
+  ],
+  "limitations": [
+    "Gradient variants require data, per-level optimization, and sensitive hyperparameters.",
+    "Level partition and granularity are manually selected.",
+    "Experiments stop at vision-scale models; no LLM evaluation is provided.",
+    "Runtime exceeds lightweight alignment methods even if it can save later fine-tuning."
+  ],
+  "failure_modes": [
+    "Unrepresentative fusion data creates centroids that omit an unseen model's salient neurons.",
+    "Many-way sharding compounds representation loss and widens the gap to an ensemble.",
+    "Euclidean clusters can merge functionally different neurons that happen to correlate on the fusion set.",
+    "A poor level boundary can make sequential approximation errors irreversible."
+  ],
+  "reusable_insights": [
+    "Separate combinatorial alignment from function approximation instead of averaging aligned weights directly.",
+    "Evaluate model merging under disjoint-label and non-IID regimes, where simple same-task interpolation conclusions fail.",
+    "Report fusion-data scaling because 'zero-shot' can otherwise obscure a substantial optimization dataset."
+  ],
+  "open_questions": [
+    "Can targets be constructed data-free from model statistics or synthetic inputs without collapsing rare behaviors?",
+    "How can level boundaries and cluster count be chosen from held-out functional error?",
+    "Do attribution weights improve fusion under pre-registered selection across large language models?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:1910.05653", "title": "Model Fusion via Optimal Transport", "url": "https://arxiv.org/abs/1910.05653", "relationship": "Direct layer-wise neuron-alignment baseline", "difference": "OTFusion aligns and averages neurons at each layer; retrofitting creates target centroids and explicitly fits the evolving fused representation, reducing accumulated mismatch.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:2209.04836", "title": "Git Re-Basin: Merging Models modulo Permutation Symmetries", "url": "https://arxiv.org/abs/2209.04836", "relationship": "Permutation-alignment model merger", "difference": "Git Re-Basin searches function-preserving permutations before weight interpolation; retrofitting clusters activations, supports unequal widths, and trains fused modules to targets.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:2305.03053", "title": "ZipIt! Merging Models from Different Tasks without Training", "url": "https://arxiv.org/abs/2305.03053", "relationship": "Disjoint-task model merging", "difference": "ZipIt! permits within-model feature zipping without training and can retain separate heads; retrofitting can merge classifier heads and uses a fusion dataset to fit target activations.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:2211.08403", "title": "REPAIR: REnormalizing Permuted Activations for Interpolation Repair", "url": "https://arxiv.org/abs/2211.08403", "relationship": "Activation-level correction after alignment", "difference": "REPAIR corrects variance collapse in interpolated aligned networks; retrofitting directly fits each fused level's full target activations and addresses heterogeneous data and width.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"}
+  ],
+  "novelty_assessment": {
+    "author_claim": "The method is the first generic fusion framework to incorporate neuron importance and uses retrofitting to outperform zero-shot fusion baselines across heterogeneous architectures and data regimes.",
+    "evidence": "Theorem 1 motivates a family of Hungarian/K-means and linear/gradient algorithms; image experiments cover sharding, non-IID data, full-data fusion, width mismatch, and compression.",
+    "reviewer_inference": "The grouping-versus-approximation decomposition is a clean and reusable reframing. The importance contribution and claims of zero-shot generality need stronger data-free, selection-controlled, and large-model evidence."
+  },
+  "confidence": 0.94,
+  "reviewer_notes": "Read all 26 extracted pages, including algorithm derivation, main tables, importance visualization, hyperparameters, and full ablations. Primary competitor records were checked on arXiv/OpenReview on 2026-08-23."
+}

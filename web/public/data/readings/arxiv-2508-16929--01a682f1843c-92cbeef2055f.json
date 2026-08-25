@@ -1,0 +1,160 @@
+{
+  "stable_id": "arxiv:2508.16929",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2508.16929",
+    "pdf_sha256": "93a5853a9f7145f69efd35650661d44406eaff60a4e5f3c577cfb0af6ce24d1c",
+    "text_sha256": "38f4c56a68cfdcb772bc63fa014f94c3281638480cf6f87be46bfada579d73db",
+    "page_count": 27,
+    "extracted_at": "2026-08-23T15:52:46.908809+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Does the geometry of transformer attention outputs explain why large sparse dictionaries waste most of their features, and can geometry-aware initialization fix that failure without an auxiliary revival loss?",
+  "key_findings": [
+    {
+      "claim": "Attention outputs occupy a substantially lower-dimensional empirical subspace than MLP outputs or residual streams across the tested transformer families and datasets.",
+      "evidence": "Effective rank is reported around 60% of the model dimension for attention output and around 90% for the other activation sites. Only 74.7% of attention-output singular values exceed 1% of the maximum, and 39.1% of dimensions recover more than 99% of downstream loss versus 95.3% and 96.9% for MLP and residual activations.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "Section 4.3 and Figure 2"}, {"page": 5, "section": "Figure 3"}]
+    },
+    {
+      "claim": "The learned output projection W_O further collapses the concatenated multi-head representation rather than low rank being explained solely by each head's dimensional bottleneck.",
+      "evidence": "The paper decomposes variance along output singular directions into variance supplied by concatenated heads Z and scaling by W_O. The leading spectrum follows Z, while tail suppression aligns with W_O; effective-rank comparisons of Z support the same conclusion.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 5, "section": "Section 4.4 and Figure 4"}]
+    },
+    {
+      "claim": "Across LlamaScope autoencoders, lower effective rank is strongly associated with more dead features, and the association persists across dictionary sizes and target sparsities.",
+      "evidence": "Layerwise attention outputs align visually with high dead-feature counts in Figure 5. In Appendix F, for L0=32 and 65,536 features, attention sites have 78.81%-94.02% dead features while two of three residual sites have 1.35% or less; the pattern remains across L0 values 32, 64, and 128.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 6, "section": "Section 5.1 and Figure 5"}, {"page": 18, "section": "Appendix F, Tables 1-3"}]
+    },
+    {
+      "claim": "Active Subspace Initialization projects initial SAE decoder directions into leading activation principal components and ties the encoder to their transpose.",
+      "evidence": "The method estimates V_active, applies W_D V_active V_active-transpose to the decoder initialization, and sets W_E to W_D-transpose. This changes only initialization and adds no recurring loss or compute term.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 6, "section": "Section 5.2"}]
+    },
+    {
+      "claim": "ASI improves the reconstruction-sparsity frontier and nearly eliminates feature death at 32K scale; paired with SparseAdam it remains effective up to one million features.",
+      "evidence": "For a 32,768-feature Llama-3.1-8B layer-15 SAE at L0=50, Table 4 reports 4.00 dead features, normalized MSE 0.31680, and delta LM loss 0.007847 for ASI, versus 16,144.33/0.33367/0.008375 for base TopK and 54.67/0.32241/0.007958 for AuxK. Scaling plots state that ASI plus SparseAdam reduces the 1M-feature dead rate from 87% to below 1%.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 7, "section": "Section 5.3 and Figure 8"}, {"page": 20, "section": "Appendix G, Table 4"}]
+    },
+    {
+      "claim": "The paper establishes correlation and an effective intervention, but not a unique causal mechanism from rank collapse to feature death.",
+      "evidence": "The limitations explicitly say optimization dynamics or feature competition may mediate the correlation. Benefits are marginal at activation sites without pronounced low rank, and a fixed active dimension leaves some dead features at the lower-rank layer 7.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 8, "section": "Section 6"}, {"page": 21, "section": "Appendix I.1, Table 6"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Measure activation geometry before sparse-dictionary training and initialize decoder atoms only in the empirically active principal subspace.",
+    "mechanism": "Singular spectra and effective-rank metrics compare attention, MLP, and residual activations. Existing LlamaScope SAEs expose the relationship with dead features. A PCA basis then projects randomly sampled decoder atoms into the top-d_init subspace, with a tied encoder; SparseAdam separately avoids stale moment estimates for inactive coordinates.",
+    "assumptions": [
+      "A finite activation sample estimates the relevant principal subspace sufficiently well.",
+      "Directions with small variance are less useful for the target sparse dictionary than directions in the selected active subspace.",
+      "Dead-feature definitions based on firing frequency capture wasted capacity rather than rare but meaningful concepts.",
+      "Reconstruction error and delta language-model loss are adequate proxies for interpretability quality."
+    ]
+  },
+  "techniques": [
+    {"id": "activation-effective-rank-audit", "role": "Quantifies dimensional collapse with singular-value entropy and loss-recovery curves."},
+    {"id": "output-projection-spectrum-decomposition", "role": "Separates head-output variance from W_O scaling along attention-output singular directions."},
+    {"id": "active-subspace-initialization", "role": "Places initial dictionary atoms in leading empirical activation directions."},
+    {"id": "sparseadam-combination", "role": "Updates moments only on nonzero-gradient coordinates to prevent stale momentum from reviving feature death."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Attention, MLP, and residual activations across GPT-2, Llama-3.1, Gemma-2, Qwen-3, layers, positions, and datasets.",
+      "metric": "Effective rank, singular decay, and dimensions needed to recover downstream loss.",
+      "result": "Attention outputs consistently show the lowest effective dimensionality; 39.1% of dimensions recover over 99% of downstream loss in the headline comparison.",
+      "baseline": "MLP outputs and residual-stream activations from the same models."
+    },
+    {
+      "setting": "Llama-3.1-8B layer-15 TopK SAEs with 32,768 features across L0 values 40-80, three seeds; 15-seed significance test at L0=50.",
+      "metric": "Dead-feature count, normalized MSE, and delta LM loss.",
+      "result": "ASI has the lowest mean on all three metrics for every displayed L0; all six one-sided Welch tests against TopK and AuxK are significant, with p-values from 1.27e-6 to 2.99e-40.",
+      "baseline": "Standard TopK and TopK with the AuxK dead-feature loss."
+    },
+    {
+      "setting": "Dictionary scaling from 16K to 1M features and extension to the Lorsa sparse attention replacement.",
+      "metric": "Reconstruction-sparsity frontier, dead-feature rate, and delta LM loss.",
+      "result": "ASI improves reconstruction at every tested scale; ASI plus SparseAdam reduces one-million-feature death below 1%, and ASI improves Lorsa under identical training hyperparameters.",
+      "baseline": "TopK, AuxK, random-subspace initialization, and standard Lorsa initialization."
+    }
+  ],
+  "limitations": [
+    "Author-stated: the observed relationship between low-rank activations and dead features is correlational; its exact causal path remains unresolved.",
+    "Author-stated: ASI is most useful at clearly collapsed activation sites and gives marginal gains in near-full-rank settings.",
+    "The selected subspace dimension is a tuning choice and a fixed value does not transfer uniformly across layers with different effective ranks.",
+    "Reconstruction and delta LM loss do not directly establish that the extra live features are monosemantic, causally useful, or human-interpretable.",
+    "PCA over training activations can omit rare directions and may encode dataset-specific geometry."
+  ],
+  "failure_modes": [
+    "A distribution shift can rotate the active subspace so initially well-aligned atoms become systematically misplaced.",
+    "Too small d_init may permanently exclude low-variance but behaviorally important features; too large d_init restores the random-initialization mismatch.",
+    "Optimizer staleness can reintroduce feature death at very large dictionaries even when initialization is aligned.",
+    "Treating all inactive atoms as waste can erase rare-event detectors that need much larger evaluation corpora to fire."
+  ],
+  "reusable_insights": [
+    "Audit the intrinsic dimension of each activation site before choosing dictionary size or initialization.",
+    "Match model initialization support to the support of the training distribution instead of sampling isotropically in the ambient space.",
+    "Separate geometric mismatch from optimizer-state staleness with orthogonal interventions.",
+    "Report capacity utilization together with reconstruction and downstream-behavior metrics across scales."
+  ],
+  "open_questions": [
+    "Can a randomized intervention that rotates or expands W_O identify whether output-projection collapse causally creates feature death?",
+    "How should d_init adapt online as a layer's activation distribution or context length changes?",
+    "Are low-variance directions semantically unimportant, or does ASI trade rare-feature coverage for average reconstruction?",
+    "Does mitigating attention-output collapse improve the transformer itself, or is that collapse a useful inductive bias?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2406.04093",
+      "title": "Scaling and evaluating sparse autoencoders",
+      "url": "https://arxiv.org/abs/2406.04093",
+      "relationship": "Direct SAE scaling work that develops TopK training, dead-latent mitigation, and feature-quality metrics.",
+      "difference": "Gao et al. improve the sparsity objective and scale to 16M latents; this paper instead diagnoses activation geometry and changes initialization for especially collapsed attention sites.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv current abstract page checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2410.20526",
+      "title": "Llama Scope: Extracting Millions of Features from Llama-3.1-8B with Sparse Autoencoders",
+      "url": "https://arxiv.org/abs/2410.20526",
+      "relationship": "Open suite of per-layer and per-sublayer Llama SAEs used as evidence in the paper's geometry/death audit.",
+      "difference": "Llama Scope releases and evaluates broad SAE coverage; ASI analyzes why its attention-output dictionaries die and proposes a geometry-specific remedy.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv current abstract page checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2605.31518",
+      "title": "On the Relationship Between Activation Outliers and Feature Death in Sparse Autoencoders",
+      "url": "https://arxiv.org/abs/2605.31518",
+      "relationship": "Subsequent causal account of SAE feature death based on activation-mean outliers across modalities.",
+      "difference": "Simon et al. identify anti-alignment with the activation mean and eliminate that mechanism by centering; ASI emphasizes low effective rank and principal-subspace support, so the accounts make distinguishable preprocessing predictions.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 abstract published 2026-05-29, checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2605.05341",
+      "title": "Feature Starvation as Geometric Instability in Sparse Autoencoders",
+      "url": "https://arxiv.org/abs/2605.05341",
+      "relationship": "Subsequent optimization-geometric explanation and differentiable elastic-net alternative to dead-feature heuristics.",
+      "difference": "That work attributes starvation to instability of amortized L1 sparse coding and modifies the objective; ASI changes only initialization to follow the data subspace and is compatible with TopK.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 abstract published 2026-05-06, checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim the first demonstration that multi-head attention outputs are broadly low rank and that this geometry is a key cause of dead features, plus a subspace initialization that reduces one-million-feature death below 1%.",
+    "reviewer_inference": "The cross-model activation-site comparison and zero-recurring-cost initialization are useful and testable. Calling low rank a cause is stronger than the evidence: later mean-centering and objective-geometry accounts supply plausible competing mechanisms that should be factorially ablated."
+  },
+  "confidence": 0.95,
+  "reviewer_notes": "Read all 27 extracted pages, including the complete rank/death tables, 15-seed significance audit, cross-layer evaluation, dead-subspace analysis, and sparse-optimizer appendix. Current competing mechanisms were checked against primary arXiv pages on 2026-08-23."
+}

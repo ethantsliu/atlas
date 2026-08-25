@@ -1,0 +1,114 @@
+{
+  "stable_id": "arxiv:2502.00754",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2502.00754",
+    "pdf_sha256": "1f33a2bf7f5f7593b1904f6b978459eac17b3ed7d5de5c25edfae29d4c761070",
+    "text_sha256": "f45bbdcbc2df9fff001366066ae440d556a77d6d56c2698d9b3f1093439a03c1",
+    "page_count": 24,
+    "extracted_at": "2026-08-23T17:23:43.972171+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can enforcing continuity in an image autoencoder's latent representation make pixel-based physical dynamics easier and more reliable to learn?",
+  "key_findings": [
+    {
+      "claim": "Ordinary convolutional encoders can map arbitrarily small physical motions to discontinuous latent jumps because pixelization and unconstrained local filters do not preserve continuity of the underlying state.",
+      "evidence": "The paper defines delta-continuity for pixel observations, constructs filter-induced discontinuities, and argues that reconstruction alone does not prevent neighboring physical states from being separated in latent space.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "Section 2, continuity problem"},
+        {"page": 5, "section": "Pixelization and convolution analysis"}
+      ]
+    },
+    {
+      "claim": "Under a 2D rigid-body image model, central padding, stride-two layers, and Lipschitz early filters, Theorem 3.1 bounds latent variation under small translations and rotations independently of image resolution.",
+      "evidence": "The theorem propagates local filter smoothness through the encoder and yields a motion-dependent bound with translation scaling determined by the number of early convolutional layers.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "Assumption 3.1 and encoder conditions"},
+        {"page": 7, "section": "Theorem 3.1, continuity bound"}
+      ]
+    },
+    {
+      "claim": "CpAE approximates the theorem's filter smoothness by combining larger early kernels with a nonlocal Gaussian-weighted penalty on pairwise differences between nearby filter coefficients.",
+      "evidence": "Equation (6) regularizes early-layer convolutional filters, and the training objective combines this term with reconstruction and a small latent volume-preservation regularizer before fitting a separate Neural ODE.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "Equation (6), nonlocal filter regularizer"},
+        {"page": 8, "section": "CpAE and Neural ODE training pipeline"}
+      ]
+    },
+    {
+      "claim": "CpAE improves long-horizon valid prediction across the reported systems, with especially large gains on elastic pendulum and real double pendulum, although the hardest SwingStick video remains far from solved.",
+      "evidence": "Table 2 reports valid prediction time/frame percentages: 72.1/36.7 on elastic pendulum versus 49.5/10.0 for the hybrid baseline, 69.1/40.0 on real double pendulum versus 46.8/4.6, and 57.4/11.1 on SwingStick versus 24.1/0.0 for the strongest listed alternative on one metric.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 9, "section": "Table 2, long-term prediction results"}
+      ]
+    },
+    {
+      "claim": "The evidence does not isolate whether gains come from continuity itself, increased early-kernel capacity, the volume regularizer, or their interaction across all datasets.",
+      "evidence": "The proposed model changes filter size and adds multiple penalties; reported ablations are limited relative to the full cross-dataset comparison, and continuity is not directly measured against ground-truth physical distance for every system.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 8, "section": "Training objective and architecture"},
+        {"page": 10, "section": "Discussion and limitations"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Regularize early convolution filters so visually adjacent physical states map to a continuous latent coordinate system suitable for a learned differential equation.",
+    "mechanism": "Use large early convolution kernels, penalize Gaussian-weighted differences among nearby filter coefficients, train an autoencoder with reconstruction and volume preservation, freeze or use its representation, and fit a Neural ODE for temporal prediction.",
+    "assumptions": [
+      "The observation is a pixelized projection of a continuous 2D rigid-body state for the formal guarantee.",
+      "Early filters, padding, and stride satisfy the theorem's architectural conditions.",
+      "A continuous low-dimensional latent state is sufficient for approximately autonomous dynamics."
+    ]
+  },
+  "techniques": [
+    {"id": "nonlocal-filter-regularization", "role": "Encourages Lipschitz-smooth spatial convolution weights."},
+    {"id": "large-early-kernels", "role": "Reduces sensitivity to small pixel translations and rotations."},
+    {"id": "latent-volume-preservation", "role": "Discourages collapse of the physical latent manifold."},
+    {"id": "neural-ode-latent-dynamics", "role": "Learns continuous-time evolution after representation learning."}
+  ],
+  "evaluations": [
+    {"setting": "Synthetic damped and elastic pendulum videos", "metric": "Valid prediction time and valid prediction frames", "result": "CpAE reports 99.2/99.2 for damped and 72.1/36.7 for elastic pendulum, outperforming the listed hybrid and AE+NODE baselines.", "baseline": "Hybrid embedding, AE+NODE, HNN, and Symplectic ODE variants"},
+    {"setting": "Real double-pendulum video", "metric": "Valid prediction time and frames", "result": "CpAE reports 69.1/40.0 versus 46.8/4.6 for the hybrid model and zero valid frames for several physics-prior baselines.", "baseline": "Hybrid, AE+NODE, HNN, and Symplectic ODE"},
+    {"setting": "Real SwingStick video", "metric": "Valid prediction time and frames", "result": "CpAE reports 57.4/11.1, a clear relative gain but still short absolute valid-frame duration.", "baseline": "Hybrid, AE+NODE, HNN, and Symplectic ODE"}
+  ],
+  "limitations": [
+    "The formal continuity result covers 2D rigid bodies, not deformable objects or general 3D projection and occlusion.",
+    "SwingStick long-horizon prediction remains weak in absolute terms.",
+    "The regularizer is a simple proxy for filter Lipschitzness rather than a tight learned guarantee.",
+    "Only convolutional encoders are evaluated; attention-based video representations are not compared."
+  ],
+  "failure_modes": [
+    "Occlusion can make the observation non-injective even when filters are smooth.",
+    "A continuous latent space can still entangle variables and produce incorrect vector fields.",
+    "Excessive filter smoothing can erase small but dynamically important image features.",
+    "Nonrigid motion violates the formal assumptions and may produce discontinuities the penalty cannot prevent."
+  ],
+  "reusable_insights": [
+    "Test representation continuity under controlled infinitesimal transformations before fitting dynamics.",
+    "Place geometry-preserving constraints in the encoder rather than expecting a downstream dynamics model to repair discontinuities.",
+    "Report long-horizon validity and failure time, not only one-step reconstruction or prediction error."
+  ],
+  "open_questions": [
+    "Can continuity guarantees be extended to occlusion, nonrigid bodies, and 3D multi-view observations?",
+    "Which direct latent-continuity metric best predicts downstream long-horizon dynamics?",
+    "Would equivariant or video-transformer encoders provide the same benefit without large smooth filters?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2111.05458", "title": "Which Priors Matter? Benchmarking Models for Learning Latent Dynamics", "url": "https://arxiv.org/abs/2111.05458", "relationship": "Benchmark of latent-dynamics inductive biases", "difference": "The benchmark compares physics and representation priors broadly; CpAE targets a specific upstream pathology, discontinuity induced by pixel encoders, with a filter-level theorem and regularizer.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:1806.07366", "title": "Neural Ordinary Differential Equations", "url": "https://arxiv.org/abs/1806.07366", "relationship": "Core continuous-time dynamics model", "difference": "Neural ODEs parameterize latent evolution but do not ensure image encoders produce continuous physical coordinates; CpAE modifies representation learning before applying a Neural ODE.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:1906.01563", "title": "Hamiltonian Neural Networks", "url": "https://arxiv.org/abs/1906.01563", "relationship": "Physics-structured latent dynamics", "difference": "HNN imposes Hamiltonian structure when state coordinates are available or learned; CpAE prioritizes continuity of coordinates extracted from pixels and uses a less structured downstream ODE.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:2109.03292", "title": "Simple Video Generation using Neural ODEs", "url": "https://arxiv.org/abs/2109.03292", "relationship": "Pixel-video generation with latent Neural ODEs", "difference": "It demonstrates continuous latent trajectories for video generation; CpAE explicitly regularizes convolution filters and proves a restricted observation-to-latent continuity bound for physical prediction.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"}
+  ],
+  "novelty_assessment": {
+    "author_claim": "Continuity-preserving convolutional autoencoders provide a theoretically motivated representation prior that substantially improves pixel-based physical dynamics forecasting.",
+    "evidence": "A restricted continuity theorem motivates a nonlocal filter penalty, and four video systems show longer valid rollouts than the listed alternatives.",
+    "reviewer_inference": "Moving the continuity requirement into the visual encoder is a useful contribution, though causal ablations and broader geometric settings are needed to establish that continuity is the decisive factor."
+  },
+  "confidence": 0.94,
+  "reviewer_notes": "Read all 24 extracted pages, checking the continuity definition and theorem, regularizer, model pipeline, main table, and limitations. Primary competitor records were checked on arXiv on 2026-08-23."
+}

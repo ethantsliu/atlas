@@ -1,0 +1,209 @@
+{
+  "stable_id": "openreview:BT4N_v7CLrk",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2212.14042",
+    "pdf_sha256": "bd3fcc867fb38b637b57f61d0700357663f4209bec2a138ce53c3953d58b1d4c",
+    "text_sha256": "a9790a4477f1c48753b3304914f31248500fe7e38998eed999be692b940955d8",
+    "page_count": 17,
+    "extracted_at": "2026-08-24T00:30:31.608104+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a small, patch-based neural interpolator turn an ordinary fixed-grid image generator into a continuous image generator that supports arbitrary-resolution queries and differentiable inverse problems?",
+  "key_findings": [
+    {
+      "claim": "FunkNN couples a local image-patch inductive bias to continuous coordinate queries without using a coordinate MLP.",
+      "evidence": "At each query coordinate, a spatial transformer differentiably extracts a p-by-p patch from the low-resolution image and a small CNN maps that patch to an intensity. The model can therefore be appended to an existing grid generator.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "Section 3.1, FunkNN: Continuous Super-Resolution Network"},
+        {"page": 4, "section": "Figure 3 and architecture definition"}
+      ]
+    },
+    {
+      "claim": "The coordinate dependence is differentiable, but the resulting derivatives are derivatives of the learned interpolant rather than guaranteed derivatives of the unknown physical signal.",
+      "evidence": "The spatial transformer makes patch extraction continuous in the query coordinate, so automatic differentiation produces exact derivatives of FunkNN's computation. Appendix E checks first- and second-order derivative accuracy on Gaussian images; that controlled check does not establish exact physical derivatives on natural or medical images.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Section 3.1, differentiable spatial transformer"},
+        {"page": 17, "section": "Appendix E, Accuracy of FunkNN Derivatives"}
+      ]
+    },
+    {
+      "claim": "Training across a fixed factor and applying the operator hierarchically is the strongest of the paper's three scale strategies on its in-distribution tests.",
+      "evidence": "Single-scale, continuously sampled scale, and fixed-factor training are defined separately. On CelebA-HQ trained at at most 128-by-128, factor training obtains 32.6, 28.2, and 24.2 dB for 128-to-256, 512, and 1024, respectively, versus 31.6, 28.0, and 23.9 for full LIIF-EDSR.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "Section 3.1.1, Training FunkNN"},
+        {"page": 7, "section": "Table 1, arbitrary-scale super-resolution"}
+      ]
+    },
+    {
+      "claim": "FunkNN reaches LIIF-like in-distribution quality with substantially fewer trainable interpolation parameters and lower reported latency.",
+      "evidence": "The paper reports 140K trainable parameters and 0.70 seconds per 100 128-by-128 images on an A100 for FunkNN, compared with 1.5M parameters and 1.97 seconds for LIIF-EDSR. A 140K-pruned LIIF retains the 256 score but degrades at larger scales.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "Section 5.1, Super-Resolution"},
+        {"page": 7, "section": "Table 1"}
+      ]
+    },
+    {
+      "claim": "The claimed out-of-distribution robustness is mixed rather than state of the art.",
+      "evidence": "For CelebA-HQ-to-LSUN-bedroom 128-to-256 transfer, factor FunkNN scores 26.6 dB, below full LIIF-EDSR at 28.0 and essentially tied with the 140K LIIF at 26.7, although it clearly beats the fixed-scale U-Net at 19.9.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Section 5.2 and Table 1, OOD samples"}
+      ]
+    },
+    {
+      "claim": "Differentiable continuous queries enable several ill-posed inverse demonstrations, but the evidence is narrow and heavily prior-dependent.",
+      "evidence": "The paper optimizes a pretrained latent generator against full or sparse spatial derivatives and limited-view CT measurements. The sparse-derivative LoDoPaB example reports 19.1 dB versus 7.2 dB for a continuous GAN; limited-view examples improve over filtered back-projection, but the comparisons are primarily qualitative examples rather than a large, uncertainty-aware benchmark.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Section 4, inverse-problem formulations"},
+        {"page": 8, "section": "Section 5.3, Figures 6-8"}
+      ]
+    },
+    {
+      "claim": "Arbitrary-resolution evaluation does not prove recovery of genuine high-frequency information beyond what is present in the input and learned data prior.",
+      "evidence": "FunkNN is an interpolation/super-resolution operator applied to a low-resolution sample. Its extrapolated pixels are selected by training-distribution regularities; the paper evaluates perceptual reconstruction quality but does not identify or calibrate uncertainty in frequencies unsupported by the low-resolution observation.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "Section 3, local interpolation premise"},
+        {"page": 9, "section": "Section 7, Conclusion"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Separate image generation into a conventional discrete convolutional generator and a lightweight continuous local interpolator.",
+    "mechanism": "For a coordinate and low-resolution image, a differentiable spatial transformer extracts a learned local patch and a small CNN predicts the queried pixel. The interpolator is trained with random coordinate-patch targets under single, continuous-scale, or fixed-factor curricula. A fixed-resolution autoencoder plus low-dimensional normalizing flow supplies the generative prior used in inverse problems, while automatic differentiation supplies spatial derivatives of the interpolated output.",
+    "assumptions": [
+      "High-frequency image structure relevant to a query is sufficiently local to be inferred from a small neighboring patch.",
+      "A low-resolution generator captures the data distribution well enough for interpolation and inverse reconstruction.",
+      "Iterating a learned fixed-factor operator remains stable outside the scales observed during training.",
+      "Derivatives of the learned image function are useful proxies for the derivatives required by the downstream inverse problem.",
+      "A single point estimate from the generative prior is adequate despite inverse-problem ambiguity."
+    ]
+  },
+  "techniques": [
+    {"id": "differentiable-local-patch-query", "role": "Extracts coordinate-centered evidence while retaining gradients with respect to spatial position."},
+    {"id": "patch-to-intensity-cnn", "role": "Predicts a continuous-coordinate pixel using a small convolutional decoder rather than a coordinate MLP."},
+    {"id": "factor-iterated-super-resolution", "role": "Reuses one fixed-factor interpolator hierarchically to reach unseen resolutions."},
+    {"id": "discrete-generator-adapter", "role": "Adds continuous sampling to an off-the-shelf grid-based image generator."},
+    {"id": "latent-prior-inverse-optimization", "role": "Fits a generator latent code and sometimes generator weights to derivative or tomography measurements."}
+  ],
+  "evaluations": [
+    {
+      "setting": "CelebA-HQ images, trained up to 128-by-128 and queried at 256, 512, and 1024.",
+      "metric": "Average signal-to-noise ratio over 100 held-out samples, parameter count, and reported A100 runtime.",
+      "result": "Factor FunkNN scores 32.6/28.2/24.2 dB with 140K parameters and 0.70 seconds per 100 128-by-128 images.",
+      "baseline": "Bilinear interpolation, U-Net, full 1.5M-parameter LIIF-EDSR at 31.6/28.0/23.9 dB, and pruned LIIF."
+    },
+    {
+      "setting": "OOD transfer from CelebA-HQ training to LSUN-bedroom 128-to-256 super-resolution.",
+      "metric": "Average SNR and shift-invariant SNR over 100 samples.",
+      "result": "Factor FunkNN reports 26.6 dB SNR: much better than U-Net but below full LIIF and approximately equal to size-matched LIIF.",
+      "baseline": "Bilinear interpolation, fixed-scale U-Net, full LIIF-EDSR, and 140K-parameter LIIF-EDSR."
+    },
+    {
+      "setting": "CelebA-HQ reconstruction from dense spatial derivatives.",
+      "metric": "Qualitative image and derivative agreement under latent-prior optimization.",
+      "result": "Fine image details are visually recovered, while absolute color/mean remains ambiguous from gradients alone.",
+      "baseline": "Ground-truth image and derivative visualization; no broad quantitative baseline table."
+    },
+    {
+      "setting": "LoDoPaB-CT reconstruction from the top 20 percent of gradient measurements.",
+      "metric": "Shift-invariant SNR on the illustrated reconstruction.",
+      "result": "FunkNN reports 19.1 dB versus 7.2 dB for the continuous-GAN reconstruction.",
+      "baseline": "Continuous GAN/function generator from Dupont et al."
+    },
+    {
+      "setting": "Limited-view CT with angles sampled between minus 70 and plus 70 degrees.",
+      "metric": "Illustrated reconstruction SNR and visual fidelity.",
+      "result": "FunkNN improves the shown cases over filtered back-projection, including 11.8 versus 9.0 dB in one example.",
+      "baseline": "Filtered back-projection."
+    }
+  ],
+  "limitations": [
+    "The image-generation evidence is concentrated on aligned faces and bedrooms, with inverse demonstrations on one CT dataset.",
+    "The strongest arbitrary-scale results use repeated factor application, which can compound interpolation artifacts.",
+    "The method cannot certify that predicted high frequencies are present in the unknown source rather than supplied by the learned prior.",
+    "The reported OOD score trails full LIIF-EDSR despite the text's strong robustness framing.",
+    "Inverse-problem results are mostly selected qualitative examples and do not quantify calibration, coverage, or reconstruction variability.",
+    "The continuous stage remains dependent on the quality and bias of a separate low-resolution generator.",
+    "Exact automatic derivatives apply to the learned interpolant, not necessarily to the true continuous field."
+  ],
+  "failure_modes": [
+    "Fine structures requiring nonlocal context can be mispredicted by the local-patch architecture.",
+    "Repeated upscaling can amplify small phase, ringing, or texture errors.",
+    "A distribution shift in local texture statistics can make prior-supported hallucinations look plausible while being wrong.",
+    "Derivative matching leaves additive constants and other null-space components unresolved.",
+    "Latent optimization can settle on an incorrect prior mode that fits sparse measurements.",
+    "Spatial-transformer interpolation can smooth discontinuities and bias high-order derivatives.",
+    "A generator trained on biased images transfers those biases into inverse reconstructions."
+  ],
+  "reusable_insights": [
+    "Treat continuous output as a modular adapter around a strong discrete model when retraining an entire neural field would be wasteful.",
+    "Distinguish analytic differentiability of a model from empirical accuracy of the derivatives it produces.",
+    "Evaluate arbitrary-scale methods both at unseen scale factors and under semantic distribution shift; these test different claims.",
+    "Match parameter count and runtime as well as headline reconstruction quality when comparing implicit decoders.",
+    "For inverse problems, report null-space ambiguity and posterior diversity rather than only a best-looking point reconstruction.",
+    "Stress-test iterative scale operators for error accumulation across many composition steps."
+  ],
+  "open_questions": [
+    "Can the local patch size and receptive field adapt to uncertainty or image content without losing coordinate differentiability?",
+    "How quickly do artifacts accumulate when factor mode is iterated far beyond the training resolution?",
+    "Can a probabilistic FunkNN expose uncertainty in unsupported high-frequency content and inverse reconstructions?",
+    "Do derivative estimates remain accurate on discontinuous scientific signals rather than smooth Gaussian controls?",
+    "How does the adapter compare with modern diffusion- or transformer-based arbitrary-scale decoders under matched compute?",
+    "Can nonlocal context be added while retaining the small parameter count and exact coordinate gradients?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2012.09161",
+      "title": "Learning Continuous Image Representation with Local Implicit Image Function",
+      "url": "https://arxiv.org/abs/2012.09161",
+      "relationship": "The closest direct precursor for arbitrary-scale local implicit image super-resolution.",
+      "difference": "LIIF encodes the input into a feature map and uses a coordinate-conditioned MLP/local ensemble; FunkNN directly transforms a raw local patch with a much smaller CNN and emphasizes automatic spatial derivatives and inverse problems.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2 abstract page checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2212.04362",
+      "title": "CiaoSR: Continuous Implicit Attention-in-Attention Network for Arbitrary-Scale Image Super-Resolution",
+      "url": "https://arxiv.org/abs/2212.04362",
+      "relationship": "A contemporary and stronger-featured arbitrary-scale super-resolution competitor.",
+      "difference": "CiaoSR learns local ensemble weights and adds scale-aware nonlocal attention for SR accuracy and real-world tests; FunkNN is simpler and lighter, and uniquely centers differentiable derivatives and inverse reconstruction rather than peak SR performance.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3 abstract page checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2106.12423",
+      "title": "Alias-Free Generative Adversarial Networks",
+      "url": "https://arxiv.org/abs/2106.12423",
+      "relationship": "An alternative signal-processing route to continuous, subpixel-consistent image generation.",
+      "difference": "StyleGAN3 redesigns the generator itself to suppress aliasing and achieve subpixel translation/rotation equivariance; FunkNN leaves a discrete generator intact and attaches a queryable interpolation stage, with derivative-based inverse problems as a separate benefit.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v4 abstract page checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2201.12204",
+      "title": "From data to functa: Your data point is a function and you can treat it like one",
+      "url": "https://arxiv.org/abs/2201.12204",
+      "relationship": "A broader competing framework for representing and learning distributions over data as implicit neural functions.",
+      "difference": "Functa fit per-example implicit neural representations and learn over their modulations across images, shapes, NeRFs, and manifolds; FunkNN amortizes one shared local interpolator over discrete generator outputs and is narrower but cheaper at conversion time.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3 abstract page checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper presents a simple patch-based continuous super-resolution module that can convert fixed-resolution generators into arbitrary-coordinate generators with exact model derivatives and support derivative-based inverse problems.",
+    "reviewer_inference": "The modular raw-patch CNN plus differentiable spatial transformer is a genuine and practically attractive simplification of local implicit decoders. The main novelty is architectural economy and derivative access, not dominant arbitrary-scale fidelity: full LIIF remains stronger under the reported OOD shift, while later attention-based SR methods broaden the accuracy frontier."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Read the complete 17-page extraction, including architecture and training variants, generator construction, three inverse formulations, super-resolution/OOD tables, qualitative inverse results, related work, implementation appendices, and derivative check. Primary arXiv records for LIIF, CiaoSR, StyleGAN3, and Functa were checked on 2026-08-23."
+}

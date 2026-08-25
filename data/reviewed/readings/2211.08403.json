@@ -1,0 +1,122 @@
+{
+  "stable_id": "arxiv:2211.08403",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2211.08403",
+    "pdf_sha256": "da77f4ded47a25370d65029d63bf6e30125f80b21bd7bf2e1a1537b8b132396b",
+    "text_sha256": "35e7155fc2c486c3adceb228c709cfd779246744de4debd5b83b21512c730276",
+    "page_count": 21,
+    "extracted_at": "2026-08-23T20:21:34.460608+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Why does linear interpolation between neuron-aligned independently trained networks still fail, and can matching internal activation statistics repair the path?",
+  "key_findings": [
+    {
+      "claim": "Aligned but imperfectly correlated endpoint features lose variance when their weights are averaged, and the loss compounds with depth.",
+      "evidence": "For midpoint activations with matched endpoint standard deviations, the first-layer variance is multiplied by 0.5 + 0.5 correlation; the typical reported aligned correlation near 0.4 implies a 30% reduction. Measured activation variance then progressively collapses through MLP, VGG, and ResNet layers while endpoint statistics remain healthy.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "Figure 2"}, {"page": 5, "section": "3.1"}, {"page": 6, "section": "3.2 variance derivation"}]
+    },
+    {
+      "claim": "REPAIR substantially reduces interpolation barriers across architectures, datasets, normalization choices, width, and depth.",
+      "evidence": "After neuron alignment, it sets each interpolated unit's mean and standard deviation to interpolations of endpoint statistics. ResNet18/CIFAR-10 barrier falls from 16% to 1.5%; ResNet50/ImageNet midpoint rises from below 1% accuracy to 56.5%, reported as a 74% relative barrier reduction.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 7, "section": "4 and Figure 3"}, {"page": 9, "section": "Figure 5"}, {"page": 11, "section": "5.3 and Figure 6"}, {"page": 12, "section": "Discussion"}]
+    },
+    {
+      "claim": "The correction is data-dependent calibration, not a pure weight-space symmetry operation.",
+      "evidence": "Exact REPAIR records endpoint means, variances, and covariances on a calibration set; the approximate implementation inserts BatchNorm wrappers and passes roughly 5,000 training examples to estimate statistics before fusing affine corrections. Therefore a claimed low-barrier weight path depends on an auxiliary input distribution.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 6, "section": "4.1 exact REPAIR"}, {"page": 7, "section": "4.2 approximate REPAIR"}, {"page": 17, "section": "B.2 implementation"}]
+    },
+    {
+      "claim": "REPAIR does not establish the conjecture that permutation symmetry alone removes loss barriers.",
+      "evidence": "The method is explicitly applied on top of alignment and adds channelwise affine transformations absent from the conjectured permutation. Even after full correction, ImageNet midpoint accuracy remains 56.5%, well below approximately 76% endpoints; unaligned midpoint interpolation is still poor.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 4, "section": "Conjecture 1"}, {"page": 9, "section": "ImageNet results"}, {"page": 12, "section": "Discussion"}, {"page": 21, "section": "Figure 14"}]
+    },
+    {
+      "claim": "Normalization architecture changes the baseline dramatically and clarifies an apparent conflict in earlier merging results.",
+      "evidence": "At width 8, a LayerNorm ResNet20 midpoint reaches 90.3% before repair versus 32.3% for BatchNorm, because test-time LayerNorm continually corrects scale while frozen BatchNorm behaves affinely. REPAIR brings them to 93.2% and 94.4%, respectively.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 8, "section": "Figure 4"}, {"page": 10, "section": "5.1"}, {"page": 18, "section": "Figure 8"}]
+    },
+    {
+      "claim": "The constructive merge evidence is promising but narrow.",
+      "evidence": "In one CIFAR-100 experiment, endpoint models trained on disjoint biased class subsets have REPAIRed interpolation points outperforming either corrected endpoint. The appendix compares output ensembling and a full-data model, but the setting does not cover heterogeneous tasks, architectures, initializations, or modern foundation-model fine-tunes.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 12, "section": "split-data experiment"}, {"page": 20, "section": "Figure 13"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Align hidden units between two independently trained networks, linearly interpolate their weights, then restore each interpolated channel's activation mean and variance to the interpolation of endpoint statistics.",
+    "mechanism": "Use activation-correlation matching for permutations, estimate endpoint/cross-network statistics on calibration data, compute exact per-alpha affine corrections or approximate them by inserted BatchNorm layers, and optionally fuse those layers back into convolutions.",
+    "assumptions": [
+      "Channelwise first- and second-order statistics capture the dominant interpolation failure.",
+      "A calibration distribution representative of deployment is available.",
+      "Neuron alignment establishes a meaningful channel correspondence.",
+      "Affine re-normalization does not destroy useful higher-order or cross-channel structure.",
+      "Barrier reduction on same-task vision models transfers to broader merging scenarios."
+    ]
+  },
+  "techniques": [
+    {"id": "activation-correlation-alignment", "role": "Permutes endpoint channels into a matched coordinate system."},
+    {"id": "variance-collapse-diagnostic", "role": "Tracks channel activation variance layer by layer along the interpolation path."},
+    {"id": "exact-statistic-repair", "role": "Uses endpoint variances and covariance to set path-specific affine scales."},
+    {"id": "batchnorm-wrapper-repair", "role": "Provides an efficient approximate calibration and layer-fusion implementation."},
+    {"id": "barrier-sweep", "role": "Evaluates worst path degradation across alpha, depth, width, and normalization variants."}
+  ],
+  "evaluations": [
+    {"setting": "Aligned ResNet18 on CIFAR-10", "metric": "Test-accuracy interpolation barrier", "result": "Barrier falls from 16% to 1.5%", "baseline": "Alignment without statistical correction"},
+    {"setting": "Aligned ResNet50 on ImageNet", "metric": "Midpoint accuracy and relative barrier", "result": "Below 1% rises to 56.5%; reported relative barrier reduction is 74%", "baseline": "Activation matching / weight matching without full REPAIR"},
+    {"setting": "MLP, VGG, and ResNet sweeps on four image datasets", "metric": "Barrier versus width and depth", "result": "REPAIR reduces barriers 60-100% relatively and makes VGG barrier nearly depth-invariant", "baseline": "Aligned interpolation"},
+    {"setting": "BatchNorm, LayerNorm, and FixUp ResNet20", "metric": "Midpoint accuracy and barrier", "result": "LayerNorm has a much stronger uncorrected midpoint; correction improves all variants", "baseline": "Normalization type and no repair"},
+    {"setting": "Biased disjoint CIFAR-100 class subsets", "metric": "Full-test loss and accuracy", "result": "Some corrected interpolation points outperform either corrected endpoint", "baseline": "Logit ensemble, endpoints, and a model trained on all data"}
+  ],
+  "limitations": [
+    "Correction requires representative calibration inputs and can drift under distribution shift.",
+    "It matches only per-channel means and variances, not full feature covariance or higher moments.",
+    "Neuron alignment remains essential near the midpoint and is combinatorial/heuristic.",
+    "The best ImageNet midpoint is still far below endpoint accuracy, so barriers are reduced rather than eliminated.",
+    "Most experiments merge identical architectures trained on the same task and recipe.",
+    "No calibration-set-size sensitivity, label-free deployment shift, or total merge-time comparison is central to the study.",
+    "The path includes learned affine corrections and therefore is not merely a straight line between permuted weights."
+  ],
+  "failure_modes": [
+    "Calibration statistics represent one domain and damage another.",
+    "Matched channels have similar correlation but incompatible semantics or covariance.",
+    "Cross-channel cancellation survives per-channel variance repair.",
+    "A residual branch or normalization boundary omitted from repair continues to collapse.",
+    "Merging unrelated tasks creates feature interference rather than only scale loss.",
+    "An apparently low accuracy barrier masks badly calibrated probabilities or subgroup degradation."
+  ],
+  "reusable_insights": [
+    "Instrument internal feature norms and variances before attributing a merge failure to loss-landscape topology.",
+    "Treat post-merge calibration data as part of the algorithm and report its provenance and size.",
+    "Compare permutation alignment, statistical correction, and their interaction explicitly.",
+    "Residual-block outputs can require correction even when every convolution is calibrated.",
+    "Path connectivity and useful model fusion are related but distinct evaluation targets."
+  ],
+  "open_questions": [
+    "Can distribution-free or analytically propagated statistics replace calibration data?",
+    "Would whitening/recoloring full covariance outperform channelwise repair without overfitting?",
+    "How does variance repair scale to Transformers, mixture-of-experts, and task-vector merging?",
+    "Can alignment and statistic correction be optimized jointly rather than sequentially?",
+    "Which higher-order feature failures remain after variance is restored?",
+    "Can one bound downstream loss from layerwise correlation and moment mismatch?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2110.06296", "title": "The Role of Permutation Invariance in Linear Mode Connectivity of Neural Networks", "url": "https://arxiv.org/abs/2110.06296", "relationship": "direct motivating predecessor", "difference": "Poses the permutation-connectivity conjecture and documents depth/width effects; REPAIR identifies activation variance as an additional obstruction and adds calibration."},
+    {"canonical_id": "arxiv:2209.04836", "title": "Git Re-Basin: Merging Models modulo Permutation Symmetries", "url": "https://arxiv.org/abs/2209.04836", "relationship": "concurrent alignment competitor", "difference": "Develops permutation-coordinate-descent and activation matching for zero-barrier merging; REPAIR is complementary post-alignment moment correction and explains why alignment alone may fail."},
+    {"canonical_id": "pmlr:v162:wortsman22a", "title": "Model Soups: Averaging Weights of Multiple Fine-Tuned Models Improves Accuracy without Increasing Inference Time", "url": "https://proceedings.mlr.press/v162/wortsman22a.html", "relationship": "local-merging alternative", "difference": "Averages fine-tunes from a shared initialization, where weights already occupy a common basin; REPAIR targets independently trained, permutation-misaligned endpoints."},
+    {"canonical_id": "arxiv:2305.03053", "title": "ZipIt! Merging Models from Different Tasks without Training", "url": "https://arxiv.org/abs/2305.03053", "relationship": "later heterogeneous-task merger", "difference": "Permits within- and cross-model feature zipping for partially disjoint tasks, broadening beyond REPAIR's mainly same-task two-model interpolation."},
+    {"canonical_id": "arxiv:2402.05966", "title": "Vanishing Feature: Diagnosing Model Merging and Beyond", "url": "https://arxiv.org/abs/2402.05966", "relationship": "later mechanistic refinement", "difference": "Generalizes variance collapse into input-feature vanishing, supplies deeper theory, and proposes Preserve-First Merging that targets early-layer features rather than matching every channel statistic."}
+  ],
+  "novelty_assessment": {
+    "author_claim": "Variance collapse is a principal barrier after neuron alignment, and restoring interpolated activation statistics makes independently trained vision networks nearly linearly connected.",
+    "evidence": "A first-layer derivation, deep activation diagnostics, extensive architecture/data sweeps, normalization ablations, ImageNet results, and a split-data merge support the mechanism and correction.",
+    "reviewer_inference": "The diagnosis is clear, influential, and reusable, and the simple calibration step delivers large gains. It complements rather than proves permutation-only connectivity, and its dependence on calibration data and residual ImageNet barrier are material boundaries."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Read all 21 pages, including exact/approximate formulas, implementation, baseline comparison, split-data merging, and unaligned ablation. Direct re-basin, local averaging, heterogeneous merging, and later feature-vanishing work were checked against primary arXiv/PMLR records on 2026-08-23."
+}

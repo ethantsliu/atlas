@@ -1,0 +1,156 @@
+{
+  "stable_id": "arxiv:2509.26522",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2509.26522",
+    "pdf_sha256": "8818727c3039f7c86c35b24c21de27e672509f3bcd9e7393707565cbf7dd9744",
+    "text_sha256": "cf16ce3e4413665569a2c2c84e2ba0f3c54fed8d11575d654ed27ce5cd3fdfa8",
+    "page_count": 27,
+    "extracted_at": "2026-08-23T15:06:12.621635+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can entropy of the single next token after an artificially appended stop-thinking marker provide a cheap, model-agnostic signal for halting reasoning once additional chain-of-thought no longer improves answer probability?",
+  "key_findings": [
+    {
+      "claim": "EAT is a one-token predictive-entropy probe, not entropy of the reasoning tokens or a direct correctness estimate.",
+      "evidence": "At checkpoints in an unfinished reasoning trace, the method appends </think> plus an optional final-answer prefix and measures entropy over the next-token distribution. The reasoning-dependent term equals the negative component of a proposed information-gain expression, while correctness is evaluated separately with many answer rollouts.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "4.1 Entropy After </think>, Equations 5-6"}]
+    },
+    {
+      "claim": "The stopping rule detects stabilization rather than low entropy.",
+      "evidence": "An exponential moving mean and variance are updated at each reasoning block; generation stops when debiased variance falls below a global threshold or the model emits </think>. Thus a stable high or misleading proxy trajectory can also trigger exit, while an unsolvable unstable trajectory consumes the full cap.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 4, "section": "4.2 Automatic early exiting"}, {"page": 5, "section": "Algorithm 1"}, {"page": 8, "section": "6 Limitations"}]
+    },
+    {
+      "claim": "Across the selected math and science settings, threshold sweeps yield a better accuracy-token frontier than assigning one fixed token budget to every item.",
+      "evidence": "Experiments with DeepSeek-R1 Qwen-8B/Llama-70B, Qwen3-4B, and Claude 3.7 report 12-22% token reduction on MATH500 and AIME2025 without loss at selected operating points. The improvement comes from using fewer tokens on traces whose EAT variance stabilizes early.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 6, "section": "Figure 3"}, {"page": 7, "section": "5.3 Results"}, {"page": 8, "section": "Token-based comparison"}]
+    },
+    {
+      "claim": "Small proxy models can monitor larger or API-only reasoners in the demonstrated cases, but cross-model calibration is empirical and narrow.",
+      "evidence": "A 1.5B model is used to halt a 70B Llama reasoner and a local Qwen3-4B probe monitors eight Claude 3.7 AIME questions. Proxy computation can overlap API streaming, but no broad matrix of proxy/target families, adversarial disagreements, or distribution shifts is reported.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 5, "section": "Black-box setting"}, {"page": 7, "section": "Figure 5"}, {"page": 24, "section": "Claude 3.7 appendix experiment"}]
+    },
+    {
+      "claim": "The headline GPQA curve is conditioned on solvability and therefore does not measure end-to-end behavior over the original task distribution.",
+      "evidence": "The main GPQA plots retain only questions whose eventual Pass@1 exceeds 0.8. On unfiltered or unsolvable questions EAT often never stabilizes and spends the entire token budget; some questions also exhibit decreasing Pass@1.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 8, "section": "Error analysis"}, {"page": 20, "section": "I.4 Unsolvable and decreasing-Pass@1 cases"}, {"page": 26, "section": "Unfiltered GPQA results"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Periodically force an answer boundary in the current reasoning prefix, measure next-token entropy, and stop once the recent entropy trajectory becomes stable.",
+    "mechanism": "After each newline-delimited block, the target or a proxy model scores the same question and accumulated reasoning followed by </think> and usually 'Final answer:'. Vocabulary entropy of the next token becomes EAT. An EMA with alpha near 0.2 tracks mean and variance; a threshold delta controls the accuracy-compute frontier. Evaluation estimates checkpoint correctness with K sampled final-answer rollouts, but those rollouts are not used by the deployed stopping rule.",
+    "assumptions": [
+      "Entropy of the first answer token correlates with correctness saturation across tasks and output formats.",
+      "Appending the boundary/prefix elicits the same answer distribution the model would produce after naturally finishing reasoning.",
+      "A fixed variance threshold and EMA timescale transfer across item difficulty and model families.",
+      "A smaller proxy's uncertainty dynamics faithfully track the larger target model's remaining reasoning value."
+    ]
+  },
+  "techniques": [
+    {"id": "counterfactual-stop-token-probe", "role": "Queries the answer distribution at intermediate reasoning prefixes without generating a full answer."},
+    {"id": "single-token-entropy", "role": "Uses full-vocabulary entropy of one post-boundary token as the monitoring statistic."},
+    {"id": "ema-variance-stopping", "role": "Halts when the recent EAT trajectory is sufficiently stable."},
+    {"id": "cross-model-proxy-monitor", "role": "Computes the stopping signal with a smaller local model when target logits are unavailable."},
+    {"id": "accuracy-token-frontier", "role": "Sweeps thresholds and compares aggregate Pass@1 against total generated tokens."}
+  ],
+  "evaluations": [
+    {
+      "setting": "MATH500 and AIME2025 with DeepSeek-R1-Qwen3-8B, DeepSeek-R1-Distill-Llama-70B, and Qwen3-4B reasoning models.",
+      "metric": "Aggregate rollout-estimated Pass@1 versus reasoning-token usage.",
+      "result": "Selected EAT thresholds reduce tokens by roughly 12-22% while preserving reported accuracy, with adaptive budgets improving the frontier.",
+      "baseline": "A uniform per-question token cap and number-of-unique-answers stopping with K rollouts."
+    },
+    {
+      "setting": "Black-box monitoring of Llama-70B with a 1.5B proxy and Claude 3.7 on the first eight AIME2025 questions with Qwen3-4B.",
+      "metric": "Stopping position, correctness, token/time savings, and probe latency.",
+      "result": "The proxy variants retain useful EAT trajectories; Claude examples save at least about one minute and local probe time fits under streaming latency.",
+      "baseline": "Using target-model logits where available and waiting for natural/full-budget completion."
+    },
+    {
+      "setting": "MATH500 comparison against five-token confidence and rollout-based answer convergence.",
+      "metric": "Accuracy-token frontier and runtime overhead.",
+      "result": "EAT is reported to match the short-rollout confidence frontier at about one-fifth probe cost; #UA@K requires K at least 16 for a reliable signal and rollouts dominate cost.",
+      "baseline": "Length-normalized five-token answer likelihood and #UA@K."
+    }
+  ],
+  "limitations": [
+    "Main GPQA results filter to eventually solvable questions, overstating whole-distribution efficiency.",
+    "Pass@1 trajectories used as ground truth require up to 128 stochastic rollouts per checkpoint and remain sampling estimates.",
+    "Theoretical information-gain language does not prove that one-token entropy is calibrated to correctness or marginal value of reasoning.",
+    "The final-answer prefix materially affects some models, making the signal prompt- and tokenizer-dependent.",
+    "Long-form answer domains such as code can have an uninformative first answer token.",
+    "The Claude study uses only eight AIME items, and tool-calling results suggest reasoning was unnecessary in that setting."
+  ],
+  "failure_modes": [
+    "A confidently wrong answer can yield low, stable entropy and stop too early.",
+    "An unsolvable or indecisive problem can keep variance high and consume the entire cap.",
+    "A proxy model can settle on a different answer or reasoning phase than the target model.",
+    "Repeated generic first tokens after the answer prefix can stabilize while later answer content remains uncertain.",
+    "EMA initialization, block boundaries, or oscillating conclusions can move the threshold crossing substantially."
+  ],
+  "reusable_insights": [
+    "Evaluate adaptive computation with an accuracy-cost frontier, not a single hand-picked threshold.",
+    "Account for monitoring overhead and permit it to overlap target decoding where possible.",
+    "Separate progress signals for solvable cases from give-up signals for persistently unsolved cases.",
+    "Test proxy monitors as a full target-by-proxy matrix rather than one favorable pair.",
+    "Use counterfactual answer probes to measure marginal reasoning value without expensive full rollouts."
+  ],
+  "open_questions": [
+    "Can a calibrated risk-control rule turn EAT into a finite-sample guarantee on accuracy degradation?",
+    "What complementary statistic should terminate confidently unsolved traces before the maximum budget?",
+    "Does entropy over a structured multi-token answer prefix outperform one-token EAT at comparable cost?",
+    "How stable are thresholds across languages, tokenizers, code generation, agents, and distribution shift?",
+    "Can proxy-target disagreement itself be used as an abstention or continue-reasoning signal?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2506.02536",
+      "title": "Answer Convergence as a Signal for Early Stopping in Reasoning",
+      "url": "https://arxiv.org/abs/2506.02536",
+      "relationship": "prior",
+      "difference": "Answer-convergence stopping samples complete answers at intermediate prefixes and watches agreement. EAT targets the same saturation point with a one-token entropy probe, greatly reducing overhead but relying on access to logits or a calibrated proxy.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2412.21187",
+      "title": "Do NOT Think That Much for 2+3=? On the Overthinking of o1-Like LLMs",
+      "url": "https://arxiv.org/abs/2412.21187",
+      "relationship": "prior",
+      "difference": "Chen et al. establish overthinking and study interventions for excessive reasoning. EAT contributes an online entropy-trajectory detector and adaptive stopping evaluation rather than primarily diagnosing the inefficiency.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2509.14004",
+      "title": "Early Stopping Chain-of-Thoughts in Large Language Models",
+      "url": "https://arxiv.org/abs/2509.14004",
+      "relationship": "concurrent",
+      "difference": "This concurrent work also targets early termination of chain-of-thought. EAT's distinctive mechanism is the entropy immediately after a forced stop marker and its variance, including small-proxy monitoring of black-box reasoners.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2602.03814",
+      "title": "Conformal Thinking: Risk Control for Reasoning on a Compute Budget",
+      "url": "https://arxiv.org/abs/2602.03814",
+      "relationship": "subsequent",
+      "difference": "Conformal Thinking adds explicit risk control to adaptive reasoning under a compute budget. It addresses the guarantee gap left by EAT, while EAT supplies a particularly cheap unsupervised trajectory statistic and black-box proxy construction.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim EAT is a simple, inexpensive, adaptive early-exit signal whose stabilization tracks Pass@1 saturation and can be computed by small proxies for black-box reasoning models.",
+    "evidence": "Equations 5-8 and Algorithm 1 define the probe; Figures 3-6 and appendices compare threshold frontiers, proxy settings, and failure cases.",
+    "reviewer_inference": "The one-token post-</think> entropy trajectory and cross-model proxy deployment are concrete additions to a crowded overthinking/answer-convergence literature. The work does not establish calibration, risk guarantees, or whole-distribution gains on GPQA, and its strongest novelty is low monitoring cost rather than a general solution to deciding when reasoning is complete."
+  },
+  "confidence": 0.93,
+  "reviewer_notes": "Read all 27 pages of the pinned PDF, including algorithm details, efficiency accounting, full GPQA error analysis, Claude/proxy traces, ablations, prompts, and long qualitative examples. Primary arXiv competitors were checked on 2026-08-23 across overthinking diagnosis, answer convergence, concurrent early stopping, and subsequent risk-controlled stopping. Main-text filtered results are explicitly distinguished from unfiltered failure behavior."
+}

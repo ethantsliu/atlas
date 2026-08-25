@@ -1,0 +1,333 @@
+{
+  "stable_id": "arxiv:2602.06453",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2602.06453",
+    "pdf_sha256": "578f10f9724c19141444eff0cb32ee04b48837b22cd7bb6076e74a843f571acb",
+    "text_sha256": "aa102137fe794bf88234c4c7fd80acd0a1504708a9a00a885d30cb75dc97a412",
+    "page_count": 10,
+    "extracted_at": "2026-08-23T13:23:57.742504+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can GRPO post-training preserve general language capability while improving math and code reasoning by treating the reward-gradient/KL-gradient conflict as a noisy one-dimensional estimation problem and applying an uncertainty-weighted soft projection, primarily in Transformer MLP layers?",
+  "key_findings": [
+    {
+      "claim": "The paper observes a sharp empirical trade-off between reasoning and retention and negative reward/KL gradient cosines, but the evidence supports an association rather than the claimed root cause of GRPO instability.",
+      "evidence": "On DeepSeek-R1-Distill-Llama-8B trained for AIME, Figure 1 varies the KL weight beta: AIME Pass@1 falls as beta increases, while MMLU rises and WikiText-2 perplexity falls; the layer-by-step heatmap contains many negative plasticity/stability gradient cosines, especially in later layers. This is one model-task trajectory, with no intervention that changes gradient alignment while holding all other optimizer quantities fixed, no replicate seeds, and no numerical summary linking cosine to a later oscillation or capability loss. The manuscript itself initially calls conflict only a 'possible' root cause but later states causation and attribution as conclusions.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Introduction"},
+        {"page": 3, "section": "3.3 Empirical Analysis"},
+        {"page": 4, "section": "Figure 1"},
+        {"page": 8, "section": "7 Conclusion"}
+      ]
+    },
+    {
+      "claim": "PCR shrinks only the plasticity component parallel and opposite to the KL gradient, using a Gaussian posterior coefficient derived from estimated gradient precisions.",
+      "evidence": "The method models plasticity and stability gradients as isotropic Gaussians, substitutes each observed gradient for its unknown mean, estimates a scalar variance from the trace of intra-group gradients, and assumes conditional independence. It decomposes the plasticity mean into components perpendicular and parallel to the stability mean. Along the conflict axis, the plasticity projection is treated as a noisy observation and zero as a Gaussian stability prior, giving retention k=lambda_pla/(lambda_pla+lambda_sta), projection alpha=1-k, and g_final=mu_pla-alpha[(mu_pla dot mu_sta)/||mu_sta||^2]mu_sta.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "4.1 Probabilistic Modeling"},
+        {"page": 5, "section": "4.2 Geometric Decomposition"},
+        {"page": 5, "section": "4.3 Bayesian Arbitration"},
+        {"page": 5, "section": "4.4 Reconstruction and Projection"}
+      ]
+    },
+    {
+      "claim": "The Gaussian arbitration assumptions are not empirically checked and one stated independence justification conflicts with how the gradients are actually sampled.",
+      "evidence": "Both g_pla and g_sta are computed from the same model, queries, sampled completions, and tokens, so their estimation errors need not be conditionally independent even if reward and KL are distinct scalar terms. Group-normalized advantages also couple rollouts within a query. The paper reports no covariance measurements, Gaussianity diagnostic, calibration of predicted versus observed error, or comparison with a correlated/full-covariance posterior. Replacing an unknown population mean by the same noisy sample whose uncertainty is being used also leaves the direction-estimation error untreated.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 2, "section": "3.1 Reformulating the GRPO Objective"},
+        {"page": 3, "section": "3.2 Dual Decomposition of Loss and Gradients"},
+        {"page": 4, "section": "4.1 Probabilistic Modeling"}
+      ]
+    },
+    {
+      "claim": "The MMSE theorem is a correct Gaussian scalar-shrinkage result under its stipulated prior, but it does not prove that PCR is globally optimal in LLM gradient space or guarantee optimization convergence.",
+      "evidence": "Theorem 5.1 restricts attention to linear estimators (1-alpha)z_obs on one conflict axis with z*~N(0,sigma_sta^2), additive independent Gaussian observation noise sigma_pla^2, and known precisions. Under those assumptions the posterior shrinkage risk is lower than either endpoint. The theorem supplies no result for estimated precisions, correlated or anisotropic gradients, non-Gaussian group sampling, multi-step policy optimization, Adam, non-conflicting directions, or downstream return. The text nevertheless concludes that PCR 'guarantees better convergence stability,' which is outside the theorem's scope.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "4.3 Bayesian Arbitration"},
+        {"page": 6, "section": "5 Theoretical Analysis / Theorem 5.1"}
+      ]
+    },
+    {
+      "claim": "The published MLP update rule is internally inconsistent with the claimed interpolation to standard GRPO and leaves the implemented algorithm under-specified.",
+      "evidence": "Equation 15 defines g_final only as a projected version of mu_pla. Equation 16 uses that g_final for MLP parameters but uses g_pla+beta g_sta elsewhere. Therefore alpha=0 yields g_pla, not the claimed 'standard gradient addition' g_pla+beta g_sta, and the explicit KL gradient disappears from MLP updates. Equation 16 also points to nonexistent Equation 17, while the promised complete Algorithm in Appendix D is absent from the 10-page v1 PDF. The paper never states whether Equation 15 is applied only when the dot product is negative or how a near-zero stability norm is handled.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "4.4 Reconstruction and Projection / Equation 15"},
+        {"page": 6, "section": "4.5 Policy Optimization / Equation 16"},
+        {"page": 10, "section": "End of v1 PDF"}
+      ]
+    },
+    {
+      "claim": "Across the three math-model blocks in Table 1, PCR has the highest reported five-benchmark mean, beating the strongest listed baseline by 0.9-1.1 Pass@1 points.",
+      "evidence": "For DeepScaleR-1.5B-Preview, PCR averages 57.7 versus GCPO 56.8, GRPO 55.0, and the untrained base 54.5. For DeepSeek-R1-Distill-Qwen-1.5B, PCR is 48.5 versus GCPO 47.4, GRPO 46.0, and base 44.9. For DeepSeek-R1-Distill-Qwen-7B, PCR is 67.6 versus GCPO 66.5, GRPO 65.1, and base 64.1. PCR is also the highest row in each of the 15 reported model-by-benchmark cells, but no seed dispersion, confidence interval, or significance test is supplied.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "Table 1"},
+        {"page": 7, "section": "6.2 Performance Analysis"}
+      ]
+    },
+    {
+      "claim": "The main table establishes reasoning-benchmark gains, not the advertised retention of general capability across the evaluated models.",
+      "evidence": "Table 1 contains only AIME 2024, AIME 2025, AMC 2023, MATH500, and MinervaMATH Pass@1. MMLU and WikiText-2 appear only in the motivating beta sweep and an asserted Pareto plot for one Llama-8B/AIME setup; no post-training retention table is reported for the three Table 1 model families, and no broad language, safety, instruction-following, calibration, or held-out-domain evaluation accompanies their reasoning gains.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "3.3 Empirical Analysis"},
+        {"page": 4, "section": "Figure 1"},
+        {"page": 7, "section": "Table 1"},
+        {"page": 8, "section": "6.3 Visualization Analysis"}
+      ]
+    },
+    {
+      "claim": "The fixed-alpha and layer-scope ablations favor adaptive, MLP-only PCR, but they do not isolate Bayesian uncertainty estimation from extra compute or compare with the direct hard-projection predecessor.",
+      "evidence": "Figure 4a plots about 48.1 Pass@1 for automatic alpha versus roughly 47.2, 47.5, and 46.8 for alpha 0.2, 0.5, and 0.8. Figure 4b shows MLP-only PCR near 48.2 at about 1.15x normalized training time, Transformer-layer PCR near 48.3 at about 1.5x, all-layer PCR near 48.7 at about 1.8x, and GRPO near 42.5 at 1x. Values are single plotted points with no uncertainty, the exact setting is not restated in the caption, and alpha=1 PCGrad is omitted. Thus the ablation supports one adaptive implementation but not the claim that probabilistic modeling rather than tuning or compute causes the gain.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Figure 4"},
+        {"page": 8, "section": "6.5 Ablation Studies"}
+      ]
+    },
+    {
+      "claim": "The stability evidence is qualitative and cannot support the paper's claim that PCR eliminates oscillations.",
+      "evidence": "Figure 3 shows one PCR gradient-norm curve that appears smoother than one GRPO curve; the paper reports no variance of the norm, spike count, collapse frequency, seed-level failure rate, area under an instability curve, time to target score, or compute-normalized convergence statistic. Figure 5 shows adaptive alpha distributions and a more positive final-gradient/KL-gradient cosine, but neither plot measures catastrophic forgetting or training failure directly.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Figure 3"},
+        {"page": 8, "section": "Figure 5"},
+        {"page": 8, "section": "6.4 Training Stability Analyses"}
+      ]
+    },
+    {
+      "claim": "The HumanEval presentation contains a protocol contradiction and only graphical results.",
+      "evidence": "The x-axis and Section 6.2 describe 0-shot and 5-shot HumanEval, while the Figure 2 caption says 1-shot and 5-shot. The bars put PCR above GRPO, MRT, and GCPO by roughly one point, but exact values, decoding settings, run count, and uncertainty are absent. This prevents an exact reproduction of the claimed approximately 1.2-point gain.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Figure 2"},
+        {"page": 7, "section": "6.2 Performance Analysis"}
+      ]
+    },
+    {
+      "claim": "The archived v1 paper is not self-contained: every promised technical or experimental appendix is missing.",
+      "evidence": "The text refers to Appendix B for the diagnostic setup, C and E for modeling explanations, D for the complete algorithm, F and G for proofs, and J-L for experiment details and additional results. The exact arXiv v1 PDF has 10 pages and ends after references; it contains no appendices. Figure 6 and Equation 17 are also referenced but absent. Consequently the variance estimator, branch logic, proofs, complete hyperparameters, additional evaluations, and several claimed robustness results cannot be audited from the cited revision.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "3.3 Empirical Analysis"},
+        {"page": 4, "section": "4.1 Probabilistic Modeling"},
+        {"page": 6, "section": "4.5 Policy Optimization and 5 Theoretical Analysis"},
+        {"page": 8, "section": "6.3-6.5"},
+        {"page": 10, "section": "End of v1 PDF"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Split the GRPO loss into reward-driven plasticity and KL-driven stability terms, detect when their gradients conflict, and replace PCGrad's binary removal of the conflicting plasticity component with a precision-weighted Gaussian shrinkage coefficient; apply the expensive rule only to MLP parameters.",
+    "mechanism": "For a batch, compute separate gradients g_pla and g_sta. Approximate each unknown mean with its observed gradient and each covariance by sigma squared times the identity, with sigma estimated from intra-group gradients. When their directions conflict, project g_pla onto g_sta, interpret the projected magnitude as a noisy observation of an update whose Gaussian prior mean is zero, and retain fraction k=lambda_pla/(lambda_pla+lambda_sta). Equivalently subtract fraction alpha=lambda_sta/(lambda_pla+lambda_sta) of the parallel component. Equation 16 assigns this g_final to MLP layers and the original g_pla+beta g_sta update to other parameters, although the missing appendices leave the exact implementation and conflict branch unresolved.",
+    "assumptions": [
+      "The reward and KL terms can be treated as distinct plasticity and stability objectives whose local gradients meaningfully proxy new-skill acquisition and general-capability preservation.",
+      "Negative first-order cosine similarity is a causal source of GRPO instability rather than a correlate of reward scaling, clipping, curvature, optimizer state, or policy drift.",
+      "Observed batch gradients are unbiased and sufficiently Gaussian for a central-limit approximation at the used batch and group sizes.",
+      "The two gradient-estimation errors are conditionally independent despite sharing queries, completions, tokens, model parameters, and sampling noise.",
+      "A single isotropic variance per gradient or layer captures the uncertainty relevant to the one-dimensional conflict projection.",
+      "The trace of intra-group gradients is a calibrated and comparably scaled variance estimator, though its formula is absent from v1.",
+      "Zero is an appropriate prior mean for movement along every stability-conflict axis and the KL-gradient precision can be reinterpreted as prior precision for the latent desired update.",
+      "The stability gradient is nonzero and numerically large enough for division by its squared norm.",
+      "The perpendicular plasticity component is safe for stability beyond an infinitesimal first-order approximation.",
+      "MLP parameters are the dominant stores of retained knowledge, so removing or modifying the KL-related update there preserves capability better than applying PCR elsewhere.",
+      "A one-step scalar MMSE optimum under a stipulated Gaussian model predicts multi-step Adam convergence and benchmark generalization.",
+      "The unreported implementation resolves Equation 16's omission of beta g_sta and Equation 17 reference in a way consistent with the experiments."
+    ]
+  },
+  "techniques": [
+    {"id": "grpo-loss-gradient-decomposition", "role": "Backpropagates the clipped reward surrogate and KL penalty separately to expose their layer-wise alignment rather than observing only their sum."},
+    {"id": "layer-step-gradient-cosine-audit", "role": "Maps reward/KL cosine similarity across Transformer depth and training time as the paper's conflict diagnostic."},
+    {"id": "isotropic-gradient-uncertainty", "role": "Compresses an intractable covariance into a scalar variance estimated from within-group gradients."},
+    {"id": "conflict-axis-decomposition", "role": "Separates the plasticity gradient into a component perpendicular to the KL gradient and a component parallel to it."},
+    {"id": "gaussian-posterior-soft-projection", "role": "Uses relative plasticity and stability precision to continuously retain or remove the conflicting component."},
+    {"id": "mlp-only-hybrid-update", "role": "Applies PCR to feed-forward blocks while retaining ordinary GRPO updates for attention, normalization, and other parameters."},
+    {"id": "fixed-projection-strength-ablation", "role": "Compares automatically estimated alpha with three fixed shrinkage strengths."},
+    {"id": "module-scope-cost-ablation", "role": "Compares MLP-only, Transformer-layer, and all-layer PCR using Pass@1 and normalized training time."},
+    {"id": "reasoning-retention-pareto-probe", "role": "Sweeps KL weight and plots reasoning accuracy against MMLU and WikiText-2 perplexity in one motivating setup."}
+  ],
+  "evaluations": [
+    {
+      "setting": "DeepSeek-R1-Distill-Llama-8B on AIME under a KL-weight sweep",
+      "metric": "AIME Pass@1, MMLU score, WikiText-2 perplexity, and layer-wise cosine between g_pla and g_sta",
+      "result": "Higher beta trades lower AIME accuracy for higher MMLU and lower perplexity; many middle/deep-layer gradient cosines are negative over 500 plotted steps",
+      "baseline": "Standard GRPO settings across beta; one trajectory with plotted rather than tabulated values"
+    },
+    {
+      "setting": "DeepScaleR-1.5B-Preview post-trained on 919 historical AIME problems and evaluated on five math benchmarks",
+      "metric": "Mean Pass@1 across AIME 2024, AIME 2025, AMC 2023, MATH500, and MinervaMATH",
+      "result": "PCR 57.7; GCPO 56.8; GVPO 56.1; MRT 55.9; GRPO 55.0; base 54.5",
+      "baseline": "Base model plus GRPO, GVPO, MRT, and GCPO"
+    },
+    {
+      "setting": "DeepSeek-R1-Distill-Qwen-1.5B post-trained on 4,000 NuminaMath pairs and evaluated on the same five math benchmarks",
+      "metric": "Mean Pass@1",
+      "result": "PCR 48.5; GCPO 47.4; MRT 47.1; GVPO 46.7; GRPO 46.0; base 44.9",
+      "baseline": "Base model plus GRPO, GVPO, MRT, and GCPO"
+    },
+    {
+      "setting": "DeepSeek-R1-Distill-Qwen-7B evaluated on the same five math benchmarks",
+      "metric": "Mean Pass@1",
+      "result": "PCR 67.6; GCPO 66.5; GVPO 65.7; MRT 65.6; GRPO 65.1; base 64.1",
+      "baseline": "Base model plus GRPO, GVPO, MRT, and GCPO; the v1 text does not specify this model's training-data construction"
+    },
+    {
+      "setting": "HumanEval with Qwen2-7B-Instruct",
+      "metric": "Pass@1 under the plotted 0-shot and 5-shot conditions",
+      "result": "PCR is the highest plotted bar and is described as about 1.2 points above the baselines; exact values are not tabulated",
+      "baseline": "GRPO, MRT, and GCPO; caption inconsistently calls the first condition 1-shot"
+    },
+    {
+      "setting": "Projection-strength ablation in the Figure 4a setting",
+      "metric": "Pass@1",
+      "result": "Automatic alpha is about 48.1 versus about 47.2, 47.5, and 46.8 for fixed alpha 0.2, 0.5, and 0.8",
+      "baseline": "Fixed soft projections; no alpha=1 PCGrad point or uncertainty"
+    },
+    {
+      "setting": "PCR layer-scope ablation in the Figure 4b setting",
+      "metric": "Pass@1 and normalized training time",
+      "result": "MLP-only is about 48.2 at 1.15x time; Transformer layers about 48.3 at 1.5x; all layers about 48.7 at 1.8x; GRPO about 42.5 at 1x",
+      "baseline": "Standard GRPO and broader PCR scopes; values are read from one plot without error bars"
+    }
+  ],
+  "limitations": [
+    "Author-acknowledged through modeling choices: PCR replaces each latent gradient mean with one observed batch gradient, assumes isotropic covariance, and assumes conditional independence of plasticity and stability estimation errors.",
+    "Author-acknowledged through scope: the computationally feasible method applies PCR only to MLP layers and ordinary GRPO elsewhere.",
+    "Author-acknowledged in the introduction but overstated later: gradient conflict is initially only a possible root cause of instability.",
+    "Source-closure limitation: arXiv v1 is 10 pages and omits every cited appendix (B-G and J-L), the complete algorithm, both proofs, detailed diagnostic setup, extra results, and Figure 6.",
+    "Reviewer-identified: Equation 16 removes beta g_sta from MLP updates, contradicts the alpha=0 standard-sum claim, and cites nonexistent Equation 17.",
+    "Reviewer-identified: the paper never defines the numerical variance estimator, smoothing window, granularity, conflict-only branch, epsilon stabilization, or interaction with optimizer moments.",
+    "Reviewer-identified: reward and KL gradients share samples and model computations, so conditional independence is implausible and untested.",
+    "Reviewer-identified: the scalar Gaussian theorem is a local Bayes-estimation fact, not an LLM optimizer-convergence or generalization theorem.",
+    "Reviewer-identified: the one-model AIME diagnostic cannot identify a universal root cause of GRPO instability.",
+    "Reviewer-identified: Table 1 reports no seeds, dispersion, significance tests, reward details, beta values, group sizes, checkpoint-selection rule, or full training protocol.",
+    "Reviewer-identified: general-capability retention is not evaluated alongside the three-model reasoning table; MMLU and WikiText-2 are confined to one motivating sweep.",
+    "Reviewer-identified: the most direct geometric predecessor, PCGrad, is discussed but not experimentally compared; the fixed-alpha ablation excludes the hard alpha=1 endpoint.",
+    "Reviewer-identified: the HumanEval caption conflicts with its axis and prose on 0-shot versus 1-shot, and exact bar values are not supplied.",
+    "Reviewer-identified: claims of negligible cost and eliminated oscillations rely on single plots without memory, throughput, wall-clock, failure-rate, or seed-level measurements."
+  ],
+  "failure_modes": [
+    "Shared rollout noise makes g_pla and g_sta correlated, so independent precision weighting is overconfident and selects a miscalibrated alpha.",
+    "Isotropic trace variance is dominated by layer width or a few coordinates and confuses gradient scale with directional uncertainty.",
+    "A small or zero stability-gradient norm makes the projection denominator unstable even when estimated alpha is finite.",
+    "Equation 15 is applied to aligned gradients as well as conflicts and unnecessarily removes a jointly helpful component because the missing algorithm never states the branch.",
+    "Dropping the explicit KL gradient in MLPs improves short-horizon reasoning while silently weakening the intended retention anchor.",
+    "An orthogonal first-order update crosses a curved KL level set at finite step size and still degrades retained behavior.",
+    "A stale or moving reference policy changes the interpretation of the KL gradient and its variance across training.",
+    "Reward sparsity or all-equal group rewards makes the plasticity variance estimate degenerate or dominated by advantage normalization.",
+    "The apparent gain comes from extra gradient computations or effective learning-rate rescaling rather than Bayesian arbitration.",
+    "MLP-only intervention misses capability interference in attention, embeddings, normalization, or output layers.",
+    "A smoother global gradient norm masks worse per-layer spikes, policy collapse, mode collapse, or general-capability forgetting.",
+    "The modest 0.9-1.1-point average advantage disappears across training seeds, alternative judges, or matched hyperparameter budgets."
+  ],
+  "reusable_insights": [
+    "Log task and constraint gradients separately during post-training; a scalar loss can hide persistent directional cancellation.",
+    "Treat a hard geometric projection as an estimand with uncertainty, but validate calibration against held-out gradient samples before trusting a posterior coefficient.",
+    "Compare any adaptive soft projection with alpha=0, alpha=1, tuned fixed alpha, PCGrad, and an equally expensive non-Bayesian controller.",
+    "Keep the empirical covariance between objectives when both gradients reuse the same trajectories; shared sampling is not independent noise.",
+    "Separate a one-step estimator-risk theorem from claims about optimizer convergence, retention, and downstream generalization.",
+    "Measure plasticity and retention together for every model family rather than using a retention proxy in only a motivating run.",
+    "Module-restricted interventions should report both quality and actual memory/throughput so a small accuracy trade can be judged against saved compute.",
+    "A mechanistic paper should publish the executable update rule and guards in the main revision when appendices are unavailable.",
+    "Gradient conflict is best tested causally by changing alignment while controlling magnitude, curvature, reference policy, and optimizer state."
+  ],
+  "open_questions": [
+    "What exact update was used for MLP parameters: projected g_pla alone, projected g_pla plus beta g_sta, or a different missing Equation 17?",
+    "Does PCR outperform PCGrad, CAGrad, GTPO, GSPO, and tuned fixed projections under matched compute and search budgets?",
+    "Are intra-group plasticity/KL errors Gaussian, isotropic, and independent at the actual query and rollout group sizes?",
+    "Can a correlated low-rank or diagonal posterior improve calibration without prohibitive memory cost?",
+    "Does an estimated alpha predict held-out gradient direction error or only rescale layers by their norm and width?",
+    "Does PCR preserve MMLU, perplexity, instruction following, factual recall, safety, and calibration for every model in Table 1?",
+    "Do the reported gains and smoother norms replicate across training seeds, reward models, data orders, beta values, and reference-policy choices?",
+    "Which component causes the gain: uncertainty adaptation, projection, omission of the MLP KL gradient, or extra gradient computation?",
+    "Can a controlled intervention establish that negative reward/KL cosine is a cause rather than a symptom of unstable GRPO?",
+    "How should PCR behave when gradients are aligned, g_sta is nearly zero, the variance estimate is zero, or the posterior coefficient changes abruptly?",
+    "Would attention-only, parameter-norm-matched, random-layer, or learned layer-selection controls support the MLP knowledge-store rationale?",
+    "How do wall-clock cost, activation memory, communication overhead, and optimizer-state memory scale beyond 7-8B models?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2001.06782",
+      "title": "Gradient Surgery for Multi-Task Learning",
+      "url": "https://arxiv.org/abs/2001.06782",
+      "relationship": "direct geometric predecessor",
+      "difference": "PCGrad detects a negative task-gradient inner product and removes the entire conflicting projection. PCR uses the same geometry for reward versus KL gradients but retains a precision-weighted fraction; despite this direct lineage, v1 reports no alpha=1 or PCGrad experiment.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v4, 2020-12-22"
+    },
+    {
+      "canonical_id": "arxiv:2110.14048",
+      "title": "Conflict-Averse Gradient Descent for Multi-task Learning",
+      "url": "https://arxiv.org/abs/2110.14048",
+      "relationship": "direct conflict-aware optimization prior",
+      "difference": "CAGrad chooses an update near the average gradient that maximizes worst-task local improvement and proves convergence to an average-loss minimum. PCR instead posits a Gaussian zero prior on one KL-defined axis and gives a scalar MMSE result, not a multi-step convergence result.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2024-02-21"
+    },
+    {
+      "canonical_id": "arxiv:2409.01793",
+      "title": "Task Weighting through Gradient Projection for Multitask Learning",
+      "url": "https://arxiv.org/abs/2409.01793",
+      "relationship": "omitted probabilistic-projection prior",
+      "difference": "Bohn et al. already insert a probability distribution into PCGrad to decide which conflicting task gradient is projected, for task prioritization. They do not model gradient vectors as Gaussian random variables or derive uncertainty-weighted retention, so PCR's narrower Bayesian-noise mechanism can remain new while the broad claim of first probabilistic modeling 'into gradient projection' needs qualification.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2024-09-03"
+    },
+    {
+      "canonical_id": "arxiv:2508.03772",
+      "title": "GTPO: Stabilizing Group Relative Policy Optimization via Gradient and Entropy Control",
+      "url": "https://arxiv.org/abs/2508.03772",
+      "relationship": "direct GRPO gradient-conflict competitor",
+      "difference": "GTPO diagnoses contradictory token updates and entropy-driven collapse, suppresses negative updates, and removes KL regularization. PCR retains GRPO's reward/KL split and soft-projects one gradient according to estimated uncertainty; GTPO is cited as instability evidence but not included in the experiments.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v5, 2025-12-11"
+    },
+    {
+      "canonical_id": "arxiv:2507.18071",
+      "title": "Group Sequence Policy Optimization",
+      "url": "https://arxiv.org/abs/2507.18071",
+      "relationship": "direct stable-GRPO competitor",
+      "difference": "GSPO replaces token-level importance ratios and clipping with sequence-level likelihood ratios, targeting off-policy instability and MoE training. PCR leaves the token-level GRPO objective in place and operates on reward/KL gradient geometry; GSPO is discussed but not benchmarked in v1.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2025-07-28"
+    },
+    {
+      "canonical_id": "arxiv:2508.05428",
+      "title": "Group Causal Policy Optimization for Post-Training Large Language Models",
+      "url": "https://arxiv.org/abs/2508.05428",
+      "relationship": "direct baseline from overlapping authors",
+      "difference": "Group Causal Policy Optimization models dependencies among group responses, adjusts rewards, and regularizes toward a causally projected reference distribution. PCR instead changes how reward and KL gradients combine; GCPO is the strongest reported Table 1 baseline, but several authors overlap and no independent rerun details or uncertainty are supplied.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2025-08-07"
+    },
+    {
+      "canonical_id": "arxiv:2608.11674",
+      "title": "GCPO: Diagnosing and Constraining Subspace Geometry in Rollout RL for LLMs",
+      "url": "https://arxiv.org/abs/2608.11674",
+      "relationship": "subsequent geometric LLM post-training competitor",
+      "difference": "This later GCPO tracks rollout-update overlap with pretrained weight singular subspaces and applies hard bilateral orthogonal projection, reporting retention and stability across math, code, and tool use. PCR uses the KL gradient itself as the conflict axis and softens projection by estimated noise; the later paper does not challenge PCR's February 2026 priority but narrows its current exclusivity in geometric rollout-RL control.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2026-08-12"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim the first probabilistic modeling in gradient projection for LLM post-training, a closed-form uncertainty-aware soft projection, an MLP-only scalable implementation, identification of gradient conflict as GRPO's root cause, and a mathematically optimal gradient-space estimator.",
+    "evidence": "PCGrad and CAGrad establish conflict geometry; Task Weighting through Gradient Projection already uses a probability distribution inside PCGrad; GTPO directly diagnoses conflicting updates in GRPO; GSPO and Group Causal Policy Optimization already stabilize group-based LLM RL by other mechanisms. PCR's distinct combination is to treat reward/KL conflict magnitude as a Gaussian observation with a zero-mean stability prior and use the posterior shrinkage coefficient in an MLP-restricted GRPO update. The later subspace-GCPO paper is subsequent, not prior art.",
+    "reviewer_inference": "The defensible novelty is narrow: an uncertainty-weighted PCGrad-style shrinkage rule specialized to the reward-versus-KL split in GRPO, plus an MLP-only cost heuristic. The broad 'first probabilistic modeling into gradient projection' wording should exclude prior randomized/probability-weighted projection; the root-cause claim is correlational; and the optimality claim holds only for a stipulated scalar Gaussian estimator. Missing appendices and the Equation 15-16 inconsistency prevent determining whether the evaluated optimizer actually implements the stated novel rule."
+  },
+  "confidence": 0.84,
+  "reviewer_notes": "Read all 10 pages of the exact arXiv v1 PDF, inspected every equation, table, and plot, and confirmed against the official arXiv HTML and PDF that no appendices follow the references. Source hashes and 10-page coverage match fulltext_index. Quantitative table values and plot descriptions labeled author-reported reproduce the archived paper; theorem-scope judgments, arithmetic comparisons, missing-source inventory, and Equation 15-16 analysis are reviewer work. Competitor titles, mechanisms, current versions, and dates were checked against official arXiv primary records on 2026-08-23 using mechanism/task, evaluation/baseline, and novelty/predecessor query families. Confidence is materially reduced because the archived revision omits all cited appendices, proofs, and algorithm details; this is a primary full-text pass, not an independent secondary verification."
+}

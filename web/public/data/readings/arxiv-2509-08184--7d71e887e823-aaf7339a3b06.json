@@ -1,0 +1,68 @@
+{
+  "stable_id": "arxiv:2509.08184",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2509.08184",
+    "pdf_sha256": "c9f87e2f92cf3fff4b3c6a5962bc66d0c0eadfbbeedd5730a995ed90c43b1c9f",
+    "text_sha256": "ef2c7c7dacb484c0e11d904c4d081edaf622947daf1ba4b91220ccfe7bac2a55",
+    "page_count": 36,
+    "extracted_at": "2026-08-23T15:50:04.016277+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "How can an attention-only transformer infer which lag generated a sequence, estimate the corresponding transition rule in context, and select the right induction circuit rather than applying a fixed copying rule?",
+  "key_findings": [
+    {
+      "claim": "A three-layer attention circuit can implement lag-conditioned next-token prediction on interleaved Markov chains.",
+      "evidence": "The construction's first layer forms empirical transition probabilities for candidate lags, the second aggregates non-overlapping evidence over the history, and the third uses a low-temperature selective induction head to copy from the lag with the largest aggregated normalized score.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 2, "section": "Figure 1 and contribution summary"}, {"page": 5, "section": "5 How can transformers do in-context selection? / Proposition 1"}, {"page": 12, "section": "5.2 Third layer: selective induction heads"}]
+    },
+    {
+      "claim": "The estimator approaches maximum-likelihood lag selection only asymptotically and under a restricted synthetic generative model.",
+      "evidence": "The analysis assumes candidate sources share one irreducible aperiodic transition matrix and differ only by lag. The proof compares expected normalized transition scores as sequence length grows; finite-context Bayesian model averaging is not exactly implemented, and the strongest convergence statements require conditions detailed around Proposition 1 and the appendix.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 4, "section": "4 Interleaved Markov chains and task"}, {"page": 5, "section": "Bayesian model average and MLE limit"}, {"page": 13, "section": "5.3 Statistical analysis"}, {"page": 17, "section": "Appendix A theoretical analysis"}]
+    },
+    {
+      "claim": "Gradient-trained standard and disentangled transformers recover behavior and attention patterns close to the hand construction on the tested lag sets.",
+      "evidence": "Across contiguous, non-contiguous, and two-lag tasks, trained three-layer models reach the constructed estimator and maximum-likelihood curves. Their first two layers exhibit transition-extraction and aggregation patterns, while the last layer selects the inferred lag. Adding second-layer heads helps until the number of candidate lags, after which performance saturates.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 13, "section": "6 Experiments and discussion / Figure 4"}, {"page": 14, "section": "Figure 5 attention maps"}, {"page": 19, "section": "Appendix B / Figure 6 head-count ablation"}]
+    },
+    {
+      "claim": "The evidence identifies a mechanism for the designed task, not yet a causal-structure selector in natural-language models.",
+      "evidence": "Every experiment trains small attention-only models from scratch on finite-alphabet Markov sequences. There is no intervention on a pretrained language model, natural-language evaluation, or demonstration that a visually similar head is necessary and sufficient outside the synthetic distribution.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 1, "section": "Introduction"}, {"page": 4, "section": "4 Markov chains and causal structure selection"}, {"page": 13, "section": "6 Experiments and discussion"}, {"page": 15, "section": "7 Conclusion"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Use interleaved Markov chains with identical transition probabilities but different lags to isolate in-context selection of a causal dependency.",
+    "mechanism": "Construct and train three-layer attention-only transformers whose layers estimate lag-specific transitions, aggregate evidence, and sharply attend to the parent token implied by the winning lag.",
+    "assumptions": ["Candidate lag set is known during training.", "All sources share a stationary irreducible aperiodic transition matrix.", "Long sequences make the normalized score identify the generating lag.", "The disentangled attention construction can be related to a standard attention-only transformer."]
+  },
+  "techniques": [
+    {"id": "interleaved-markov-probe", "role": "Varies causal lag while holding token-transition semantics fixed."},
+    {"id": "layerwise-circuit-construction", "role": "Assigns transition extraction, evidence aggregation, and lag selection to separate attention layers."},
+    {"id": "normalized-transition-score", "role": "Ranks candidate lags using accumulated empirical transition compatibility."},
+    {"id": "attention-map-alignment", "role": "Compares trained heads with the explicit algorithmic circuit."}
+  ],
+  "evaluations": [
+    {"setting": "Synthetic sequences over sampled transition matrices with candidate lag sets {1,2,3}, {1,3,4}, larger contiguous sets, and {1,3}.", "metric": "Next-token loss/performance relative to maximum likelihood and Bayesian model averaging.", "result": "Constructed and trained three-layer transformers approach the maximum-likelihood estimator on the tested settings.", "baseline": "Maximum-likelihood estimator, Bayesian model average, and under-provisioned transformer variants."},
+    {"setting": "Three-layer standard and disentangled attention-only transformers trained from scratch.", "metric": "Layerwise attention-map structure.", "result": "Maps qualitatively reproduce transition extraction, diagonal aggregation, and final lag-selective attention.", "baseline": "Analytically specified attention maps."},
+    {"setting": "Five-lag task with varying second-layer head count.", "metric": "Predictive performance as heads are added.", "result": "Performance improves up to approximately one aggregation head per lag and then does not improve beyond the maximum-likelihood ceiling.", "baseline": "Models with fewer or more heads than candidate lags."}
+  ],
+  "limitations": ["Author scope: the task is a simplified finite-state proxy rather than natural language.", "Reviewer inference: candidate structures differ only by lag and share one transition matrix, excluding structure-semantic confounding.", "Reviewer inference: attention-map similarity does not establish causal necessity without ablation or activation-level intervention.", "Reviewer inference: asymptotic score separation leaves finite-context sample complexity only partially characterized."],
+  "failure_modes": ["Two candidate lags induce nearly indistinguishable finite-sample score distributions.", "Nonstationarity or lag-dependent transition matrices make the normalized score confound structure with semantics.", "Too few aggregation heads lose transition evidence; short contexts do not concentrate on the true lag.", "A trained model solves the task with a distributed representation that is not captured by the hand circuit."],
+  "reusable_insights": ["Varying structure while holding local transition statistics fixed is a clean way to test contextual rule selection.", "An interpretable circuit claim is stronger when an explicit construction, trained-model behavior, and controlled head-count ablation agree.", "Model selection in context can be decomposed into candidate estimation, global evidence accumulation, and conditional execution."],
+  "open_questions": ["Do pretrained language models contain causally necessary selective induction heads for ambiguous natural-language dependencies?", "What is the finite-sequence error rate as a function of lag separation, alphabet size, mixing time, and number of candidates?", "Can one circuit select richer graph or latent-state structures rather than a single lag?", "How robust is the learned selector when the test lag was unseen during training?"],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2209.11895", "title": "In-context Learning and Induction Heads", "url": "https://arxiv.org/abs/2209.11895", "relationship": "foundational-prior", "difference": "Olsson et al. connect ordinary previous-token induction heads to in-context learning; this paper makes the copied offset itself context-dependent through an evidence-aggregation circuit."},
+    {"canonical_id": "openreview:jNM4imlHZv", "title": "How Transformers Learn Causal Structure with Gradient Descent", "url": "https://openreview.net/forum?id=jNM4imlHZv", "relationship": "direct-prior", "difference": "Nichani et al. analyze recovery of a fixed Markov causal graph and its transition probabilities; this work requires selecting among several lag structures within each context."},
+    {"canonical_id": "arxiv:2402.11004", "title": "The Evolution of Statistical Induction Heads: In-Context Learning Markov Chains", "url": "https://arxiv.org/abs/2402.11004", "relationship": "direct-prior", "difference": "Edelman et al. study statistical induction for bigram posterior prediction, whereas selective induction first compares multiple causal lags and then executes the inferred one."},
+    {"canonical_id": "openreview:liMSqUuVg9", "title": "Transformers as Statisticians: Provable In-Context Learning with In-Context Algorithm Selection", "url": "https://openreview.net/forum?id=liMSqUuVg9", "relationship": "parallel-prior", "difference": "Bai et al. prove selection among regression/classification algorithms from demonstrations; this paper isolates causal-lag selection and supplies a mechanistic attention circuit."}
+  ],
+  "novelty_assessment": {"author_claim": "The paper introduces selective induction heads and constructs a three-layer transformer that selects a causal lag in context and asymptotically implements maximum-likelihood prediction.", "evidence": "Proposition 1, the statistical score analysis, trained-versus-constructed performance, and attention-map comparisons support the claim within the interleaved-Markov setting.", "reviewer_inference": "The meaningful novelty is a mechanistically explicit model-selection circuit, but generalization from lag selection to natural-language causal structure remains an untested hypothesis."},
+  "confidence": 0.9,
+  "reviewer_notes": "Read all 36 pages, including construction variants and finite-sample appendices. Competitor identities were checked against primary arXiv/OpenReview records on 2026-08-23."
+}

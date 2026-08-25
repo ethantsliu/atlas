@@ -1,0 +1,471 @@
+{
+  "stable_id": "arxiv:2203.14154",
+  "reading_depth": "verified",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2203.14154",
+    "pdf_sha256": "412982a62bde4b951f746335fd65bfc71806e9fa5c52b6c31be533da6be1a50c",
+    "text_sha256": "74d48903c685a256224046878eb528ecc6c85ce672be7a2d379a250d74a72e94",
+    "page_count": 22,
+    "extracted_at": "2026-08-23T21:14:26.588362+00:00",
+    "review_pass": "secondary-verified-v1"
+  },
+  "question": "Can a physics-guided patch scorer choose different refinement levels across a turbulent-flow domain, seed a conventional CFD solve on that learned non-uniform mesh, and reduce end-to-end time and memory relative to heuristic AMR and uniform neural super-resolution?",
+  "key_findings": [
+    {
+      "claim": "NUNet maps one 64 by 256 four-variable RANS field to a list of patches at four spatial resolutions through a scorer, fixed ranker, bicubic upsampling, and shared decoder.",
+      "evidence": "The scorer applies four convolutions, max pooling over 16 by 16 patches, and a softmax to produce 64 patch scores. A non-trainable ranker bins scores uniformly, assigning factors 1, 4, 16, or 64; coordinates and a learned latent channel are concatenated before a shared three-convolution/three-deconvolution decoder predicts U, V, pressure, and modified eddy viscosity. Figures 3-5 show the tensor path and the output as a list rather than one rectangular dense image.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Section 3.1 and Figure 3"
+        },
+        {
+          "page": 6,
+          "section": "Section 3.1, scorer and ranker; Figure 4"
+        },
+        {
+          "page": 7,
+          "section": "Section 3.1, decoder; Figure 5"
+        },
+        {
+          "page": 10,
+          "section": "Section 4.3, fixed patch and bin configuration"
+        }
+      ]
+    },
+    {
+      "claim": "The stated softmax normalization and uniform score bins cannot reproduce the refinement map shown in Figure 9 under a conventional softmax axis, and the paper does not specify a different normalization that resolves the conflict.",
+      "evidence": "The scorer outputs one NPx-by-NPy patch-score array and applies softmax, described as normalizing the scores to a 0-1 probability distribution. The non-trainable ranker then uniformly partitions [0,1]; with b=4, the highest bin above 0.75 maps to 64-fold refinement. For the fixed 64-by-256 input and 16-by-16 patches, the score grid is 4 by 16. A global softmax can place at most one patch above 0.75; a row- or column-wise softmax can place at most one per normalized row or column; and a singleton-channel softmax would make every score one. Figure 9 instead depicts numerous but not all patches at 64-fold refinement, including entire upper and lower channel-wall rows. The missing softmax axis and incompatible displayed occupancy prevent exact reconstruction of the reported scorer-to-mesh path.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Section 3.1 scorer output and softmax probability-distribution statement"
+        },
+        {
+          "page": 6,
+          "section": "Section 3.1 uniform [0,1] binning"
+        },
+        {
+          "page": 10,
+          "section": "Section 4.3, 4-by-16 patch grid and four 4^n resolution levels"
+        },
+        {
+          "page": 13,
+          "section": "Figure 9 refinement-map occupancy"
+        }
+      ]
+    },
+    {
+      "claim": "The loss does not provide a differentiable training signal through the hard resolution assignment, so the paper does not show that the scorer learns patch importance from the benefit of refinement.",
+      "evidence": "The ranker is explicitly non-trainable, isolates each patch, and applies a hard bin according to its score before bicubic upsampling. The paper argues that concatenating the scorer's latent map back into the low-resolution input allows scorer weights to update, which does provide decoder-feature gradients. But Equation 1 contains only value and PDE-residual losses, and no straight-through estimator, soft assignment, policy gradient, ranking target, or other surrogate differentiates through the bin choice. Consequently the written objective can train the latent feature channel while remaining blind to how moving a score across a resolution threshold changes error or compute; the central learned-refinement mechanism is underdetermined.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Section 3.1 non-trainable ranker, hard bins, and latent concatenation"
+        },
+        {
+          "page": 7,
+          "section": "Section 3.2 and Equation 1"
+        }
+      ]
+    },
+    {
+      "claim": "The hybrid training loss supervises low-resolution patch values and adds continuity and momentum residuals over all output cells, but it does not enforce the displayed Spalart-Allmaras transport equation despite predicting its state variable.",
+      "evidence": "Equation 1 defines a low-resolution data MSE plus a PDE residual term. The text explicitly sets ne=3: continuity and the two momentum components in Equations 2-3. Equation 4 separately defines the Spalart-Allmaras transport equation for modified eddy viscosity, one of the four decoder outputs, but that fourth governing residual is absent. The later statement that the PDE residual loss 'for all equations' reaches 9e-6 therefore overstates what the written objective contains.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "Section 3.2, Equation 1 and ne=3 definition"
+        },
+        {
+          "page": 8,
+          "section": "Section 4.1, Equations 2-3"
+        },
+        {
+          "page": 9,
+          "section": "Section 4.1, Equation 4"
+        },
+        {
+          "page": 10,
+          "section": "Section 4.3, all-equations loss claim"
+        }
+      ]
+    },
+    {
+      "claim": "The statement that no target resolution need be known a priori is incompatible with the evaluated architecture's explicitly fixed target-resolution ladder.",
+      "evidence": "The introduction says NUNet eliminates a priori target resolution knowledge. Yet Section 4.3 fixes b=4 before training, assigns each bin the predetermined refinement factors 4^n for n=0,1,2,3, retains the same bins at test time, and motivates that choice partly by comparison at 64-fold super-resolution. The method avoids high-resolution labels, but the experiment does predeclare its maximum and intermediate output resolutions.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Contributions, minimal-intervention claim"
+        },
+        {
+          "page": 4,
+          "section": "Related work, no-target-resolution claim"
+        },
+        {
+          "page": 6,
+          "section": "Section 3.1, fixed bin-to-resolution mapping"
+        },
+        {
+          "page": 10,
+          "section": "Section 4.3, b=4 and 4^n target resolutions"
+        }
+      ]
+    },
+    {
+      "claim": "The reported speedups are empirical end-to-end warm-start results on seven cases, while the claimed 'same convergence guarantees' come from handing NUNet's output to OpenFOAM rather than from a guarantee about the network.",
+      "evidence": "Section 3.3 concedes that the neural prediction may not meet conventional convergence constraints, then applies boundary conditions and lets the physics solver converge without further remeshing. The setup gives relative linear-solver tolerances of 0.1 but no absolute residual threshold, outer stopping rule, or definition of the endpoint used for iterations-to-convergence. Table 1 nevertheless reports 3.2-5.5 times lower time to that endpoint than dynamicMeshRefine plus pimpleFoam, and Table 2 reports 7-28.5 times lower end-to-end time than a rebuilt SURFNet pipeline. No theorem, mesh-validity bound, or general convergence proof is given; the conventional solver supplies case-specific correction, while the reported convergence endpoint is not independently reproducible from the manuscript.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "Section 3.3, approximation-error admission"
+        },
+        {
+          "page": 8,
+          "section": "Section 3.3 and Figure 6"
+        },
+        {
+          "page": 10,
+          "section": "Section 4.4 solver settings and relative tolerances"
+        },
+        {
+          "page": 19,
+          "section": "Section 5.2, Figure 15 and Table 1"
+        },
+        {
+          "page": 20,
+          "section": "Table 2 and conclusion"
+        }
+      ]
+    },
+    {
+      "claim": "Table 2 does not substantiate its premise that NUNet and SURFNet are timed to the same accuracy.",
+      "evidence": "The text introduces the comparison as time for 64-fold super-resolution 'to achieve the same accuracy,' but Table 2 contains only inference memory, inference time, physics-solver time, reduction factors, and speedups. It reports no field-error norm, conservation error, matched scalar-QoI tolerance, discretization uncertainty, or common residual endpoint for the two pipelines. Because the methods produce different initial fields and meshes before solver correction, running a conventional solver after each does not by itself establish equal discretization accuracy. The 7-28.5 times figures are therefore resource comparisons under an undocumented accuracy-matching rule.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 19,
+          "section": "Section 5.2 SURFNet comparison premise"
+        },
+        {
+          "page": 20,
+          "section": "Table 2"
+        }
+      ]
+    },
+    {
+      "claim": "Selected integral quantities converge closely to the OpenFOAM AMR baseline, but the evidence does not establish uniformly close flow fields or controlled discretization error.",
+      "evidence": "Figure 15 tracks one scalar coefficient per case across four refinement levels and shows small differences at the finest level. Figures 10-14 offer contour comparisons without pointwise error norms, conservation errors, uncertainty, or independent mesh-error estimates. The cylinder contours visibly differ in wake extent, eddy-viscosity structure, and pressure footprint, consistent with the text's admission that this case is hardest and that the physics solver must fix its wake.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 12,
+          "section": "Section 5.1, qualitative differences and scalar QoIs"
+        },
+        {
+          "page": 14,
+          "section": "Figure 10, channel contours"
+        },
+        {
+          "page": 15,
+          "section": "Figure 11 and performance discussion"
+        },
+        {
+          "page": 16,
+          "section": "Figure 12, cylinder contours"
+        },
+        {
+          "page": 19,
+          "section": "Figure 15, grid-convergence QoIs"
+        }
+      ]
+    },
+    {
+      "claim": "The generalization experiment is encouraging but narrow: one trained network is tested on two held-out Reynolds numbers for each familiar wall-bounded geometry and on three new shapes, with no repeated training or distributional uncertainty.",
+      "evidence": "The 30,000 low-resolution samples cover channel flow, flat plate, and ten ellipse aspect ratios. Tests include interpolated and extrapolated Reynolds numbers for channel and plate, plus a cylinder and two NACA airfoils outside the training shape set. The paper reports one 90/10 split, one optimization configuration, no random seed, no split-by-geometry protocol, no multiple independently trained models, and no confidence intervals, so robustness across datasets and training randomness remains unmeasured.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "Section 4.2, training-flow ranges"
+        },
+        {
+          "page": 10,
+          "section": "Sections 4.2-4.3, dataset split and training setup"
+        },
+        {
+          "page": 11,
+          "section": "Section 5, seven test configurations and Figure 8"
+        },
+        {
+          "page": 13,
+          "section": "Figure 9, predicted refinement patterns"
+        }
+      ]
+    },
+    {
+      "claim": "Two numeric claims in the manuscript disagree with executable plotting artifacts in the exact arXiv source archive.",
+      "evidence": "The page-2 prose says uniform super-resolution permits no more than two samples at 1024 by 1024, whereas fig/plot_intro.py sets the plotted sequence to [192, 48, 12, 3]. For the cylinder at n=3, the results text reports experiment 1.108, NUNet 1.0835, and AMR 1.085, whereas fig/plots.py embeds 1.104, 1.0815, and 1.083. Both plotting scripts execute, so these are source-level numerical inconsistencies, although the small cylinder differences do not change the qualitative comparison.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "Introduction and Figure 1"
+        },
+        {
+          "page": 12,
+          "section": "Section 5.1.2, cylinder numerical values"
+        },
+        {
+          "page": 19,
+          "section": "Figure 15, cylinder series"
+        }
+      ]
+    },
+    {
+      "claim": "The public artifacts are insufficient to reproduce training, meshing, solver integration, timings, memory results, or contour figures.",
+      "evidence": "The exact v1 source archive contains TeX, tables, rendered figure assets, two plotting scripts, and hard-coded values for Figures 1 and 15, but no TensorFlow model, data-generation workflow, OpenFOAM cases or dictionaries, mesh-conversion code, trained checkpoint, raw timing/memory log, environment lock, seed, or public code/data link. Exact-title, identifier, and GitHub repository searches found no associated implementation as of the review date.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Figure 3, implementation-dependent architecture"
+        },
+        {
+          "page": 10,
+          "section": "Sections 4.3-4.4, TensorFlow and OpenFOAM setup"
+        },
+        {
+          "page": 19,
+          "section": "Table 1, performance values"
+        },
+        {
+          "page": 20,
+          "section": "Table 2, memory and timing values"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Learn a coarse patch-importance map from low-resolution RANS fields, assign each patch one of several refinement levels, decode flow variables on the resulting non-uniform grid, and use that field and grid as a warm start for a conventional solver.",
+    "mechanism": "A convolutional scorer produces a latent spatial channel and patch scores. A fixed ranker bins each score into one of four predetermined resolutions, bicubic interpolation expands selected patches, coordinates enable automatic differentiation, and a shared convolutional decoder predicts four variables. Training combines low-resolution value matching with continuity and momentum residuals. At inference, boundary conditions are reimposed and OpenFOAM pimpleFoam drives the fixed learned mesh to the chosen convergence endpoint; dynamicMeshRefine and SURFNet provide baselines.",
+    "assumptions": [
+      "The four low-resolution fields U, V, pressure, and modified eddy viscosity contain enough local information to choose a useful mesh without high-resolution labels.",
+      "A fixed 16 by 16 patch partition and four resolution factors are adequate across every training and test geometry.",
+      "Uniform thresholds on the scorer output create stable and sufficiently populated refinement bins; the softmax axis and empty-bin behavior are not specified.",
+      "Bicubic interpolation and a shared decoder provide compatible interface values across adjacent patches of different resolutions.",
+      "Continuity and momentum residuals plus low-resolution data are sufficient to learn modified eddy viscosity even though its Spalart-Allmaras transport residual is omitted from Equation 1.",
+      "The OpenFOAM solver accepts the predicted non-uniform discretization and any interface conversion without materially changing the learned refinement decisions.",
+      "The reported CPU timings are comparable across learned and baseline meshes and are representative despite one hardware platform, one run protocol, and no variance report.",
+      "Agreement in one friction or drag coefficient is an adequate proxy for solution accuracy and mesh quality.",
+      "The selected RANS/Spalart-Allmaras cases represent broader turbulent-flow use despite being steady, two-dimensional, incompressible, and limited to one closure model."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "patch-scoring",
+      "role": "Extracts a one-channel spatial representation and assigns a learned importance score to each coarse patch."
+    },
+    {
+      "id": "resolution-binning",
+      "role": "Maps patch scores through fixed uniform thresholds to 1-, 4-, 16-, or 64-fold refinement."
+    },
+    {
+      "id": "coordinate-decoding",
+      "role": "Concatenates coordinates with interpolated patch features and predicts four steady RANS variables using one shared decoder."
+    },
+    {
+      "id": "residual-training",
+      "role": "Adds automatic-differentiation continuity and momentum residuals to low-resolution data MSE without requiring high-resolution labels."
+    },
+    {
+      "id": "solver-warmstart",
+      "role": "Uses the learned field and fixed mesh to initialize OpenFOAM and lets the physics solver reach the comparison endpoint."
+    },
+    {
+      "id": "grid-study",
+      "role": "Compares friction or drag coefficients against dynamicMeshRefine over four nominal refinement levels."
+    },
+    {
+      "id": "resource-benchmark",
+      "role": "Measures CPU end-to-end time and inference memory against OpenFOAM AMR and a rebuilt uniform SURFNet pipeline."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Training on 30,000 steady 64 by 256 RANS/Spalart-Allmaras solutions: channel flow, flat plate, and ellipses; 27,000 train and 3,000 validation samples.",
+      "metric": "Low-resolution data and three-equation PDE residual MSE after 350 epochs.",
+      "result": "The paper reports 9e-6 for both loss components on training and validation using TensorFlow 2.4, four V100 GPUs, batch size 8, learning rate 1e-4, Adam, lambda 0.03, and no specific initialization.",
+      "baseline": "No alternative loss, ablation, repeated training, or calibration curve is reported."
+    },
+    {
+      "setting": "Seven test cases: two channel and two flat-plate Reynolds numbers plus cylinder, NACA0012, and NACA1412 geometries absent from training.",
+      "metric": "Qualitative refinement maps and final U, pressure, and modified-eddy-viscosity contours.",
+      "result": "NUNet concentrates resolution near walls and wakes and broadly follows dynamicMeshRefine patterns, but produces coarser patchwise transitions and visible cylinder-field differences.",
+      "baseline": "OpenFOAM v8 pimpleFoam plus dynamicMeshRefine using high modified-eddy-viscosity gradients and up to four refinement levels."
+    },
+    {
+      "setting": "Four refinement levels for the seven test cases.",
+      "metric": "Wall friction coefficient for channel and plate or drag coefficient for solid bodies at steady state.",
+      "result": "The NUNet-mesh and AMR-mesh scalar trajectories are close by n=3; the prose reports cylinder drag 1.0835 versus 1.085 and experimental 1.108, although the archived plotting script contains slightly different values.",
+      "baseline": "The same coarse starting mesh and OpenFOAM equations on dynamicMeshRefine-selected meshes."
+    },
+    {
+      "setting": "CPU end-to-end solution at n=3 on a dual-socket 40-core Intel Xeon Gold 6148 system with OpenFOAM v8 and one MPI process per core.",
+      "metric": "Iterations and minutes to convergence.",
+      "result": "Table 1 reports 3.2-5.5 times speedup over dynamicMeshRefine across seven cases, with neural inference contributing milliseconds to tenths of a minute and the subsequent physics solve dominating.",
+      "baseline": "The iterative OpenFOAM dynamicMeshRefine plus pimpleFoam workflow."
+    },
+    {
+      "setting": "Nominal 64-fold super-resolution on the same seven CPU test cases.",
+      "metric": "End-to-end inference-plus-physics-solver time and resident inference memory.",
+      "result": "Table 2 reports 7-28.5 times speedup and 4.4-7.65 times less memory for NUNet, whose memory varies from 0.51 to 0.88 GB versus 3.9 GB for SURFNet.",
+      "baseline": "A rebuilt SURFNet uniform-super-resolution pipeline followed by the same physics-solver pattern."
+    }
+  ],
+  "limitations": [
+    "Equation 1 omits the Spalart-Allmaras transport residual while the network predicts modified eddy viscosity, so the objective does not include every displayed governing equation.",
+    "The claimed absence of a priori target resolution conflicts with the fixed four-bin 1/4/16/64 resolution ladder used for both training and testing.",
+    "The 'same convergence guarantees' are inherited from a post-inference OpenFOAM solve on selected cases; the paper gives no theorem or learned-mesh validity guarantee.",
+    "The scorer's softmax axis, score normalization, threshold-edge conventions, empty-bin handling, and differentiability through hard bin assignment are not specified well enough for independent implementation.",
+    "Patch interfaces, hanging-node treatment, conversion of a heterogeneous patch list into an OpenFOAM mesh, and conservative transfer between grids are not described.",
+    "Only steady two-dimensional incompressible RANS with one turbulence closure is evaluated; shocks, transient flows, three-dimensional domains, multiphysics, and other closures are untested.",
+    "Only one scalar QoI per case and qualitative contour plots are reported; there are no field norms, local conservation errors, force decomposition, mesh-quality metrics, or formal discretization-uncertainty estimates.",
+    "The training split and test design do not isolate leakage across nearby Reynolds numbers or ellipse configurations, and no multiple seeds, repeated models, standard deviations, or confidence intervals are given.",
+    "The dynamicMeshRefine baseline uses one hand-selected eddy-viscosity-gradient heuristic, without tuning comparisons to residual, adjoint, multivariable, or error-estimator AMR baselines.",
+    "The SURFNet baseline is reconstructed by the same authors and no matched-accuracy definition, tuning budget, raw run log, or alternative contemporary neural baseline is supplied.",
+    "The Figure 1 prose and the source plot disagree at 1024 squared, and the cylinder numbers in the grid-convergence script differ from the prose, weakening exact numeric traceability.",
+    "No model code, dataset, checkpoint, OpenFOAM case, mesh pipeline, raw metrics, seed, dependency lock, or executable end-to-end artifact is released."
+  ],
+  "failure_modes": [
+    "A hard patch threshold can move a region abruptly between 1-, 4-, 16-, and 64-fold resolution after a small score change.",
+    "A 16 by 16 max-pooled patch can over-refine a large area because of one extreme cell or under-resolve a feature narrower than the scoring receptive pattern.",
+    "Uniform score bins can be empty or badly imbalanced if softmax outputs cluster near zero, making some nominal resolution levels unused.",
+    "Omitting the turbulence-model residual can produce a modified-eddy-viscosity field that looks plausible at low resolution but violates its own transport equation between supervised points.",
+    "Independent decoding at different patch resolutions can create discontinuities or non-conservative fluxes at coarse-fine interfaces unless the unreported mesh coupling repairs them.",
+    "The conventional solver may erase a poor neural prediction through many corrective iterations, preserving final convergence but eliminating the speed advantage.",
+    "A geometry outside the fixed patch parameterization or with localized moving features can require remeshing after inference, contradicting the one-shot premise.",
+    "Optimization on unscaled PDE gradients and scaled state variables can let the largest-magnitude residual dominate the learned refinement map.",
+    "A scalar drag or friction coefficient can converge while local wakes, boundary layers, pressure peaks, or conservation errors remain inaccurate.",
+    "Performance gains can reverse when mesh construction, data transfer, load imbalance, accelerator use, or a stronger AMR heuristic is included.",
+    "A random sample split across densely related Reynolds numbers can make validation loss appear robust while geometry- or regime-level extrapolation remains fragile.",
+    "Following the archived plotting values rather than the prose yields numerically different headline points."
+  ],
+  "reusable_insights": [
+    "Treat adaptive resolution as a resource-allocation problem and report the learned allocation separately from the downstream solver correction.",
+    "Separate 'no high-resolution labels' from 'no target resolution specified'; these are distinct advantages and require different evidence.",
+    "For a multi-equation physics-guided model, enumerate every residual and every predicted state so omissions are auditable.",
+    "Benchmark end-to-end time including mesh construction, data transfer, load balance, solver correction, and convergence criteria rather than neural inference alone.",
+    "Use fixed-budget comparisons that match cell count or compute as well as target error; otherwise a learned mesh may win by simply allocating a different budget.",
+    "Report field norms, conservation, mesh quality, integral QoIs, and discretization uncertainty together because no single measure establishes CFD accuracy.",
+    "Hold out entire geometries, parameter intervals, and flow regimes, then repeat model training to distinguish interpolation from genuine generalization.",
+    "Make score-to-resolution assignment differentiable or explicitly analyze threshold stability and bin occupancy.",
+    "Release mesh adapters and solver configuration alongside the network: in hybrid neural-numerical work, interface code is part of the scientific method.",
+    "Generate manuscript tables and quoted numbers from one immutable result ledger to prevent prose/figure/script drift."
+  ],
+  "open_questions": [
+    "How are variable-resolution patch interfaces represented, made conservative, and converted into the OpenFOAM finite-volume mesh used in the reported runs?",
+    "Which axis does the scorer softmax normalize, how many patches occupy each bin, and how does gradient information reach the scorer through hard ranking?",
+    "Does adding the Spalart-Allmaras residual improve eddy-viscosity accuracy, refinement selection, and robustness outside the training Reynolds ranges?",
+    "Would a continuous sizing field, differentiable budget-constrained assignment, or graph mesh representation outperform four fixed score bins?",
+    "How does NUNet compare at matched cell count and error with tuned residual-, adjoint-, Hessian-, and multivariable-gradient AMR indicators?",
+    "Do the speedups survive inclusion of mesh generation, heterogeneous patch assembly, partitioning, transfer, and load imbalance in three-dimensional parallel runs?",
+    "How sensitive are the chosen meshes and timings to lambda, patch size, bin thresholds, random seed, data split, and the unreported convergence threshold?",
+    "Can the method handle unsteady shocks, moving boundaries, transient vortices, three-dimensional turbulence, and closures beyond Spalart-Allmaras?",
+    "Would geometry-disjoint and regime-disjoint evaluation reproduce the reported cylinder and airfoil generalization?",
+    "Can the authors release the exact TensorFlow model, 30,000 low-resolution cases, checkpoints, OpenFOAM dictionaries, mesh converter, and raw timing/memory logs?",
+    "Which values are authoritative for Figure 1 and the cylinder grid study: the archived plotting scripts or the manuscript prose?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2005.01463",
+      "title": "MeshfreeFlowNet: A Physics-Constrained Deep Continuous Space-Time Super-Resolution Framework",
+      "url": "https://arxiv.org/abs/2005.01463",
+      "relationship": "Closest earlier physics-constrained turbulent-flow super-resolution method with a continuous coordinate-conditioned decoder.",
+      "difference": "Jiang et al. generate a continuous grid-free space-time solution that can be sampled at arbitrary resolutions and impose PDE constraints, directly preceding NUNet's coordinate-aware residual training and no-fixed-query-resolution motivation. MeshfreeFlowNet does not allocate a heterogeneous finite-volume mesh or benchmark OpenFOAM warm-start time, while NUNet adds patchwise resolution selection but leaves that selection's normalization, gradient path, and mesh assembly unresolved.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "Primary arXiv v1 record dated 2020-05-04 and SC20 publication status checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2108.07667",
+      "title": "SURFNet: Super-resolution of Turbulent Flows with Transfer Learning using Small Datasets",
+      "url": "https://arxiv.org/abs/2108.07667",
+      "relationship": "Direct author-overlapping predecessor and the uniform neural baseline rebuilt for NUNet's Table 2.",
+      "difference": "SURFNet uses low-resolution pretraining plus limited high-resolution transfer learning, reports uniform outputs up to 2048 by 2048, and couples inference to a physics solver. NUNet replaces uniform refinement and high-resolution labels with patchwise discrete allocation and PDE residuals; however, Table 2 does not publish an accuracy-matching metric or the reconstructed SURFNet artifact needed to isolate that claimed advantage.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "Primary arXiv v1 record dated 2021-08-17 and PACT 2021 publication status checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2209.02401",
+      "title": "Machine learning adaptation for laminar and turbulent flows: applications to high order discontinuous Galerkin solvers",
+      "url": "https://arxiv.org/abs/2209.02401",
+      "relationship": "Contemporaneous direct learning-based mesh-adaptation method evaluated on steady and turbulent cylinder flow.",
+      "difference": "Tlales et al. use learned clustering to identify viscous and turbulent regions and then apply local polynomial-order refinement in a high-order DG solver, reporting up to 32-33% cost reduction. NUNet instead predicts four patch resolutions and decoded RANS fields before an OpenFOAM correction, with larger claimed speedups but much weaker artifact disclosure.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "Primary arXiv v1 record dated 2022-09-06 checked 2026-08-24"
+    },
+    {
+      "canonical_id": "pmlr:v206:yang23e",
+      "title": "Reinforcement Learning for Adaptive Mesh Refinement",
+      "url": "https://proceedings.mlr.press/v206/yang23e.html",
+      "relationship": "Direct learned-AMR competitor that optimizes sequential refinement policies without ground-truth solutions.",
+      "difference": "Yang et al. formulate AMR as an MDP, make policy size independent of mesh size, and test static and time-dependent finite-element problems with scale generalization. NUNet offers one-shot patch allocation for steady turbulent RANS and warm-start speed, but uses a fixed structured patch layout and does not optimize a long-horizon mesh budget.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-24",
+      "source_version": "Official AISTATS 2023 PMLR volume 206 record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "openreview:93CMtmGeqY",
+      "title": "GMR-Net: GCN-based mesh refinement framework for elliptic PDE problems",
+      "url": "https://openreview.net/forum?id=93CMtmGeqY",
+      "relationship": "Direct graph-learning approach to generating non-uniform meshes on unseen geometries and PDE parameters.",
+      "difference": "GMR-Net predicts local error density and target edge length on arbitrary polygonal meshes, then delegates mesh generation to Gmsh. It requires supervised error-density targets and focuses on Poisson and elasticity, whereas NUNet avoids high-resolution labels and targets turbulent flow but is restricted to fixed image patches and discrete resolution bins.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-24",
+      "source_version": "Primary OpenReview publisher record for Engineering with Computers 2023, last modified 2025-04-07, checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2411.19200",
+      "title": "An unstructured adaptive mesh refinement for steady flows based on physics-informed neural networks",
+      "url": "https://arxiv.org/abs/2411.19200",
+      "relationship": "Later physics-informed AMR method for steady incompressible and compressible flows on unstructured meshes.",
+      "difference": "Zhu et al. train PINNs on coarse data and governing equations, use high residuals to insert vertices, and maintain quality with Delaunay triangulation. This makes mesh construction explicit and supports unstructured compressible cases, while NUNet directly decodes a non-uniform field and couples to OpenFOAM but leaves its patch-to-mesh interface undocumented.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "Primary arXiv v1 record dated 2024-11-28 checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2603.01080",
+      "title": "Super-resolution of turbulent reacting flows on complex meshes using graph neural networks",
+      "url": "https://arxiv.org/abs/2603.01080",
+      "relationship": "Current direct competitor for turbulent-flow super-resolution on non-uniform and unstructured complex meshes.",
+      "difference": "Dash et al. use message-passing GNNs to reconstruct unresolved structures on a non-uniform reacting channel and an unstructured engine mesh, emphasizing complex-mesh field accuracy. NUNet explicitly allocates refinement and benchmarks downstream solver time and memory, but only on structured patchwise 2D steady RANS cases and without released implementation artifacts.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "Primary arXiv v1 record dated 2026-03-01 checked 2026-08-24"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors present NUNet as the first end-to-end deep-learning framework for non-uniform turbulent-flow super-resolution that makes physics-guided refinement decisions without high-resolution labels, generalizes across selected flows, and beats both traditional AMR and uniform neural super-resolution in time and memory.",
+    "evidence": "The paper combines a patch scorer, hard resolution bins, shared coordinate-aware decoder, low-resolution data plus PDE residual training, and an OpenFOAM correction stage. Seven tests show plausible refinement maps, close selected QoIs, 3.2-5.5 times reported speed over dynamicMeshRefine, and 7-28.5 times time plus 4.4-7.65 times memory improvements over rebuilt SURFNet.",
+    "reviewer_inference": "The distinctive contribution in 2022 is the learned patchwise non-uniform allocation coupled to a conventional turbulent-flow solver, not physics-informed super-resolution or learned AMR individually. The central empirical idea is useful, but the paper conflates absence of high-resolution labels with absence of a predefined target resolution, does not specify a softmax/bin rule consistent with Figure 9 or a differentiable signal through its hard resolution decisions, calls solver-corrected stopping behavior a convergence guarantee, omits the turbulence-closure equation from its residual, and lacks enough implementation detail or artifacts to reproduce the mesh interface and performance. MeshfreeFlowNet and SURFNet are especially close direct predecessors; later graph, RL, PINN, and complex-mesh methods broaden geometry, adaptivity, and solver settings. NUNet remains an interesting early hybrid prototype rather than a validated general replacement for AMR."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Primary and independent secondary review both used the exact cached 22-page arXiv v1 PDF. Every page was read and visually inspected, including all four displayed equations, Figures 1-15, Tables 1-2, footnotes, and the complete references; extraction has usable text on 22/22 pages and all rendered visuals are intact. The complete exact arXiv source archive (SHA-256 f033ec8c648def9436910208e37ca4e06df7d8d1ba924c2b00dc80e5e8612ae8) contains 81 files comprising TeX, tables, bibliography, figures, and two plotting scripts, with no appendix or supplementary manuscript. Both plotting scripts execute and expose the Figure 1 and cylinder-value contradictions recorded above. Independent passage review additionally identified the unresolved softmax/bin-occupancy contradiction, the absent differentiable signal through hard resolution assignment, the undefined convergence endpoint, and the missing accuracy evidence behind Table 2. The source includes no model, dataset, checkpoint, OpenFOAM case, mesh adapter, raw log, dependency specification, license, or implementation link; exact-title and identifier repository searches returned no associated implementation on 2026-08-24. The official arXiv record has only v1, submitted 2022-03-26, with no journal or conference note. Direct primary competitors and publication records, including MeshfreeFlowNet and SURFNet, were independently rechecked through 2026-08-24. The AMR-Net DOI was also checked, but its publisher host is not in the reading schema's approved primary-source host set, so it is discussed in the paper review rather than added as an invalid competitor URL.",
+  "verification": {
+    "reviewer_id": "reviewer-cbc5ac4f6da8",
+    "checked_at": "2026-08-24",
+    "passage_check": "Independently re-read the exact 22-page pinned PDF, inspected all 15 figures, both tables, four equations, references, and exact source scripts. Corrected the scorer normalization, hard-ranker gradient, solver endpoint, and Table 2 accuracy interpretations while confirming the remaining anchored findings.",
+    "competitor_check": "Independently checked every listed primary record through 2026-08-24 and added the omitted direct predecessors MeshfreeFlowNet (arXiv:2005.01463) and SURFNet (arXiv:2108.07667). AMR-Net was checked but its DOI/publisher route is not accepted by the repository's primary-source host contract."
+  }
+}

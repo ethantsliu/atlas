@@ -1,0 +1,229 @@
+{
+  "stable_id": "arxiv:2203.08189",
+  "question": "Can a single invertible, locally conditioned generative model learn both the forward image distribution p(y|x) and the reverse fiber distribution p(x|y) of a stochastic many-to-many relation?",
+  "key_findings": [
+    {
+      "claim": "Bundle Morphism Network (BMNet) wraps an invertible RealNVP-style core with input- and output-cluster conditioning so that the same parameters can be sampled in both directions.",
+      "evidence": "Inputs and outputs are separately clustered into representative sets R_X and R_Y. Conditioned affine layers are treated as local trivializations, latent variables Z1 and Z2 are sampled, and the invertible map Phi sends X x Z1 to Y x Z2 or reverses from Y x Z2 to X x Z1. Training minimizes symmetric nearest-set reconstruction losses in both directions.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "Section 3, Bundle Morphism Network"},
+        {"page": 3, "section": "Figure 2 and bidirectional loss"},
+        {"page": 4, "section": "Algorithms 1-2"}
+      ]
+    },
+    {
+      "claim": "The fiber-bundle language is architectural inspiration rather than a demonstrated geometric property of the learned relation.",
+      "evidence": "The authors explicitly caution that BMNet is not constrained to be a bundle morphism 'on the nose.' K-means-like cluster representatives stand in for local-trivialization neighborhoods, but the paper does not verify open covers, compatible transition functions, continuity across charts, commuting diagrams on learned maps, or any nontrivial bundle topology.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Section 2, bundle morphism analogy"},
+        {"page": 7, "section": "Appendix A.3, analogy caveat"},
+        {"page": 8, "section": "Appendix A.3, component correspondence"}
+      ]
+    },
+    {
+      "claim": "BMNet is strong on several synthetic local-distribution comparisons but is not uniformly the best model even within the reported benchmark.",
+      "evidence": "Across three toy maps and four distribution metrics, BMNet often has the best or near-best local scores and sharply outperforms AugCGAN locally. However, cNF has lower forward-local W1 on Torus-to-circle I (5.68 versus 9.30) and Mobius-to-circle (6.08 versus 9.48), cGAN is lower on Torus-to-circle II (9.37 versus 16.05), and AugCGAN has the best global-forward W1 on Mobius-to-circle (0.68 versus 1.85).",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Section 4.1 and Tables 1-2"},
+        {"page": 10, "section": "Table 4"},
+        {"page": 12, "section": "Tables 11-12"}
+      ]
+    },
+    {
+      "claim": "The inference procedure partly delegates p(y|x) estimation to nearest-neighbor retrieval from the training set.",
+      "evidence": "At forward inference, the required output-side condition r_Y is unavailable. Algorithm 2 finds neighbors of x in the training set, randomly samples a paired y', and uses y' to select an output cluster. Reverse inference is analogous. Thus generated modes depend on empirical neighbor coverage and the unspecified neighborhood/k choice, not solely on the learned invertible morphism.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "Section 3, inference-time conditioning"},
+        {"page": 4, "section": "Algorithm 2"}
+      ]
+    },
+    {
+      "claim": "The evaluation establishes interpolation on analytically simple low-dimensional manifolds, not applicability to noisy high-dimensional many-to-many processes.",
+      "evidence": "All three tasks map a torus or Mobius band to a circle with known hand-designed stochastic rules. Each model uses 5,000 examples, trains for 2,000 epochs, and is evaluated with global samples plus only 15 query points for local distributions. There is no real dataset, held-out region test, topology shift, measurement noise study, or manufacturing case despite that motivating example.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "Section 4, Experiments"},
+        {"page": 7, "section": "Appendix A.2, Limitations"},
+        {"page": 8, "section": "Appendix A.4, Datasets"},
+        {"page": 9, "section": "Appendix A.5, Training details"}
+      ]
+    },
+    {
+      "claim": "The symmetric minimum-distance objective encourages set coverage but does not provide calibrated conditional likelihoods or identifiable latent semantics.",
+      "evidence": "Training uses a bidirectional Chamfer-like mean squared minimum distance between sampled and observed sets. No normalized density is evaluated, and KL results are distribution-comparison estimates rather than likelihood calibration. Multiple latent/chart parameterizations can realize the same sample sets, so interpreting Z1/Z2 as intrinsic fiber coordinates is unsupported.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "Section 3, L_forward and L_reverse"},
+        {"page": 4, "section": "Section 4, distribution metrics"},
+        {"page": 9, "section": "Appendix A.5, learned priors"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Lift both sides of a multivalued relation with latent fibers, learn an invertible conditional map between the augmented spaces, and reuse it to sample forward images and reverse preimage fibers.",
+    "mechanism": "Cluster X and Y separately to obtain discrete chart representatives. Within each occupied chart pair, sample latent fiber values from circular priors, run a conditionally invertible network forward and backward, and minimize symmetric nearest-neighbor set losses for generated Y and X samples. At inference, retrieve a training neighbor to infer the missing opposite-side chart condition before sampling the relevant latent fiber.",
+    "assumptions": [
+      "Augmented source and target spaces can be dimension-matched and represented by an invertible network without distorting the target conditionals.",
+      "Discrete clusters and their centroids adequately approximate local trivialization neighborhoods.",
+      "A circular latent prior is expressive enough for the conditional fibers in the tested relation.",
+      "Nearest training neighbors provide the correct distribution over otherwise unknown opposite-side chart labels at inference.",
+      "Nearest-set reconstruction losses recover the intended conditional distributions rather than only finite sample support.",
+      "Forward and reverse objectives are mutually compatible in one parameterization.",
+      "The synthetic manifold benchmarks reveal behavior relevant to real many-to-many systems."
+    ]
+  },
+  "techniques": [
+    {"id": "bidirectional-augmented-flow", "role": "Uses one invertible network to map X x Z1 to Y x Z2 and reverse it."},
+    {"id": "dual-domain-clustering", "role": "Creates discrete input and output neighborhood representatives used as chart conditions."},
+    {"id": "conditional-affine-trivializations", "role": "Interprets conditionally affine transformations around the flow core as learned local trivializations."},
+    {"id": "symmetric-set-distance", "role": "Matches generated and observed batches with a bidirectional nearest-point squared-distance loss."},
+    {"id": "neighbor-imputed-chart", "role": "Samples a paired neighbor to infer the missing target-side or source-side condition at inference."},
+    {"id": "global-local-distribution-audit", "role": "Evaluates both marginal sample clouds and conditionals at selected query points."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Torus-to-circle I, interval-valued stochastic forward map",
+      "metric": "Global and 15-query local W1, W2, MSMD, MMD, and binned KL; five runs",
+      "result": "BMNet reconstructs the local cylindrical reverse fibers and is competitive globally, but cNF has lower forward-local W1.",
+      "baseline": "AugCGAN, LNFMM, paired cGANs, and paired conditional normalizing flows."
+    },
+    {
+      "setting": "Torus-to-circle II, two-discrete-mode forward map",
+      "metric": "Global/local distribution distances in both directions",
+      "result": "BMNet captures the discrete forward modes better than the reported cNF and performs strongly in reverse; cGAN has lower forward-local W1 in Table 2.",
+      "baseline": "Same four model families."
+    },
+    {
+      "setting": "Mobius-to-circle, twisted source manifold",
+      "metric": "Global/local distribution distances in both directions",
+      "result": "BMNet is best on reverse-global W1 and competitive locally, while AugCGAN is better on forward-global W1 and cNF on forward-local W1.",
+      "baseline": "Same four model families."
+    },
+    {
+      "setting": "Training stability and variance",
+      "metric": "Mean with 95% confidence intervals across five independently trained models",
+      "result": "Reported intervals expose substantial variation for some baselines, but no paired significance test or compute/parameter accounting is supplied.",
+      "baseline": "Five repeats per model."
+    }
+  ],
+  "limitations": [
+    "[Author-stated] Invertibility is stricter than a general bundle morphism and may hurt datasets whose relation cannot be represented by the chosen augmented bijection.",
+    "[Author-stated] Experiments are limited to three synthetic datasets; real many-to-many datasets are left for future work.",
+    "[Reviewer-identified] The model does not enforce or verify bundle axioms, chart compatibility, or topology; the geometric name is an analogy.",
+    "[Reviewer-identified] Nearest-neighbor chart imputation can copy training-set mode frequencies and fails under sparse coverage or covariate shift.",
+    "[Reviewer-identified] Cluster counts, neighborhood definition, and sensitivity are insufficiently specified for reproducible inference behavior.",
+    "[Reviewer-identified] Only 15 local query points are used, with no worst-case, boundary, or held-out-region analysis.",
+    "[Reviewer-identified] Baseline parameter counts, wall-clock cost, tuning budgets, and the cost of maintaining two one-way baselines are not reported.",
+    "[Reviewer-identified] Sample distances do not test conditional calibration, likelihood, coverage at fixed confidence, or latent identifiability.",
+    "[Reviewer-identified] Low-dimensional known-support data avoid the central difficulties of high-dimensional fibers, disconnected modes, noise, and imperfect observations."
+  ],
+  "failure_modes": [
+    "Unseen x values with misleading nearest neighbors select the wrong output chart and suppress valid modes.",
+    "Rare X-Y cluster pairs yield tiny or empty minibatches, making local maps unstable or untrained.",
+    "Chart boundaries create discontinuous conditioning even when the underlying relation varies smoothly.",
+    "A fixed circular fiber prior cannot naturally represent conditionals with changing dimension, topology, or number of components.",
+    "Invertibility in augmented space can introduce artificial latent bookkeeping unrelated to the physical process.",
+    "Nearest-set loss may cover outliers or blur probability mass while still scoring well on finite query samples.",
+    "A model can match global marginals yet assign incorrect local conditionals; AugCGAN's reported results illustrate this diagnostic gap.",
+    "Synthetic analytic supports make k-nearest-neighbor inference much easier than sparse high-dimensional real data."
+  ],
+  "reusable_insights": [
+    "Evaluate stochastic mappings at both the marginal and conditional levels; global sample quality alone can hide completely wrong fibers.",
+    "A bidirectional model should be compared against separately optimized one-way models with matched total parameters, compute, and tuning budget.",
+    "If chart selection uses retrieval, report it as part of the estimator and stress-test neighbor coverage, k, boundary points, and distribution shift.",
+    "Geometric inductive-bias claims become testable when topology, transition consistency, and invariance to atlas refinements are measured explicitly.",
+    "For evolved RL environments, validate local learning-signal distributions under fixed agent states/policies in addition to aggregate return distributions.",
+    "Synthetic tasks should include known conditional densities so calibration, mode mass, and coverage can be measured rather than only point-cloud distance."
+  ],
+  "open_questions": [
+    "Can a non-invertible or surjective architecture retain bidirectional sampling without forcing an artificial bijection in augmented space?",
+    "Does BMNet outperform modern conditional flows or diffusion posterior samplers on real paired, stochastic inverse problems under matched compute?",
+    "How sensitive are results to the number and algorithm of X/Y clusters, neighbor count, and latent-fiber topology?",
+    "Can chart conditions be marginalized exactly instead of imputed from a single random nearest-neighbor label?",
+    "Do learned chart transitions satisfy any measurable cocycle or consistency property across overlapping neighborhoods?",
+    "How does performance scale with intrinsic fiber dimension, disconnected components, heteroskedastic noise, and nonstationary mode weights?",
+    "Can conditional calibration and support coverage be guaranteed or bounded for the symmetric nearest-set objective?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2110.06983",
+      "title": "Bundle Networks: Fiber Bundles, Local Trivializations, and a Generative Approach to Exploring Many-to-one Maps",
+      "url": "https://arxiv.org/abs/2110.06983",
+      "relationship": "Direct architectural predecessor for sampling inverse fibers of many-to-one maps.",
+      "difference": "BundleNet focuses on p(x|y) for a deterministic many-to-one map. BMNet adds a second latent bundle and an invertible morphism to model stochastic forward images and reverse fibers jointly.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:1802.10151",
+      "title": "Augmented CycleGAN: Learning Many-to-Many Mappings from Unpaired Data",
+      "url": "https://arxiv.org/abs/1802.10151",
+      "relationship": "Direct many-to-many bidirectional generative baseline using latent-augmented cycle consistency.",
+      "difference": "Augmented CycleGAN supports unpaired high-dimensional domain translation through adversarial training. BMNet uses paired local batches and an exactly invertible core, and its synthetic results show why marginal/cycle quality need not imply correct pointwise fibers.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2018/arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2002.06661",
+      "title": "Latent Normalizing Flows for Many-to-Many Cross-Domain Mappings",
+      "url": "https://arxiv.org/abs/2002.06661",
+      "relationship": "Direct flow-based many-to-many competitor evaluated in the paper.",
+      "difference": "LNFMM learns shared and domain-specific latent distributions for real cross-domain tasks. BMNet instead imposes one augmented invertible map plus discrete local conditions and emphasizes both analytic forward and inverse local distributions.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2020/arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2105.02104",
+      "title": "Conditional Invertible Neural Networks for Diverse Image-to-Image Translation",
+      "url": "https://arxiv.org/abs/2105.02104",
+      "relationship": "Contemporaneous conditional-invertible alternative for diverse outputs from one input.",
+      "difference": "cINN combines a conditional feature network with an invertible generator on natural images and studies latent manipulation. BMNet targets both directions of a paired relation and adds dual chart conditioning, but only validates on low-dimensional synthetic data.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "pmlr:v139-whang21b",
+      "title": "Composing Normalizing Flows for Inverse Problems",
+      "url": "https://proceedings.mlr.press/v139/whang21b.html",
+      "relationship": "Conditional-flow approach to sampling p(x|y) with uncertainty for inverse problems.",
+      "difference": "Whang et al. compose flows and optimize a variational conditional inference objective, including high-dimensional inverse problems. BMNet learns forward and reverse conditionals simultaneously from paired samples but supplies no calibrated posterior likelihood.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2021 PMLR record"
+    },
+    {
+      "canonical_id": "pmlr:v202-wen23a",
+      "title": "A Conditional Normalizing Flow for Accelerated Multi-Coil MR Imaging",
+      "url": "https://proceedings.mlr.press/v202/wen23a.html",
+      "relationship": "Later real-world conditional flow demonstrating posterior sampling for an ill-posed many-solution inverse problem.",
+      "difference": "Wen et al. exploit the known measurement operator and infer its nullspace component on fastMRI brain and knee data. It does not jointly model a stochastic forward process, but it provides the kind of high-dimensional posterior and downstream validation absent from BMNet.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2023 PMLR record"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims the first architecture explicitly designed to model a many-to-many relation's global distribution, pointwise forward images, and reverse fibers in one model, using bundle morphisms as the organizing template.",
+    "evidence": "One conditional invertible network is trained both ways and evaluated on analytic forward and reverse local distributions against many-to-many and one-way generative baselines.",
+    "reviewer_inference": "Jointly emphasizing p(y|x) and p(x|y) and evaluating both local directions is a useful contribution. The exact architecture is a modest synthesis of BundleNet, conditional flows, clustering, and latent-augmented bidirectional generation; the geometric interpretation is not enforced, and the evidence is workshop-scale synthetic proof of concept rather than validation of a general framework."
+  },
+  "confidence": 0.97,
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2203.08189",
+    "pdf_sha256": "4634f2e1c0471e05f1bb73b94636c03fa6abb0eb741b8d981041c32b516020bb",
+    "text_sha256": "437dbf84563f44e540b2321e7454e2dd7742f4b6d8c60c4f358b305fe3736d4b",
+    "page_count": 13,
+    "extracted_at": "2026-08-23T21:15:37.554600+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "reviewer_notes": "Read all 13 extracted pages, including algorithms, all global/local tables, dataset definitions, training details, topology caveat, and limitations. Direct and later competitors were checked against official arXiv or PMLR records."
+}

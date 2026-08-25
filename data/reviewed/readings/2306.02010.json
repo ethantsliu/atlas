@@ -1,0 +1,125 @@
+{
+  "stable_id": "arxiv:2306.02010",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2306.02010",
+    "pdf_sha256": "bfe5afea3c6713d8f845955e6f8d551331ce780d40e481814d810d3195de9e5b",
+    "text_sha256": "f42adb219fe8721193b8571a08e23e55a126baf726d3f99ef398fe2c06e551da",
+    "page_count": 26,
+    "extracted_at": "2026-08-23T19:21:28.276376+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "How many arbitrary sequence labels can a single multi-head attention layer memorize as a function of head count, head dimension, and context length?",
+  "key_findings": [
+    {
+      "claim": "Under full-rank context and query Kruskal-rank assumptions, an H-head attention layer can memorize T arbitrary examples whenever T is at most H(min(n,d_h)-1)+1.",
+      "evidence": "Theorem 1 constructs key, query, value, and output matrices whose concatenated attended representations have rank T; each head contributes up to min(n,d_h)-1 additional independent examples using softmax saturation.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "Assumptions 1-2"},
+        {"page": 5, "section": "Theorem 1"},
+        {"page": 8, "section": "Proof overview"}
+      ]
+    },
+    {
+      "claim": "When d_h=d and context length scales with d, the construction stores an order-matching number of real label coordinates relative to the layer's O(Hd^2) parameter count.",
+      "evidence": "For d-dimensional labels the theorem gives Omega(Hd) examples, or Omega(Hd^2) scalar label values, matching the parameter-order counting upper bound up to constants under n proportional to d.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "Consequences of Theorem 1"},
+        {"page": 6, "section": "Parameter-count comparison"}
+      ]
+    },
+    {
+      "claim": "For sequences sharing one context, the attended-feature rank is at most H(n-1)+1, making the head-by-context scaling tight for that restricted input family.",
+      "evidence": "The shared-context proposition supplies a matching rank upper bound and the appendix proves that each head adds no more than n-1 directions beyond a common component.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "Shared-context upper bound"},
+        {"page": 17, "section": "Appendix B, proof of shared-context proposition"}
+      ]
+    },
+    {
+      "claim": "Synthetic optimization reproduces approximately linear capacity growth with heads and context length and saturation once head dimension reaches context rank, but it does not demonstrate that ordinary training reaches the worst-case existential bound on natural data.",
+      "evidence": "Random-class experiments use d=64, up to hundreds of thousands of training steps, and report fits with R-squared at least 0.98 for head scaling; ImageNet, BERT, and GPT probes mainly check rank assumptions rather than arbitrary-label memorization.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "Section 5, synthetic experiments"},
+        {"page": 12, "section": "Natural-data assumption checks"},
+        {"page": 22, "section": "Appendix D, optimization details"}
+      ]
+    },
+    {
+      "claim": "The lower bound is not a capacity characterization for deployed transformers: it covers a single attention output, n<d, strong linear-independence assumptions, hand-chosen real-valued parameters, and no guarantee that gradient descent finds them.",
+      "evidence": "The scope and limitations sections distinguish an existence construction from optimization, note the single-layer/single-output setting, and show that some pretrained-language-model query matrices fail the strongest rank condition.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "Problem formulation and scope"},
+        {"page": 13, "section": "Discussion and limitations"},
+        {"page": 24, "section": "Appendix E, BERT/GPT rank checks"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Prove a constructive interpolation lower bound by making different attention heads isolate complementary subsets of training sequences and then linearly decoding the resulting full-rank features.",
+    "mechanism": "Assumptions on query Kruskal rank and context rank permit per-head key/query choices that drive softmax toward selected tokens. Each head contributes r-1 independent attended directions, r=min(n,d_h); concatenating H heads yields enough rank to solve for arbitrary output labels.",
+    "assumptions": [
+      "Every example context matrix has rank n, hence context length n is smaller than embedding dimension d.",
+      "The set of queries satisfies a Kruskal-rank condition strong enough that every relevant subset is linearly independent.",
+      "Parameters may take the large magnitudes needed to approximate hard selection through softmax saturation.",
+      "Memorization is existential and need not be discovered efficiently by a specified optimizer."
+    ]
+  },
+  "techniques": [
+    {"id": "kruskal-rank-construction", "role": "Guarantees independent query subsets for assigning examples across heads."},
+    {"id": "softmax-saturation", "role": "Approximates hard token selection within each constructed attention head."},
+    {"id": "concatenated-feature-rank", "role": "Reduces arbitrary-label memorization to full row rank of attended representations."},
+    {"id": "shared-context-rank-bound", "role": "Provides a matching upper bound for a restricted family of inputs."}
+  ],
+  "evaluations": [
+    {"setting": "Synthetic random sequences with d=64 and random 100-class labels", "metric": "Largest perfectly memorized training set as H, n, and d_h vary", "result": "Capacity grows approximately linearly with H and n and stops improving with d_h beyond the effective context rank; head-count fits report R-squared of at least 0.98.", "baseline": "The theorem's H(min(n,d_h)-1)+1 scaling"},
+    {"setting": "ImageNet representations from a vision-transformer pipeline", "metric": "Approximate context rank and sampled query-subset independence", "result": "The authors report the proposed assumptions hold approximately after attention/ViT representation transformations, using sampled subsets because exact Kruskal rank is computationally intractable.", "baseline": "General-position and raw-input rank conditions"},
+    {"setting": "BERT and GPT hidden representations", "metric": "Empirical query/context ranks", "result": "The appendix gives mixed evidence; for example, a reported BERT query rank of 291/349 is below a nominal 512-dimensional condition, so the theorem cannot be assumed to apply uniformly.", "baseline": "Theorem assumptions"},
+    {"setting": "Comparable two-layer ReLU network", "metric": "Constructive example capacity at similar parameter order", "result": "The supplied construction gives only Omega(H) examples versus Omega(Hn) for attention, but it is not a general upper bound on ReLU-network memorization.", "baseline": "Multi-head attention construction"}
+  ],
+  "limitations": [
+    "The result is a lower bound and, outside the shared-context special case, lacks a matching upper bound.",
+    "It treats one attention layer, one query/output per sequence, and context length smaller than embedding dimension.",
+    "The data assumptions are strong continuous linear-independence conditions that can fail for discrete or pretrained language representations.",
+    "The proof constructs parameters but does not show learnability, robustness, or finite-precision requirements.",
+    "Natural-data experiments test assumptions rather than train on arbitrary labels at the predicted capacity."
+  ],
+  "failure_modes": [
+    "Repeated tokens or low-dimensional contexts violate the rank premise and sharply reduce the construction's capacity.",
+    "Finite softmax temperature or bounded weights prevent the near-hard selections used in the proof.",
+    "Optimization can converge long before achieving the existential interpolation configuration.",
+    "Capacity for multiple output positions, autoregressive next-token targets, or deep residual stacks can scale differently.",
+    "Parameter counting can overstate robust information storage when labels or weights require high numerical precision."
+  ],
+  "reusable_insights": [
+    "Separate expressivity, optimization, and robust finite-precision storage when claiming memorization capacity.",
+    "Use rank-sensitive benchmarks with duplicated and low-rank contexts to test how theorem assumptions fail gracefully.",
+    "Report label bits and required weight norm/precision in addition to example counts and nominal parameter counts.",
+    "Seek matching upper bounds on the same architecture and input class before drawing architecture-wide comparisons."
+  ],
+  "open_questions": [
+    "What is the tight capacity of softmax attention without context-length and Kruskal-rank assumptions?",
+    "Can gradient descent reach the construction with polynomial samples and bounded weights?",
+    "How does memorization scale for next-token and full sequence-to-sequence outputs in deep transformers?",
+    "What tradeoff links exact memorization, approximate distribution memorization, margin, and adversarial robustness?",
+    "Does head count still provide an independent capacity gain after fixing total width and parameter budget?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2411.10115", "title": "Memorization in Attention-only Transformers", "url": "https://arxiv.org/abs/2411.10115", "relationship": "Later direct extension", "difference": "Dana et al. explicitly remove the unrealistic context-size restriction for language-based attention and study approximate distribution memorization; this paper gives the earlier H-by-context exact interpolation construction under n<d.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:2409.17677", "title": "Optimal Memorization Capacity of Transformers", "url": "https://arxiv.org/abs/2409.17677", "relationship": "Later tight transformer-level bounds", "difference": "Kajitsuka and Sato derive near-optimal parameter bounds for next-token and sequence-to-sequence settings, while this paper isolates a single multi-head attention layer and counts arbitrary example labels under rank assumptions.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:2002.07028", "title": "Low-Rank Bottleneck in Multi-head Attention Models", "url": "https://arxiv.org/abs/2002.07028", "relationship": "Rank-based expressivity analysis", "difference": "Bhojanapalli et al. identify head-size rank bottlenecks and propose sizing heads to sequence length; this paper converts the same head/context rank interaction into an exact memorization lower bound.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:1912.10077", "title": "Are Transformers universal approximators of sequence-to-sequence functions?", "url": "https://arxiv.org/abs/1912.10077", "relationship": "Broader expressivity theory", "difference": "Yun et al. prove approximation of continuous sequence functions with transformer stacks; the present work asks how many finite arbitrary labels a single attention layer can interpolate and gives explicit head/context scaling.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"}
+  ],
+  "novelty_assessment": {
+    "author_claim": "Multi-head attention can memorize Omega(Hn) arbitrary examples with Theta(Hd^2) parameters, revealing a capacity gain linear in both head count and context length.",
+    "evidence": "The paper provides a constructive rank proof, a matching shared-context rank upper bound, and synthetic scaling experiments.",
+    "reviewer_inference": "The per-head rank construction is a clear theoretical contribution, but its practical interpretation is narrow because rank assumptions, n<d, unbounded softmax saturation, single-output scope, and optimizer access are all consequential."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Read all 26 extracted pages, checking theorem assumptions, constructive proof, shared-context upper bound, synthetic training, natural-representation rank probes, appendices, and limitations. Direct later memorization papers and foundational rank/expressivity work were checked on arXiv on 2026-08-23."
+}

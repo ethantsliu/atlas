@@ -1,0 +1,210 @@
+from __future__ import annotations
+
+import copy
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
+
+from audit import audit_layout  # noqa: E402
+from cluster import build_clusters  # noqa: E402
+from embed import (  # noqa: E402
+    alias_exclusions,
+    cohort_ids,
+    node_records,
+    vector_hash,
+    vector_sha,
+)
+from semantic import NEIGHBOR_COUNT, quality_report, semantic_neighbors  # noqa: E402
+
+
+def sample_atlas() -> dict:
+    papers = [
+        {
+            "id": f"paper-{index}",
+            "title": f"{'World' if index < 10 else 'Preference'} model {index}",
+            "record_kind": "paper",
+            "reading": {
+                "problem": "Model dynamics" if index < 10 else "Model rewards",
+                "approach": "Predict states" if index < 10 else "Rank responses",
+            },
+            "topics": [{"id": "worlds" if index < 10 else "preferences"}],
+            "tricks": [],
+        }
+        for index in range(20)
+    ]
+    papers.append(
+        {
+            "id": "context-1",
+            "title": "World model context",
+            "record_kind": "non_paper_context",
+            "reading": {},
+            "topics": [{"id": "worlds"}],
+            "tricks": [],
+        }
+    )
+    return {
+        "topics": [
+            {"id": "worlds", "label": "world models"},
+            {"id": "preferences", "label": "preference optimization"},
+        ],
+        "tricks": [],
+        "papers": papers,
+        "ideas": [
+            {
+                "id": "idea-world",
+                "topic_ids": ["worlds"],
+                "trick_ids": [],
+                "brief": {"title": "World environments", "thesis": "Predict worlds"},
+            },
+            {
+                "id": "idea-preference",
+                "topic_ids": ["preferences"],
+                "trick_ids": [],
+                "brief": {"title": "Preference signals", "thesis": "Rank outcomes"},
+            },
+        ],
+    }
+
+
+def sample_vectors(records: list[tuple[str, str]]) -> tuple[np.ndarray, np.ndarray]:
+    vectors = np.zeros((len(records), 4), dtype=np.float32)
+    points = np.zeros((len(records), 3), dtype=np.float32)
+    for index, (node_id, _) in enumerate(records):
+        preference = "preference" in node_id or node_id.startswith("paper-1")
+        offset = (index % 10) / 100
+        vectors[index, int(preference)] = 1
+        vectors[index, 2] = offset
+        vectors[index, 3] = offset * offset
+        points[index] = [20 if preference else -20, offset * 100, offset * offset]
+    return vectors, points
+
+
+def sample_layout(atlas: dict) -> tuple[dict, np.ndarray]:
+    records = node_records(atlas)
+    vectors, points = sample_vectors(records)
+    exclusions = alias_exclusions(atlas, records)
+    positions = {
+        node_id: [float(value) for value in point]
+        for (node_id, _), point in zip(records, points, strict=True)
+    }
+    layout = {
+        "embedding": {
+            "model": "fixture-model",
+            "artifact_sha256": "a" * 64,
+            "dimensions": vectors.shape[1],
+            "input_sha256": vector_hash(records),
+            "vector_sha256": vector_sha(vectors),
+        },
+        "reducer": {"name": "fixture"},
+        "neighbor_count": NEIGHBOR_COUNT,
+        "neighbors": semantic_neighbors(records, vectors, exclusions=exclusions),
+        "quality": quality_report(
+            records,
+            vectors,
+            points,
+            cohort_ids(atlas, records),
+            exclusions=exclusions,
+        ),
+        "positions": positions,
+        **build_clusters(records, vectors, points),
+    }
+    return layout, vectors
+
+
+def write_cache(path: Path, atlas: dict, layout: dict, vectors: np.ndarray) -> None:
+    np.savez_compressed(
+        path,
+        digest=vector_hash(node_records(atlas)),
+        model=layout["embedding"]["model"],
+        model_digest=layout["embedding"]["artifact_sha256"],
+        dimensions=vectors.shape[1],
+        reducer=json.dumps(layout["reducer"], sort_keys=True),
+        vector_sha256=vector_sha(vectors),
+        vectors=vectors,
+    )
+
+
+class AuditTests(unittest.TestCase):
+    def test_exact_artifacts(self) -> None:
+        atlas = sample_atlas()
+        layout, vectors = sample_layout(atlas)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "vectors.npz"
+            write_cache(path, atlas, layout, vectors)
+            before = path.read_bytes()
+
+            audit_layout(atlas, {}, path, layout)
+
+            self.assertEqual(path.read_bytes(), before)
+
+    def test_vector_sha(self) -> None:
+        atlas = sample_atlas()
+        layout, vectors = sample_layout(atlas)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "vectors.npz"
+            write_cache(path, atlas, layout, vectors)
+            with np.load(path) as saved:
+                values = {field: saved[field] for field in saved.files}
+            values["vectors"] = vectors.copy()
+            values["vectors"][0, 0] += 0.25
+            np.savez_compressed(path, **values)
+
+            with self.assertRaisesRegex(RuntimeError, "cache SHA"):
+                audit_layout(atlas, {}, path, layout)
+
+    def test_layout_sha(self) -> None:
+        atlas = sample_atlas()
+        layout, vectors = sample_layout(atlas)
+        layout["embedding"]["vector_sha256"] = "0" * 64
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "vectors.npz"
+            write_cache(path, atlas, layout, vectors)
+
+            with self.assertRaisesRegex(RuntimeError, "Layout vector SHA"):
+                audit_layout(atlas, {}, path, layout)
+
+    def test_score_quantum(self) -> None:
+        atlas = sample_atlas()
+        layout, vectors = sample_layout(atlas)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "vectors.npz"
+            write_cache(path, atlas, layout, vectors)
+            changed = copy.deepcopy(layout)
+            row = changed["neighbors"]["paper-0"][0]
+            row["score"] = round(row["score"] + 0.000001, 6)
+            audit_layout(atlas, {}, path, changed)
+
+            row["score"] = round(row["score"] + 0.000002, 6)
+            with self.assertRaisesRegex(RuntimeError, "exact neighbors"):
+                audit_layout(atlas, {}, path, changed)
+
+    def test_derived_drift(self) -> None:
+        atlas = sample_atlas()
+        layout, vectors = sample_layout(atlas)
+        cases = (
+            ("neighbors", lambda value: value["paper-0"].reverse()),
+            (
+                "quality",
+                lambda value: value["cohorts"]["paper"].update({"knn_recall": 0.0}),
+            ),
+            ("clusters", lambda value: value[0].update({"radius": 999.0})),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "vectors.npz"
+            write_cache(path, atlas, layout, vectors)
+            for field, change in cases:
+                changed = copy.deepcopy(layout)
+                change(changed[field])
+                with self.subTest(field=field):
+                    with self.assertRaisesRegex(RuntimeError, field.rstrip("s")):
+                        audit_layout(atlas, {}, path, changed)
+
+
+if __name__ == "__main__":
+    unittest.main()

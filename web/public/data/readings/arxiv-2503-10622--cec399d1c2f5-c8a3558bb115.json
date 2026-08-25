@@ -1,0 +1,285 @@
+{
+  "stable_id": "arxiv:2503.10622",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2503.10622",
+    "pdf_sha256": "406d285f545c899a7a9998951207b11b40d579ecd69f1cbd01128b043c53b8ea",
+    "text_sha256": "d086b1f628f5d1aad94aba4fd26d1c98aaadd5a532277bc21a970dd01fd3ae64",
+    "page_count": 19,
+    "extracted_at": "2026-08-23T17:11:58.097352+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can the per-token statistics in LayerNorm or RMSNorm be replaced by a learned elementwise saturating function while retaining stable Transformer training and final performance across modalities and model scales?",
+  "key_findings": [
+    {
+      "claim": "Aggregated LayerNorm input-output scatter plots look tanh-like even though LayerNorm is affine within each token.",
+      "evidence": "In trained ViT-B, wav2vec 2.0 Large, and DiT-XL models, deeper LayerNorm layers form S-shaped population-level plots. Coloring by token reveals a family of straight lines with different slopes; coloring by channel shows a few channels occupying extreme input ranges. Roughly 99% of points lie in the near-linear center, while the apparent saturation comes from rescaling tokens with different variances and compressing the pooled extremes.",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Section 3, Figures 2-3"
+        },
+        {
+          "page": 4,
+          "section": "Section 3, Figure 4 and token/channel decomposition"
+        }
+      ]
+    },
+    {
+      "claim": "Dynamic Tanh is a small parameterized replacement, but it gives up LayerNorm's sample-adaptive statistics.",
+      "evidence": "DyT computes gamma * tanh(alpha*x) + beta with one learned scalar alpha and learned per-channel affine vectors. It uses no mean, variance, or reduction at inference. During and after vision training, alpha correlates with the aggregate inverse activation standard deviation, suggesting learned global scale compensation; unlike LayerNorm, however, it cannot separately adapt scale to each token or example.",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Section 4, Equation 2 and Algorithm 1"
+        },
+        {
+          "page": 8,
+          "section": "Section 6.2, alpha as inverse-scale tracker"
+        },
+        {
+          "page": 9,
+          "section": "Figure 8"
+        }
+      ]
+    },
+    {
+      "claim": "Across the paper's vision, speech, DNA, and diffusion settings, DyT usually matches normalized baselines within small displayed differences.",
+      "evidence": "ImageNet top-1 changes range from 0.0 to +0.5 points for ViT and ConvNeXt; MAE/DINO changes range from -0.1 to +0.4; wav2vec validation loss changes by at most 0.01; HyenaDNA and Caduceus averages are identical. DiT FID improves by 1.0 and 0.2 for B/L but worsens by 0.9 for XL. The appendix discloses that DiT's DyT version removes the baseline's zero initialization, so that comparison is not solely a normalization swap.",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Section 5, Table 1"
+        },
+        {
+          "page": 6,
+          "section": "Section 5, Tables 2-3"
+        },
+        {
+          "page": 7,
+          "section": "Section 5, Tables 5-6"
+        },
+        {
+          "page": 17,
+          "section": "Appendix A, diffusion protocol"
+        }
+      ]
+    },
+    {
+      "claim": "DyT scales to the reported 70B-parameter language model, but only with LLM-specific architecture and initialization choices.",
+      "evidence": "LLaMA-style 7B, 13B, 34B, and 70B models are each pretrained on 200B Pile tokens. DyT and RMSNorm have identical average scores on 15 zero-shot tasks and losses differing by at most 0.01. The DyT variants add a learnable sqrt(width) embedding scaler and tune distinct alpha initializations for attention versus other positions using 30B-token pilot runs; wider models require much smaller values.",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "Section 5, Figure 6 and Table 4"
+        },
+        {
+          "page": 10,
+          "section": "Section 7.2, LLM alpha tuning"
+        },
+        {
+          "page": 11,
+          "section": "Tables 10-11 and Figure 11"
+        },
+        {
+          "page": 17,
+          "section": "Appendix A, LLM architecture and 200B-token protocol"
+        }
+      ]
+    },
+    {
+      "claim": "Bounded nonlinearity is the essential stabilizer in the vision ablation, while a learnable input scale recovers much of the remaining performance.",
+      "evidence": "Replacing tanh with identity initially reaches 58.5%/61.0% on ViT-S/B and then diverges. Tanh, hardtanh, and sigmoid all train, with tanh highest at 80.3%/82.5%. Removing alpha lowers ViT-B tanh from 82.5% to 81.1%. Larger alpha, learning rate, and model size interact: ViT-L diverges above alpha0=0.6 at the default rate, while smaller alpha or learning rate restores stability.",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "Section 6.1, Tables 7-8"
+        },
+        {
+          "page": 9,
+          "section": "Section 7.1, alpha sensitivity"
+        },
+        {
+          "page": 10,
+          "section": "Figure 10 and stability interaction"
+        }
+      ]
+    },
+    {
+      "claim": "DyT's conceptual simplicity does not produce a demonstrated optimized-GPU speedup, and it is not a general replacement for all normalization families.",
+      "evidence": "For uncompiled LLaMA-7B on H100, 100 passes are reported 7.8% faster at inference and 8.2% faster in training, but compiled DyT and RMSNorm both take 12.3s and 38.9s at the model level. Replacing BatchNorm in ResNet-50 and VGG19 lowers ImageNet accuracy from 76.2% to 68.9% and from 72.7% to 71.0%. The authors therefore limit the claim to LN/RMSNorm-style architectures and possible hardware-specific benefits.",
+      "anchors": [
+        {
+          "page": 12,
+          "section": "Sections 9-10, limitations"
+        },
+        {
+          "page": 18,
+          "section": "Appendix C, Table 14"
+        },
+        {
+          "page": 19,
+          "section": "Appendices C-D, Tables 15-16"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Replace per-token centering and variance normalization with a learned global input scale followed by an elementwise bounded tanh, preserving near-linear behavior for ordinary activations while clipping extremes.",
+    "mechanism": "At every LayerNorm or RMSNorm site, apply tanh(alpha*x), then a learned per-channel gain and bias. Initialize alpha to 0.5 for most vision, speech, diffusion, and sequence models. For LLaMA, add a learned embedding multiplier initialized to sqrt(width), initialize attention-block alpha higher than FFN/final alpha, and decrease both as width grows. Retain original architecture, optimizer, data, and most hyperparameters, with disclosed exceptions for DiT initialization and LLM-specific tuning.",
+    "assumptions": [
+      "Bounding extreme activations is the dominant function of LayerNorm/RMSNorm needed for stable training in the tested Transformer blocks.",
+      "A single scalar per DyT site can track the useful activation scale despite changes across samples, tokens, sequence lengths, and domains.",
+      "Saturation removes harmful outliers without erasing task-relevant magnitude or producing excessive vanishing gradients.",
+      "Residual pathways keep most activations in tanh's near-linear regime throughout training.",
+      "The selected alpha initialization transfers within a width and module type or can be affordably tuned with pilot runs.",
+      "Average task metrics after 200B-token pretraining are sensitive enough to reveal optimization or robustness differences from RMSNorm.",
+      "Differences observed in single reported runs exceed seed and implementation variance.",
+      "LN/RMSNorm workloads, rather than BatchNorm's batch-level regularization, define the intended applicability."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "dynamic-tanh",
+      "role": "Uses a learned scalar and bounded pointwise nonlinearity as the core statistic-free replacement for LayerNorm or RMSNorm."
+    },
+    {
+      "id": "per-channel-affine-restoration",
+      "role": "Retains learned gain and bias so bounded activations can be rescaled to each channel's useful output range."
+    },
+    {
+      "id": "module-specific-alpha-initialization",
+      "role": "Initializes LLM attention and FFN/final DyT sites at different scales, decreasing values for wider models."
+    },
+    {
+      "id": "embedding-magnitude-scaler",
+      "role": "Adds a learned sqrt(width)-initialized scalar before LLaMA blocks to prevent overly small early activations."
+    },
+    {
+      "id": "population-input-output-diagnostic",
+      "role": "Pools normalization-layer elements and then decomposes by token/channel to motivate and inspect the S-shaped approximation."
+    },
+    {
+      "id": "squashing-function-ablation",
+      "role": "Tests tanh, hardtanh, sigmoid, and identity to separate boundedness from the specific activation choice."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Supervised ViT-B/L and ConvNeXt-B/L training on ImageNet-1K",
+      "metric": "Top-1 classification accuracy and training loss",
+      "result": "DyT matches or improves the displayed LN models by 0.0 to 0.5 percentage points with closely aligned loss curves",
+      "baseline": "Original LayerNorm models under the official training recipe"
+    },
+    {
+      "setting": "MAE and DINO self-supervised ViTs on ImageNet-1K followed by labeled fine-tuning",
+      "metric": "Fine-tuned ImageNet top-1 accuracy",
+      "result": "DyT changes accuracy by -0.1 to +0.4 points across four configurations",
+      "baseline": "LayerNorm backbones and, in tuned comparisons, Fixup, SkipInit, and sigma-Reparam"
+    },
+    {
+      "setting": "DiT-B/L/XL class-conditional ImageNet generation",
+      "metric": "FID against the standard ImageNet reference batch",
+      "result": "DyT reports 63.9, 45.7, and 20.8 versus LN at 64.9, 45.9, and 19.9, with a different zero-initialization choice for DyT",
+      "baseline": "LayerNorm DiT models"
+    },
+    {
+      "setting": "LLaMA-style 7B, 13B, 34B, and 70B models trained on 200B Pile tokens",
+      "metric": "Final language-model loss and mean score over 15 zero-shot lm-eval tasks",
+      "result": "DyT exactly matches displayed mean task scores and is within 0.01 loss of RMSNorm at every scale",
+      "baseline": "RMSNorm LLaMA models with matched token budgets"
+    },
+    {
+      "setting": "wav2vec 2.0 Base/Large on LibriSpeech and HyenaDNA/Caduceus on genomic benchmarks",
+      "metric": "Speech validation loss and mean DNA classification accuracy",
+      "result": "DyT is identical or within 0.01 of LayerNorm across all four models",
+      "baseline": "Original normalized implementations"
+    },
+    {
+      "setting": "LLaMA-7B H100 BF16 latency for 100 passes and BatchNorm replacement in ResNet-50/VGG19",
+      "metric": "Wall-clock time and ImageNet top-1 accuracy",
+      "result": "Uncompiled DyT is about 8% faster at model level but compiled times are identical; BatchNorm replacement loses 7.3 and 1.7 accuracy points",
+      "baseline": "RMSNorm latency and BatchNorm ConvNets"
+    }
+  ],
+  "limitations": [
+    "Author-stated: DyT is evaluated mainly as an LN/RMSNorm substitute and performs poorly as a direct BatchNorm replacement in classic ConvNets.",
+    "Author-stated: properly compiled DyT and RMSNorm show no speed difference on the tested H100 setup, leaving hardware/deployment efficiency uncertain.",
+    "Reviewer-identified: pooled LayerNorm scatter being tanh-shaped is a descriptive aggregation effect over token-specific affine maps, not evidence that LayerNorm's causal mechanism is equivalent to a pointwise tanh.",
+    "Reviewer-identified: most reported performance differences are a few tenths of a point with no repeated seeds, error bars, or statistical tests.",
+    "Reviewer-identified: the DiT comparison removes zero initialization only for DyT, so it is not a clean drop-in replacement experiment.",
+    "Reviewer-identified: LLM results require an extra embedding scalar and width/module-specific alpha initialization selected with 30B-token pilot pretraining, weakening the minimal-tuning claim at the most expensive scale.",
+    "Reviewer-identified: LLM evaluation averages 15 zero-shot tasks and loss, without post-training, instruction following, coding, long-context, multilingual, calibration, safety, or adversarial robustness tests.",
+    "Reviewer-identified: a learned scalar cannot adapt to per-token or per-example scale shift; no explicit distribution-shift, length-extrapolation, activation-spike, mixed-precision, or optimizer stress test is provided.",
+    "Reviewer-identified: tanh can saturate and attenuate gradients; the paper measures divergence in limited alpha/rate grids but provides no deep-network stability guarantee or saturation-rate diagnostic.",
+    "Reviewer-identified: the width-not-depth alpha conclusion is based on a limited controlled grid and may not transfer across residual scaling, optimizer, data, or architecture families.",
+    "Reviewer-identified: training four models up to 70B for 200B tokens is reported without compute, energy, seed, checkpoint, or scaling-efficiency details sufficient to audit the comparison.",
+    "Reviewer-identified: later direct work finds stronger pointwise functions and proposes explicit variance control for depth fragility, so DyT is a useful baseline rather than a settled normalization-free design."
+  ],
+  "failure_modes": [
+    "Activation scale shifts after training, pushing many values into tanh saturation and causing vanishing gradients or information loss.",
+    "A few semantically important extreme channels are clipped because magnitude, not only direction, carries signal.",
+    "A token with unusually low variance receives no adaptive amplification, unlike LayerNorm, and its update becomes too small.",
+    "A token with unusually high variance overwhelms the globally learned alpha before saturation can preserve useful relative structure.",
+    "The alpha initialization chosen for one width, optimizer, or residual scaling diverges when depth, learning rate, or parameterization changes.",
+    "Mixed-precision tanh kernels or saturation behavior introduce training differences that were absent in the reported BF16 stack.",
+    "Distribution or sequence-length shift changes residual-stream variance across depth, defeating the training-set aggregate scale learned by alpha.",
+    "Removing input-dependent normalization worsens robustness, calibration, or fine-tuning even when pretraining loss is unchanged.",
+    "Compiled kernels fuse RMSNorm as effectively as tanh, eliminating the expected systems advantage while retaining DyT's tuning risk.",
+    "Batch-statistics regularization is essential in a convolutional architecture, so pointwise clipping cannot recover BatchNorm performance."
+  ],
+  "reusable_insights": [
+    "Decompose pooled activation plots by sample, token, and channel before assigning a nonlinear causal interpretation to an aggregate curve.",
+    "Track saturation fraction, alpha, activation variance, and gradient norms together; final accuracy alone cannot reveal a brittle bounded regime.",
+    "Benchmark normalization alternatives under optimizer, width, depth, precision, residual-scaling, and learning-rate factorials rather than a single inherited recipe.",
+    "Charge pilot-run tuning compute when a replacement needs width-specific initialization at language-model scale.",
+    "Use compiled end-to-end latency on target hardware; counting reductions or elementwise operations does not predict realized speed.",
+    "Separate the claim that statistics are unnecessary on one training distribution from the stronger claim that sample-adaptive scale is unnecessary under shift.",
+    "Match all initialization and architectural choices in a drop-in ablation, especially zero-initialized conditional blocks and embedding scaling.",
+    "Evaluate downstream adaptation and robustness even when pretraining loss and aggregate zero-shot score match."
+  ],
+  "open_questions": [
+    "Can alpha be conditioned cheaply on block, token, or running statistics without recovering the full cost of normalization?",
+    "What contraction or residual-scaling conditions guarantee that a bounded pointwise replacement avoids saturation at arbitrary depth?",
+    "Does DyT remain competitive during supervised fine-tuning, RLHF/RL, long-context extension, quantization, and continual learning?",
+    "How does optimizer choice, especially Muon-like matrix updates, interact with pointwise normalization replacements?",
+    "Which activation families best trade linear-range width, tail clipping, gradient decay, and compiled hardware efficiency?",
+    "Are rare extreme activations harmful optimization outliers or task-carrying features, and can causal clipping interventions distinguish them?",
+    "Can a universal alpha scaling law be derived from width, residual parameterization, initialization, and learning rate instead of 30B-token sweeps?",
+    "What happens under per-sequence distribution shift where LayerNorm would adapt instantly but a learned alpha remains fixed?",
+    "Do normalization-free models expose cleaner mechanistic circuits or merely replace a coupled statistic with saturating nonlinearities?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2303.06296",
+      "title": "Stabilizing Transformer Training by Preventing Attention Entropy Collapse",
+      "url": "https://arxiv.org/abs/2303.06296",
+      "relationship": "prior normalization-free stability method",
+      "difference": "Sigma-Reparam controls every linear layer's spectral norm and derives a lower bound linking attention-logit scale to entropy collapse; it can train competitive ViTs without layer normalization, warmup, weight decay, or adaptive optimization. DyT is a much simpler activation-site substitution and beats the paper's tuned sigma-Reparam vision numbers, but offers no comparable stability theorem or attention-specific diagnostic."
+    },
+    {
+      "canonical_id": "arxiv:2410.13060",
+      "title": "AERO: Softmax-Only LLMs for Efficient Private Inference",
+      "url": "https://arxiv.org/abs/2410.13060",
+      "relationship": "prior normalization-removal architecture",
+      "difference": "AERO removes LayerNorm and GELU as part of a four-stage decoder redesign optimized for encrypted inference, using entropy regularization and reducing communication and latency. DyT preserves the surrounding architecture and adds a bounded nonlinearity at each former normalization site, prioritizing broad training parity rather than minimizing nonlinear operations for private inference."
+    },
+    {
+      "canonical_id": "arxiv:2512.10938",
+      "title": "Stronger Normalization-Free Transformers",
+      "url": "https://arxiv.org/abs/2512.10938",
+      "relationship": "direct successor and function-search competitor",
+      "difference": "Chen et al., including two DyT authors, systematically vary pointwise-function properties and search designs, selecting shifted dynamic erf as a stronger replacement that reports gains over LayerNorm, RMSNorm, and DyT across vision, speech, and DNA. It confirms DyT's broader design premise while showing tanh is not uniquely or optimally responsible for the effect."
+    },
+    {
+      "canonical_id": "arxiv:2601.09719",
+      "title": "Bounded Hyperbolic Tangent: A Stable and Efficient Alternative to Pre-Layer Normalization in Large Language Models",
+      "url": "https://arxiv.org/abs/2601.09719",
+      "relationship": "direct stability-oriented competitor",
+      "difference": "BHyT argues that DyT remains fragile at depth because a learned scalar does not control variance growth or prevent saturation. It reintroduces one data-driven variance calculation per block plus an approximation for the second site, supplies an input/Jacobian bound, and reports higher training and generation throughput than RMSNorm. This trades DyT's fully statistic-free simplicity for explicit scale robustness."
+    }
+  ],
+  "novelty_assessment": "Author claim: Dynamic Tanh shows that normalization statistics are not indispensable in modern Transformers; a learned scalar tanh plus affine parameters is a drop-in replacement that matches or exceeds normalized models across vision, diffusion, speech, DNA, and 7B-70B language pretraining. Reviewer inference: the paper's strongest contribution is the breadth and scale of a surprisingly simple empirical baseline, especially the 200B-token 70B experiment and the squashing ablation. Normalization-free residual initialization, spectral reparameterization, softmax-only LLMs, bounded activations, and simplified RMS normalization all predate it. The tanh-shaped LayerNorm plot is suggestive but not a mechanistic equivalence, and LLM-specific tuning plus later Derf/BHyT results show the design remains contingent. DyT nevertheless established pointwise bounded replacements as a serious normalization research direction.",
+  "confidence": 0.98,
+  "reviewer_notes": "All 19 extracted pages were checked, including pooled and token/channel-resolved LayerNorm plots, DyT implementation, every modality table, 7B-70B pretraining protocol, squashing and alpha ablations, competing normalization-free methods, initialization grids, disclosed DiT/LLM modifications, compiled and uncompiled latency, BatchNorm failures, and references. Current direct alternatives and follow-ups were independently verified on primary arXiv/OpenReview records through 2026-08-23."
+}

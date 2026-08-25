@@ -1,0 +1,350 @@
+{
+  "stable_id": "arxiv:2203.11945",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2203.11945",
+    "pdf_sha256": "8276b7bce98c368049c7967e2616e26aa5ddc71b972311d296fac8c85d49813b",
+    "text_sha256": "2272bcdd01cc289297101ff56a25758d64758ccd84f76780fa9aec67b7820a65",
+    "page_count": 28,
+    "extracted_at": "2026-08-23T21:15:31.868972+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a SymPy-to-C/C++ generator exploit a fixed symbolic Jacobian sparsity pattern to make repeated high-dimensional stiff ODE solves much faster while retaining a convenient Python interface?",
+  "key_findings": [
+    {
+      "claim": "The central benchmark shows very large warm-runtime speedups over LSODA's dense LUP path for one highly structured Einstein-Boltzmann equation family.",
+      "evidence": "On a single AMD EPYC 7742 node, the generated unrolled solver reduces total solve time by roughly 7-9x at the smallest tested system and about 156-717x at the larger sizes for k in {0.1, 1, 10} h/Mpc. At k=0.1 and reported sizes 38, 158, and 308, total times change from 0.0501, 3.29, and 26.6 seconds with full LUP to 0.00676, 0.0180, and 0.0371 seconds. These are strong application-specific results, but the comparator is another linear-solver mode inside the same LSODA integration, not a modern sparse ODE package.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 16, "section": "6.1 Setup"},
+        {"page": 17, "section": "6.2 Time Measurements"},
+        {"page": 18, "section": "Tables 1-2"},
+        {"page": 19, "section": "Table 3"}
+      ]
+    },
+    {
+      "claim": "The speedup measures an amortized hot path and excludes a potentially dominant generation, compilation, and permutation-learning cost.",
+      "evidence": "The paper says unrolling can create C/C++ functions with several million lines and cause long compilation times and high memory use, uses disk caches, and concludes that the approach is limited to repeatedly solving the same ODE. Yet no code-generation time, compiler time, peak memory, binary size, cache state, number of solves to break even, or total first-use latency is reported. The timing tables include only numerical solve time after optimized code exists.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 14, "section": "5.2.3 Splitting"},
+        {"page": 15, "section": "5.3 Code Generation Optimizations"},
+        {"page": 22, "section": "6.4 Runtime Scaling and 7 Conclusions"}
+      ]
+    },
+    {
+      "claim": "The adaptive permutation-recompilation mechanism works on the demonstrated cosmology system but is not a generally safe substitute for numerical pivoting.",
+      "evidence": "The fast path initially solves without pivoting, falls back to general LUP when a row swap is detected, records the permutation, and recompiles specialized variants. It further relaxes the swap condition from an off-diagonal entry exceeding the pivot to exceeding C times the pivot with C=5 or 10, and Schur splitting restricts the rows that can pivot together. The authors report no meaningful solution difference in their experiments, but provide no conditioning, backward-error, growth-factor, or adversarial near-singular analysis.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 13, "section": "5.2.2 Permutation Handling"},
+        {"page": 14, "section": "Security factor and 5.2.3 Splitting"},
+        {"page": 15, "section": "Splitting pivoting limitation"},
+        {"page": 17, "section": "Numerical-difference statement"}
+      ]
+    },
+    {
+      "claim": "The Schur-complement and recursive-inverse optimizations require unstated invertibility and fill assumptions, so they do not apply safely to every nonsingular sparse Jacobian system.",
+      "evidence": "Equations 5-6 eliminate through D inverse, which requires the chosen D block to be invertible and can densify the Schur complement A-BD^-1C. The recursive inverse in Equations 7-8 instead requires A and its Schur complement to be invertible; an invertible whole matrix need not have an invertible leading A or D block. The paper gives no block-selection or pivot rule that guarantees these conditions, no symbolic fill-complexity bound, and no failure policy for a singular chosen block.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 14, "section": "5.2.3 Splitting Equations 4-6"},
+        {"page": 15, "section": "5.3 Recursive inverse Equations 7-8"}
+      ]
+    },
+    {
+      "claim": "The paper's linear runtime claim is empirical for one sparsity family, not an asymptotic property of the general generated solver.",
+      "evidence": "Polynomial fits on varying truncations of the same Einstein-Boltzmann system give adjusted R-squared at least 0.98 for two k values and 0.87 for the third, leading the authors to state that optimized runtime grows linearly and that no faster-growing term remains. Static sparsity alone does not imply linear sparse LU cost: elimination fill, ordering, block inverses, and Jacobian graph structure control complexity. AIC/BIC on a limited size range and minimum-of-five measurements cannot establish a general complexity bound.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 16, "section": "6.1 Einstein-Boltzmann family"},
+        {"page": 20, "section": "6.4 Runtime Scaling"},
+        {"page": 21, "section": "Figure 5"},
+        {"page": 22, "section": "Linear fit conclusion"}
+      ]
+    },
+    {
+      "claim": "The accuracy evidence is insufficient for a solver that deliberately relaxes pivoting.",
+      "evidence": "The authors state that they found no numerical difference among linear-solver modes because the optimized code skips known zeros while otherwise preserving algebraic order. They do not define the comparison norm or precision, report residuals or conservation laws, compare with a high-precision or independent reference, sweep tolerances, test ill-conditioned systems, or quantify the effect of C=5 versus C=10 and block size. The claim also does not cover cases that trigger learned permutations.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 14, "section": "Relaxed pivot threshold"},
+        {"page": 15, "section": "Reduced-pivoting caveat"},
+        {"page": 17, "section": "6.2 numerical-equivalence statement"},
+        {"page": 19, "section": "6.3 Fallback LUP"},
+        {"page": 20, "section": "Table 5 after recompilation"}
+      ]
+    },
+    {
+      "claim": "The Robertson tutorial is not executable as printed and implements the wrong dynamical system.",
+      "evidence": "The prose specifies k1=0.04 and the standard Robertson equations require the k2*y2^2 term in both dy2 and dy3. Listing 4 instead imports from 'sympy_to_c', sets k1=1e-4, and uses -k2*y2 without the square in dy2 while retaining k2*y2**2 in dy3. Consequently dy1+dy2+dy3 is not zero, and the printed rows visibly lose total concentration. This is a source-level contradiction, not a PDF text-extraction artifact; the rendered page was visually checked.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "3.4 Robertson equations"},
+        {"page": 9, "section": "Listing 4"},
+        {"page": 10, "section": "Listing 4 explanation"}
+      ]
+    },
+    {
+      "claim": "Several other introductory listings and descriptions contain correctness errors that weaken the paper as reproducible software documentation.",
+      "evidence": "Listing 2 calls exp and oo without importing them, refers to module_decl without constructing it locally, and lacks one closing parenthesis in the print expression. The prose writes the Gaussian integral from minus infinity to zero, while the code integrates minus infinity to infinity and compares with sqrt(pi); the caption calls this definite improper integral 'indefinite.' Listings 2-3 may be intended as continuations of Listing 1, but each repeats imports and is presented as a standalone usage example without stating that dependence.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "3.2 Integrals and Listing 2"},
+        {"page": 7, "section": "Listing 2 explanation and 3.3 interpolation"},
+        {"page": 8, "section": "Listing 3 explanation"}
+      ]
+    },
+    {
+      "claim": "Four performance tables contain dimension labels inconsistent with the experimental setup and the underlying equation-size formula.",
+      "evidence": "Section 6.1 defines n=5+3(l_max+1) for l_max in {10,50,100}, hence n in {38,158,308}. Tables 1-2 use those labels, but Tables 3-5 print 38, 58, and 158. Their runtime magnitudes align with the missing-leading-digit interpretation 38, 158, 308, but the paper never supplies a correction. This prevents unambiguous transcription of three benchmark conditions.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 16, "section": "6.1 size definition"},
+        {"page": 18, "section": "Tables 1-2"},
+        {"page": 19, "section": "Tables 3-4"},
+        {"page": 20, "section": "Table 5"}
+      ]
+    },
+    {
+      "claim": "The benchmark design cannot establish that sympy2c is competitive with contemporary sparse stiff-ODE systems.",
+      "evidence": "All timing evidence comes from one linear cosmological ODE family, one CPU architecture, the fastest of five runs, and three internal modes: dense LUP, a band-limited fallback, and the generated solver. There is no comparison with sparse direct KLU/SuperLU, Krylov plus preconditioning, SUNDIALS/CVODE, AMICI, JiTCODE, ModelingToolkit/DifferentialEquations, or hand-specialized PyCosmo; no nonlinear or noncosmology stiff suite; and no statistical dispersion or compiler configuration.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Related Python acceleration and pyodesys"},
+        {"page": 11, "section": "5.2 LSODA linear solver baseline"},
+        {"page": 16, "section": "6.1 benchmark setup"},
+        {"page": 17, "section": "6.2 compared modes"}
+      ]
+    },
+    {
+      "claim": "Despite evaluation gaps, the separation of symbolic model specification from generated numerical kernels is a sound reusable systems design.",
+      "evidence": "The API covers scalar functions, QUADPACK-backed integrals, GSL cubic splines, and LSODA ODE solves from a shared symbolic representation, exposing compiled modules through Cython. For repeated parameter sweeps with a stable structural sparsity pattern, ahead-of-time common-subexpression and zero elimination, disk caching, and a safe general fallback can materially reduce work while preserving a high-level Python modeling layer.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 2, "section": "1 Introduction"},
+        {"page": 4, "section": "3 Functionalities"},
+        {"page": 6, "section": "3.2 Integrals"},
+        {"page": 7, "section": "3.3 Cubic Spline Interpolation"},
+        {"page": 8, "section": "3.4 Ordinary Differential Equations"},
+        {"page": 11, "section": "5.1-5.2 Implementation"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Compile symbolic scientific models into specialized C/C++ Python extensions and exploit the compile-time Jacobian graph to remove index loops and zero arithmetic from implicit ODE linear solves.",
+    "mechanism": "sympy2c accepts SymPy expressions, emits C/C++ and Cython wrapper code, compiles an extension module, and delegates numerical integration, interpolation, and LSODA time stepping to established libraries. For stiff ODEs, it derives the symbolic Jacobian, unrolls LU operations into scalar assignments, skips structurally zero terms, falls back to general LUP when a pivot permutation is needed, records that permutation, and generates a new specialized solver for later runs. It can recursively split a matrix through Schur complements and cache symbolic and compilation artifacts on disk.",
+    "assumptions": [
+      "The same symbolic ODE and structural sparsity pattern will be solved enough times to amortize generation, compilation, and adaptive recompilation.",
+      "Skipping structurally zero operations while preserving the remaining operation order retains the required numerical accuracy.",
+      "A relaxed pivot trigger with security factor 5 or 10 is safe for the target parameter region.",
+      "A small finite library of encountered permutations covers future parameter and initial-condition sweeps.",
+      "The selected Schur blocks and recursive leading blocks are invertible and do not produce prohibitive symbolic or numeric fill.",
+      "Restricting pivoting within split blocks does not materially worsen conditioning.",
+      "Einstein-Boltzmann Jacobian structure is representative enough to motivate general computational-physics applicability.",
+      "Minimum warm solve time is the relevant deployment metric even when first-use latency and compilation memory are omitted.",
+      "Dense and simple banded LSODA factorization are adequate performance baselines for a sparse generated solver.",
+      "Empirical regression over one matrix family identifies runtime scaling rather than only the observed finite-size trend."
+    ]
+  },
+  "techniques": [
+    {"id": "sympy-to-cpp-code-generation", "role": "Lowers symbolic expressions to compiled scalar kernels."},
+    {"id": "cython-extension-wrapping", "role": "Makes generated C/C++ functions importable and callable from Python."},
+    {"id": "quadpack-integral-lowering", "role": "Turns unevaluated symbolic integrals into numerical GSL/QUADPACK calls."},
+    {"id": "gsl-spline-lowering", "role": "Embeds runtime-populated cubic interpolation functions in generated expressions."},
+    {"id": "lsoda-method-switching", "role": "Provides adaptive Adams/BDF integration for nonstiff and stiff intervals."},
+    {"id": "symbolic-jacobian-sparsity", "role": "Identifies compile-time zero structure in implicit linear systems."},
+    {"id": "lu-loop-unrolling", "role": "Replaces indexed loops and arrays with explicit scalar operations and removes known-zero arithmetic."},
+    {"id": "fallback-and-permutation-learning", "role": "Uses general LUP for unseen pivot patterns, records them, and recompiles specialized variants."},
+    {"id": "schur-complement-splitting", "role": "Breaks one very large generated factorization into smaller sequential block solves."},
+    {"id": "recursive-symbolic-inverse", "role": "Replaces SymPy matrix inversion with a block inverse recursion."},
+    {"id": "disk-artifact-caching", "role": "Avoids repeating expensive symbolic transformations and compilation after small or repeated runs."},
+    {"id": "aic-bic-runtime-fit", "role": "Chooses polynomial descriptions of measured runtime versus equation count."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Einstein-Boltzmann equations at k=0.1 h/Mpc and n=38, 158, 308",
+      "metric": "total ODE solve time and speedup over dense full-LUP LSODA",
+      "result": "Generated solver times are 0.00676, 0.0180, and 0.0371 seconds, corresponding to 7.41x, 183.36x, and 716.66x speedups.",
+      "baseline": "LSODA using LAPACK dense LUP and the paper's band-limited fallback"
+    },
+    {
+      "setting": "Einstein-Boltzmann equations at k=1 h/Mpc and n=38, 158, 308",
+      "metric": "total ODE solve time and speedup",
+      "result": "Generated solver times are 0.0514, 0.165, and 0.297 seconds, corresponding to 9.04x, 156.50x, and 697.21x speedups.",
+      "baseline": "dense and banded internal LSODA linear solvers"
+    },
+    {
+      "setting": "Einstein-Boltzmann equations at k=10 h/Mpc",
+      "metric": "total ODE solve time and speedup",
+      "result": "The table reports 8.70x, 175.39x, and 691.24x speedups, but prints inconsistent dimensions 38, 58, and 158 instead of the setup's 38, 158, and 308.",
+      "baseline": "dense and banded internal LSODA linear solvers"
+    },
+    {
+      "setting": "k=1e-5 h/Mpc before learned permutation recompilation",
+      "metric": "fallback LUP time and total speedup",
+      "result": "Unseen row swaps force fallback work and reduce speedup to 2.37-3.85x for the larger rows; dimension labels are inconsistent with Section 6.1.",
+      "baseline": "full and banded general LUP"
+    },
+    {
+      "setting": "same k=1e-5 cases after updating and recompiling for recorded permutations",
+      "metric": "fallback time, optimized-solver time, and total speedup",
+      "result": "Fallback time returns to zero and reported speedups rise to 7.53x, 189.31x, and 881.80x, excluding recompilation cost.",
+      "baseline": "the pre-recompilation optimized run and full LUP"
+    },
+    {
+      "setting": "varying Einstein-Boltzmann truncation size across k=0.1, 1, and 10 h/Mpc",
+      "metric": "AIC/BIC-selected runtime polynomial and adjusted R-squared",
+      "result": "Dense and banded modes are fit by constant plus cubic terms with adjusted R-squared at least 0.99; optimized time is fit linearly with at least 0.98 for k=1 and 10 and 0.87 for k=0.1.",
+      "baseline": "polynomial fits of different orders"
+    },
+    {
+      "setting": "qualitative solution comparison across the three internal linear-solver modes",
+      "metric": "unspecified numerical difference",
+      "result": "The authors report finding no difference, but supply no norm, reference, tolerance sweep, residual, or uncertainty.",
+      "baseline": "dense full-LUP solution"
+    }
+  ],
+  "limitations": [
+    "Only one linear, structured Einstein-Boltzmann ODE family is benchmarked; general stiff, nonlinear, and changing-sparsity systems are absent.",
+    "No state-of-the-art sparse direct, Krylov, SUNDIALS, AMICI, JiTCODE, ModelingToolkit, or hand-specialized implementation is timed.",
+    "Code-generation time, compilation time, recompilation time, peak memory, generated source size, binary size, and amortization break-even are omitted.",
+    "Accuracy is asserted qualitatively without norms, residuals, invariant checks, high-precision references, or tolerance and conditioning sweeps.",
+    "The security factor deliberately weakens partial pivoting, while Schur splitting further reduces pivot freedom.",
+    "Schur and recursive inverse formulas assume invertible subblocks and can create symbolic or numeric fill; the paper gives no general selection guarantee.",
+    "Fastest-of-five timings omit variance and can bias comparisons; compiler flags, compiler version, affinity, threading, cache state, and warm-up are incomplete.",
+    "The empirical linear fit over a single sparse matrix family does not establish general asymptotic complexity.",
+    "Four tables have inconsistent equation-count labels, and no machine-readable benchmark data or artifact snapshot is cited.",
+    "The Robertson example and Gaussian-integral example contain multiple executable and mathematical errors.",
+    "The paper does not identify the exact sympy2c release or commit used for its experiments.",
+    "Automatic download and compilation of external C dependencies creates reproducibility, offline-use, supply-chain, and platform variability not evaluated in the paper."
+  ],
+  "failure_modes": [
+    "A new parameter region can trigger an unseen pivot permutation, causing an abrupt fallback slowdown and another compile cycle.",
+    "A small pivot that fails the C-times threshold can produce large roundoff growth before the fallback activates.",
+    "Schur splitting can choose a singular D block even when the full matrix is nonsingular.",
+    "Recursive inversion can choose a singular A block or create expression swell and dense generated code.",
+    "Sparse LU fill can destroy the near-linear operation count on a different Jacobian graph.",
+    "Parameter-dependent structural changes expressed through Piecewise logic or numerical cancellations can invalidate a static sparsity assumption.",
+    "Several-million-line kernels can exceed compiler memory, optimization limits, object-size limits, or instruction-cache capacity.",
+    "Disk caches can silently reuse artifacts built with incompatible compiler, ABI, dependency, or expression assumptions unless keys are complete.",
+    "Minimum-only microbenchmarks can hide cold-start, frequency-scaling, contention, and run-to-run variance.",
+    "Users copying Listing 4 solve a non-conservative system different from the stated Robertson problem and may mistake its output for solver validation.",
+    "Automatic network downloads of build dependencies can fail offline or introduce unpinned source changes.",
+    "A large warm speedup can disappear when only one or a few solves are required because compilation dominates."
+  ],
+  "reusable_insights": [
+    "Treat structural sparsity as a compile-time asset when a model graph is fixed across many parameter evaluations.",
+    "Keep a numerically robust general solver as an explicit fallback and instrument how often specialization misses.",
+    "Report cold, warm, and amortized latency separately, including generation, compilation, cache lookup, and adaptive recompilation.",
+    "Measure numerical safety with backward error, residuals, invariants, condition estimates, and adversarial pivot cases, not only matching printed states.",
+    "Use fill-reducing symbolic ordering and sparse elimination trees before emitting scalar code; static zeros alone are not enough.",
+    "Require block-rank checks or rank-revealing permutations before applying Schur complements or recursive inverse formulas.",
+    "Benchmark against strong sparse-direct and iterative solvers at matched tolerances on a public multi-domain stiff-ODE suite.",
+    "Publish exact source commits, dependency locks, compiler commands, raw timing samples, machine-readable tables, and generated artifact hashes.",
+    "Execute every documentation listing in continuous integration and test physical invariants such as mass conservation.",
+    "Expose generation decisions—nonzero pattern, fill, permutation library, block split, fallback count—in human-readable diagnostics.",
+    "Choose specialization only after estimating break-even solves from compile cost and expected repeated workload."
+  ],
+  "open_questions": [
+    "At what number of repeated solves does sympy2c beat KLU-backed CVODE, AMICI, JiTCODE, and ModelingToolkit after all compilation costs are counted?",
+    "How does runtime and code size scale on SuiteSparse-style Jacobian graphs with controlled fill rather than the Einstein-Boltzmann chain structure?",
+    "Can fill-reducing orderings and supernodal code generation preserve speed while restoring stable pivoting?",
+    "What backward-error bounds hold under the C=5 or C=10 relaxed pivot rule?",
+    "Can permutation and block specializations be generated symbolically once, without observing numerical parameter runs and recompiling online?",
+    "How should cache keys encode compiler, architecture, ABI, dependency, floating-point, and symbolic-expression versions safely?",
+    "Do nonlinear chemical kinetics, circuit DAEs, reaction networks, and event-driven ODEs reproduce the reported advantages?",
+    "Can LLVM JIT or partial evaluation avoid million-line source files and reduce first-use latency while retaining explicit zero elimination?",
+    "How much of the speedup comes from loop unrolling, zero pruning, block splitting, fixed permutation, compiler constant propagation, and memory layout separately?",
+    "Does the current 2.x package fix the paper's tutorial errors and provide benchmark-regression and accuracy CI across supported platforms?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1711.09886",
+      "title": "Efficiently and easily integrating differential equations with JiTCODE, JiTCDDE, and JiTCSDE",
+      "url": "https://arxiv.org/abs/1711.09886v2",
+      "relationship": "direct prior symbolic-to-compiled Python ODE competitor",
+      "difference": "Ansmann accepts symbolic derivatives, generates and compiles C, and targets large network ODEs, delay equations, stochastic equations, and Lyapunov exponents with published benchmark artifacts. sympy2c differentiates itself through an LSODA-specific sparse Jacobian linear solver and integral/interpolation lowering, but does not benchmark against JiTCODE.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2 / Chaos 2018"
+    },
+    {
+      "canonical_id": "arxiv:2012.09122",
+      "title": "AMICI: High-Performance Sensitivity Analysis for Large Ordinary Differential Equation Models",
+      "url": "https://arxiv.org/abs/2012.09122v1",
+      "relationship": "direct prior symbolic C++ generation and sparse stiff-ODE system",
+      "difference": "AMICI imports high-level systems-biology models, uses SymPy for partial derivatives, emits C++, and provides dense, direct-sparse, and iterative SUNDIALS solvers plus forward, adjoint, and steady-state sensitivities with extensive validation. sympy2c offers a lighter general symbolic Python interface and aggressive fixed-pattern scalar specialization, but omits sensitivity analysis, standard model formats, and a head-to-head sparse benchmark.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1 / Bioinformatics 2021"
+    },
+    {
+      "canonical_id": "arxiv:2103.05244",
+      "title": "ModelingToolkit: A Composable Graph Transformation System For Equation-Based Modeling",
+      "url": "https://arxiv.org/abs/2103.05244v3",
+      "relationship": "contemporaneous symbolic scientific-model compiler",
+      "difference": "Ma et al. build composable graph transformations for ODEs and DAEs, including index reduction, tearing, automatic parallelization, and surrogate generation within the Julia SciML solver ecosystem. sympy2c is narrower and Python-native, specializing one LSODA algebra kernel rather than transforming full equation graphs, but its paper does not compare development effort, compilation, accuracy, or runtime against ModelingToolkit.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2105.00800",
+      "title": "Revisiting high-order Taylor methods for astrodynamics and celestial mechanics",
+      "url": "https://arxiv.org/abs/2105.00800v1",
+      "relationship": "contemporaneous Python/C++ JIT ODE competitor",
+      "difference": "Biscani and Izzo's heyoka uses automatic differentiation and LLVM JIT to create a general high-order Taylor integrator, with detailed speed-and-accuracy comparisons on difficult long-horizon problems and Python interoperability. It provides a different solver family rather than sparse implicit LU specialization and makes compile overhead and precision central evaluation concerns that sympy2c largely omits.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1 / MNRAS 2021"
+    },
+    {
+      "canonical_id": "arxiv:2011.10073",
+      "title": "Enabling New Flexibility in the SUNDIALS Suite of Nonlinear and Differential/Algebraic Equation Solvers",
+      "url": "https://arxiv.org/abs/2011.10073v2",
+      "relationship": "robust customizable sparse-solver baseline",
+      "difference": "Gardner et al. redesign SUNDIALS around pluggable vector, matrix, linear-solver, and nonlinear-solver interfaces for application-specific and third-party sparse or accelerator backends. sympy2c instead modifies LSODA with generated scalar factorization code; a fair baseline would attach an application-aware sparse solver through this mature interface and compare total cost and accuracy.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2 / ACM TOMS 2022"
+    },
+    {
+      "canonical_id": "arxiv:1605.03262",
+      "title": "pyJac: analytical Jacobian generator for chemical kinetics",
+      "url": "https://arxiv.org/abs/1605.03262v3",
+      "relationship": "domain-specific symbolic Jacobian code-generation precursor",
+      "difference": "Niemeyer et al. generate optimized analytical Jacobians for stiff chemical kinetics on CPUs and GPUs and explicitly validate correctness across multiple mechanisms before timing kernels. sympy2c generalizes symbolic input and specializes the entire LU solve, but evaluates only one cosmology graph and supplies much weaker numerical validation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3 / Computer Physics Communications 2017"
+    },
+    {
+      "canonical_id": "arxiv:1808.01995",
+      "title": "Devito (v3.1.0): an embedded domain-specific language for finite differences and geophysical exploration",
+      "url": "https://arxiv.org/abs/1808.01995v2",
+      "relationship": "adjacent SymPy-to-optimized-code compiler",
+      "difference": "Devito likewise embeds mathematical specifications in Python/SymPy and compiles highly optimized parallel native kernels, but targets finite-difference PDE stencils with a richer compiler pipeline and architecture-aware transformations. It demonstrates that symbolic zero removal is one part of a broader scheduling, vectorization, parallelization, and verification problem absent from sympy2c's single-CPU evaluation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2 / Geoscientific Model Development 2019"
+    },
+    {
+      "canonical_id": "arxiv:2506.14976",
+      "title": "New Time Integrators and Capabilities in SUNDIALS Versions 6.2.0-7.4.0",
+      "url": "https://arxiv.org/abs/2506.14976v2",
+      "relationship": "current solver-ecosystem successor",
+      "difference": "Roberts et al. document the post-2022 SUNDIALS expansion through low-storage, symplectic, split, multirate, and adjoint-capable methods plus improved adaptivity and diagnostics. The current landscape is therefore broader than optimizing one LSODA factorization path; a modern sympy2c study should test generated Jacobians and linear solvers across several integrator families and hardware targets.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2 / ACM TOMS 2026"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "sympy2c bridges symbolic SymPy model development and fast portable C/C++ execution, with a novel generated ODE solver that uses symbolic Jacobian sparsity, unrolled linear algebra, learned row permutations, and Schur splitting to deliver very large speedups.",
+    "evidence": "The package unifies compiled scalar functions, numerical quadrature, splines, and LSODA-based ODE solving behind a Python interface. Its Einstein-Boltzmann benchmark demonstrates orders-of-magnitude warm speedups over dense internal LUP as dimension grows, and the fallback/recompile experiment shows a practical way to specialize recurrent pivot patterns.",
+    "reviewer_inference": "The defensible novelty is the particular combination of scalar LU code generation, static-zero elimination, and workload-adaptive permutation recompilation for repeatedly solved symbolic ODEs. Symbolic-to-native scientific code, symbolic ODE JIT, analytical Jacobian generation, and sparse stiff solvers were already established. Generality and numerical safety are not demonstrated: only one structured matrix family is timed against weak internal baselines, compilation is excluded, block invertibility and relaxed pivoting are under-analyzed, tables are mislabeled, and the paper's own tutorials are broken. The result is a promising application-specific compiler optimization, not yet evidence for a broadly superior or validated ODE solver."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Read all 28 extracted pages of arXiv v1, including every code listing, equation, performance table, scaling figure, conclusion, and reference; visually inspected the rendered Gaussian and Robertson listings and Tables 3-5 to distinguish source errors from extraction artifacts. Checked current primary records on 2026-08-23 for JiTCODE, AMICI, ModelingToolkit, heyoka, SUNDIALS, pyJac, Devito, and the 2026 SUNDIALS update. Also checked the official PyPI record: sympy2c remains actively released as version 2.5.1 on 2026-06-23, but the paper identifies no exact experimental release or commit; current maintenance does not repair the archived paper's reproducibility defects."
+}

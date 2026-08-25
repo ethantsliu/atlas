@@ -1,0 +1,157 @@
+{
+  "stable_id": "arxiv:2501.18096",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2501.18096",
+    "pdf_sha256": "4b5b144797244d66ef863f316e222c44ab3e26d6f91492ab6fdc9ea7218a2b22",
+    "text_sha256": "90b24bef250077aa36bee1d97db39dd38ee317424927b6bb02d24e79b15bb015",
+    "page_count": 15,
+    "extracted_at": "2026-08-23T17:27:32.203616+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can an otherwise text-only LLM solve multimodal tasks at inference time by iteratively proposing textual candidates and receiving scalar feedback from pretrained modality encoders?",
+  "key_findings": [
+    {
+      "claim": "MILS is a black-box generate-rank-reprompt loop rather than a learned multimodal interface.",
+      "evidence": "An LLM proposes candidate captions or prompts; CLIP/SigLIP/ViCLIP/ImageBind, PickScore, or Gram-matrix distance scores them; top candidates and scores are inserted into the next text prompt for 10-20 iterations. The LLM never receives raw media features.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 3, "section": "3 MILS"}, {"page": 7, "section": "4.7 Ablations"}]
+    },
+    {
+      "claim": "The method is task-training-free but not multimodal-training-free.",
+      "evidence": "Captioning relies on CLIP-like encoders trained on image-text, video-text, or audio-linked data, and media generation relies on pretrained diffusion/editing models and preference scorers. The novelty is composing frozen models without caption-task fine-tuning, not making a text model intrinsically see or hear.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 2, "section": "Training-free qualification"}, {"page": 3, "section": "SCORER"}, {"page": 8, "section": "5 Conclusion"}]
+    },
+    {
+      "claim": "MILS is competitive with specialized zero-shot captioning systems across image, video, and audio benchmarks.",
+      "evidence": "On MSCOCO it reports CIDEr 33.3, METEOR 15.0, and SPICE 9.6, below its strongest MeaCap reproduction on some metrics but above simpler baselines. On MSR-VTT it obtains CIDEr 2.3/METEOR 14.4, and on Clotho METEOR 12.4/SPICE 7.6 versus ZerAuCap 9.4/5.3.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "Tables 1-2"}, {"page": 5, "section": "Table 3"}]
+    },
+    {
+      "claim": "Optimization gains depend heavily on broad initial candidate coverage and scorer alignment.",
+      "evidence": "Image captioning starts from 30,000 LLM-generated prompts and audio from 50,000. Performance increases with initial-set size, generator/scorer scale, and iteration count; the conclusion acknowledges that missing candidates or an inaccurate scorer bounds attainable quality.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 4, "section": "4.1 Generator setup"}, {"page": 7, "section": "4.7 Initial-set ablation"}, {"page": 8, "section": "Limitations"}]
+    },
+    {
+      "claim": "The same textual search abstraction enables prompt rewriting and style scoring, but cross-modal arithmetic is qualitative.",
+      "evidence": "DrawBench human comparisons prefer MILS-rewritten prompts for LDM and FLUX, and Gram-matrix feedback discovers style-transfer edit prompts. Image-plus-audio combinations are illustrated after separately captioning each modality, with no quantitative compositional-faithfulness test.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 6, "section": "4.4-4.5 Generation and style transfer"}, {"page": 7, "section": "4.6 Cross-Modal Arithmetic"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Use natural language as a common optimization space: let an LLM mutate candidate descriptions or prompts and let a frozen multimodal model provide fitness feedback.",
+    "mechanism": "A task-specific prompt defines a generator composed of Llama 3.1 8B and optionally a media generator/editor. A scorer compares each candidate with the test media or desired outcome, sorts candidates, and returns top-K text plus scores to the next LLM call. Large precomputed candidate banks bootstrap captioning; repeated elitist search produces a final caption, rewritten generation prompt, style edit, or textual modality inversion.",
+    "assumptions": [
+      "The scorer's embedding or preference score is aligned with the downstream semantic/human objective.",
+      "The LLM can infer useful mutations from a ranked list without seeing media features.",
+      "A sufficiently diverse initial text bank contains or neighborhoods the target concept.",
+      "Repeated reuse of scorer feedback does not overfit exploitable scorer artifacts."
+    ]
+  },
+  "techniques": [
+    {"id": "llm-proposal-search", "role": "Generates diverse text candidates and mutates them from ranked feedback."},
+    {"id": "frozen-multimodal-fitness", "role": "Scores text against image, video, audio, preference, or style objectives."},
+    {"id": "elitist-reprompting", "role": "Feeds the top candidate-score pairs back to the LLM."},
+    {"id": "textual-embedding-inversion", "role": "Approximates multimodal embeddings with discrete descriptions."},
+    {"id": "modular-generator-scorer-swap", "role": "Reuses the loop across captioning, generation, editing, and composition."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "MSCOCO 5,000-image zero-shot captioning with Llama generator and SigLIP scorer.",
+      "metric": "BLEU4, CIDEr, METEOR, and SPICE.",
+      "result": "MILS reports 8.0/33.3/15.0/9.6; it is strong against simpler no-caption-training baselines but below the reproduced MeaCap on CIDEr, METEOR, and SPICE.",
+      "baseline": "ZeroCap, ConZIC, CLIPRe, and MeaCap."
+    },
+    {
+      "setting": "MSR-VTT video captioning with ViCLIP and Clotho audio captioning with ImageBind.",
+      "metric": "CIDEr/METEOR for video and BLEU4/ROUGE-L/METEOR/SPICE for audio.",
+      "result": "MILS gives video 2.3/14.4 and audio 2.7/23.1/12.4/7.6, beating the closest cited baselines on semantics-oriented metrics.",
+      "baseline": "Caption-trained Nagrani et al. models and zero-shot ZerAuCap."
+    },
+    {
+      "setting": "Two hundred DrawBench prompts with LDM and FLUX, plus style-transfer and iteration/scale ablations.",
+      "metric": "Human majority preference for quality/faithfulness, scorer output, SPICE, and PickScore.",
+      "result": "Human raters prefer MILS-enhanced generations; captioning/generation metrics improve and generally converge after 10-20 iterations; larger generators, scorers, and initial sets help.",
+      "baseline": "The same media generator with its original prompt and smaller/fewer search components."
+    }
+  ],
+  "limitations": [
+    "The title overstates the result: all media information enters through pretrained multimodal scorers that were trained on cross-modal data.",
+    "Captioning uses very large 30K-50K bootstrap banks and repeated LLM/scorer calls, with no full latency, token, energy, or dollar-cost comparison.",
+    "Elitist search can optimize scorer quirks; downstream metrics are not independent when related CLIP-like models define fitness.",
+    "Automatic caption benchmarks reward dataset vocabulary and may disadvantage truly open-ended descriptions, complicating comparisons.",
+    "Style transfer and cross-modal arithmetic receive mainly qualitative evidence.",
+    "Safety and bias are inherited from every generator and scorer, and iterative optimization can amplify them."
+  ],
+  "failure_modes": [
+    "The correct concept is absent from the initial candidate bank and top-K search never explores it.",
+    "A caption gains embedding similarity through object words while hallucinating relations or counts.",
+    "The loop converges to a local scorer maximum or repeats near-duplicate candidates.",
+    "Preference optimization adds generic aesthetic phrases that improve PickScore but reduce prompt fidelity.",
+    "Independent textual inversion of two modalities discards information needed for their compositional relation."
+  ],
+  "reusable_insights": [
+    "Expose a frozen perceptual model to an LLM through compact ranked natural-language feedback when gradients are unavailable.",
+    "Audit emergent-task claims separately from zero-shot distribution claims and from pretraining dependencies.",
+    "Measure search quality against compute and candidate-bank size, not only task accuracy.",
+    "Use an independent evaluator to detect reward-model overoptimization.",
+    "Treat language as an interoperable but lossy interface between otherwise incompatible modality models."
+  ],
+  "open_questions": [
+    "How does MILS compare at equal wall-clock, FLOPs, and API cost to direct multimodal LLM inference?",
+    "Can diversity-preserving or uncertainty-aware search reduce the 30K-50K bootstrap requirement?",
+    "How severe is scorer overfitting under many iterations and adversarial candidate generation?",
+    "Can cross-modal arithmetic be evaluated with controlled relational ground truth rather than examples?",
+    "What media information is irreversibly lost by the discrete text bottleneck?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "cvpr:2022:zerocap",
+      "title": "ZeroCap: Zero-Shot Image-to-Text Generation for Visual-Semantic Arithmetic",
+      "url": "https://openaccess.thecvf.com/content/CVPR2022/html/Tewel_ZeroCap_Zero-Shot_Image-to-Text_Generation_for_Visual-Semantic_Arithmetic_CVPR_2022_paper.html",
+      "relationship": "prior",
+      "difference": "ZeroCap uses CLIP gradients to steer token generation for zero-shot captions and visual-semantic arithmetic. MILS replaces differentiable token steering with black-box candidate search, making scorer/task swapping easier but much more sample- and call-intensive.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "cvpr:2023:conzic",
+      "title": "ConZIC: Controllable Zero-Shot Image Captioning by Sampling-Based Polishing",
+      "url": "https://openaccess.thecvf.com/content/CVPR2023/html/Zeng_ConZIC_Controllable_Zero-Shot_Image_Captioning_by_Sampling-Based_Polishing_CVPR_2023_paper.html",
+      "relationship": "prior",
+      "difference": "ConZIC already performs sampling-based caption polishing under visual-language feedback. MILS generalizes the ranked-feedback loop to arbitrary generators, scorers, modalities, and media-generation prompts rather than optimizing captions alone.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "cvpr:2024:meacap",
+      "title": "MeaCap: Memory-Augmented Zero-Shot Image Captioning",
+      "url": "https://openaccess.thecvf.com/content/CVPR2024/html/Zeng_MeaCap_Memory-Augmented_Zero-Shot_Image_Captioning_CVPR_2024_paper.html",
+      "relationship": "prior",
+      "difference": "MeaCap extracts concepts from a memory and uses multiple encoders to construct captions; its reproduced scores exceed MILS on several MSCOCO metrics. MILS is simpler and more modular, with broader task/modal coverage rather than a clear captioning-quality win.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2403.17804",
+      "title": "Improving Text-to-Image Consistency via Automatic Prompt Optimization",
+      "url": "https://arxiv.org/abs/2403.17804",
+      "relationship": "prior",
+      "difference": "Automatic prompt optimization also uses iterative feedback to rewrite text-to-image prompts. MILS positions prompt optimization as one instance of a common generator-scorer interface and extends it to understanding, editing, and modality inversion.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim a training-free universal multimodal solver that gives text-only LLMs emergent image, video, and audio capabilities through iterative candidate scoring.",
+    "evidence": "Section 3 defines the modular loop; Sections 4.1-4.7 demonstrate three caption modalities, prompt rewriting, style transfer, arithmetic, and ablations.",
+    "reviewer_inference": "The broad black-box modularization and text-as-interface synthesis are useful. Gradient/sampling-based zero-shot captioning and automatic prompt optimization are direct predecessors. The LLM does not literally acquire perception: a pretrained multimodal scorer performs it, and quality depends on expensive candidate coverage plus reward alignment. Novelty is compositional breadth rather than a new multimodal representation."
+  },
+  "confidence": 0.93,
+  "reviewer_notes": "Read all 15 pages of the pinned PDF, including prompts, human-evaluation interface, metric tables, model/initial-set/iteration ablations, qualitative cross-modal cases, and references. Primary CVPR/arXiv competitors spanning gradient captioning, sampling polishing, memory captioning, and prompt optimization were checked on 2026-08-23. Training-free is consistently qualified as no task-specific optimization, not absence of pretrained multimodal supervision."
+}

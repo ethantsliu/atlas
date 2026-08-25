@@ -1,0 +1,179 @@
+{
+  "stable_id": "arxiv:2512.22213",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2512.22213",
+    "pdf_sha256": "0ac356c704698a217d906c527c0bb3877701bf04d9318528641082294d37ea7a",
+    "text_sha256": "25f46472d8107f4ab57eaf7ea7e82ceab175e7d9c37127d0ae7547133f8f380b",
+    "page_count": 12,
+    "extracted_at": "2026-08-23T14:12:25.595503+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Do some non-BOS attention sinks form only in middle transformer layers, and can their creation, strength, and lifetime be traced to particular MLP transformations rather than treated as variants of the persistent primary sink?",
+  "key_findings": [
+    {
+      "claim": "The paper operationally separates primary and secondary sinks by depth profile: secondary sinks arise in middle layers and persist for a variable, usually bounded, number of layers.",
+      "evidence": "Across the examined models, candidate tokens behave like ordinary tokens before a model-specific start layer and then acquire high hidden-state norm, high alignment to the BOS direction, and sink-like attention. The authors group them into levels indexed by start layer and lifetime, in contrast to primary sinks that appear with BOS and persist through the network.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "3 Properties of Secondary Sinks"},
+        {"page": 4, "section": "Secondary Sinks and Sink Levels"}
+      ]
+    },
+    {
+      "claim": "Secondary sinks are architecture- and training-dependent rather than universal.",
+      "evidence": "The phenomenon is reported in Qwen2, Qwen2-Math, Qwen2.5, Qwen2.5-Math, Qwen3, and QwQ, but not in the other five tested families. It is weak or absent in smaller base models and becomes more pronounced after mathematical post-training and at larger scale.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "Model-family study"},
+        {"page": 4, "section": "Sink Levels"}
+      ]
+    },
+    {
+      "claim": "A particular middle-layer MLP is strongly implicated in producing the sink representation, but the evidence does not yet establish why training creates that transformation.",
+      "evidence": "For future sink tokens in DeepSeek-14B, cosine alignment with the BOS direction rises sharply across layer 22's MLP. PCA directions of the MLP input are mapped toward the same direction, while clustering and swap experiments indicate that earlier attention and MLP modules progressively mark which uninformative tokens will be converted. These are within-model activation interventions, not a training-time causal account.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "4 Causal Formation of Secondary Sinks"},
+        {"page": 6, "section": "Clustering and substitution experiments"}
+      ]
+    },
+    {
+      "claim": "The output norm at the formation MLP is associated with both sink score and sink lifetime.",
+      "evidence": "For the reported secondary sinks, the ratio of secondary-to-BOS sink score is approximately log-linear in the formation-layer MLP-output norm, while lifetime grows monotonically with log norm in plateau-separated regimes. Observed lifetimes range from two to 22 layers.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "5 Secondary Sinks' Effect on Attention"}
+      ]
+    },
+    {
+      "claim": "The proposed compensatory role is correlational and is not linked to output behavior or task performance.",
+      "evidence": "The BOS sink score has a depth-wise valley near the emergence of secondary sinks, which the authors interpret as possible compensation. No ablation removes or induces secondary sinks while measuring generation, reasoning accuracy, calibration, or cache behavior, and the conclusion explicitly leaves downstream impact open.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Attention Sink Score"},
+        {"page": 6, "section": "6 Conclusion"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Track sink-like tokens across depth, define discrete sink levels from their formation layer and lifetime, and localize their formation by following hidden, attention, and MLP representations through the network.",
+    "mechanism": "Reasoning traces from AIME24 and MATH are passed through 11 decoder-model families. Tokens whose hidden states align with the BOS hidden state above a 0.95 cosine threshold are treated as efficient sink candidates after an initial attention-weight study. The analysis compares hidden/key/value norms, start layer, persistence, and attention sink score; then uses component-wise cosine traces, PCA of future-sink MLP inputs, clustering, and representation substitution against average uninformative tokens to attribute formation across layers.",
+    "assumptions": [
+      "Cosine alignment with the BOS hidden-state direction is a sufficiently specific surrogate for attention-sink membership across architectures.",
+      "The chosen reasoning traces and token categories represent ordinary deployments rather than a dataset- or prompt-specific effect.",
+      "A discrete pair of start layer and lifetime is a stable level rather than threshold noise.",
+      "Component substitutions remain locally interpretable despite moving hidden states off their natural activation distribution."
+    ]
+  },
+  "techniques": [
+    {"id": "depth-resolved-sink-tracking", "role": "Separates persistent primary sinks from middle-layer, finite-lifetime secondary sinks."},
+    {"id": "bos-direction-cosine-screen", "role": "Finds sink candidates efficiently using hidden-state alignment above 0.95."},
+    {"id": "formation-mlp-tracing", "role": "Measures how alignment and norm change across attention and MLP sublayers."},
+    {"id": "future-sink-pca", "role": "Tests whether low-rank input components are mapped toward a common sink direction."},
+    {"id": "component-substitution", "role": "Replaces future-sink activations with average uninformative-token activations to localize upstream contributions."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Reasoning traces from DeepSeek-14B, DeepSeek-32B, and Qwen3-32B on AIME24 and MATH, then replayed through 11 model families.",
+      "metric": "Presence, formation layer, lifetime, hidden/key/value norms, BOS cosine similarity, and attention sink score.",
+      "result": "Secondary sinks appear in six Qwen-derived families, can begin in middle layers, and persist for two to 22 layers; the paper reports three sink levels in QwQ-32B and six in Qwen3-14B.",
+      "baseline": "BOS and other primary sinks that emerge early and remain sinks throughout depth, plus five tested families without detected secondary sinks."
+    },
+    {
+      "setting": "DeepSeek-14B layer-22 analysis on 75 future sinks and PCA over 250 future-sink MLP inputs.",
+      "metric": "Cosine similarity to the BOS sink direction and MLP-output norm.",
+      "result": "Future-sink vectors with low input alignment become nearly aligned after the designated MLP; multiple principal-component directions are mapped toward the same sink direction.",
+      "baseline": "Normal semantically uninformative tokens and the corresponding pre-MLP representations."
+    },
+    {
+      "setting": "Depth-wise sink-score and lifetime analysis for detected secondary sinks.",
+      "metric": "Secondary/BOS attention-score ratio, lifetime, and formation-layer MLP-output norm.",
+      "result": "Score ratio is reported as log-linear in output norm, and lifetime rises monotonically in distinct regimes; BOS strength is weakest around secondary-sink emergence.",
+      "baseline": "Primary BOS sink score across the same layers."
+    }
+  ],
+  "limitations": [
+    "The main mechanism analysis concentrates on DeepSeek-14B/AIME24 even though appendices broaden detection; it does not establish cross-family causal invariance.",
+    "The 0.95 BOS-alignment threshold can miss sinks with a different geometry or include high-norm aligned tokens that are not functionally used as sinks.",
+    "Reported scale and post-training trends are observational: model families differ in architecture, data, rotary base, and training recipe.",
+    "No controlled intervention on pretraining or post-training explains why the formation MLP develops this mapping.",
+    "No downstream behavior, quality, robustness, or efficiency metric validates the proposed function of secondary sinks.",
+    "The paper reports plots and examples but little uncertainty analysis over prompts, tokens, seeds, thresholds, or alternative sink definitions."
+  ],
+  "failure_modes": [
+    "A fixed cosine threshold can turn a continuous, noisy depth trajectory into artificial discrete sink levels.",
+    "Tokens selected because they later become sinks create a retrospective selection effect in PCA and clustering analyses.",
+    "Off-manifold activation substitutions may disrupt unrelated features and exaggerate a component's apparent causal role.",
+    "A weakened BOS score and an emerging secondary score can covary with depth without one compensating for the other.",
+    "Reasoning-specific templates or punctuation distributions can make semantically uninformative positions appear mechanistically special."
+  ],
+  "reusable_insights": [
+    "Characterize attention phenomena as trajectories over depth rather than aggregate attention maps.",
+    "Separate a detector from the original definition and audit detector precision against direct attention weights.",
+    "Combine sublayer tracing with targeted substitutions to distinguish where a representation is selected from where it is amplified.",
+    "Treat formation layer and persistence as continuous measurements before clustering them into qualitative levels.",
+    "Validate mechanistic labels with behavior-changing interventions, not representation similarity alone."
+  ],
+  "open_questions": [
+    "Can secondary sinks be induced or prevented through controlled changes to data, objective, rotary embeddings, or individual MLP weights?",
+    "Does ablating a secondary sink change answer accuracy, long-context retention, calibration, or generation stability?",
+    "Are there sink directions independent of BOS that the cosine detector systematically misses?",
+    "Do the reported sink levels replicate across prompts, languages, decoding schemes, and independently trained checkpoints?",
+    "What function, if any, is represented by the token set selected in layers before the formation MLP?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2309.17453",
+      "title": "Efficient Streaming Language Models with Attention Sinks",
+      "url": "https://arxiv.org/abs/2309.17453",
+      "relationship": "prior",
+      "difference": "StreamingLLM established persistent initial-token attention sinks and their practical value for bounded KV-cache streaming. The present paper instead studies non-initial sinks that arise only at intermediate depth and does not provide a serving intervention.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2410.10781",
+      "title": "When Attention Sink Emerges in Language Models: An Empirical View",
+      "url": "https://arxiv.org/abs/2410.10781",
+      "relationship": "prior",
+      "difference": "Gu et al. study the emergence and functional interpretation of conventional attention sinks during training and depth. This paper's narrower contribution is the finite-lifetime secondary class and its MLP-localized formation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2508.02546",
+      "title": "What Are You Sinking? A Geometric Approach on Attention Sink",
+      "url": "https://arxiv.org/abs/2508.02546",
+      "relationship": "prior",
+      "difference": "Ruscio et al. connect multiple sinks to positional-embedding geometry and rotary frequency. The secondary-sink paper directly observes that rotary base alone is insufficient across CodeLlama and other families, then adds depth-specific levels and MLP analysis.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2406.15765",
+      "title": "Unveiling and Harnessing Hidden Attention Sinks: Enhancing Large Language Models without Training through Attention Calibration",
+      "url": "https://arxiv.org/abs/2406.15765",
+      "relationship": "prior",
+      "difference": "Yu et al. identify and manipulate non-BOS hidden sinks for model enhancement, but treat them as persistent sink-like positions. The current work differentiates later-forming, finite-lifetime sinks and studies their internal formation rather than calibrating attention for performance.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2510.06477",
+      "title": "Attention Sinks and Compression Valleys in LLMs Are Two Sides of the Same Coin",
+      "url": "https://arxiv.org/abs/2510.06477",
+      "relationship": "concurrent",
+      "difference": "Queipo-de Llano et al. connect sink strength to depth-wise compression valleys and supply the sink-score definition used here. The present paper adds token-level secondary levels and formation-MLP evidence, while its compensation story remains consistent with but does not independently prove that compression account.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim a fundamentally distinct class of secondary attention sinks that begins in middle layers, persists for variable lifetimes, is produced by particular MLPs, and partially compensates for weakening primary sinks.",
+    "evidence": "Sections 3-5 define start-layer/lifetime levels, survey 11 families, trace layer-22 MLP transformations, and relate MLP-output norm to score and lifetime.",
+    "reviewer_inference": "The defensible novelty is the depth-resolved taxonomy plus evidence that particular middle-layer MLPs amplify preselected tokens into the established BOS-like sink direction. Multiple non-BOS sinks, positional accounts, hidden-sink manipulation, and depth-wise compression interpretations predate or coincide with the paper. The compensatory function and training origin are hypotheses, not demonstrated mechanisms."
+  },
+  "confidence": 0.91,
+  "reviewer_notes": "Read all 12 pages of the pinned workshop PDF, including the main experiments, appendix model/dataset sweeps, substitution description, and references. Competitor searches followed the paper's mechanism, detector, and claimed-novelty language and were checked against primary arXiv records on 2026-08-23. Numeric plot claims are preserved at the granularity reported in the text; the paper does not provide enough tabular uncertainty detail to infer stronger effect sizes."
+}

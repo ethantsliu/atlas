@@ -1,0 +1,273 @@
+{
+  "stable_id": "arxiv:2503.21801",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2503.21801",
+    "pdf_sha256": "0439e6b3ecc829918cde84aea4fa54ab7240da2199744316a9e8840907a71a9d",
+    "text_sha256": "b61a9c5350af66fd8bebc23caaa47fee0a29bcf48bdd9705050bd5dcff4ba43f",
+    "page_count": 9,
+    "extracted_at": "2026-08-23T17:06:44.484526+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a lightweight, teacher-forced auxiliary head make a causal Transformer's hidden state encode a coherent short-horizon future and thereby solve lookahead tasks that next-token and marginal multi-token objectives miss?",
+  "key_findings": [
+    {
+      "claim": "Joint token prediction (JTP) factorizes a future-token joint likelihood autoregressively inside an auxiliary head while preserving a single backbone hidden state as the intended information bottleneck.",
+      "evidence": "For each backbone state h at a prefix, the multi-token loss predicts successive future tokens conditioned on h and the intervening ground-truth tokens. A Fetch module processes the teacher-forced tokens before a shared multi-token head, so dependencies among targets are modeled rather than replaced by independent marginals.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "2 Efficiently Predicting Joint Distributions of Future Tokens"},
+        {"page": 3, "section": "2.1 Joint Multi-Token Prediction / Equation 1"}
+      ]
+    },
+    {
+      "claim": "The concrete Fetch module is one self-attention layer over copies of the same hidden state combined with embeddings of teacher-forced tokens, plus a residual connection from the backbone state.",
+      "evidence": "Equations 3-5 define each input as gamma times h plus a token embedding, apply self-attention to the growing teacher-forced window, and add h back. The paper does not ablate gamma, the residual, Fetch capacity, or the auxiliary-loss weight, so it does not identify which part creates the observed benefit.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "2.3 Concrete Example of the Light Module / Equations 3-5"}
+      ]
+    },
+    {
+      "claim": "JTP solves the reported small star-graph navigation cases where the authors' next-token, independent-head MTP, and DeepSeek-style MTP implementations fail or learn more slowly.",
+      "evidence": "A six-block, 10.7M-parameter Transformer is trained on freshly generated graphs with node labels from a vocabulary of 50. The Figure 3 curves cover G(2,5), G(2,10), and G(5,5); JTP reaches the successful regime across all three, whereas independent-head MTP succeeds only on G(2,5) and the other plotted baselines struggle.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "3 Testing Multi-Token Predictions with Star Graphs"},
+        {"page": 5, "section": "3.1 Comparison of Multi-Token Prediction Methods"},
+        {"page": 6, "section": "Figure 3"}
+      ]
+    },
+    {
+      "claim": "The main star-graph comparison deliberately sets the prediction depth from the answer-path length, so it demonstrates a horizon-matched training signal rather than robustness to an unknown planning horizon.",
+      "evidence": "For each G(d,l), the authors choose D=l-2 so the end node can inform prediction of the critical second node. There is no evaluation in which one fixed D must generalize across unknown or longer l, although the smaller-window study shows qualitative gains for D=1 and D=2 on two length-five cases.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "3.1 Comparison of Multi-Token Prediction Methods"},
+        {"page": 5, "section": "3.2 Small Prediction Windows"},
+        {"page": 6, "section": "Figure 4"}
+      ]
+    },
+    {
+      "claim": "The evidence does not establish statistical reliability or scale transfer beyond one synthetic setup.",
+      "evidence": "Results are plotted as training curves without reported seed counts, error bars, numerical result tables, held-out graph-distribution shifts, or equal-training-FLOP comparisons. All tested graphs use at most 50 node labels, and G(7,7) does not reach 100% test accuracy within 20,000 steps.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "Experimental Setting"},
+        {"page": 5, "section": "3.3 Larger Graphs"},
+        {"page": 7, "section": "Figure 5"}
+      ]
+    },
+    {
+      "claim": "The auxiliary parameter count is nearly independent of prediction depth in the reported implementation, but 'negligible overhead' is supported only by an asymptotic argument, not measured wall-clock or memory data.",
+      "evidence": "Table 1 lists JTP at 11.3M parameters for both D=3 and D=8 versus the 10.7M GPT, while the alternative implementations grow to 13.1-17.8M. Theorem 4.1 counts O(T^2 L + T D^2) operations, but the report supplies no throughput, peak-memory, training-time, or end-to-end compute measurements.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Table 1"},
+        {"page": 7, "section": "4.1 Computation per Backward Step / Theorem 4.1"}
+      ]
+    },
+    {
+      "claim": "The theorem's count of O(TD) 'distinct gradients' is not a proof of O(TD) independent learning signals or reduced optimization cost.",
+      "evidence": "Each of D auxiliary losses backpropagates to each of T hidden states, but those contributions are summed before the shared backbone update and can be redundant, correlated, or conflicting. The proof counts loss-to-state gradient contributions and divides FLOPs by that count; it does not analyze gradient rank, variance, effective sample size, optimizer steps, or the backward work inside Fetch.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 7, "section": "4.1 Computation per Backward Step / Theorem 4.1 and proof"}
+      ]
+    },
+    {
+      "claim": "Exact factorization of the supervised future sequence does not by itself prove that the backbone state stores all relevant future information or constitutes a belief state.",
+      "evidence": "Later conditional predictions can rely on ground-truth intervening tokens supplied to Fetch, and the architecture supplies no mutual-information, sufficiency, intervention, probing, or state-compression test. The claim on page 8 is therefore a conceptual interpretation of the training objective, not a demonstrated representation theorem.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "2.1 Joint Multi-Token Prediction"},
+        {"page": 8, "section": "4.2 Importance of Joint Distribution"}
+      ]
+    },
+    {
+      "claim": "The only natural-language experiment is a negative-to-neutral sanity check: JTP worsens next-token loss at 162M parameters while showing that its auxiliary loss is trainable.",
+      "evidence": "After 5B FineWeb tokens, GPT ends at next-token loss 3.062, while JTP reaches 3.100, 3.110, and 3.119 for D=1,2,4 respectively. The corresponding multi-token losses rise from 3.742 to 4.198, and no downstream, generation, planning, compute, or larger-scale result is reported.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "5 Sanity Check: Language Modeling Experiments / Table 2"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Train one causal backbone with next-token loss plus a future-window loss whose teacher-forced autoregressive factorization must pass through the current hidden state and a deliberately small auxiliary module.",
+    "mechanism": "For every prefix state, form a sequence of vectors by adding scaled copies of that state to embeddings of ground-truth future tokens. A one-layer attention Fetch module predicts successive future tokens with a shared output head; its losses and the next-token loss jointly update the backbone. The intended contrast is with independent future-token heads, which discard target dependencies, and deeper recurrent MTP heads, which can reprocess the context outside the intended bottleneck.",
+    "assumptions": [
+      "A small Fetch module cannot solve future prediction while bypassing information in the backbone hidden state.",
+      "Teacher-forced conditional prediction encourages useful lookahead rather than merely exploiting intervening tokens.",
+      "The star-graph task is a meaningful proxy for planning and exposes the relevant shortcut of next-token training.",
+      "Prediction horizon D can be chosen to cover the dependency of interest.",
+      "The auxiliary loss weight and architecture do not harm next-token language modeling materially at useful scale.",
+      "Counting auxiliary loss gradients to hidden states is informative about optimization efficiency."
+    ]
+  },
+  "techniques": [
+    {"id": "teacher-forced-joint-future-factorization", "role": "Represents a tractable future joint distribution as conditional token losses."},
+    {"id": "representation-bottleneck-fetch-head", "role": "Restricts auxiliary processing so the backbone state is intended to carry the prefix-dependent lookahead information."},
+    {"id": "shared-backbone-auxiliary-loss", "role": "Uses multiple future-target gradients to shape the same causal hidden states without changing inference."},
+    {"id": "star-graph-lookahead-probe", "role": "Tests whether training can propagate a known future goal to an earlier branching decision."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Freshly generated star graphs G(2,5), G(2,10), and G(5,5), six-layer 384-dimensional Transformer, D=l-2",
+      "metric": "Plotted test accuracy over training steps",
+      "result": "JTP reaches successful solutions on all three plotted cases; independent-head MTP solves only G(2,5) and other plotted baselines struggle",
+      "baseline": "10.7M-parameter next-token GPT, Gloeckle-style independent MTP, and DeepSeek-style MTP reimplementations"
+    },
+    {
+      "setting": "G(2,5) and G(5,5) with short horizons D=1 and D=2",
+      "metric": "Plotted test accuracy over training steps",
+      "result": "JTP gives a nontrivial qualitative improvement even when the horizon does not expose the full future path",
+      "baseline": "Next-token prediction"
+    },
+    {
+      "setting": "Larger star graphs with at most 50 node labels and D=l-2",
+      "metric": "Test accuracy by 20,000 training steps",
+      "result": "JTP remains effective on the plotted settings, but G(7,7) does not reach 100%",
+      "baseline": "Smaller star-graph settings and competing MTP curves"
+    },
+    {
+      "setting": "162M-parameter GPT-2 architecture trained for 5B FineWeb tokens",
+      "metric": "Final next-token cross-entropy loss",
+      "result": "GPT 3.062; JTP D=1 3.100, D=2 3.110, and D=4 3.119",
+      "baseline": "Standard next-token GPT"
+    },
+    {
+      "setting": "Analytic cost model for sequence length T, backbone depth L, and future horizon D",
+      "metric": "Asymptotic operations and number of loss-to-hidden-state gradient contributions",
+      "result": "Claimed O(T^2 L + T D^2) operations and O(TD) gradient contributions",
+      "baseline": "O(T^2 L) next-token Transformer under the paper's dimension-suppressing cost model"
+    }
+  ],
+  "limitations": [
+    "Author-stated: this is a preliminary work-in-progress report centered on a synthetic star-graph task.",
+    "Author-stated: the language-model architecture was not optimized for JTP and broader adaptation needs further study.",
+    "Reviewer-identified: no seeds, uncertainty intervals, numeric graph-result tables, or learning-curve digitization are reported.",
+    "Reviewer-identified: the principal horizon D=l-2 is selected from path length and is not tested under horizon shift.",
+    "Reviewer-identified: natural-language evidence is limited to 162M parameters and 5B tokens, where next-token loss regresses.",
+    "Reviewer-identified: parameter counts are shown, but measured FLOPs, throughput, memory, energy, and wall time are absent.",
+    "Reviewer-identified: no probe or causal intervention demonstrates that the backbone hidden state itself is a sufficient belief state.",
+    "Reviewer-identified: baselines are not matched on training FLOPs, parameters, or tuned auxiliary-loss budgets."
+  ],
+  "failure_modes": [
+    "Intervening ground-truth tokens make later future targets easy, so Fetch learns local continuation while the backbone stores little additional plan information.",
+    "A long or uncertain dependency lies beyond D, causing the auxiliary objective to reinforce local cues rather than the required goal.",
+    "Auxiliary gradients conflict with next-token gradients and degrade language modeling, as the reported FineWeb loss already suggests.",
+    "The chosen D or known sequence structure leaks the relevant planning horizon and does not transfer to variable-length tasks.",
+    "The Fetch module becomes expressive enough to bypass the intended bottleneck, or too weak to use teacher-forced dependencies.",
+    "Extra gradient contributions are highly correlated, so their count overstates effective supervision.",
+    "A model learns the synthetic graph serialization or fixed vocabulary without acquiring general planning ability.",
+    "Training cost grows materially once vocabulary logits, hidden width, backward operations, and realistic kernels are counted."
+  ],
+  "reusable_insights": [
+    "Compare future-aware objectives by the conditional independences they impose, not only by how many future targets they predict.",
+    "An auxiliary head can use teacher forcing while retaining a prefix-state bottleneck if its access to the main sequence is explicitly controlled.",
+    "Evaluate alleged representation enrichment directly with interventions, matched-capacity probes, and information-sufficiency tests.",
+    "Treat the number of loss terms as a supervision count, not as independent gradients, until rank, covariance, and optimization effects are measured.",
+    "Use a horizon-shift matrix: train across several D values and test dependencies both inside and beyond each window.",
+    "Report both next-token quality and downstream utility because an auxiliary planning signal can trade one against the other."
+  ],
+  "open_questions": [
+    "Does JTP improve downstream reasoning, coding, or long-form generation at billion-parameter scale under matched training FLOPs?",
+    "How much future information is uniquely decodable from the backbone state rather than reconstructed from teacher-forced Fetch inputs?",
+    "Which component matters: joint factorization, teacher forcing, Fetch capacity, the residual path, horizon, or simply more loss terms?",
+    "Can one fixed or sampled D generalize to unknown and substantially longer dependencies?",
+    "What is the measured throughput and memory overhead with fused vocabulary heads and realistic sequence lengths?",
+    "Are JTP gradients complementary to NTP gradients across training, or mostly redundant and sometimes antagonistic?",
+    "How does JTP compare with future-summary, token-order, explicit-subgoal, diffusion, and teacherless objectives on the same compute-controlled suite?",
+    "Can a rate-distortion or predictive-information objective state precisely what a short-horizon belief state must preserve?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2404.19737",
+      "title": "Better & Faster Large Language Models via Multi-token Prediction",
+      "url": "https://arxiv.org/abs/2404.19737",
+      "relationship": "direct predecessor: independent future-token MTP",
+      "difference": "Gloeckle et al. predict several offsets with independent heads and validate up to 13B parameters on code and language. JTP adds teacher-forced dependence among future targets and a tighter state bottleneck, but its empirical evidence is far smaller and its FineWeb next-token loss is worse.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, submitted 2024-04-30"
+    },
+    {
+      "canonical_id": "arxiv:2412.19437",
+      "title": "DeepSeek-V3 Technical Report",
+      "url": "https://arxiv.org/abs/2412.19437",
+      "relationship": "direct predecessor: sequential MTP transfer layers at production scale",
+      "difference": "DeepSeek-V3 feeds a teacher-forced future token through successive transfer modules and validates MTP inside a 671B-total-parameter system. JTP argues that those deeper modules can bypass the backbone bottleneck and replaces them with one shared light Fetch layer, but does not test production scale.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, revised 2025-02-18"
+    },
+    {
+      "canonical_id": "arxiv:2410.23506",
+      "title": "The Belief State Transformer",
+      "url": "https://arxiv.org/abs/2410.23506",
+      "relationship": "closest belief-state and star-graph predecessor",
+      "difference": "The Belief State Transformer jointly encodes a prefix and suffix with forward and backward objectives and directly reports star-graph, story, and representation results. JTP seeks a cheaper causal-training-only approximation using short future windows, but supplies no direct state-sufficiency test.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, revised 2025-09-16"
+    },
+    {
+      "canonical_id": "pmlr:v235:bachmann24a",
+      "title": "The Pitfalls of Next-Token Prediction",
+      "url": "https://proceedings.mlr.press/v235/bachmann24a.html",
+      "relationship": "benchmark and problem-definition foundation",
+      "difference": "Bachmann and Nagarajan introduce the star-graph failure and distinguish teacher-forcing failure from autoregressive error accumulation. JTP is one targeted auxiliary-objective response evaluated on that benchmark rather than a new diagnosis or broad benchmark.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2024 PMLR volume 235 version of record"
+    },
+    {
+      "canonical_id": "arxiv:2504.11336",
+      "title": "Looking beyond the next token",
+      "url": "https://arxiv.org/abs/2504.11336",
+      "relationship": "later explicit-future and data-reordering alternative",
+      "difference": "Trelawney inserts future subgoals into the training sequence and evaluates star graphs, algorithmic reasoning, and controlled story generation without an auxiliary architecture. It provides a broader explicit-planning route, while JTP keeps inference unchanged and tries to internalize only a short future window.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2508.19228",
+      "title": "Predicting the Order of Upcoming Tokens Improves Language Modeling",
+      "url": "https://arxiv.org/abs/2508.19228",
+      "relationship": "later lightweight future-aware auxiliary objective",
+      "difference": "Token Order Prediction replaces exact future-token likelihoods with a ranking target, adds one unembedding layer, and reports 340M, 1.8B, and 7B pretraining plus star-graph results. It directly challenges whether exact JTP targets are the right difficulty while retaining a lightweight auxiliary signal.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2509.23186",
+      "title": "Understanding and Enhancing the Planning Capability of Language Models via Multi-Token Prediction",
+      "url": "https://arxiv.org/abs/2509.23186",
+      "relationship": "later mechanistic and planning-focused MTP extension",
+      "difference": "Zhong et al. analyze how an MTP transfer layer learns multi-step adjacency and add next-token injection plus a Transformer transfer layer, evaluating synthetic graphs and Blocksworld. This narrows JTP's planning novelty and offers broader structure tests, though with a less restrictive bottleneck.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2510.14751",
+      "title": "Beyond Multi-Token Prediction: Pretraining LLMs with Future Summaries",
+      "url": "https://arxiv.org/abs/2510.14751",
+      "relationship": "later long-horizon future-representation competitor",
+      "difference": "Future Summary Prediction predicts either a bag of future tokens or a reverse-model embedding and reports 3B/8B gains over NTP and MTP on reasoning, math, and code. It targets information beyond a fixed short window and is substantially stronger scale evidence, while JTP uniquely models local token dependencies exactly through teacher forcing.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, revised 2026-03-25"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "JTP is an exceptionally efficient multi-token objective that models a coherent future joint distribution through a representation bottleneck, yields a short-horizon belief state, and solves star graphs that popular MTP alternatives cannot.",
+    "evidence": "The report supplies the autoregressive auxiliary-head construction, parameter and asymptotic cost comparisons, synthetic star-graph learning curves, and a 162M-parameter FineWeb sanity check.",
+    "reviewer_inference": "The clean residual novelty is the particular combination of teacher-forced joint factorization and a deliberately light prefix-state bottleneck. The belief-state, negligible-overhead, and practical-improvement claims remain unvalidated: there is no state intervention, measured systems result, statistical replication, horizon-shift test, or positive language-model result. Later token-order, planning-transfer-layer, explicit-subgoal, and future-summary work now provides stronger or broader competing routes."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Primary full-text audit of all nine pages of the exact indexed arXiv:2503.21801v1 technical report, including every equation, Figure 1 architecture, Figures 2-5 and captions, Table 1 parameter counts, Theorem 4.1 and its proof, Table 2 FineWeb losses, conclusion, and references. The current official arXiv record was checked on 2026-08-23 and remains v1. Eight direct primary-source competitors were inspected on current official arXiv or PMLR records, including four later approaches that materially narrow present-day novelty. Figure-only learning curves are described qualitatively because the report gives no numeric graph-result table, seeds, intervals, or digitized values. Author claims, reviewer inferences, and contradiction audits are labeled separately; no code execution or independent replication was performed."
+}

@@ -1,0 +1,151 @@
+{
+  "stable_id": "arxiv:2203.12191",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2203.12191",
+    "pdf_sha256": "bd830e514c6508e258f59a932cb0438b3ef427ca6e48981c651819a88ae0bdf2",
+    "text_sha256": "64cf9b11dbf5e16f20ad73c048ca27766d7b35e43619002aee409ac191539acf",
+    "page_count": 29,
+    "extracted_at": "2026-08-23T21:15:26.557214+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can momentum be added to adaptive gradient descent with an auxiliary energy variable while retaining unconditional energy stability and improving convergence and generalization over AEGD, SGDM, and Adam?",
+  "key_findings": [
+    {
+      "claim": "AEGDM combines an exponentially weighted sum of transformed gradients with an element-wise energy variable that multiplicatively shrinks each coordinate's effective step size.",
+      "evidence": "The method transforms the stochastic gradient by dividing by twice the square root of the shifted sample loss, updates momentum as m[t+1] = mu m[t] + v[t], updates each energy coordinate by division by 1 + 2 eta v[t]^2, and steps parameters using the product of energy and momentum. It stores two additional parameter-sized state vectors.",
+      "anchors": [
+        {"page": 4, "section": "Section 2, AEGD energy transformation"},
+        {"page": 6, "section": "Section 3, Equations 3.3 and Algorithm 2"},
+        {"page": 29, "section": "Appendix H, Optimizer update comparison"}
+      ]
+    },
+    {
+      "claim": "The advertised unconditional stability is stability of the constructed energy variable, not monotone loss, convergence of parameters, or stationarity for arbitrary step size.",
+      "evidence": "Theorem 4.1 makes r decrease for every positive base step size and bounds squared update lengths, but Remark 4.2 explicitly says the objective may increase and the result does not in general guarantee convergence of the parameter sequence. The property follows directly from the multiplicative energy update.",
+      "anchors": [
+        {"page": 7, "section": "Theorem 4.1 and Remark 4.2"},
+        {"page": 16, "section": "Appendix A, Energy telescoping bound"},
+        {"page": 18, "section": "Appendix B, Proof of Theorem 4.1"}
+      ]
+    },
+    {
+      "claim": "The regret and nonconvex stationarity guarantees remain energy-dependent and can lose force if the energy approaches zero.",
+      "evidence": "The online bound contains inverse terminal energy coordinates, while the stochastic theorem bounds a terminal-energy-weighted average gradient norm. A standard O(sqrt(T)) or O(1/sqrt(T)) interpretation is recovered only when terminal energy stays positively bounded. The sufficient lower bound assumes bounded losses and gradients and loses strength with stochastic noise through a term proportional to sigma times sqrt(eta n T).",
+      "anchors": [
+        {"page": 8, "section": "Theorem 4.3 and energy-dependent regret"},
+        {"page": 9, "section": "Theorems 4.6 and 4.7"},
+        {"page": 10, "section": "Remark 4.8"},
+        {"page": 26, "section": "Appendix F, Terminal-energy lower bound"}
+      ]
+    },
+    {
+      "claim": "The image experiments show promising but narrow advantages, with modest task-specific gains and insufficient replication to establish optimizer superiority at modern scale.",
+      "evidence": "Across MNIST and CIFAR-10/100 with six CNNs, each optimizer's base learning rate is selected from a hand-specified grid and most runs use one scheduled decay. The paper reports 99.3% for LeNet-5, 71.33% for SqueezeNet, about a one-point ResNet-32 advantage over SGDM, and reduced AEGD oscillation, but provides no seed counts, error bars, wall-clock comparison, transformer or language-model runs, or statistical tests.",
+      "anchors": [
+        {"page": 10, "section": "Section 5, Evaluation protocol"},
+        {"page": 11, "section": "Section 5.2, Learning-rate search and MNIST/CIFAR-10 results"},
+        {"page": 12, "section": "Section 5.2, CIFAR-100 and default-rate comparison"},
+        {"page": 27, "section": "Appendix G, Training settings"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Import invariant-energy-quadratization ideas from numerical gradient flows into stochastic optimization, then add classical momentum to the loss-normalized gradient while retaining a coordinate-wise dissipative auxiliary state.",
+    "mechanism": "Shift each sample loss by c, transform its gradient by the square root of that shifted loss, accumulate transformed gradients with momentum, shrink a positive coordinate-wise energy using the current squared transformed gradient, and scale the momentum update by the new energy. Analyze the resulting telescoping energy identity in online convex and stochastic nonconvex settings.",
+    "assumptions": [
+      "Every stochastic sample loss plus c is globally positive, and the analysis further assumes a uniform positive lower bound and finite upper bound.",
+      "Stochastic function values and gradients are unbiased, independent across iterations, and have bounded variance.",
+      "The objective is smooth and both stochastic gradients and relevant iterates remain uniformly bounded.",
+      "Terminal energy stays large enough that the energy-weighted convergence guarantees are informative.",
+      "Small CNN benchmarks with tuned base rates are representative of broader optimizer behavior."
+    ]
+  },
+  "techniques": [
+    {"id": "loss-square-root-gradient-transform", "role": "Normalizes a stochastic gradient by the square root of a shifted per-sample loss."},
+    {"id": "elementwise-energy-state", "role": "Creates coordinate-specific effective learning rates that decrease monotonically by construction."},
+    {"id": "transformed-gradient-momentum", "role": "Reduces variance and accelerates motion by accumulating the normalized gradient history."},
+    {"id": "energy-telescoping-analysis", "role": "Bounds update energy and derives conditional online-regret and stationarity rates."},
+    {"id": "terminal-energy-lower-bound", "role": "Provides a restrictive sufficient condition under which energy-dependent rates recover familiar asymptotics."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Deterministic optimization of the two-dimensional Rosenbrock function from the initial point (-3,-4), with each method's step size tuned for fastest convergence.",
+      "metric": "Optimality gap versus iteration and optimization trajectory.",
+      "result": "AEGDM follows a less oscillatory path and reaches the optimum faster than AEGD and gradient descent with momentum in this single toy problem.",
+      "baseline": "AEGD and classical gradient descent with momentum, each separately learning-rate tuned."
+    },
+    {
+      "setting": "LeNet-5 on MNIST; VGG-16, ResNet-32, and DenseNet-121 on CIFAR-10; SqueezeNet and GoogLeNet on CIFAR-100 for 50 or 200 epochs.",
+      "metric": "Training loss and test accuracy over epochs, first with per-method learning-rate searches and then nominal default rates.",
+      "result": "AEGDM generally reduces AEGD oscillation, matches or modestly exceeds SGDM on the selected runs, and finishes above Adam; the evidence lacks repeated-run uncertainty and large-scale workloads.",
+      "baseline": "SGDM, Adam, AEGD, and, in the appendix default-rate comparison, AdaBelief, AdaBound, RAdam, and Yogi."
+    }
+  ],
+  "limitations": [
+    "Unconditional energy stability is not objective descent and does not imply convergence of the iterates; the paper explicitly separates these properties.",
+    "The principal regret and stationarity bounds contain the terminal energy, so they can be vacuous when the adaptive state collapses.",
+    "The positive-energy guarantee uses strong global bounds on stochastic loss and gradient and deteriorates with sqrt(T) under fixed nonzero noise, offering no uniform asymptotic positive threshold in that case.",
+    "Computing the transformed gradient requires a meaningful nonnegative per-minibatch scalar loss and a shift c; composite, signed, or highly variable objectives may make the normalization unstable or arbitrary.",
+    "AEGDM stores momentum and energy vectors, giving Adam-like state memory despite the paper's comparison to SGD-level computational complexity.",
+    "The experiments use only MNIST/CIFAR CNNs and Rosenbrock, omit transformers and modern large-scale training, and report no multiple seeds, confidence intervals, wall-clock throughput, or sensitivity beyond base-rate grids.",
+    "Learning-rate search ranges and default choices differ by optimizer, and a single decay at epoch 150 remains a manually specified schedule, weakening claims of reduced tuning.",
+    "No ablation cleanly separates loss normalization, energy adaptation, and momentum, nor tests robustness when sample losses approach the lower shift boundary."
+  ],
+  "failure_modes": [
+    "A large base rate rapidly drives the energy toward zero, producing stable but stalled training far from a stationary point.",
+    "A minibatch with shifted loss near zero amplifies the transformed gradient and prematurely quenches the corresponding coordinates.",
+    "Loss-scale changes, additive constants, or task reweighting alter the optimizer trajectory even when the underlying minimizer is unchanged.",
+    "Element-wise energy freezes rare-feature coordinates after a few large stochastic gradients.",
+    "Momentum accumulates biased transformed gradients because normalizing by the same random sample loss destroys the simple unbiased-gradient interpretation.",
+    "Reported CNN gains disappear under matched tuning budgets, repeated seeds, stronger schedules, or contemporary transformer workloads."
+  ],
+  "reusable_insights": [
+    "Distinguish stability of an auxiliary Lyapunov variable from descent of the actual training objective in optimizer claims.",
+    "Any adaptive-rate convergence theorem should report conditions keeping the effective rate away from zero, not only an energy-weighted bound.",
+    "Loss-aware normalization can be paired with momentum cheaply, but shift and scale sensitivity must be stress-tested explicitly.",
+    "Optimizer comparisons need equal tuning budgets, repeated seeds, training compute, state memory, and wall-clock efficiency in addition to final accuracy.",
+    "Track the distribution of energy coordinates during training; aggregate positivity can hide a subset of permanently frozen parameters."
+  ],
+  "open_questions": [
+    "Can one prove a time-uniform positive energy bound under realistic stochastic noise without assuming globally bounded sample losses and gradients?",
+    "Is there a scale- and shift-invariant variant that preserves the energy identity?",
+    "How does AEGDM perform under matched-budget evaluations on transformers, language modeling, diffusion, and large-batch distributed training?",
+    "Do energy coordinates predict generalization, or do they merely duplicate second-moment adaptivity in a loss-dependent parameterization?",
+    "Can the two optimizer states be compressed to reduce memory while retaining the claimed dynamics?",
+    "Which component accounts for any gain: normalized gradients, monotone energy, effective momentum damping, or the chosen schedule?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2010.05109",
+      "title": "AEGD: Adaptive Gradient Descent with Energy",
+      "url": "https://arxiv.org/abs/2010.05109",
+      "relationship": "Direct precursor by the same authors.",
+      "difference": "AEGD introduces the auxiliary energy transformation and energy-dependent convergence analysis; the target's core increment is momentum plus stochastic/online analyses and expanded CNN comparisons."
+    },
+    {
+      "canonical_id": "arxiv:2301.07733",
+      "title": "Learning-Rate-Free Learning by D-Adaptation",
+      "url": "https://arxiv.org/abs/2301.07733",
+      "relationship": "Later direct alternative for automatic step-size adaptation.",
+      "difference": "D-Adaptation estimates the problem's distance scale, provides parameter-free convex guarantees, and evaluates SGD/Adam variants across broader vision and language workloads; AEGDM retains a base rate and loss shift while adapting through an energy state."
+    },
+    {
+      "canonical_id": "arxiv:2302.06675",
+      "title": "Symbolic Discovery of Optimization Algorithms",
+      "url": "https://arxiv.org/abs/2302.06675",
+      "relationship": "Later low-memory momentum optimizer, Lion, discovered and validated at substantially larger scale.",
+      "difference": "Lion uses a sign update with one momentum state and is tested on large vision, language, diffusion, and production tasks; AEGDM is hand-derived from energy stability, uses two states, and is evaluated only on small CNN benchmarks."
+    },
+    {
+      "canonical_id": "arxiv:2405.15682",
+      "title": "The Road Less Scheduled",
+      "url": "https://arxiv.org/abs/2405.15682",
+      "relationship": "Later direct approach to reducing optimizer schedule dependence.",
+      "difference": "Schedule-Free optimization derives momentum/averaging methods that remove a stopping-time-dependent schedule and validates Schedule-Free AdamW across broad tasks and AlgoPerf; AEGDM still tunes a base rate and uses a manual decay in its principal deep-network experiments."
+    }
+  ],
+  "novelty_assessment": "AEGDM is a clean, technically nontrivial extension of AEGD: it preserves a simple dissipative identity while adding momentum and supplies online and stochastic bounds. The novelty is incremental because the energy mechanism is inherited, the strongest rates remain conditional on the same adaptive state staying positive, and empirical evidence does not establish an advantage over later automatic or schedule-free optimizers at realistic scale.",
+  "confidence": 0.98,
+  "reviewer_notes": "Read all 29 extracted pages, including algorithm derivation, theorem assumptions, every proof appendix, complete experimental protocol, energy plots, and optimizer comparison table. Later learning-rate-free, low-memory, and schedule-free competitors were checked against primary arXiv records on 2026-08-23."
+}

@@ -1,0 +1,400 @@
+{
+  "stable_id": "arxiv:2601.08393",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2601.08393",
+    "pdf_sha256": "7a1e480a21465138d4df07e856e51a465ca7a7e0efe2580f701292612ad55848",
+    "text_sha256": "f51087129d03676e05495c5845ba874569c79e0a27ce6d73f75389a0e38aa28b",
+    "page_count": 22,
+    "extracted_at": "2026-08-23T13:32:18.103628+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can an LLM optimizer enforce maximal-update-parametrization spectral scaling on both hidden weight matrices and their updates while retaining matrix-sign steepest descent, scalable pretraining performance, and practical systems efficiency?",
+  "key_findings": [
+    {
+      "claim": "The optimizer places each selected two-dimensional hidden weight matrix on a spectral sphere whose radius scales as the square root of fan-out over fan-in, matching the paper's RMS-to-RMS maximal-update scaling criterion.",
+      "evidence": "Equations 1-2 convert the RMS operator gain into the ordinary spectral norm times sqrt(din/dout), yielding target scales of Theta(sqrt(dout/din)) for both W and its update. Section 4 fixes the module radius to c sqrt(dout/din).",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "2.1, maximal-update motivation"},
+        {"page": 4, "section": "2.1, Equations 1-2 and Spectral muP Condition"},
+        {"page": 8, "section": "4.1, spectral radius scale"}
+      ]
+    },
+    {
+      "claim": "SSO constructs a first-order tangent update by adding a rank-one top-singular-vector constraint to the momentum and applying a matrix sign, then rescales the weight radially toward the target spectral radius.",
+      "evidence": "With a simple top singular value, Theta=u1v1^T is the spectral-norm gradient and tangency requires <Theta,Phi>=0. The method chooses Phi=msign(G+lambda Theta), numerically searches h(lambda)=0, and applies the retraction W <- RW/||W||2 around an update of size eta R.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "3.2, Equations 9-12"},
+        {"page": 7, "section": "3.3-3.4, Equation 13 and Algorithm 1"},
+        {"page": 19, "section": "Appendix A.1, nuclear/spectral duality"}
+      ]
+    },
+    {
+      "claim": "The paper's repeated claim that the Lagrange multiplier root is unique is not established by its appendix.",
+      "evidence": "Section 3.2 calls lambda-star the unique root, but Theorem A.2 proves only nondecreasing, not strictly increasing, h(lambda), and Theorem A.3 states only that a root exists and every root lies in a finite interval. Neither result excludes a zero plateau or multiple roots.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "3.2, claimed unique root"},
+        {"page": 19, "section": "Appendix A.2, Theorem A.2"},
+        {"page": 20, "section": "Appendix A.2, Theorem A.3"}
+      ]
+    },
+    {
+      "claim": "The root-existence proof contains an unjustified intermediate-value step, so the exact-zero guarantee needs a stronger continuity or set-valued argument.",
+      "evidence": "After deriving limiting signs and monotonicity, Theorem A.3 says a monotone subgradient selection has the intermediate-value property. Monotone functions and selected subgradients of convex functions can jump; the text supplies no continuity proof for the particular rank-changing matrix-sign selection.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 20, "section": "Appendix A.2, Theorem A.3 existence proof"}
+      ]
+    },
+    {
+      "claim": "The duality appendix identifies one matrix-sign maximizer but overstates it as the unique argmax in rank-deficient or rectangular cases.",
+      "evidence": "Theorem A.1 proves that the compact polar factor U[:, :r]V[:, :r]^T reaches the nuclear-norm upper bound. Its equality argument constrains only active singular directions; action on null complements can remain unconstrained subject to spectral norm one, so the maximizer set need not be a singleton.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "2.3, Equation 6 and uniqueness language"},
+        {"page": 19, "section": "Appendix A.1, Theorem A.1 and Equations 17-20"}
+      ]
+    },
+    {
+      "claim": "Differentiability and tangency depend on a unique top singular value, an assumption that is not monitored during training and is especially delicate on a spectral sphere.",
+      "evidence": "Section 3.2 explicitly invokes uniqueness of the top singular value to use Theta=u1v1^T. Its footnote argues repeated singular values are unlikely for random matrices, but trained, repeatedly projected matrices are not the cited random-matrix ensemble, and no gap diagnostic or subgradient fallback is reported.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "3.2, differentiability assumption and footnote 2"},
+        {"page": 7, "section": "Algorithm 1, cached principal singular vectors"}
+      ]
+    },
+    {
+      "claim": "The printed algorithm does not maintain an exact sphere constraint at every point at which the loss gradient is evaluated, despite strict-constraint language.",
+      "evidence": "Algorithm 1 computes the gradient before its pre-update radial correction, then takes a finite tangent update that generally leaves W_{t+1} off the sphere until a later correction. Appendix A.3 calls pre- versus post-update retraction only first-order equivalent and says even hard retraction deviates with power-iteration error.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "3.3-3.4, Equation 13 and Algorithm 1 lines 3, 8, 12"},
+        {"page": 20, "section": "Appendix A.3, hard and dynamic retraction setup"},
+        {"page": 21, "section": "Appendix A.3, Equations 33-34 and first-order equivalence"}
+      ]
+    },
+    {
+      "claim": "The weight-decay recipe is internally inconsistent between the main experiment and the appendix's description of hard retraction.",
+      "evidence": "Section 3.3 says retraction makes weight decay redundant, and Section 6.1 removes it from SSO hidden 2D weights. Appendix A.3 instead says hard retraction is typically used together with standard decoupled weight decay, while dynamic retraction replaces weight decay; the main algorithm is the hard radial projection.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "3.3, weight-decay removal"},
+        {"page": 12, "section": "6.1, optimizer hyperparameters"},
+        {"page": 21, "section": "Appendix A.3, hard versus dynamic retraction"}
+      ]
+    },
+    {
+      "claim": "On the 1.7B dense run, SSO reaches AdamW's final validation-loss level in fewer steps than AdamW and Muon, but its measured per-step overhead erases the step advantage over Muon in estimated wall time.",
+      "evidence": "Figure 8 reports 19% fewer steps for SSO and 12% fewer for Muon to reach AdamW loss 2.588. Table 2 reports 7,666.32 ms/step for SSO versus 6,878.83 for Muon, an 11.45% overhead; combining the reported ratios implies about 1.026 times Muon's wall time to that target (0.81/0.88 times 1.1145), absent other overhead differences.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 11, "section": "Table 2, end-to-end B200 latency"},
+        {"page": 12, "section": "6.2, Figure 8"}
+      ]
+    },
+    {
+      "claim": "The systems implementation substantially cuts its own naive SSO latency but remains the slowest of the four reported optimizers per step.",
+      "evidence": "Load balancing, adaptive kernels, multistream execution, BF16 power iteration, compilation, and cached singular vectors reduce the naive 10,928.5 ms SSO step to 7,666.3 ms. Table 2 still places AdamW at 6,734.15, Muon at 6,878.83, and MuonSphere at 6,949.85 ms.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 10, "section": "5.1-5.2, bottlenecks and pipeline"},
+        {"page": 11, "section": "Tables 1-2"}
+      ]
+    },
+    {
+      "claim": "The dense downstream result is mixed: SSO has the best mean of eight accuracies by only 0.16 points over MuonSphere, while MuonSphere has better perplexity and wins several individual tasks.",
+      "evidence": "Table 3 reports AdamW/Muon/MuonSphere/SSO average accuracies of 54.75/55.26/56.19/56.35 and LAMBADA perplexities of 5.40/5.05/4.87/5.00. MuonSphere also exceeds SSO on LAMBADA accuracy, WinoGrande, ARC-Challenge, and BoolQ; no error bars or replicate variability are given.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 13, "section": "6.2, Table 3"}
+      ]
+    },
+    {
+      "claim": "The main learning rate is tuned for AdamW, not independently for all optimizers, leaving both the absolute comparison and the claimed learning-rate-transfer advantage incompletely controlled.",
+      "evidence": "The only stated 1.7B sweep is AdamW over 1e-3 to 1e-2, selecting 5e-3. Figure 8 says Muon and SSO have a higher optimum of 1e-2 but nevertheless runs the comparison at 5e-3; no full optimizer-by-rate table or uncertainty is reported.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 12, "section": "6.1, hyperparameter protocol"},
+        {"page": 12, "section": "6.2, Figure 8 caption"}
+      ]
+    },
+    {
+      "claim": "The experiment retains QK-Norm, RMSNorm, and pre-normalization, so it does not test the motivation that spectral optimization eliminates normalization or logit-control patches.",
+      "evidence": "The introduction describes QK-Norm and related patches as nonessential workarounds forced by unstable optimizers. The Dense-1.7B architecture explicitly uses QK-Norm and pre-normalization RMSNorm, with no ablation removing either under SSO.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "1, architectural-patch motivation"},
+        {"page": 12, "section": "6.2, dense architecture"}
+      ]
+    },
+    {
+      "claim": "The MoE experiment reports lower validation loss and better router balance for SSO, but only as single curves without final values, uncertainty, or a controlled decomposition of optimizer and routing changes.",
+      "evidence": "The 8B-total/1B-active model uses 64 experts, top-4 sigmoid routing, one shared expert, expert bias, auxiliary-loss-free balancing, and an additional factor-two routed-expert scale. Figure 9 shows validation loss and MaxVio curves but no numeric table or replicate analysis.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 12, "section": "6.3, MoE configuration"},
+        {"page": 13, "section": "6.3, router details and Figure 9"},
+        {"page": 21, "section": "Appendix A.4, routing-scale derivation"},
+        {"page": 22, "section": "Appendix A.4, Equation 37 and simulation"}
+      ]
+    },
+    {
+      "claim": "The 200-layer stress test supports smoother optimization loss, not validation quality, downstream capability, or general depth scaling.",
+      "evidence": "The model extends a 28-layer baseline to a deep narrow 200-layer configuration and Figure 10 shows only training-loss curves. Exact width, parameter count, token budget, replicate count, and final numeric losses are not tabulated.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 13, "section": "6.4, DeepNet 200-Layer and Figure 10"}
+      ]
+    },
+    {
+      "claim": "The activation plots show much smaller attention and FFN magnitudes under spectral optimizers than AdamW, but a per-matrix spectral bound does not strictly bound the whole network's activations.",
+      "evidence": "Figure 1 reports roughly two orders of magnitude larger AdamW attention AbsMax and FFN RMS. Yet residual additions, input norms, attention nonlinearities, and unconstrained parameters remain; Section 5.3 explicitly identifies the residual stream as the primary remaining outlier source.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract and Figure 1"},
+        {"page": 4, "section": "2.1, per-linear-map operator bound"},
+        {"page": 11, "section": "5.3, low-precision future work"}
+      ]
+    },
+    {
+      "claim": "The width-scaling study visually supports more stable optimal-rate transfer for SSO, but does not establish that SSO uniquely preserves maximal-update scaling.",
+      "evidence": "Figures 2 and 12 sweep hidden sizes 256-2,048, nine rates, and models from about 70M to 1.8B trained on 30B tokens. Curves are shown without a numeric drift statistic or uncertainty, and later primary work derives spectral muP conditions for several other optimizers.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Figure 2, width scaling"},
+        {"page": 22, "section": "Appendix A.5, sweep protocol and Figure 12"}
+      ]
+    },
+    {
+      "claim": "MuonSphere is a strong negative control against the necessity of the tangent root solver: it is faster, controls activation similarly, wins perplexity, and nearly matches average accuracy.",
+      "evidence": "The paper defines MuonSphere as lambda=0 plus sphere normalization, reports only 1.03% per-step overhead over Muon versus 11.45% for SSO, gives it 4.87 versus SSO's 5.00 perplexity and 56.19 versus 56.35 mean accuracy, and recommends it when infrastructure cost matters.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "3.4, MuonSphere definition"},
+        {"page": 11, "section": "Table 2"},
+        {"page": 13, "section": "Table 3"},
+        {"page": 14, "section": "7, recommendation"}
+      ]
+    },
+    {
+      "claim": "Dynamic retraction is a soft radial controller rather than optimization on an exact spectral sphere.",
+      "evidence": "Equation 34 scales W by 1+lambda eta sign(R-sigma), only nudging the estimated spectral norm toward R as the learning rate decays. The appendix explicitly calls the constraint approximate, even though the broader discussion groups both variants as sphere methods.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 20, "section": "Appendix A.3, retraction variants"},
+        {"page": 21, "section": "Appendix A.3, Equation 34"}
+      ]
+    },
+    {
+      "claim": "The routed-expert factor of about two follows from a simplified variance calculation and simulation, not a measured variance match in the trained MoE.",
+      "evidence": "Appendix A.4 assumes unit-variance expert outputs and uses random Gaussian logits with normalized top-4 sigmoid scores for 10,000 trials. Correlation among experts, routing and shared outputs, token distribution, and learned router dynamics are absent from the derivation.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 21, "section": "Appendix A.4, Equations 35-36"},
+        {"page": 22, "section": "Appendix A.4, Equation 37 and Listing 1"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Treat selected hidden matrices as points on module-wise spectral-norm spheres and combine matrix-sign steepest descent with a first-order tangent condition, a scalar Lagrange-root search, and radial retraction.",
+    "mechanism": "Momentum is Frobenius-normalized; cached power iteration estimates the dominant singular triplet; a bisection search adjusts the rank-one tangent multiplier inside the matrix sign; the update is scaled by eta times c sqrt(dout/din); and a hard or dynamic radial correction controls the top singular value. Fused QKV and gate/up tensors are split into atomic spectral modules and sharded intact across data-parallel workers.",
+    "assumptions": [
+      "RMS-to-RMS feature stability is proxied by worst-case spectral gain of each linear matrix, with target radius proportional to sqrt(fan-out/fan-in).",
+      "The top singular value is simple so the spectral norm has gradient u1v1^T; power iteration and cached singular vectors estimate it accurately throughout training.",
+      "A first-order tangent direction plus radial retraction adequately represents constrained steepest descent for finite scheduled steps.",
+      "The selected matrix-sign map and scalar h(lambda) admit an exactly discoverable zero within the bracket; the appendix does not prove root uniqueness.",
+      "Module boundaries such as per-head Q/K/V and separate gate/up projections are the appropriate independent units for spectral constraints.",
+      "Hidden 2D matrices receive SSO, while embeddings and other parameters may retain AdamW-style handling and weight decay.",
+      "Optimizer comparisons share the AdamW-selected 5e-3 peak rate, BF16 training, 100B-token OLMo mixture, spectral scaling choices, and architecture-level normalizers."
+    ]
+  },
+  "techniques": [
+    {"id": "spectral-sphere-retraction", "role": "Radially rescales a matrix toward a prescribed top singular value."},
+    {"id": "tangent-matrix-sign-update", "role": "Uses a matrix sign shifted by the leading singular outer product to seek a spectral-norm-bounded tangent direction."},
+    {"id": "lagrange-root-bisection", "role": "Brackets and bisects a scalar multiplier until the estimated tangent inner product is near zero."},
+    {"id": "spectral-mup-scaling", "role": "Scales weight radii and updates with the square root of fan-out over fan-in for width transfer."},
+    {"id": "atomic-module-sharding", "role": "Keeps complete per-head or per-projection matrices on one data-parallel worker for spectral operations."},
+    {"id": "adaptive-polar-kernels", "role": "Combines shape-dependent PyTorch/Triton kernels, multistream execution, FP32 matrix signs, BF16 power iteration, and cached singular vectors."},
+    {"id": "moe-routing-rescaling", "role": "Multiplies routed-expert outputs to approximate the variance of a shared expert."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Dense Qwen3-style 1.7B model trained on 100B OLMo-Mix-1124 tokens with 1B validation tokens, 4M tokens per step, BF16, and AdamW-tuned peak LR 5e-3",
+      "metric": "Steps to validation loss 2.588",
+      "result": "Muon reaches the target in 12% fewer steps than AdamW and SSO in 19% fewer steps; the paper notes 1e-2 is better for both spectral methods.",
+      "baseline": "AdamW reaches 2.588 at 23,000 steps; Muon and MuonSphere are additional controls"
+    },
+    {
+      "setting": "The same Dense-1.7B pretraining step on NVIDIA B200 at 4M tokens per step",
+      "metric": "End-to-end milliseconds per step",
+      "result": "AdamW 6,734.15; Muon 6,878.83; MuonSphere 6,949.85; SSO 7,666.32, or 11.45% slower than Muon.",
+      "baseline": "Muon latency; a naive SSO implementation is 10,928.5 ms"
+    },
+    {
+      "setting": "Dense-1.7B zero-shot evaluation on LAMBADA, CSQA, PIQA, HellaSwag, WinoGrande, ARC-Easy, ARC-Challenge, and BoolQ",
+      "metric": "LAMBADA perplexity and mean of eight accuracies",
+      "result": "SSO reports PPL 5.00 and mean 56.35; MuonSphere reports better PPL 4.87 and nearly equal mean 56.19; AdamW reports 5.40 and 54.75.",
+      "baseline": "AdamW, Muon, and MuonSphere single reported runs"
+    },
+    {
+      "setting": "DeepSeek-V3-style 8B-total/1B-active, 64-expert top-4 MoE with one shared expert",
+      "metric": "Validation loss and MaxVio router imbalance curves",
+      "result": "SSO is visually lowest on validation loss and most balanced on MaxVio; no final numeric values, seeds, or error bands are reported.",
+      "baseline": "AdamW, Muon, and MuonSphere"
+    },
+    {
+      "setting": "Deep narrow 200-layer stress-test model extended from a 28-layer baseline",
+      "metric": "Training loss and visible spike frequency",
+      "result": "SSO's single curve is lower and smoother; validation, downstream metrics, exact final values, and replicate variability are absent.",
+      "baseline": "AdamW, Muon, and MuonSphere training curves"
+    },
+    {
+      "setting": "Width scaling from roughly 70M to 1.8B parameters, hidden sizes 256-2,048, nine learning rates, and 30B tokens per model",
+      "metric": "Visual drift of the validation-loss-minimizing learning rate",
+      "result": "SSO's optimum appears more width-stable than Muon and AdamW in Figures 2 and 12; no numeric transfer-error statistic or uncertainty is supplied.",
+      "baseline": "AdamW and Muon under the paper's spectral scaler"
+    },
+    {
+      "setting": "Radius, learning-rate-scaler, and fused-module-granularity ablations",
+      "metric": "Final validation loss and activation magnitude curves",
+      "result": "Radius c=2 is selected; the spectral-muP scaler wins the plotted sweep; splitting QKV per head helps most, while splitting FFN gate/up is visually indistinguishable from no split.",
+      "baseline": "Other radius constants, Align-Adam-RMS and spectral-Kaiming scalers, and fused tensors"
+    }
+  ],
+  "limitations": [
+    "Author-stated: CPU-mediated bracketing and five to seven bisection steps add synchronization and matrix-sign overhead; SSO remains 11.45% slower per step than Muon.",
+    "Author-stated: high tangent-projection error can degrade the direction to a worst-case Muon update, and the current implementation retains eight FP32 matrix-sign iterations.",
+    "Author-stated: the residual stream remains the main outlier source despite spectral constraints on weight matrices; low-precision training is future work.",
+    "Reviewer inference: root uniqueness is claimed but not proved, root existence relies on an unsupported intermediate-value step, and rank-deficient matrix-sign maximizers are nonunique.",
+    "Reviewer inference: the simple-top-singular-value assumption and power-iteration accuracy are not diagnosed during trained, repeatedly retracted dynamics.",
+    "Reviewer inference: the printed update is only first-order manifold-equivalent and hard retraction is approximate under power iteration; dynamic retraction is explicitly soft.",
+    "Reviewer inference: main results appear to be single runs without seed variance, statistical tests, complete curves in numeric form, or failure counts.",
+    "Reviewer inference: only AdamW receives the stated LR sweep, SSO changes hidden-weight decay, and the retained QK-Norm/RMSNorm architecture prevents isolation of optimizer-only stability.",
+    "Reviewer inference: evidence stops at 1.7B dense, 8B-total/1B-active MoE, 200-layer training loss, and 100B tokens; no frontier-scale, long-horizon, fine-tuning, or low-precision validation is reported.",
+    "Reviewer inference: module radius equality constrains only the largest singular value and worst-case linear gain, not the lower spectrum, residual stream, attention logits, activation distribution, or whole-network Lipschitz constant."
+  ],
+  "failure_modes": [
+    "Repeated or nearly repeated top singular values can make the tangent projector unstable, discontinuous, or dependent on the cached power-iteration vector.",
+    "A matrix-sign rank change can make h(lambda) nonsmooth or cause bisection to find a tolerance crossing without an exact uniquely defined root.",
+    "Finite tangent steps leave the sphere until retraction; large rates, inaccurate singular values, or stale cached vectors can create norm drift and incorrect gradients.",
+    "The CPU root solver and multiple FP32 matrix signs can erase convergence-in-steps gains at scale, as the reported Muon comparison already suggests.",
+    "Per-head atomic sharding can create load imbalance, memory pressure, and communication costs for heterogeneous or extremely large expert matrices.",
+    "Fixing only the top singular value may allow collapse or pathological anisotropy in the remaining spectrum even while activation maxima look controlled.",
+    "Removing hidden-weight decay changes regularization and can harm generalization or interact with embeddings and non-2D parameters even if norms remain fixed.",
+    "A radius constant or module split tuned on one Qwen-style architecture may not transfer to different residual scaling, attention layout, convolutional, recurrent, or multimodal modules.",
+    "The MoE factor-two correction can misbalance correlated experts or different routers because its simulation assumes unit-variance independent expert outputs and Gaussian logits.",
+    "Stable matrix outputs cannot prevent residual, softmax-logit, normalization, embedding, optimizer-state, or data outliers elsewhere in the network."
+  ],
+  "reusable_insights": [
+    "Optimizer comparisons should report both steps-to-target and measured wall-clock-to-target; per-step manifold overhead can reverse a convergence claim.",
+    "Spectral scaling should be applied at semantic module boundaries rather than blindly to fused storage tensors, but the granularity itself needs an ablation.",
+    "A sphere-normalized lambda=0 control is essential for testing whether a costly tangent solver contributes beyond simple weight normalization.",
+    "Claims of exact manifold optimization should state where gradients are evaluated, the retraction order, singular-value estimation error, and behavior at nonsmooth points.",
+    "Activation stability requires auditing residual streams and nonlinear attention paths, not only matrix operator norms.",
+    "Current optimizer novelty must distinguish explicit hard constraints, implicit regularization, soft spectral clipping, update geometry, and parameterization scaling.",
+    "For MoE routing, analytic variance scalers should be validated against measured routed/shared covariance during training rather than only simulated logits."
+  ],
+  "open_questions": [
+    "Can the constrained linear oracle be formulated with spectral-norm subdifferentials so it remains well defined at repeated singular values and rank changes?",
+    "Does a root always exist for the paper's particular compact-polar matrix-sign selection, and under what conditions is it unique or safely approximated?",
+    "How much of SSO's result comes from spectral initialization, radius choice, module splitting, hidden-weight-decay removal, sphere retraction, or the lambda tangent correction individually?",
+    "Does SSO beat MuonSphere in wall-clock-to-quality under individually tuned rates, matched regularization, multiple seeds, and optimized GPU-native solvers?",
+    "Can the optimizer remove QK-Norm, RMSNorm, softcapping, or other stated patches without losing quality or low-precision stability?",
+    "What happens to the full singular spectrum, feature rank, representation diversity, and downstream generalization during long spectral-sphere training?",
+    "Do the width-transfer and radius rules hold across depth scaling, MoE expert width, multimodal models, fine-tuning, sequence length, and trillions of tokens?",
+    "Can residual and attention nonlinearities be incorporated into a network-level stability guarantee rather than a per-linear-map bound?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2310.17813",
+      "title": "A Spectral Condition for Feature Learning",
+      "url": "https://arxiv.org/abs/2310.17813",
+      "relationship": "foundational spectral-muP predecessor",
+      "difference": "Yang, Simon, and Bernstein derive the sqrt(fan-out/fan-in) spectral scaling of weights and updates and connect it to maximal-update parametrization. SSO turns that condition into an explicit fixed-radius optimizer with retraction and a tangent matrix-sign step; the scaling law itself is inherited rather than novel.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2310.17813v2"
+    },
+    {
+      "canonical_id": "arxiv:2409.20325",
+      "title": "Old Optimizer, New Norm: An Anthology",
+      "url": "https://arxiv.org/abs/2409.20325",
+      "relationship": "metrized steepest-descent predecessor",
+      "difference": "Bernstein and Newhouse recast Adam, Shampoo, and related updates as steepest descent under tensor-role-specific norms and motivate modular optimizer geometry. SSO specializes this view to the spectral norm while additionally constraining the current weights to a sphere.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2409.20325v2"
+    },
+    {
+      "canonical_id": "arxiv:2502.07529",
+      "title": "Training Deep Learning Models with Norm-Constrained LMOs",
+      "url": "https://arxiv.org/abs/2502.07529",
+      "relationship": "closest norm-constrained optimizer predecessor",
+      "difference": "Pethick et al. develop stochastic norm-ball linear-minimization-oracle methods, including Scion, with architecture-aware norms and model-size hyperparameter transfer. The SSO paper itself describes MuonSphere as similar to Scion; its narrower addition is simultaneous top-spectral-radius control and a tangent lambda solver at larger LLM scale.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2502.07529v2"
+    },
+    {
+      "canonical_id": "arxiv:2502.16982",
+      "title": "Muon is Scalable for LLM Training",
+      "url": "https://arxiv.org/abs/2502.16982",
+      "relationship": "primary empirical baseline and systems predecessor",
+      "difference": "Liu et al. scale Muon to a 3B/16B MoE trained on 5.7T tokens using weight decay, per-parameter update scaling, and distributed implementation. SSO explicitly fixes weight spectral radii and reports smaller 100B-token experiments, while incurring a root-solver overhead and changing hidden-weight decay.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2502.16982v1"
+    },
+    {
+      "canonical_id": "arxiv:2505.16932",
+      "title": "The Polar Express: Optimal Matrix Sign Methods and Their Application to the Muon Algorithm",
+      "url": "https://arxiv.org/abs/2505.16932",
+      "relationship": "matrix-sign implementation predecessor",
+      "difference": "Amsel et al. design GPU-friendly, minimax polynomial polar iterations and test them inside Muon. SSO uses Polar Express coefficients as a subroutine but adds repeated lambda-dependent matrix signs, power iteration, module sharding, and sphere retraction.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2505.16932v5"
+    },
+    {
+      "canonical_id": "arxiv:2506.15054",
+      "title": "Muon Optimizes Under Spectral Norm Constraints",
+      "url": "https://arxiv.org/abs/2506.15054",
+      "relationship": "direct theoretical challenge to the half-aligned framing",
+      "difference": "Chen, Li, and Liu analyze Muon with decoupled weight decay as implicitly solving a spectral-norm-constrained optimization problem through the Lion-K framework. SSO enforces an explicit per-step target-radius equality, but this prior result narrows the claim that Muon leaves weights wholly unconstrained or that explicit sphere geometry is the unique constrained interpretation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2506.15054v2"
+    },
+    {
+      "canonical_id": "arxiv:2602.20937",
+      "title": "Extending muP: Spectral Conditions for Feature Learning Across Optimizers",
+      "url": "https://arxiv.org/abs/2602.20937",
+      "relationship": "later current muP-transfer competitor",
+      "difference": "Released after SSO, Gupta et al. derive and empirically test spectral muP rules for AdamW, ADOPT, LAMB, Sophia, Shampoo, and Muon, including width and depth transfer. This weakens SSO's current claim to uniquely preserve muP learning-rate transfer, while not supplying its explicit sphere retraction or tangent solver.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2602.20937v1"
+    },
+    {
+      "canonical_id": "arxiv:2603.14315",
+      "title": "Enhancing LLM Training via Spectral Clipping",
+      "url": "https://arxiv.org/abs/2603.14315",
+      "relationship": "later current explicit spectral-control competitor",
+      "difference": "SPECTRA applies efficient pre/post spectral clipping to several optimizers, interprets post-clipping through composite Frank-Wolfe, and reports uniform validation-loss improvements without forcing every weight to a fixed-radius equality. It is a lower-commitment current alternative to SSO's nonconvex sphere and scalar root search.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2603.14315v2"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim SSO is the mathematically unique optimizer that unifies spectral-norm steepest descent with strict maximal-update constraints on both weights and updates, uniquely preserves learning-rate transfer, strictly bounds activations, and consistently outperforms AdamW and Muon at dense, MoE, and extreme depth scales.",
+    "evidence": "They derive a tangent matrix-sign direction and radial retraction, implement atomic module sharding and optimized polar kernels in Megatron, and report 1.7B dense, 8B-total/1B-active MoE, 200-layer, activation, width-transfer, downstream, and latency experiments.",
+    "reviewer_inference": "The credible novelty is the specific combination of fixed top-spectral-radius retraction, a rank-one tangent lambda search, spectral-muP scaling, fine-grained module boundaries, and an unusually detailed large-training systems implementation. Neither mathematical uniqueness nor root uniqueness is established: norm-constrained LMOs and implicit Muon spectral constraints predate it, the appendix proves only monotonicity/existence with a continuity gap, and current later work offers multi-optimizer muP and spectral clipping alternatives. Empirically SSO improves step efficiency and the reported average accuracy, but MuonSphere is faster, has better perplexity, nearly matches mean accuracy, and likely reaches the stated loss target sooner in wall time; retained architectural normalizers, unmatched tuning/decay, single curves, and limited scale preclude broad claims of strict or consistent superiority."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Reviewed target revision arXiv:2601.08393v3. All 22 PDF pages were read, including every equation and algorithm line, dense/MoE/depth figure, all three performance tables, references, the complete nuclear-duality and root-localization proofs, both retraction variants, MoE routing derivation and code listing, and the width-scaling appendix. The indexed unversioned locator and exact PDF/text hashes are preserved in source_provenance. Eight official arXiv competitor records were checked at their current exact revisions on 2026-08-23. The audit explicitly separates observed optimization results from claims of exactness, uniqueness, strict activation bounds, and wall-clock superiority, and retains MuonSphere wins, solver overhead, proof gaps, missing uncertainty, tuning/regularization confounds, and null or nonnumeric ablations."
+}

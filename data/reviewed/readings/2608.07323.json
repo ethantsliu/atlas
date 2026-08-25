@@ -1,0 +1,240 @@
+{
+  "stable_id": "arxiv:2608.07323",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://arxiv.org/pdf/2608.07323",
+    "pdf_sha256": "b62aeb8f606420ec20ed02f3098a894e5d2151ca52c168f37a696990e5477b1b",
+    "text_sha256": "ec973ec2b69e1625cd18518fb3d41da9b705a00610ad181afce7da0382ce28af",
+    "page_count": 16,
+    "extracted_at": "2026-08-23T09:06:27.164873+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Does a decoder-only Transformer need SwiGLU's unbounded positive gate tail to reach its language-modeling loss, or can pretraining adapt to a bounded gate whose response decays after a finite peak?",
+  "key_findings": [
+    {
+      "claim": "A closed positive tail is not necessary to match SwiGLU closely at the two tested, small model scales, but MemGLU is not consistently better.",
+      "evidence": "With initialization-time RMS matching and three paired seeds, 9M MemGLU reaches final validation NLL 5.720326±0.002360 versus 5.726682±0.007679 for SwiGLU, a 0.111% improvement and three paired wins. At 30M it reaches 3.558291±0.003820 versus 3.553958±0.000169, a 0.122% regression and zero paired wins. The sign reversal bounds the supported claim to near-equivalence, not superiority.",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "5.2, Table 1"
+        },
+        {
+          "page": 6,
+          "section": "5.2"
+        }
+      ]
+    },
+    {
+      "claim": "The paired pretraining trajectories remain close throughout training rather than converging only at the final checkpoint.",
+      "evidence": "Mean training-loss and validation-NLL curves for SwiGLU and RMS-matched MemGLU are nearly overlapping at both 9M and 30M; the paired-difference plots show the same small late-stage separation summarized by final NLL. Each gate pair shares initial weights, token order, optimizer, schedule, dimensions, and validation data.",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "4"
+        },
+        {
+          "page": 5,
+          "section": "5.1, Figure 3"
+        },
+        {
+          "page": 13,
+          "section": "Appendix C"
+        }
+      ]
+    },
+    {
+      "claim": "MemGLU does not merely avoid the descending side of its gate; occupancy beyond the peak can persist while that region contributes far less gated energy.",
+      "evidence": "At 9M, beyond-peak occupancy rises from 2.688% under SwiGLU to 5.230% under MemGLU, while gate-output energy share falls from 33.736% to 10.129% and GLU-product energy share from 49.018% to 11.870%. At 30M, occupancy is 5.002% versus 3.954%, while the corresponding energy shares fall from 50.857% to 8.209% and from 54.921% to 8.573%.",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "6.1, Figure 4"
+        }
+      ]
+    },
+    {
+      "claim": "The closed-tail geometry changes magnitude propagation through the whole FFN even when final losses are similar.",
+      "evidence": "Relative to SwiGLU, MemGLU's RMS ratios for gate output, GLU product, and FFN update are 0.830/0.763/0.802 at 9M and 0.763/0.751/0.803 at 30M. Gate-preactivation RMS moves in opposite directions, 1.209 at 9M and 0.949 at 30M, reinforcing that the trained models adapt differently by scale.",
+      "anchors": [
+        {
+          "page": 14,
+          "section": "Appendix D"
+        },
+        {
+          "page": 15,
+          "section": "Table D1"
+        }
+      ]
+    },
+    {
+      "claim": "A trained SwiGLU checkpoint depends on its positive tail even though a model trained from scratch with no such tail can reach similar NLL.",
+      "evidence": "Evaluation-only positive capping, smooth attenuation, and hard removal increase NLL for every seed at both sizes. Their mean penalties are 0.03173, 0.09258, and 0.40291 at 9M and 0.12194, 0.30288, and 0.95986 at 30M, with the same ordering and larger effects at 30M.",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "6.2, Figure 5"
+        },
+        {
+          "page": 16,
+          "section": "Appendix E"
+        }
+      ]
+    },
+    {
+      "claim": "The current implementation gives up meaningful systems efficiency despite keeping the architecture and parameter count fixed.",
+      "evidence": "Without a fused kernel, the 30M MemGLU run has 10.46% lower training throughput and 18.81% higher peak memory than the SwiGLU implementation.",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "7.2"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Construct a controlled closed-tail GLU comparator, train it from initialization under the same conditions as SwiGLU, and distinguish adaptation during training from damage caused by changing the gate only after training.",
+    "mechanism": "Map the antisymmetric separation of a first-order memristor's two branches through ξ=tanh(g), yielding b(g)=tanh(g)sech(g), an odd bounded response with peaks at ±arsinh(1) and zero tails. Replace only SiLU in the gated FFN, keep all projection dimensions fixed, and scale b by one constant chosen to match SwiGLU gate-output RMS at initialization. Run paired 9M and 30M pretraining experiments, then measure gate-region occupancy, squared-energy shares, RMS propagation, and evaluation-only tail interventions.",
+    "assumptions": [
+      "Validation NLL at 9M and 30M is an informative test of whether the positive tail is functionally necessary at those scales.",
+      "Initialization-time RMS matching controls enough of the initial magnitude difference to make the scalar gate geometry the principal intervention.",
+      "Three paired seeds are sufficient to interpret the sign-consistent within-scale differences.",
+      "Aggregate occupancy, energy, and RMS statistics reveal meaningful differences in FFN use despite pooling layers, tokens, and channels.",
+      "Post-training suppression of SwiGLU's tail is a valid contrast for adaptation, even though none of those intervention functions equals MemGLU exactly.",
+      "The memristor derivation is a design motivation; the Transformer uses only a static mathematical function and no device state."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "closed-tail-gate-design",
+      "role": "Uses tanh(g)sech(g) to produce a finite positive maximum followed by decay to zero."
+    },
+    {
+      "id": "memristive-branch-mapping",
+      "role": "Derives the gate shape from a normalized antisymmetric branch separation, while explicitly discarding hardware state in the neural implementation."
+    },
+    {
+      "id": "initial-rms-calibration",
+      "role": "Chooses one scale-specific constant from random-model preactivations and freezes it across all formal seeds."
+    },
+    {
+      "id": "paired-seed-pretraining",
+      "role": "Shares initialization, data order, optimization, schedule, and dimensions between gate variants to reduce comparison noise."
+    },
+    {
+      "id": "occupancy-energy-decomposition",
+      "role": "Separates how often preactivations enter the beyond-peak region from how much squared gate and GLU-product magnitude that region contributes."
+    },
+    {
+      "id": "rms-propagation-audit",
+      "role": "Tracks magnitude changes from preactivation through gate output, multiplicative product, and residual FFN update."
+    },
+    {
+      "id": "posthoc-tail-intervention",
+      "role": "Caps, smoothly attenuates, or removes the positive tail of a trained SwiGLU model without retraining to test checkpoint dependence."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "8,948,160-parameter decoder-only model, 50M training tokens, context 256, three paired seeds",
+      "metric": "Final and final-five validation NLL",
+      "result": "RMS-matched MemGLU 5.720326 final and 5.725963 final-five",
+      "baseline": "SwiGLU 5.726682 final and 5.732096 final-five"
+    },
+    {
+      "setting": "30,285,696-parameter decoder-only model, 499,908,608 training tokens, context 512, three paired seeds",
+      "metric": "Final and final-five validation NLL",
+      "result": "RMS-matched MemGLU 3.558291 final and 3.561710 final-five",
+      "baseline": "SwiGLU 3.553958 final and 3.557468 final-five"
+    },
+    {
+      "setting": "1,048,576 validation tokens at each model scale",
+      "metric": "Beyond-peak occupancy, gate-output energy, GLU-product energy, and global RMS",
+      "result": "MemGLU retains beyond-peak occupancy but reduces that region's energy shares to roughly 8-12% and FFN-update RMS to about 0.80×",
+      "baseline": "Matched SwiGLU checkpoints"
+    },
+    {
+      "setting": "Trained SwiGLU checkpoints, three evaluation-only tail transformations",
+      "metric": "Increase in validation NLL",
+      "result": "Every intervention hurts every seed; hard removal is worst at +0.40291 for 9M and +0.95986 for 30M",
+      "baseline": "Unmodified SwiGLU gate"
+    },
+    {
+      "setting": "30M training implementation",
+      "metric": "Throughput and peak memory",
+      "result": "MemGLU is 10.46% slower and uses 18.81% more peak memory",
+      "baseline": "Fused SwiGLU implementation"
+    }
+  ],
+  "limitations": [
+    "Author-stated: evidence covers only 9M and 30M decoder-only models under one training setup with three seeds each; substantially larger models are required.",
+    "Author-stated: the adaptation explanation is inferred from close trajectories and final-checkpoint diagnostics rather than directly identified as a causal optimization mechanism.",
+    "Author-stated: MemGLU has no fused kernel, making the measured throughput and memory comparison unfavorable and leaving practical efficiency unresolved.",
+    "Reviewer-identified: the 30M result reverses the 9M direction, so two scales cannot support a scaling trend or a claim that the gap remains small at frontier size.",
+    "Reviewer-identified: evaluation is limited to in-distribution NLL; there are no downstream tasks, long-context tests, outlier analyses, or capability and robustness measurements.",
+    "Reviewer-identified: RMS matching controls one second moment only at initialization; it does not match derivatives, higher moments, layerwise statistics, or the initial function.",
+    "Reviewer-identified: occupancy and energy are pooled globally, which can hide a small set of layers or tokens that depend critically on the tail.",
+    "Reviewer-identified: the posthoc cap, attenuation, and removal functions are not MemGLU, so their damage demonstrates dependence of a SwiGLU-trained checkpoint on its own gate, not the mechanism by which MemGLU adapts.",
+    "Reviewer-identified: the paper reports paired wins and standard deviations but no paired confidence interval or hypothesis test, and the primary differences are only about one part in a thousand."
+  ],
+  "failure_modes": [
+    "Rare large positive preactivations may carry increasingly important features at larger scale, causing a closed tail to fall behind even if small models compensate.",
+    "The descending positive branch can reverse the local gate derivative and create optimization behavior not visible in aggregate NLL trajectories.",
+    "A scale constant calibrated on random initializations can become inappropriate as layerwise preactivation distributions drift during training.",
+    "Evaluating tanh and sech separately can create low-precision, overflow, or kernel-fusion costs that erase any modeling benefit.",
+    "The gate can move energy into the ungated value branch or other layers, making low gate energy a redistribution rather than true efficiency or sparsity.",
+    "Near-equivalent NLL can conceal different rare-token, factual-recall, reasoning, calibration, or robustness behavior.",
+    "A tail-suppressed pretrained checkpoint will fail sharply without adaptation, so MemGLU is not a safe drop-in inference-time replacement for SwiGLU."
+  ],
+  "reusable_insights": [
+    "Test architectural necessity by training the counterfactual from initialization; posthoc ablation alone confounds necessity with adaptation to the original component.",
+    "Pair runs by initialization and data order when expected effects are much smaller than ordinary training variance.",
+    "Separate region occupancy from contribution magnitude; frequent activation need not imply energetic or functional dominance.",
+    "Follow a local nonlinearity through the full residual update instead of reporting only its scalar output distribution.",
+    "Treat a sign reversal across scale as evidence for equivalence within a tested band, not as a noisy victory for either method.",
+    "Benchmark kernel and memory costs alongside loss whenever an alternative activation uses uncommon transcendental operations.",
+    "Use interventions at multiple points in training to distinguish early adaptation, late dependence, and representational substitution."
+  ],
+  "open_questions": [
+    "Does the near-equivalence persist from hundreds of millions to tens of billions of parameters and over Chinchilla-scale token budgets?",
+    "Which layers, token types, or learned features account for the residual positive-tail energy in SwiGLU?",
+    "Can a simpler bounded or clipped gate reproduce MemGLU's result without tanh-sech kernel overhead or the descending derivative?",
+    "At what training stage do the SwiGLU and MemGLU usage patterns diverge, and can checkpoint gate swaps locate an adaptation window?",
+    "Do closed-tail gates reduce activation outliers or improve FP8 stability at scale, as large-model alternatives such as PowLU target?",
+    "How do the gates compare on downstream reasoning, factual recall, calibration, sparsity, and robustness at matched compute rather than matched parameter count?",
+    "Can one learn a tail shape under explicit regularization and then freeze it, separating geometry discovery from per-block parameter overhead?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2002.05202",
+      "title": "GLU Variants Improve Transformer",
+      "url": "https://arxiv.org/abs/2002.05202",
+      "relationship": "prior",
+      "difference": "Shazeer introduced and empirically compared Transformer GLU variants, establishing SwiGLU as a strong design. MemGLU asks the narrower counterfactual question of whether one geometric feature of that design, its open positive tail, is necessary when the alternative is trained from scratch."
+    },
+    {
+      "canonical_id": "arxiv:2405.20768",
+      "title": "Expanded Gating Ranges Improve Activation Functions",
+      "url": "https://arxiv.org/abs/2405.20768",
+      "relationship": "prior",
+      "difference": "Expanded Gating Ranges moves in the opposite direction: it adds trainable per-block parameters to extend self-gate ranges and reports Transformer improvements, including first-order GLUs. MemGLU closes the tail, adds no trainable gate parameter after calibration, and targets necessity rather than maximum quality."
+    },
+    {
+      "canonical_id": "arxiv:2411.13010",
+      "title": "Deriving Activation Functions Using Integration",
+      "url": "https://arxiv.org/abs/2411.13010",
+      "relationship": "prior",
+      "difference": "xIELU is a trainable piecewise activation derived from a desired gradient and is tested on 1.1B and 3B Llama models over 125B tokens at matched compute. It is stronger large-scale evidence for activation redesign, but it does not isolate SwiGLU's positive tail or provide a bounded GLU counterexample."
+    },
+    {
+      "canonical_id": "arxiv:2605.25704",
+      "title": "PowLU: An Activation Function for Stable Pre-Training of LLMs",
+      "url": "https://arxiv.org/abs/2605.25704",
+      "relationship": "prior",
+      "difference": "PowLU directly targets SwiGLU's large-positive amplification and low-precision instability with a rational power function, reporting results up to 124B total parameters. MemGLU offers a cleaner closed-tail necessity test and mechanism probes, but at scales orders of magnitude smaller and without evidence of large-scale stability."
+    }
+  ],
+  "novelty_assessment": "Author claim: MemGLU is the first tanh(g)sech(g) memristive-branch gate evaluated in decoder-only pretraining and supplies a controlled counterexample to the necessity of SwiGLU's open tail. Prior work already establishes GLU alternatives, expanded and trainable gate geometries, and large-scale activations designed to suppress SwiGLU outliers. Reviewer inference: the most credible novelty is not another activation formula but the experimental separation between training-time adaptation and posthoc tail dependence, paired with occupancy-versus-energy diagnostics. The exact formula and device-inspired derivation are secondary. The counterexample is valid only for the tested 9M-30M regime; it does not rebut large-scale arguments for open-tail expressivity, and PowLU/xIELU provide substantially stronger scaling evidence for neighboring alternatives.",
+  "confidence": 0.97,
+  "reviewer_notes": "All 16 pages were checked, including the memristor derivation, full configurations, paired-difference appendix, metric definitions, RMS ratios, and exact intervention functions. Competitive records were verified on primary arXiv pages current through 2026-08-23. The review deliberately describes the result as near-equivalence and a limited counterexample, because the primary effect reverses sign between the only two scales."
+}

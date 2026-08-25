@@ -1,0 +1,172 @@
+{
+  "stable_id": "arxiv:2411.12118",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2411.12118",
+    "pdf_sha256": "23616eb63494a703c901b95e3a70bc3527715837538826ef28de5f3e3e8d3339",
+    "text_sha256": "cb277e87066a9fea4b4d6b93d2b88c3cd52ab7353ad9500c342b497bcea4cf39",
+    "page_count": 21,
+    "extracted_at": "2026-08-23T17:38:04.701146+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "What transformer depth and learned attention-head stack are needed for multi-step associative retrieval, and why does intermediate supervision enable the circuit to emerge?",
+  "key_findings": [
+    {
+      "claim": "The retrieval task extends induction by requiring D chained associations, while conditional retrieval permits a directed acyclic dependency graph.",
+      "evidence": "Inputs contain interleaved pairs forming chains from query x0 to target xD; five natural-language formulations test equations, cohabitation, fictional kingdoms, functions, and relatives.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 2, "section": "3.1-3.2, task definition and motivation"}, {"page": 3, "section": "4, LLM formulations"}]
+    },
+    {
+      "claim": "Under a simplified information-sharing model, at least log base 3 of 2D transformer layers are required for the final position to retrieve xD.",
+      "evidence": "The proof bounds the amount of prerequisite information reachable at a position by a factor of three per layer, assuming attention is possible only between positions already sharing information and transfers all attended information.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 3, "section": "5, assumptions"}, {"page": 4, "section": "Theorem 1 and intuition"}]
+    },
+    {
+      "claim": "The logarithmic theorem is conditional and does not establish an unconditional lower bound for standard softmax transformers.",
+      "evidence": "Attention can align through learned content beyond literal pre-existing shared information, and the analysis deliberately ignores capacity, masking, and training; Assumption 1 is the critical restriction producing the information-flow graph.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 3, "section": "5, Assumptions 1-2"}, {"page": 4, "section": "Theorem 1 qualifications"}]
+    },
+    {
+      "claim": "Intermediate targets create an implicit curriculum that is necessary for the reported synthetic training success.",
+      "evidence": "Across 64 one-to-eight-layer runs per formulation, every direct-target non-curriculum run for D=3 finishes above 0.7 MSE, whereas concatenated intermediate targets learn earlier chain positions first and deeper models solve later positions.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "7, IC versus non-IC"}, {"page": 5, "section": "7.1-7.2, 128-run experiment"}]
+    },
+    {
+      "claim": "Three independently trained 12-layer one-head-per-layer transformers use sparse but non-minimal stacks of retrieval heads that share an induction-like first step and diverge afterward.",
+      "evidence": "All reach validation MSE below 0.01; manual attention-map analysis plus ablations finds four useful heads per model, though three suffice constructively, and later head paths differ across seeds.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 5, "section": "8, reverse-engineering setup"}, {"page": 6, "section": "8.2, circuit results"}]
+    },
+    {
+      "claim": "Checkpoint analysis supports sequential circuit assembly: an induction head appears first and later heads reuse it to extend retrieval depth.",
+      "evidence": "In a 24-layer D=4 model, attention paths cross the 0.5 threshold in chain order after roughly 450 slow-learning epochs; partial losses fall in the corresponding order.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 7, "section": "9.2, Figures 6-7"}]
+    },
+    {
+      "claim": "The prompted LLM results demonstrate behavioral capability but not that production models use the same manually recovered synthetic circuit.",
+      "evidence": "Several LLMs answer 500 generated items per formulation well for D up to five, but internal weights are not inspected and answer sampling is repeated until an acceptable format appears.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 3, "section": "4, large language models"}, {"page": 9, "section": "12, limitations"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Use chained associative retrieval as a depth-sensitive testbed, combine an information-flow lower bound with controlled training and manual attention-circuit reconstruction.",
+    "mechanism": "Intermediate supervision exposes every chain prefix; an induction-like head first links pair tokens; subsequent heads attend through residual information produced by earlier heads, progressively extending the reachable chain.",
+    "assumptions": [
+      "The theorem's attention graph requires positions to share information before attending.",
+      "Attending transfers all information and capacity limits can be ignored for the lower-bound argument.",
+      "Synthetic Gaussian symbol vectors and rotary positions isolate retrieval from semantic shortcuts.",
+      "Attention maps and ablation suffice to identify the useful circuit.",
+      "Intermediate-target supervision is a reasonable analogue of curricula present in natural language."
+    ]
+  },
+  "techniques": [
+    {"id": "multi-step-retrieval-task", "role": "Creates a controllable reasoning chain that generalizes induction heads."},
+    {"id": "information-flow-bound", "role": "Relates reachable associations to transformer layer count."},
+    {"id": "implicit-intermediate-curriculum", "role": "Supervises all chain prefixes so useful heads can emerge sequentially."},
+    {"id": "attention-map-reverse-engineering", "role": "Manually identifies head paths responsible for retrieval."},
+    {"id": "checkpoint-path-tracking", "role": "Measures when each circuit edge appears during optimization."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Five prompted retrieval/conditional-retrieval formulations, 500 random questions each, with multiple LLMs.",
+      "metric": "Exact acceptable-answer accuracy versus D and random guessing.",
+      "result": "Models perform strongly across formulations and nearly perfectly on equations through D=5, subject to answer-format resampling.",
+      "baseline": "Random guessing and increasing chain depth."
+    },
+    {
+      "setting": "128 transformers with one to eight layers, D=5 for IC and D=3 for direct target.",
+      "metric": "Final and per-chain-position validation MSE.",
+      "result": "All direct-target runs fail above 0.7 MSE; IC models learn positions in order and later positions require greater depth.",
+      "baseline": "No intermediate curriculum."
+    },
+    {
+      "setting": "Three 12-layer one-head models at D=3 and one 24-layer model at D=4.",
+      "metric": "Validation MSE, ablation effect, attention paths, and path-emergence epoch.",
+      "result": "Sparse stacked-head circuits solve retrieval, differ across seeds after the first induction-like step, and emerge sequentially under IC.",
+      "baseline": "Unused heads, ablated circuits, and the theoretical minimal head count."
+    }
+  ],
+  "limitations": [
+    "The depth theorem relies on a strong attention-sharing abstraction, not the full transformer model.",
+    "Synthetic trained models use explicit intermediate supervision absent from ordinary next-token objectives.",
+    "Circuit reconstruction is manual and covers only four trained models.",
+    "The recovered circuits are non-minimal and seed-dependent.",
+    "Prompted LLM behavior is not causally connected to the synthetic mechanism.",
+    "The emergence claim tracks attention thresholds rather than a full optimization theory."
+  ],
+  "failure_modes": [
+    "Without intermediate targets, gradient descent fails to discover the stack even when depth is sufficient.",
+    "Too few layers prevent information propagation under the assumed graph.",
+    "Later heads cannot form before earlier residual information becomes available.",
+    "Attention-map inspection can miss distributed MLP or value-path computation.",
+    "Answer resampling can overestimate practical prompted reliability."
+  ],
+  "reusable_insights": [
+    "Depth-sensitive synthetic tasks can separate representational capacity from optimization success.",
+    "Intermediate losses can reveal and scaffold the causal order in which multi-stage circuits form.",
+    "Circuit motifs may be shared while exact head locations and redundant paths vary across seeds.",
+    "A lower bound should state whether it applies to the architecture or to an auxiliary information-flow model."
+  ],
+  "open_questions": [
+    "Can an unconditional transformer-depth lower bound be proved for retrieval?",
+    "Does ordinary next-token pretraining supply equivalent intermediate gradients, and on which corpus structures?",
+    "Can automated causal tracing recover the same stacked circuits across many seeds?",
+    "What is the minimum head/layer circuit under realistic masking and finite width?",
+    "Do LLMs use stacked induction heads or a different mechanism on semantic retrieval prompts?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2209.11895",
+      "title": "In-context Learning and Induction Heads",
+      "url": "https://arxiv.org/abs/2209.11895",
+      "relationship": "direct mechanism antecedent",
+      "difference": "Olsson et al. identify two-head induction for A B ... A to B and its training phase change; the target extends the motif to D chained associations and observes sequential reuse by deeper head stacks.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2106.06981",
+      "title": "Thinking Like Transformers",
+      "url": "https://arxiv.org/abs/2106.06981",
+      "relationship": "program-to-depth theory antecedent",
+      "difference": "Weiss et al. compile RASP programs into upper bounds on heads and layers and compare learned patterns; the target proposes a lower bound under an information-sharing model and studies head emergence.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2405.15071",
+      "title": "Grokked Transformers are Implicit Reasoners: A Mechanistic Journey to the Edge of Generalization",
+      "url": "https://arxiv.org/abs/2405.15071",
+      "relationship": "multi-hop reasoning and training-dynamics competitor",
+      "difference": "This work studies delayed generalization and systematicity of latent relation composition; the target focuses on contextual chain retrieval, explicit prefix supervision, and stacked attention paths.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2304.14997",
+      "title": "Towards Automated Circuit Discovery for Mechanistic Interpretability",
+      "url": "https://arxiv.org/abs/2304.14997",
+      "relationship": "circuit-discovery methodology",
+      "difference": "ACDC automates sparse graph discovery and validates known transformer circuits; the target manually reconstructs full small-model retrieval circuits and can be used as a benchmark for such automation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Retrieval supplies a depth-requiring task whose stacked attention circuit emerges one head at a time under an implicit curriculum.",
+    "evidence": "A conditional lower bound, 128-run depth/curriculum sweep, three reverse-engineered circuits, and checkpoint path chronology support the account.",
+    "reviewer_inference": "The sequential head-emergence study is a useful extension of induction-head work. The depth claim must remain explicitly conditional, and transfer from intermediate-supervised toys to pretrained LLMs is not established."
+  },
+  "confidence": 0.94,
+  "reviewer_notes": "Read all 21 extracted pages, including the depth proof, prompt templates, all attention plots, ablations, and training details. Primary competitor records were checked on current arXiv pages on 2026-08-23."
+}

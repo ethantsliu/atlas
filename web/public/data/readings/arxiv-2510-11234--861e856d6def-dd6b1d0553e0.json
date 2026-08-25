@@ -1,0 +1,160 @@
+{
+  "stable_id": "arxiv:2510.11234",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2510.11234",
+    "pdf_sha256": "a3ba692d39cee29a6ed3e12dc3d5844e5f1e3e32570fc9126615271eb310df78",
+    "text_sha256": "95d330e585c1dc4804bf9d685640342da3f4ca8723b948c705450fb7087c1f62",
+    "page_count": 22,
+    "extracted_at": "2026-08-23T14:41:54.675952+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a single learned nonlinear codec treat pretrained network weights as a data modality and preserve downstream behavior better than hand-designed post-training quantizers at practical bit rates?",
+  "key_findings": [
+    {
+      "claim": "Neural Weight Compression replaces a fixed invertible transform and fixed-width quantizer with learned analysis and synthesis transforms, an entropy model, and a rate-distortion objective.",
+      "evidence": "The paper formulates compression as b=C(Q(f(w))) and reconstruction through g, then optimizes expected code length plus task-dependent distortion. The codec uses residual MLPs and arithmetic coding rather than a Hadamard or channel-scaling transform.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 2, "section": "Sections 2 and 2.2"}, {"page": 4, "section": "Section 3.2"}]
+    },
+    {
+      "claim": "The practical pipeline addresses heterogeneous tensor shapes with column normalization and length-16 chunks, and approximates functional distortion with calibration-activation-weighted reconstruction error.",
+      "evidence": "Each weight column is normalized, split into 16-value chunks, and assigned one of K Hessian-derived importance levels. Training samples importance levels uniformly; deployment uses the diagonal of E[xx^T] so errors on influential input channels receive larger penalties.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 3, "section": "Sections 3.1-3.2"}, {"page": 4, "section": "Section 3.2"}]
+    },
+    {
+      "claim": "Sequential intra-layer and inter-layer error compensation is a distinct deployment component, not an effect of the learned codec alone.",
+      "evidence": "Before encoding a later column, the method adds residuals from earlier reconstructed columns using coefficients from an LDL decomposition of the calibration Hessian; block-level optimization then compensates residual output error across layers. The component ablation reports lower perplexity from both mechanisms.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "Section 3.3"}, {"page": 17, "section": "Section C.5 and Figure 13c"}]
+    },
+    {
+      "claim": "On Llama-3-8B, the reported 3.96-bit model retains near-base perplexity and broad zero-shot accuracy, while the benefit is strongest above roughly four bits.",
+      "evidence": "Table 10 reports WikiText-2 perplexity 6.32 at 3.96 bits and 6.15 at 5.98 bits versus the stated base 6.14; MMLU rises from 61.65 to 62.13 over that range. Figure 3 compares three-seed curves with AWQ, GPTQ, SpinQuant, QuIP#, QTIP, SeedLM, and ReALLM, and the text states that the advantage widens at higher rates.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 5, "section": "Section 4.2 and Figure 3"}, {"page": 21, "section": "Table 10"}]
+    },
+    {
+      "claim": "The learned representation transfers beyond its Llama-3-8B training weights, but the evidence is transfer-at-inference rather than training-distribution independence.",
+      "evidence": "Without retraining the codec, the authors apply it to Qwen3, Mixtral, GPT-OSS, CLIP, SigLIP, and DINOv2. Tables 11-12 give monotonic rate-quality curves, and at 3.95-3.97 bits report 67.69 MMLU for Mixtral, 77.17 for Qwen3-30B-A3B, 51.94 for GPT-OSS-20B, and ImageNet metrics of 68.85, 69.94, and 86.02 for the three vision encoders.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 5, "section": "Section 4.2"}, {"page": 6, "section": "Section 4.4"}, {"page": 21, "section": "Tables 11-12"}]
+    },
+    {
+      "claim": "The authors' analysis separates two possible advantages: entropy-constrained codes remain close to the Shannon limit for heavy-tailed sources at high rates, while the learned transform sacrifices some weight MSE to preserve model perplexity.",
+      "evidence": "The rate-distortion study compares SQ, VQ, TCQ, and ECSQ across source distributions. ECSQ remains near the bound at at least four bits. Adding the learned transform slightly worsens MSE yet substantially improves Llama perplexity; its encoded query weights have reported kurtosis 0.00 and no values beyond 3 sigma versus 20.48 kurtosis and 1.94% outliers in the original weights.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 6, "section": "Section 5.1"}, {"page": 7, "section": "Section 5.2 and Table 2"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Learn a global entropy-coded transform over many pretrained weight tensors, while conditioning compression quality on each column's estimated downstream importance.",
+    "mechanism": "Columns are normalized and chunked; residual analysis and synthesis MLPs map each chunk to a quantized latent whose probability under a learned factorized density determines code length. A Hessian-diagonal proxy weights reconstruction loss, and LDL-based sequential feedback propagates previous quantization residuals into later columns and layers.",
+    "assumptions": [
+      "A codec trained on the distribution of one model's linear weights transfers to other architectures and modalities.",
+      "Calibration activations and their second moments identify columns whose reconstruction error matters downstream.",
+      "Tensor-level arithmetic decoding latency is representative of a future fused-kernel implementation.",
+      "Average bits per parameter plus stored normalization and importance metadata captures the relevant storage cost."
+    ]
+  },
+  "techniques": [
+    {"id": "weight-transform-codec", "role": "Learns nonlinear analysis and synthesis transforms directly from weight chunks."},
+    {"id": "entropy-constrained-quantization", "role": "Optimizes expected arithmetic-code length jointly with distortion instead of imposing a uniform fixed width."},
+    {"id": "importance-conditioned-rate-allocation", "role": "Uses discretized Hessian-diagonal levels to spend more bits on functionally sensitive columns."},
+    {"id": "ldl-residual-feedback", "role": "Compensates accumulated reconstruction error within a matrix and across a transformer block."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Llama-3-8B compressed across 2.30-5.98 average bits per parameter; WikiText-2, C4, MMLU, and six zero-shot commonsense tasks; three NWC seeds.",
+      "metric": "Perplexity and zero-shot accuracy as a function of effective bitrate.",
+      "result": "At 3.96 bits, WikiText-2/C4 perplexity is 6.32/9.09 and MMLU is 61.65; at 5.98 bits it is 6.15/8.89 and 62.13, close to the stated 6.14/8.88 base perplexities.",
+      "baseline": "FP16 plus AWQ, GPTQ, SpinQuant, QuIP#, QTIP, SeedLM, and ReALLM."
+    },
+    {
+      "setting": "Codec trained on Llama-3-8B weights and applied without retraining to Qwen, Mixtral, GPT-OSS and three vision encoders.",
+      "metric": "MMLU or ImageNet classification quality over bitrate.",
+      "result": "The transfer curves improve monotonically with bitrate and preserve strong 4-bit performance across all six reported targets.",
+      "baseline": "The same post-training compression families and uncompressed targets."
+    },
+    {
+      "setting": "4096 by 4096 tensor at a four-bit target on an RTX 6000 Ada.",
+      "metric": "Encoding and decoding wall-clock latency.",
+      "result": "NWC reports 1.64 seconds encoding and 1.17 milliseconds decoding; decoding is slower than GPTQ and QTIP but slightly faster than QuIP#, while encoding is much faster than the vector baselines and slower than GPTQ.",
+      "baseline": "GPTQ, QTIP, and QuIP#."
+    }
+  ],
+  "limitations": [
+    "Author-stated: evaluation uses tensor-level simulation because fused tile-wise arithmetic decoding under memory constraints is not implemented.",
+    "The single global codec is trained only on Llama-3-8B weights; architecture transfer is encouraging but does not establish transfer to larger scales or substantially different training regimes.",
+    "The strongest relative claim is in the 4-6 bit regime, whereas several deployment efforts prioritize sub-3-bit compression.",
+    "Most reported NWC curves have three seeds, while some scalar table comparisons and baseline reproductions do not expose comparable uncertainty.",
+    "Storage-quality improvements are not yet translated into end-to-end throughput, energy, or memory measurements in a serving stack."
+  ],
+  "failure_modes": [
+    "A new model family may place high functional importance on weight directions absent from the Llama-trained codec's representation.",
+    "A calibration distribution shift can misallocate importance levels and make error feedback optimize the wrong activation geometry.",
+    "Arithmetic-code serialization or unfused decoding can erase any inference benefit despite favorable storage ratios.",
+    "A learned transform that improves perplexity at a fixed MSE can still damage rare capabilities not represented in the calibration and evaluation suites."
+  ],
+  "reusable_insights": [
+    "Treat model weights as a dataset and learn a shared codec, rather than fitting a separate decoder to every tensor.",
+    "Optimize a function-aware distortion proxy and report it separately from raw parameter MSE.",
+    "Decompose gains into entropy allocation, representation learning, and sequential error feedback with matched-rate ablations.",
+    "Test codec transfer across architectures without retraining to distinguish weight-distribution learning from per-model overfitting."
+  ],
+  "open_questions": [
+    "Can a codec trained on a deliberately diverse weight corpus generalize prospectively to unseen scales, architectures, and training recipes?",
+    "What fused hardware design makes variable-length entropy decoding competitive in end-to-end generation rather than on isolated tensors?",
+    "Can downstream-aware distortion be learned without calibration data and without hiding capability-specific regressions behind perplexity?",
+    "Does progressive or random-access coding permit partial loading, speculative execution, or layer streaming?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2406.11235",
+      "title": "QTIP: Quantization with Trellises and Incoherence Processing",
+      "url": "https://arxiv.org/abs/2406.11235",
+      "relationship": "Direct post-training weight-compression baseline using very-high-dimensional trellis-coded quantization.",
+      "difference": "QTIP retains a designed incoherence transform and trellis code for efficient low-bit lookup, whereas NWC learns nonlinear transforms and a probability model and is strongest at higher rates.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv current abstract page checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2405.13155",
+      "title": "ReALLM: A general framework for LLM compression and fine-tuning",
+      "url": "https://arxiv.org/abs/2405.13155",
+      "relationship": "Direct learned neural-decoder and vector-quantization approach to LLM weights.",
+      "difference": "ReALLM adapts low-rank plus VQ representations and decoder shapes per matrix, while NWC trains one entropy-coded transform over the entire weight collection and does not fine-tune the compressed model.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv current abstract page checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2306.00978",
+      "title": "AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration",
+      "url": "https://arxiv.org/abs/2306.00978",
+      "relationship": "Widely used activation-aware four-bit weight-only quantization baseline.",
+      "difference": "AWQ searches a hardware-friendly channel scaling that protects salient weights without backpropagation, while NWC learns a nonlinear transform and entropy allocation with materially richer decoding.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv current abstract page checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2605.24754",
+      "title": "Motion-Compensated Weight Compression",
+      "url": "https://arxiv.org/abs/2605.24754",
+      "relationship": "Subsequent learned entropy model exploiting cross-layer redundancy in network weights.",
+      "difference": "It aligns symmetry-equivalent layers and predicts residuals across layers with keyframes, targeting redundancy that NWC's independently chunked global codec does not explicitly model.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 abstract published 2026-05-28, checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims the first global neural compression framework that scales effectively to LLMs and learns both nonlinear transforms and entropy coding without a fixed handcrafted rotation.",
+    "reviewer_inference": "The strongest novelty is the unified weight-corpus codec plus function-aware rate allocation at mid-to-high rates. Neural weight decoders and learned codebooks predate it, and the current evidence does not yet establish a serving-system advantage."
+  },
+  "confidence": 0.94,
+  "reviewer_notes": "Read all 22 extracted pages. Numeric claims were taken from Tables 1-3 and 5-13 and qualified where figures, rather than tables, carry the comparison. Competitor identities and current adjacent work were checked against primary arXiv pages on 2026-08-23."
+}

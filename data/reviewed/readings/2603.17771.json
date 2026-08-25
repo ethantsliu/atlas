@@ -1,0 +1,618 @@
+{
+  "stable_id": "arxiv:2603.17771",
+  "reading_depth": "verified",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2603.17771",
+    "pdf_sha256": "e16327cf3db83d451639c1eead03f89ef7436959a9e7491ce5a9d5a9c11e89be",
+    "text_sha256": "e1055d6b9d313976852d59b97535fc0c8459bebc888a1d93ef3e71afdccbf926",
+    "page_count": 29,
+    "extracted_at": "2026-08-23T09:58:13.754789+00:00",
+    "review_pass": "secondary-verified-v1"
+  },
+  "question": "In causal pre-norm Transformers, does the transpose of a forward attention-sink column create unusually concentrated key/value training gradients at the sink token, do massive residual activations arise to attenuate that pressure through RMSNorm, and can a norm-selective value transformation reduce the backward concentration and massive activations while retaining the forward attention sink and useful capabilities?",
+  "key_findings": [
+    {
+      "claim": "The authors observe a first-token gradient sink in all tested scratch and pretrained dense decoder models.",
+      "evidence": "They define the layerwise ratio as the post-RMSNorm attention-input gradient norm at token 0 divided by the mean over positions 1-31. With gradients aggregated over a full batch, reported medians are typically 10-100 for scratch-trained 0.1B, 0.3B, and 1B Llama-like models and diagnostic passes through Qwen2.5-7B, Qwen3-8B, Llama-3.1-8B, and GLM-4-9B. Pretrained-model values come from a post-hoc batch of 512 packed 2,048-token sequences, not their original training runs.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "3.1 From attention sinks to gradient sinks"
+        },
+        {
+          "page": 4,
+          "section": "Figure 1"
+        },
+        {
+          "page": 16,
+          "section": "C.1 / Figure 9"
+        }
+      ]
+    },
+    {
+      "claim": "The cross-token backward routing is exact on the value path, similar but content-dependent on the key path, and absent on the row-local query path.",
+      "evidence": "For one head with Y = A V and upstream G, Proposition 1 gives grad(V) = A-transpose G, so grad(v_s) is the sum over future queries of a_ts g_t. Proposition 3 gives a key gradient summed over t at or after s through a_ts, query q_t, and a content advantage beta_ts. Proposition 4 shows each query gradient depends only on its own causal row; at position 0, a_00 = 1 and y_0 = v_0, making beta_00 and the query gradient exactly zero. Empirical Q/K/V plots reproduce the asymmetry at scratch scales and four pretrained checkpoints.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Figure 2"
+        },
+        {
+          "page": 6,
+          "section": "4.1 Attention weights route gradients backward"
+        },
+        {
+          "page": 15,
+          "section": "C.1 Supplementary results for QKV gradients"
+        },
+        {
+          "page": 24,
+          "section": "D.1 Exact backpropagation identities"
+        },
+        {
+          "page": 25,
+          "section": "Proposition 4"
+        }
+      ]
+    },
+    {
+      "claim": "Attention-column mass controls expected value-gradient magnitude only under an explicit stochastic-gradient model; it is not an unconditional theorem about optimizer dynamics.",
+      "evidence": "Theorem 1 assumes g_t = mu + epsilon_t with a shared coherent mean, zero-mean noise, bounded covariance trace sigma-squared, and bounded cross-token covariance rho. It bounds the expected squared value-gradient norm between M_s-squared times the squared mean norm and that term plus sigma-squared S_s plus rho times M_s-squared minus S_s. The appendix also provides deterministic upper bounds, but neither result proves that actual layerwise training gradients obey the stochastic assumptions or that attention mass uniquely causes massive activations.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.2 Sink statistics control localized gradient pressure"
+        },
+        {
+          "page": 25,
+          "section": "D.2 Assumptions 1-2"
+        },
+        {
+          "page": 26,
+          "section": "D.2 Corollary 1"
+        },
+        {
+          "page": 27,
+          "section": "D.3 Key and query bounds"
+        }
+      ]
+    },
+    {
+      "claim": "Massive first-token norms align with strong local gradient bloat and compression while the residual-stream gradient-norm change remains near one.",
+      "evidence": "The Bloat diagnostic compares post-RMSNorm branch-input gradient with branch-output upstream gradient; Change compares residual gradients before and after the block; Compress measures the branch-contributed residual gradient relative to the post-RMSNorm gradient. At 0.1B and 1B, high-norm token-0 sites occupy the extreme attention-bloat regime, Change stays tightly near one for most layers, and Compress decreases as activation norm rises. Appendix C.2 finds MLP bloat is less dominated by token 0, while MLP compression still tracks activation scale; Qwen3-8B is noted as less aligned than the other pretrained models.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "3.2 Massive activations align with gradient reshaping"
+        },
+        {
+          "page": 5,
+          "section": "Figure 3"
+        },
+        {
+          "page": 15,
+          "section": "C.2 Supplementary results for gradient reshaping"
+        },
+        {
+          "page": 17,
+          "section": "Figure 10"
+        },
+        {
+          "page": 18,
+          "section": "Figure 11"
+        }
+      ]
+    },
+    {
+      "claim": "RMSNorm supplies an inverse-RMS upper bound on local gradient gain, but the bound alone does not show that realized massive activations were learned for gradient regulation.",
+      "evidence": "The exact Jacobian is diag(gamma)/r minus a rank-one term, and Theorem 2 bounds its operator norm by the maximum absolute gain parameter divided by rms(x). Proposition 6 turns this into a sufficient activation scale for a target gradient bound. This is a worst-case bound; the paper does not measure the actual Jacobian-vector product relative to the bound or intervene on backward attenuation while holding the forward normalized representation fixed.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.3 RMSNorm turns activation scale into gradient regulation"
+        },
+        {
+          "page": 27,
+          "section": "D.4 RMSNorm as a gradient-compression mechanism"
+        },
+        {
+          "page": 28,
+          "section": "Proposition 6"
+        }
+      ]
+    },
+    {
+      "claim": "V-scale is a learned norm-selective forward value transformation with an analytically tractable backward Jacobian, not a backward-only valve.",
+      "evidence": "Before aggregation, V-scale replaces v by [r/(r+C)]v for r equal to the squared value norm. C is positive and learned per layer and head via C = d_model d_head sigma-squared exp(theta), adding one scalar per head. Its tangential Jacobian eigenvalue is r/(r+C); its radial eigenvalue is (r-squared + 3Cr)/(r+C)-squared. Both suppress very small value states and tend to one for large values. Because the transformed value is used in the forward sum, every training and retrieval comparison changes forward content as well as gradients.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "5.1 V-scale: a value-path gradient valve"
+        },
+        {
+          "page": 28,
+          "section": "D.5 V-scale Jacobian and gradient attenuation"
+        },
+        {
+          "page": 29,
+          "section": "Corollary 2"
+        }
+      ]
+    },
+    {
+      "claim": "V-scale is not globally contractive, because its radial derivative exceeds one in an intermediate regime.",
+      "evidence": "Proposition 8 proves that the radial eigenvalue reaches 9/8 at r = 3C. Thus small value states are strongly attenuated and large states approach identity, but perturbations along the value direction can be amplified by up to 12.5% between those regimes. Calling V-scale a universal contraction or pure gradient attenuator would be false.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "Proposition 2"
+        },
+        {
+          "page": 28,
+          "section": "Proposition 8"
+        },
+        {
+          "page": 29,
+          "section": "D.5 conclusion"
+        }
+      ]
+    },
+    {
+      "claim": "On the main mechanistic intervention, V-scale reduces but does not remove the gradient sink.",
+      "evidence": "For the 0.3B matched training run, the median token-0 gradient-sink ratio falls from about 40.3 in the baseline to 5.6 with V-scale. Figures 6 and 14 show token 0 remains the largest-gradient position at 0.1B, 0.3B, and 1B, consistent with a partial intervention on only the value pathway.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "5.2 Mechanism verification / Figure 6"
+        },
+        {
+          "page": 19,
+          "section": "Figure 14"
+        }
+      ]
+    },
+    {
+      "claim": "The intervention preserves or slightly strengthens the thresholded attention sink while reducing token-0 residual, MLP, and attention-output norms.",
+      "evidence": "Across the 0.3B and 1B comparisons, Figure 7 shows strong attention-sink rates remain, while token-0 residual-stream and MLP output norms decrease; attention output norm also decreases directly because V-scale contracts values. The authors emphasize the larger MLP change as evidence beyond local attention shrinkage, but V-scale training can indirectly alter all downstream forward states, so this does not isolate a backward causal path.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "5.2 Mechanism verification / Figure 7"
+        }
+      ]
+    },
+    {
+      "claim": "Appendix diagnostics support selective rather than uniform gating, while also showing the learned valve is strongly layer-dependent.",
+      "evidence": "Figure 12 shows token 0 usually has a much smaller value norm than the mean and maximum of positions 1-15, particularly in middle and later layers. Figure 13 shows learned theta values tend to be positive in earlier layers and mostly negative in later layers, meaning the strength C is adapted by head and depth rather than implementing a fixed sink rule.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 15,
+          "section": "C.3 Supporting observations for V-scale design"
+        },
+        {
+          "page": 18,
+          "section": "Figure 12"
+        },
+        {
+          "page": 19,
+          "section": "Figure 13"
+        }
+      ]
+    },
+    {
+      "claim": "Standard 1B downstream performance is mixed and broadly similar, not a uniform improvement.",
+      "evidence": "In bfloat16, Wiki perplexity is 22.84 versus 22.83, while Lambada perplexity worsens 15.27 to 15.91. ARC-Challenge rises 24.91 to 27.05, BoolQ 51.38 to 56.27, COPA 69.00 to 70.00, and OpenBookQA 31.40 to 32.80; HellaSwag falls 51.59 to 51.29, PIQA 72.52 to 71.49, and WinoGrande 54.22 to 53.28. Table 4 shows the same mixture under four post-training quantizers, with no reported training-seed uncertainty for these standard tasks.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "Table 1"
+        },
+        {
+          "page": 16,
+          "section": "C.4 Additional downstream tasks"
+        },
+        {
+          "page": 20,
+          "section": "Table 4"
+        }
+      ]
+    },
+    {
+      "claim": "The easy single-needle retrieval template improves at 8,192 tokens but includes short- and mid-context regressions that the headline summary obscures.",
+      "evidence": "With YaRN at 8,192, V-scale beats baseline in all five precision modes, for example bfloat16 94.20 to 99.04 and SmoothQuant 88.40 to 96.16. At native 2,048, however, bfloat16 declines 98.00 to 97.80, SmoothQuant 95.92 to 95.64, and BNB 98.36 to 95.76. With YaRN, AWQ declines at 1,024 from 99.72 to 96.96, at 2,048 from 97.44 to 94.56, and at 4,096 from 94.60 to 92.36; GPTQ also falls at 4,096 from 96.92 to 93.52.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 17,
+          "section": "C.4 NIAH discussion"
+        },
+        {
+          "page": 21,
+          "section": "Table 5 niah_single_2"
+        }
+      ]
+    },
+    {
+      "claim": "The harder single-needle template produces large native-context gains in four modes but severe failures in AWQ and several YaRN cells.",
+      "evidence": "At native 2,048 tokens, bfloat16 improves 85.48 to 95.60, SmoothQuant 79.28 to 88.48, BNB 79.80 to 96.40, and GPTQ 85.84 to 95.84, while AWQ falls 96.16 to 85.20. Under YaRN at 4,096, GPTQ drops 75.72 to 61.04 and AWQ 78.24 to 49.80; at 8,192, bfloat16 drops 75.68 to 73.52, BNB 75.52 to 71.72, GPTQ 73.68 to 69.20, and AWQ 74.20 to 70.56. The main-text claim is therefore retrieval-regime-specific.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 17,
+          "section": "C.4 NIAH discussion"
+        },
+        {
+          "page": 22,
+          "section": "Table 6 niah_single_3"
+        }
+      ]
+    },
+    {
+      "claim": "Multi-key retrieval is the cleanest positive result: every displayed precision, context, and quantization cell improves.",
+      "evidence": "At native 2,048, gains include bfloat16 65.04 to 71.64 and BNB 61.60 to 70.56. With YaRN at 8,192, bfloat16 improves 48.32 to 62.00, SmoothQuant 48.96 to 57.64, BNB 47.56 to 62.60, GPTQ 46.72 to 58.96, and AWQ 47.04 to 58.48. Entries are means over five random retrieval seeds with standard deviations, but they compare one trained baseline checkpoint with one V-scale checkpoint rather than independent training seeds.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "Table 2"
+        },
+        {
+          "page": 23,
+          "section": "Table 7 niah_multikey_1"
+        }
+      ]
+    },
+    {
+      "claim": "The strongest causal language in the conclusion exceeds what the intervention identifies.",
+      "evidence": "The paper concludes that massive activations emerge as an adaptive RMSNorm-mediated response to gradient sinks. Yet the observations are correlational, pretrained gradients are post-hoc, the RMSNorm result is an upper bound, and V-scale changes the forward value pathway, model training trajectory, and downstream states. The evidence supports compatibility with a gradient-regulation hypothesis, not uniqueness or adaptive-purpose proof.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "3.2 Massive activations align with gradient reshaping"
+        },
+        {
+          "page": 6,
+          "section": "4 Theoretical Mechanism"
+        },
+        {
+          "page": 8,
+          "section": "5.2 Mechanism verification"
+        },
+        {
+          "page": 9,
+          "section": "6 Conclusion and Limitations"
+        }
+      ]
+    },
+    {
+      "claim": "The closest prior value-gating work already contains the central attention-weighted value-gradient identity and a self-dependent value gate, substantially narrowing architectural novelty.",
+      "evidence": "The target acknowledges prior value-state gating on pages 7 and 13 but characterizes V-scale as a narrower mechanism test. Primary-source inspection of Value-State Gated Attention shows that it explicitly derives the value gradient as a sum of attention weights times upstream gradients and then changes that gradient with a gate computed from the value itself. V-scale remains different in its radial rational form, one-scalar-per-head parameterization, goal of preserving rather than removing the attention sink, tokenwise gradient-sink measurement, and RMSNorm massive-activation hypothesis.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "5 Practical Application / prior architectural variants"
+        },
+        {
+          "page": 13,
+          "section": "A Related work: Mechanistic interpretations and mitigation"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Audit the backward transpose of causal attention at sink columns, relate its token-local gradient concentration to inverse-norm RMSNorm attenuation and massive residual activations, then train matched models with a norm-dependent transformation on value states as a mechanism probe.",
+    "mechanism": "For each layer, the paper measures a token-0 post-RMSNorm attention-input gradient divided by the mean over positions 1-31 and decomposes it through Q, K, and V. The exact identity grad(V) = A-transpose grad(Y) shows that a column receiving attention from many future queries aggregates their value-path gradients; key gradients also sum along the column, while queries are row-local and the first query gradient is zero. A mean-plus-noise theorem relates attention-column mass and squared mass to expected value-gradient magnitude. Bloat, Change, and Compress diagnostics then align large token-0 residual norms with local pressure and attenuation. The RMSNorm Jacobian has operator norm at most max-absolute-gamma divided by input RMS, making large norms a possible local gradient throttle. V-scale transforms each per-head value v into [||v|| squared/(||v|| squared+C)]v, with one learned positive C per layer/head. This forward transformation strongly suppresses small-norm values and their Jacobian while approaching identity at large norms. Matched 0.1B-1B C4 pretraining compares gradient ratios, attention sinks, activation norms, standard tasks, three retrieval templates, YaRN context extension, and four post-training quantizers.",
+    "assumptions": [
+      "A first-token ratio against positions 1-31 represents the relevant sequence-wide gradient concentration rather than a boundary effect of packed causal sequences.",
+      "Gradients aggregated over the diagnostic batch approximate the effective tokenwise pressure that matters to parameter optimization.",
+      "Post-hoc gradients through public 7B-9B checkpoints resemble the training-time gradients under which their sink structures emerged.",
+      "The upstream value gradients admit a shared coherent mean plus zero-mean noise with bounded per-token and cross-token covariance.",
+      "An operator-norm upper bound for RMSNorm is informative about realized gradient-vector attenuation in the trained network.",
+      "Tokenwise residual or branch norms are a sufficient proxy for the sparse feature-level phenomenon conventionally called massive activations.",
+      "Massive activations are an adaptive response to gradient pressure rather than a correlated forward bias, implicit parameter, anti-overmixing mechanism, or consequence of data and optimizer dynamics.",
+      "Small-norm sink value states contribute little useful forward information and can be contracted based only on squared norm.",
+      "A learned per-head C calibrated at initialization remains meaningful across layers, training time, quantization, and extended contexts.",
+      "Changing forward value content does not confound the claimed backward mechanism enough to explain reduced activations or retrieval changes.",
+      "One matched training run per architecture is representative; retrieval variation over input seeds substitutes adequately for independent training seeds.",
+      "Dense Llama-like C4 models trained for 10.49B-26.21B tokens transfer mechanistic conclusions to larger, differently trained, post-trained, multimodal, or mixture-of-experts Transformers.",
+      "Preserving the thresholded attention-sink rate means the intervention preserves the sink's useful forward function."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "tokenwise-gradient-sink-ratio",
+      "role": "Measures token-0 post-normalization gradient concentration against nearby early positions."
+    },
+    {
+      "id": "qkv-backward-path-decomposition",
+      "role": "Separates column-aggregating value/key gradients from row-local query gradients."
+    },
+    {
+      "id": "transpose-attention-routing-identity",
+      "role": "Uses the exact gradient of Y = A V to show that attention columns route gradients backward."
+    },
+    {
+      "id": "attention-column-moment-bound",
+      "role": "Bounds expected value-gradient pressure with attention column mass, squared mass, and cross-token covariance."
+    },
+    {
+      "id": "bloat-change-compress-diagnostic",
+      "role": "Distinguishes branch-local amplification, net residual gradient change, and normalization-mediated compression."
+    },
+    {
+      "id": "normalization-jacobian-analysis",
+      "role": "Connects residual scale to a worst-case inverse-RMS gradient-gain bound."
+    },
+    {
+      "id": "norm-selective-value-scaling",
+      "role": "Applies a rational radial transformation that preferentially suppresses small value states with one learned scale per head."
+    },
+    {
+      "id": "jacobian-spectrum-audit",
+      "role": "Derives tangential and radial gains, including the non-contractive 9/8 radial maximum."
+    },
+    {
+      "id": "matched-scratch-pretraining",
+      "role": "Trains baseline and intervention variants with the same C4 data, optimizer, schedule, scale, and token budget."
+    },
+    {
+      "id": "context-extension-quantization-grid",
+      "role": "Tests retrieval under native context, 4x YaRN extension, bfloat16, W8A8, and three W4A16 methods."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Scratch 0.1B/0.3B/1B and diagnostic Qwen2.5-7B, Qwen3-8B, Llama-3.1-8B, GLM-4-9B (pp. 3-4, Figures 1-2; pp. 15-16, Figures 8-9)",
+      "metric": "Token-0 post-RMSNorm gradient norm divided by mean positions 1-31, plus Q/K/V token profiles",
+      "result": "Median ratios typically 10-100; value spike is strongest, key also spikes, query is flatter, and query at token 0 is exactly zero",
+      "baseline": "Nearby early positions and the query path; pretrained gradients are post-hoc probes on 512 packed sequences of length 2,048"
+    },
+    {
+      "setting": "Matched 0.3B baseline and V-scale training (p. 8, Figure 6)",
+      "metric": "Median gradient-sink ratio",
+      "result": "Approximately 40.3 decreases to 5.6",
+      "baseline": "Standard value aggregation; the remaining ratio above one means the sink is reduced, not eliminated"
+    },
+    {
+      "setting": "Matched 0.3B and 1B forward diagnostics on 512 inputs x 2,048 tokens (p. 8, Figure 7)",
+      "metric": "Thresholded attention-sink rate and token-0 residual, MLP-output, and attention-output norms versus positions 1-15",
+      "result": "Attention sinks remain strong or slightly increase, while all three token-0 activation-norm measures decrease, most visibly at MLP outputs",
+      "baseline": "Scale-matched dense Llama-like models without V-scale"
+    },
+    {
+      "setting": "1B bfloat16 standard tasks (p. 9, Table 1; p. 20, Table 4)",
+      "metric": "Perplexity and zero-shot accuracy percentages",
+      "result": "Wiki ppl 22.84 to 22.83; ARC-C 24.91 to 27.05; BoolQ 51.38 to 56.27; COPA 69.00 to 70.00; OBQA 31.40 to 32.80",
+      "baseline": "Mixed regressions include Lambada ppl 15.27 to 15.91, HellaSwag 51.59 to 51.29, PIQA 72.52 to 71.49, and WinoGrande 54.22 to 53.28"
+    },
+    {
+      "setting": "1B standard tasks under SmoothQuant W8A8 and BNB/GPTQ/AWQ W4A16 (p. 20, Table 4)",
+      "metric": "Perplexity and zero-shot task accuracy",
+      "result": "ARC-C, BoolQ, COPA, and OBQA usually improve modestly across listed precisions",
+      "baseline": "ARC-E, HellaSwag, PIQA, SCIQ, WinoGrande, and some perplexity cells often decline; no independent training-seed uncertainty is reported"
+    },
+    {
+      "setting": "Easy niah_single_2 with native context and 4x YaRN, five retrieval seeds (p. 21, Table 5)",
+      "metric": "Retrieval accuracy percentage",
+      "result": "At YaRN 8,192, bfloat16 94.20 to 99.04, SmoothQuant 88.40 to 96.16, BNB 93.32 to 98.52, GPTQ 93.08 to 97.72, AWQ 90.84 to 98.32",
+      "baseline": "Several shorter cells regress, including native 2,048 BNB 98.36 to 95.76 and YaRN 4,096 AWQ 94.60 to 92.36"
+    },
+    {
+      "setting": "Hard niah_single_3, native 2,048 and 4x YaRN through 8,192, five retrieval seeds (p. 22, Table 6)",
+      "metric": "Retrieval accuracy percentage",
+      "result": "Native 2,048 gains: bfloat16 +10.12, SmoothQuant +9.20, BNB +16.60, GPTQ +10.00 points",
+      "baseline": "AWQ native falls 96.16 to 85.20; YaRN 4,096 AWQ falls 78.24 to 49.80 and GPTQ 75.72 to 61.04; four of five 8,192 modes decline"
+    },
+    {
+      "setting": "niah_multikey_1 under native/YaRN context and five precision modes, five retrieval seeds (p. 23, Table 7)",
+      "metric": "Mean retrieval accuracy percentage",
+      "result": "Every displayed cell improves; at YaRN 8,192 the gains are +13.68 bfloat16, +8.68 SmoothQuant, +15.04 BNB, +12.24 GPTQ, and +11.44 AWQ points",
+      "baseline": "Matched standard 1B model; only retrieval-input seeds, not independent pretraining seeds, underlie the reported standard deviations"
+    },
+    {
+      "setting": "V-scale Jacobian proof (pp. 28-29, Propositions 7-8 and Corollary 2)",
+      "metric": "Tangential and radial local derivative gain",
+      "result": "Both tend to zero for squared value norm much smaller than C and to one for large norm; radial gain peaks at 9/8 when r = 3C",
+      "baseline": "Identity value map has gain one in every direction, so V-scale can attenuate or mildly amplify depending on regime"
+    },
+    {
+      "setting": "Scratch-training configuration (p. 14, Table 3)",
+      "metric": "Scale, context, steps, and token budget",
+      "result": "0.1B: 20K steps, 1,024 context, 10.49B tokens; 0.3B: 20K steps, 2,048 context, 20.97B tokens; 1B: 25K steps, 2,048 context, 26.21B tokens; global batch 512",
+      "baseline": "All use C4, AdamW, cosine decay, gradient clipping 1.0, and matched schedules; no stronger gated-attention competitor or multiple pretraining seeds are evaluated"
+    }
+  ],
+  "limitations": [
+    "Author-stated: experiments are restricted to dense Llama-like language models; transfer to mixture-of-experts, multimodal, bidirectional, post-norm, or other architectures is unknown.",
+    "Author-stated: data distribution, optimizer, numerical precision, and other training factors are not excluded as causes shaping attention sinks and massive activations.",
+    "Reviewer-identified: diagnostic gradients for public 7B-9B checkpoints are post-hoc and need not match the gradients present when their extreme activations emerged.",
+    "Reviewer-identified: the intervention is trained only up to 1B parameters on C4 for 10.49B-26.21B tokens; the larger models support diagnosis but not intervention efficacy.",
+    "Reviewer-identified: the RMSNorm theorem is an operator-norm upper bound and the paper never measures how tight it is for realized gradient directions.",
+    "Reviewer-identified: V-scale changes forward values, backward derivatives, and the full training trajectory, so it does not isolate a backward-only causal channel despite being described as a gradient valve.",
+    "Overclaim audit (reviewer-inferred): the causal conclusion that massive activations emerge adaptively to regulate gradient sinks is not identified by correlation plus a forward-path intervention.",
+    "Reviewer-identified: prior Value-State Gated Attention already derives the attention-weighted value-gradient accumulation and uses a gate computed from the value state to alter it; no head-to-head VGA baseline is reported.",
+    "Reviewer-identified: other direct alternatives such as gated attention, GatedNorm, sigmoid or rectified attention, and outlier absorption are discussed but not compared under matched data and compute.",
+    "Reviewer-identified: the gradient-sink ratio fixes token 0 and positions 1-31, while the sink-rate metric uses threshold 0.3 over 64 tokens; sensitivity to those choices, other sink positions, delimiters, and long sequences is unreported.",
+    "Reviewer-identified: packed documents have eos separators but no dedicated bos token, so sequence-boundary and position effects can be entangled with semantic or document-level sink behavior.",
+    "Reviewer-identified: figures average Q/K/V statistics over layers and often summarize medians, potentially hiding head-, layer-, and checkpoint-specific reversals.",
+    "Conditional/negative diagnostic (appendix, reviewer-identified from author-reported figures): Qwen3-8B is explicitly less aligned in supplemental reshaping plots, but this exception is not quantified or investigated.",
+    "Reviewer-identified: standard downstream tasks use one 1B checkpoint pair and report no independent training seeds, confidence intervals, or significance tests.",
+    "Reviewer-identified: NIAH uncertainty is over five retrieval seeds, not model-training seeds; all-cell multi-key gains may reflect a checkpoint-specific difference.",
+    "Negative-result audit (appendix, reviewer-identified from author-reported tables): the easy and hard single-needle appendices contain substantial regressions, including a 28.44-point AWQ drop at YaRN 4,096, so 'improves long-context retrieval robustness' is overbroad without template qualification.",
+    "Internal-tension audit (reviewer-identified from an author-proved result): V-scale's radial Jacobian reaches 9/8, so it is not a universal gradient contraction despite the valve/attenuation framing.",
+    "Reviewer-identified: tokenwise vector norms and sparse scalar massive activations are related but not identical phenomena; the paper sometimes moves between them without a formal equivalence.",
+    "Reviewer-identified: training stability, convergence speed, wall-clock overhead, calibration, generation quality, instruction following, and full language-model loss curves are not reported."
+  ],
+  "failure_modes": [
+    "A low-norm value can still encode directionally important content, causing norm-only scaling to erase a useful global bias or rare feature.",
+    "The learned C can be miscalibrated across heads, domains, sequence lengths, post-training stages, or RoPE/YaRN scaling regimes.",
+    "Quantization changes value norms relative to C and can move states into the radial amplification regime or over-suppressed regime.",
+    "Because the radial derivative peaks above one, V-scale can amplify perturbations near squared norm 3C even while attenuating smaller states.",
+    "Reducing a first-position gradient sink can move concentration to another delimiter, register, newline, or semantic anchor rather than eliminate it.",
+    "A noncausal, bidirectional, recurrent, linear-attention, mixture-of-experts, post-norm, or multimodal architecture can have a different transpose-routing pattern.",
+    "Post-hoc diagnostic batches can identify a sink that was not a dominant optimization pressure during pretraining.",
+    "Batch aggregation can cancel heterogeneous per-example gradients and make tokenwise ratios dependent on packing and positional alignment.",
+    "Layer-averaged diagnostics can hide a few destabilizing heads or layers where query or radial amplification dominates.",
+    "Suppressing massive activations that act as implicit parameters or anti-overmixing structures can harm unmeasured generation and representation tasks.",
+    "The easy single-needle template can saturate and hide regressions, while hard or quantized long-context cells fail sharply.",
+    "A single favorable training seed can produce apparent multi-key gains that do not replicate across independently trained checkpoints.",
+    "If attention sinks are absent, distributed, or useful for local-bias control, V-scale adds forward distortion without relieving meaningful gradient pressure.",
+    "The gate can preserve the thresholded sink rate while changing the sink's actual head distribution or functional contribution."
+  ],
+  "reusable_insights": [
+    "For any forward aggregation operator, inspect its transpose to locate backward concentration before attributing anomalies only to forward function.",
+    "Separate exact algebraic routing identities, assumption-dependent stochastic bounds, empirical correlations, causal interventions, and adaptive-purpose claims.",
+    "Decompose gradient anomalies into branch-local bloat, residual-stream change, and normalization compression rather than relying on one norm.",
+    "Normalization can make a representation's raw scale weakly relevant forward but strongly relevant backward; measure both paths explicitly.",
+    "A mechanism probe should preserve the hypothesized useful structure while changing the suspect pressure, but forward equality is needed for a clean backward causal test.",
+    "Norm-selective gates need a full Jacobian spectrum audit because a forward factor below one does not imply contraction in every differential direction.",
+    "Report every retrieval template and precision cell; aggregate long-context claims can conceal large regime-specific failures.",
+    "Use independent training seeds in addition to evaluation seeds when an architectural change affects the entire pretraining trajectory.",
+    "Compare against earlier methods containing the same algebraic identity and intervention locus, not only against vanilla attention.",
+    "Track sink migration across positions, heads, and layers after an intervention rather than measuring only the original token."
+  ],
+  "open_questions": [
+    "Can gradient pressure be altered during training while the forward value computation is held exactly fixed, for example with a custom backward operator?",
+    "Which emerges first over pretraining: attention-column mass, value-gradient concentration, value-state drains, or massive residual activations?",
+    "How tight is the RMSNorm operator bound for actual optimizer gradient directions at sink and nonsink tokens?",
+    "Do Adam moments, clipping events, or parameter-update norms concentrate in the parameters driven by sink-token gradients?",
+    "Does the 40.3-to-5.6 ratio reduction replicate across independent data orders, initializations, larger token budgets, and frontier model scales?",
+    "How does V-scale compare at matched compute with VGA, gated attention, GatedNorm, SoftPick, sigmoid attention, and explicit sink parameters?",
+    "Can the regulator hypothesis predict the layer and training step where massive activations first appear better than competing forward explanations?",
+    "Does intervention on one sink cause migration to eos, newline, delimiter, or distributed sink positions?",
+    "Which low-norm value states carry useful content, and can a semantic or uncertainty-aware gate protect them better than norm alone?",
+    "Why is Qwen3-8B less aligned with the Bloat/Change/Compress pattern, and does its post-training or architecture falsify part of the mechanism?",
+    "How should C transform under weight and activation quantization, head-dimension changes, and context extension?",
+    "Does V-scale help full language modeling, calibration, instruction following, and free-form generation at long context, not just synthetic retrieval?",
+    "Are tokenwise massive norms and sparse feature-level massive activations causally equivalent or only correlated at the first token?",
+    "Can attention-column statistics predict instability or downstream failure early enough to guide architecture selection?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2510.09017",
+      "title": "Value-State Gated Attention for Mitigating Extreme-Token Phenomena in Transformers",
+      "url": "https://arxiv.org/abs/2510.09017",
+      "relationship": "closest-prior-value-gradient-and-gating-competitor",
+      "difference": "VGA already writes the value gradient as the sum of attention weights times upstream gradients, interprets high sink attention as amplified value-state pressure, and derives how a sigmoid gate computed from the value itself changes that gradient. It aims to break the mutual reinforcement among attention sinks and value drains and thereby mitigate the sinks. V-scale instead uses a radial rational norm gate with one learned scalar per head, explicitly measures tokenwise gradient sinks, ties pressure to RMSNorm and massive residual activations, and seeks to preserve the attention sink. The overlap means the routing-identity-plus-value-gate combination is prior, while the target's narrower addition is the RMSNorm regulator hypothesis, diagnostic, and specific gate behavior.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, 2026-01-26"
+    },
+    {
+      "canonical_id": "arxiv:2601.22966",
+      "title": "A Unified View of Attention and Residual Sinks: Outlier-Driven Rescaling is Essential for Transformer Training",
+      "url": "https://arxiv.org/abs/2601.22966",
+      "relationship": "closest-prior-normalization-and-training-competitor",
+      "difference": "Qiu et al. argue attention and residual outliers jointly provide useful forward rescaling through softmax and RMSNorm, validate across dense, linear, hybrid, and MoE models up to 24B/1T tokens, and replace outliers with PreAffine or GatedNorm. The target instead argues large token norms regulate backward pressure produced by attention columns. Both connect outliers, normalization, gated alternatives, stability, and quantization, but the prior work supplies a competing forward-rescaling purpose and broader architecture scale rather than tokenwise gradient-sink evidence.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2026-01-30"
+    },
+    {
+      "canonical_id": "arxiv:2603.05498",
+      "title": "The Spike, the Sparse and the Sink: Anatomy of Massive Activations and Attention Sinks",
+      "url": "https://arxiv.org/abs/2603.05498",
+      "relationship": "concurrent-direct-mechanistic-competitor",
+      "difference": "This paper, submitted before the target, experimentally decouples massive activations and attention sinks and argues they have distinct forward roles: massive activations form persistent near-constant implicit parameters, while attention sinks locally bias heads toward short dependencies. It identifies pre-norm as enabling co-occurrence and shows either can be suppressed without language-modeling loss. The target adds a backward gradient-pressure account and V-scale, but its adaptive-regulator conclusion must compete with this explicit forward-function and architectural-artifact explanation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2026-03-05"
+    },
+    {
+      "canonical_id": "arxiv:2510.06477",
+      "title": "Attention Sinks and Compression Valleys in LLMs are Two Sides of the Same Coin",
+      "url": "https://arxiv.org/abs/2510.06477",
+      "relationship": "prior-unified-forward-mechanism",
+      "difference": "Queipo-de-Llano et al. connect attention sinks and massive activations to representational compression across 410M-120B models, derive entropy-reduction bounds, and propose a Mix-Compress-Refine forward account. The target focuses on transpose-attention gradients and inverse-norm backward attenuation; it does not exclude compression as the reason large activations are useful or show the backward account is primary.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2026-02-09"
+    },
+    {
+      "canonical_id": "arxiv:2402.17762",
+      "title": "Massive Activations in Large Language Models",
+      "url": "https://arxiv.org/abs/2402.17762",
+      "relationship": "massive-activation-foundation",
+      "difference": "Sun et al. establish sparse activations up to roughly 100,000 times ordinary scale, show they remain nearly input-constant and act as indispensable implicit biases, and connect them forward to attention concentration. The target reverses the emphasis by treating sink attention as the source of backward pressure and large norms as regulators, but it does not disprove the prior forward-bias role.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2024-08-14"
+    },
+    {
+      "canonical_id": "arxiv:2410.10781",
+      "title": "When Attention Sink Emerges in Language Models: An Empirical View",
+      "url": "https://arxiv.org/abs/2410.10781",
+      "relationship": "attention-sink-training-dynamics-prior",
+      "difference": "Gu et al. causally vary optimization, data, loss, and attention architecture, finding sink position tracks loss/data and sinks disappear in tested sigmoid attention models up to 1B. The target analyzes the backward consequence once a causal softmax sink exists and preserves it with V-scale; it does not reproduce the prior emergence-factor sweep.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2025-03-02"
+    },
+    {
+      "canonical_id": "arxiv:2504.02732",
+      "title": "Why do LLMs attend to the first token?",
+      "url": "https://arxiv.org/abs/2504.02732",
+      "relationship": "functional-attention-sink-competitor",
+      "difference": "Barbero et al. give a theoretical and empirical forward account in which first-token attention helps avoid over-mixing, and they test context length, depth, and packing. The target deliberately retains the attention sink while reducing its value-gradient concentration, so the accounts can coexist; preservation of a thresholded sink alone does not show its anti-overmixing function is unchanged.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v4, 2025-08-05"
+    },
+    {
+      "canonical_id": "arxiv:2309.17453",
+      "title": "Efficient Streaming Language Models with Attention Sinks",
+      "url": "https://arxiv.org/abs/2309.17453",
+      "relationship": "attention-sink-foundation",
+      "difference": "StreamingLLM names and exploits the forward initial-token sink by retaining its KV states, enabling stable windowed inference over millions of tokens and up to 22.2x speedup. The target contributes a training-time backward diagnostic and small-model intervention rather than an inference-cache method, and its long-context tests are synthetic retrieval only through 8,192 tokens.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v4, 2024-04-07"
+    },
+    {
+      "canonical_id": "arxiv:2605.08504",
+      "title": "A Single Layer to Explain Them All:Understanding Massive Activations in Large Language Models",
+      "url": "https://arxiv.org/abs/2605.08504",
+      "relationship": "subsequent-emergence-mechanism-competitor",
+      "difference": "Shi et al. subsequently localize the first emergence of massive activations to a consistent layer where RMSNorm and FFN parameters jointly contribute, trace residual propagation, and mitigate representation rigidity in pretrained models. This is a more layer-specific origin account with instruction and math evaluations; the target supplies a backward attention-pressure hypothesis but does not predict or causally verify the emergence layer.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2026-05-12"
+    },
+    {
+      "canonical_id": "arxiv:2605.06611",
+      "title": "The Structural Origin of Attention Sink: Variance Discrepancy, Super Neurons, and Dimension Disparity",
+      "url": "https://arxiv.org/abs/2605.06611",
+      "relationship": "subsequent-value-aggregation-and-normalization-mechanism-competitor",
+      "difference": "Li et al. subsequently attribute sink formation to value-aggregation variance discrepancy amplified by sparse FFN super neurons, reproduce sinks at arbitrary positions with controlled interventions, and propose head-wise RMSNorm to restore positional variance parity during pretraining. That is a forward statistical and structural causal chain rather than the target's backward transpose-routing account, but it is a direct current competitor because it links value aggregation, extreme FFN activity, RMSNorm, sink formation, and pretraining convergence without invoking adaptive gradient regulation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2605.06611v1, submitted 2026-05-07; ICML 2026"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims to identify gradient sinks as a backward-pass counterpart of attention sinks, explain massive activations as an adaptive RMSNorm-mediated regulator of sink-induced gradient pressure, and introduce V-scale as a selective value-path valve that suppresses massive activations while preserving attention sinks.",
+    "evidence": "The target contributes tokenwise gradient-ratio measurements across three scratch scales and four pretrained checkpoints, Q/K/V path decomposition, an exact transpose-attention identity, conditional attention-mass bounds, Bloat/Change/Compress diagnostics, an inverse-RMSNorm Jacobian bound, a 40.3-to-5.6 intervention result, learned per-head radial scaling, and standard/retrieval evaluations with full Jacobian proofs.",
+    "reviewer_inference": "The broad combination of attention-weighted value-gradient accumulation and value-state gating is not new: VGA v3 explicitly derives the same summed value-gradient pressure and uses a self-dependent value gate before this target. Prior work also already ties attention sinks and large residual outliers to training dynamics, RMSNorm/softmax rescaling, compression, forward implicit biases, and gated replacements. Subsequent structural-origin work supplies a distinct value-aggregation-variance and super-neuron chain with controlled sink induction and head-wise RMSNorm, underscoring that the target's adaptive account is not unique. What remains plausibly novel is the named tokenwise gradient-sink diagnostic, the empirical Q/K/V profile including exact zero first-query gradient, the particular RMSNorm backward-regulator framing, Bloat/Change/Compress evidence, and V-scale's radial rational gate designed to preserve rather than eliminate the forward sink. The adaptive-purpose claim should remain a hypothesis: V-scale is not backward-only, its radial Jacobian can amplify, no direct gated competitor is run, and competing forward explanations are not excluded."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Independent secondary verification re-read the exact 29-page arXiv:2603.17771v2 artifact end to end, including all references, configurations, supplemental plots, Tables 1-7, and proofs in Appendix D. Rendered pages were checked for the gradient-ratio definition, Q/K/V and Bloat/Change/Compress plots, V-scale equations, every standard and retrieval table, and the RMSNorm and V-scale Jacobian derivations. The cached PDF is byte-identical to the current official v2 download, and its PDF/text hashes and 29-page count match the full-text index. Every existing finding, evaluation, limitation, failure mode, novelty statement, and anchor was independently checked; the forward-path confound, conditional theorem assumptions, 9/8 radial amplification, missing train-seed replication, and single-needle regressions all survived review. Current official primary literature was re-searched and ten exact-version competitors were checked, adding the directly relevant post-target variance-discrepancy/super-neuron/head-wise-RMSNorm account. Confidence is high in the pinned artifact, algebra, tables, and negative-result audit, but the adaptive-purpose interpretation remains materially less certain than the routing identity and reported diagnostics.",
+  "verification": {
+    "reviewer_id": "reviewer-b721d95c778d",
+    "checked_at": "2026-08-23",
+    "passage_check": "Independently re-read all 29 pages of the pinned arXiv:2603.17771v2 PDF, including pages 10-13 references/related work, page 14 training configuration, pages 15-19 all supplemental diagnostics, pages 20-23 every standard and NIAH table, and pages 24-29 every exact identity, bound, RMSNorm proof, and V-scale Jacobian proof. Checked rendered pages against extracted text, recomputed the listed table deltas and the radial maximum 9/8 at r=3C, rechecked every finding anchor, and confirmed the cached PDF is byte-identical to the official v2 download with SHA-256 e16327cf3db83d451639c1eead03f89ef7436959a9e7491ce5a9d5a9c11e89be.",
+    "competitor_check": "Re-searched current official primary literature on 2026-08-23 and checked exact records for arXiv:2510.09017v3, 2601.22966v1, 2603.05498v1, 2510.06477v2, 2402.17762v2, 2410.10781v2, 2504.02732v4, 2309.17453v4, 2605.08504v2, and 2605.06611v1. Titles, version histories, dates, claimed mechanisms, temporal relation to the target, and direct differences were independently evaluated; the target itself was excluded."
+  }
+}

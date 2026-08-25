@@ -1,0 +1,402 @@
+{
+  "stable_id": "arxiv:2602.09075",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2602.09075",
+    "pdf_sha256": "882fa8361cea7bc92e921e3b62a8ad11ead9cb403c170dd9a885b053e1b049d0",
+    "text_sha256": "36e44da6f7563f877c82056c18a9f139667e4f8c937631f631d1276ff4c76181",
+    "page_count": 23,
+    "extracted_at": "2026-08-23T13:05:29.034995+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a fixed-size gated attention memory avoid both overwriting useful old associations and becoming too rigid to absorb new ones by tracking a Bayesian importance state for every memory element, and can that mechanism be inserted into pretrained Mamba2 models with useful long-context gains at tolerable cost?",
+  "key_findings": [
+    {
+      "claim": "Palimpsa turns each linear-attention head into a dual-state online learner whose mean memory and per-element precision jointly implement metaplasticity.",
+      "evidence": "For each value row, the paper places a Gaussian variational posterior over the key-to-value regression weights. The recurrent mean mu stores associations, while precision I=1/sigma^2 records how important each memory element has become. New key-value evidence increases I by beta tensor k^2, and the mean update is divided elementwise by I, so consolidated elements change less than uncertain ones. An input-dependent forgetting factor alpha discounts both the old mean contribution and old precision toward a prior, permitting stale information to be released instead of allowing the posterior to become indefinitely rigid.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "2.2 Derivation of Palimpsa / Equations 1-2"},
+        {"page": 5, "section": "Variational free energy and Palimpsa update / Equations 3-5"},
+        {"page": 17, "section": "Appendix A.5 Derivation of Palimpsa / Equations 28-29"},
+        {"page": 18, "section": "Appendix A.5 / Equations 30-31"}
+      ]
+    },
+    {
+      "claim": "The forgetting rule is a tractable weighted-posterior proxy for a sliding Bayesian window, not an exact deletion of the oldest observation.",
+      "evidence": "Exact truncation would divide the posterior by the unavailable likelihood of d_(t-N). The paper replaces that likelihood with the geometric mean of the previous window's joint likelihood and then makes N input-dependent, yielding a recursively discounted weighted posterior and alpha_t=1-1/N_t=exp(-A d_t). Thus N_t has an interpretable effective-window role, but the state generally summarizes exponentially discounted evidence rather than the literal last N_t tokens.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "2.2 Catastrophic remembering and weighted posterior"},
+        {"page": 14, "section": "Appendix A.2 Bayesian Forgetting / Equations 6-7"},
+        {"page": 15, "section": "Appendix A.2 / Equations 8-9"}
+      ]
+    },
+    {
+      "claim": "The paper's statement that variational inference recovers an exact conjugate solution must be separated from the approximation used by the deployed Palimpsa layer.",
+      "evidence": "The full Gaussian linear-regression posterior and its covariance update are analytically tractable, but a full d_k by d_k inverse is required after forgetting adds a full-rank prior term. Palimpsa first derives that coupled solution and then discards all off-diagonal precision terms so vector-valued beta can be used with elementwise updates. The appendix explicitly calls this stronger than a standard mean-field assumption. Accordingly, exactness holds for the conjugate target before the diagonal restriction; the implemented recurrent layer is an approximation to that full posterior as well as to the literal sliding window.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Bayesian Attention as an Optimization Problem"},
+        {"page": 5, "section": "Palimpsa Layer and Architecture / diagonal covariance"},
+        {"page": 16, "section": "Appendix A.3 closed-form covariance / Equations 20-21"},
+        {"page": 17, "section": "Appendix A.5 diagonal precision approximation"}
+      ]
+    },
+    {
+      "claim": "The Bayesian lens unifies several gated recurrences, but the Mamba2 relationship is an asymptotic, parameterized limit rather than an unconditional algebraic identity.",
+      "evidence": "Table 1 interprets Longhorn, DeltaNet, Gated DeltaNet, Mesa, and Palimpsa through their stability matrices, input gates, forgetting, and objective approximations. Mamba2 is recovered when forgetting is sufficiently strong that I remains approximately I_prior, after which the importance-normalized update collapses to a Mamba2-shaped recurrence. The fine-tuning construction additionally reparameterizes beta times v as the kernel value and initializes a per-head beta scale near zero. Palimpsa-M without metaplasticity is equivalent to Mamba2 by that architectural construction; arbitrary learned Palimpsa states are not Mamba2.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "2.3 Bayesian Inference at Test-Time / Mamba2 limit"},
+        {"page": 6, "section": "2.3-2.4 Mamba2 limit and fine-tuning reparameterization"},
+        {"page": 7, "section": "Table 1 gated-model comparison"}
+      ]
+    },
+    {
+      "claim": "Palimpsa-D and Palimpsa-M test metaplasticity in two materially different backbones, so cross-variant rankings are not pure tests of the Bayesian state update.",
+      "evidence": "Palimpsa-D adds its own beta projection to a Gated-DeltaNet-style layer, has a gated MLP, normalizes keys and queries, and uses a separate b_t input gate that decouples integration from forgetting. Palimpsa-M follows Mamba2, lacks the gated MLP, does not normalize keys or queries, and reuses d_t for both forgetting and input gating. Within-variant no-meta comparisons isolate metaplasticity better than Palimpsa-D versus Palimpsa-M or either variant versus a Transformer.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "Palimpsa Layer and Architecture"},
+        {"page": 14, "section": "Appendix A and A.1 Palimpsa Model Variants / Figure 5"}
+      ]
+    },
+    {
+      "claim": "On maximum-load MQAR, metaplasticity improves both backbones increasingly as the sequence and number of stored pairs grow, although model selection and reporting use the same seed pool.",
+      "evidence": "Two-layer, width-128 models use eight heads with only 16 state dimensions per head and the maximum L/4 key-value pairs. Across eight seeds, the metaplastic bar is above its matched no-meta ablation at L=256, 512, and 1024; at L=1024 the plotted means are approximately 0.78 versus 0.70 for Palimpsa-D and approximately 0.72 versus 0.65 for Palimpsa-M. However, the authors sweep four learning rates and report the best learning rate per model across seeds and sequence sizes, without a separate validation pool, so the seed dispersion is more informative than a formal uncertainty estimate after selection.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "3.1 Synthetic Experiments: MQAR / Figure 2"},
+        {"page": 19, "section": "Appendix A.8 MQAR Experiments / Table 4"}
+      ]
+    },
+    {
+      "claim": "MQAR training dynamics are consistent with the proposed mechanism, but they do not causally establish it.",
+      "evidence": "Across eight seeds, the learned effective window N_t grows rapidly before loss begins to fall, while the final-state metaplasticity ratio (I_max-I_min)/I_min reaches about 40. The early low-ratio phase is interpreted as a Mamba2-like high-forgetting regime, followed by differentiation into plastic and consolidated states. This temporal alignment is suggestive, but the experiment does not intervene on I, match models by learned N_t, or show that the high-importance cells actually contain the associations whose preservation drives accuracy.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "2.2 effective-window and importance-state mechanism"},
+        {"page": 7, "section": "3.2 Palimpsa's Learning Dynamics on MQAR / Figure 3"}
+      ]
+    },
+    {
+      "claim": "At 170M parameters, the language and commonsense results are mixed and expose a negative result for training metaplasticity from scratch.",
+      "evidence": "Average commonsense accuracy is 43.91 for Palimpsa-D without meta, 43.96 after a 1B-token metaplastic fine-tune, and 43.45 when Palimpsa-D is fully trained with meta; the fully trained model is also below Transformer++ at 43.80. Palimpsa-M moves from 42.90 without meta to 43.48 after fine-tuning and 43.57 fully trained, but both remain below Transformer++ and the 43.59 Gated DeltaNet result except for a 0.02 tie-like margin over Gated DeltaNet by the fully trained model. The authors explicitly attribute the Palimpsa-D reversal to the difficulty of learning metaplasticity from random initialization.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "3.3 Language Tasks / model scales and evaluation setup"},
+        {"page": 8, "section": "3.3 Language Tasks / Table 2, 170M variants"}
+      ]
+    },
+    {
+      "claim": "At 760M parameters, matched fine-tuning yields modest but consistent average-accuracy gains for both Palimpsa backbones, with metric-specific tradeoffs.",
+      "evidence": "Palimpsa-D rises from 51.82 to 52.27 average accuracy (+0.45) and Palimpsa-M from 51.53 to 52.16 (+0.63) after a 2B-token fine-tune from the corresponding 28B-token checkpoint. Palimpsa-D exceeds Gated DeltaNet's 51.50 by 0.77. WikiText perplexity remains worse than Transformer++ (19.02 for fine-tuned D and 19.60 for fine-tuned M versus 18.91), while D's LAMBADA perplexity improves from 16.54 to 14.86 and M's is essentially unchanged, 16.34 to 16.35. The prose's approximate 0.6-point gain is accurate for M but rounds D's exact +0.45 upward.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Table 2, 760M variants and accompanying analysis"},
+        {"page": 9, "section": "Conclusion / 760M commonsense summary"}
+      ]
+    },
+    {
+      "claim": "Surgical conversion of a pretrained 2.7B Mamba2 model improves average commonsense accuracy, but not its perplexity metrics uniformly.",
+      "evidence": "The Mamba2-like no-meta baseline averages 59.22 and the 15B-token fine-tuned Palimpsa hybrid averages 60.06 (+0.84). ARC-Easy improves from 60.06 to 63.43 and WinoGrande from 63.85 to 65.19, while WikiText perplexity slightly worsens from 14.46 to 14.51 and LAMBADA perplexity is unchanged at 4.79. This is a useful downstream gain, but it is an aggregate over several small changes rather than a uniform improvement on every metric.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "3.4 Large Scale and Long Context Experiments / Table 2, 2.7B variants"},
+        {"page": 9, "section": "3.4 large-scale result discussion"}
+      ]
+    },
+    {
+      "claim": "LongBench gains concentrate in medium and long contexts and include a substantial short-context regression.",
+      "evidence": "The 2.7B hybrid moves overall LongBench from 19.3 to 20.4 (+1.1) and medium-context score from 19.5 to 23.3 (+3.8), with hard and long categories improving by +1.2 and +1.0. Easy is unchanged at 22.4, while short drops from 18.9 to 16.1 (-2.8). Therefore the overall improvement supports a long-context benefit but not the broader wording that the upgraded model simply dominates the baseline.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "3.4 large-scale and long-context evaluation setup"},
+        {"page": 9, "section": "3.4 / Table 3 LongBench"}
+      ]
+    },
+    {
+      "claim": "RULER Variable Tracing shows a sharp context-length crossover rather than uniform superiority.",
+      "evidence": "Fine-tuned Palimpsa scores 33.5, 24.9, 22.5, and 24.4 at 4k, 8k, 16k, and 32k, versus 59.6, 49.7, 26.0, and 14.9 for the no-meta baseline. The changes are -26.1, -24.8, -3.5, and +9.5 points respectively. Appendix Table 6 also shows worse frequent-word extraction at every length and a single-needle retrieval advantage for the baseline, while Palimpsa is often better on multiple-key/value retrieval. Metaplasticity improves retention only after a long enough horizon and can strongly harm shorter-horizon tracing and aggregation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "Table 3 RULER Variable Tracing"},
+        {"page": 21, "section": "Appendix A.11 RULER Benchmark Experiments / Table 6"}
+      ]
+    },
+    {
+      "claim": "The 2.7B experiment supports a targeted conversion recipe but does not isolate why the chosen eight layers or state budget are optimal.",
+      "evidence": "From a 64-layer, 2.7B Mamba2 checkpoint pretrained on 300B tokens, the authors replace the eight layers with the largest median effective windows, continue pretraining for 10B tokens, extend context to 32k for 5B tokens, and instruction-tune on LongAlpaca. The baseline receives the same three-stage recipe, which controls training data and stage effects. Missing controls include randomly chosen layers, the eight strongest-forgetting layers, different replacement counts, equal recurrent-state bytes, and equal attention-kernel FLOPs; those omissions prevent attributing the full gain specifically to the proposed layer-selection heuristic or to per-state metaplasticity rather than added state capacity.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 8, "section": "3.4 model surgery and training recipe"},
+        {"page": 20, "section": "Appendix A.10 Fine-Tuning Procedure / Figure 6 and Stages 1-2"},
+        {"page": 21, "section": "Appendix A.10 Stage 3"}
+      ]
+    },
+    {
+      "claim": "The dual-state kernel has material training and inference overhead despite retaining constant recurrent memory in sequence length.",
+      "evidence": "The main text states that a 760M Mamba2 model is more than 3 times faster than Palimpsa. Appendix A.12 attributes the bottleneck to storing intra-chunk mean and importance states in registers and inter-chunk states in HBM: training is about 1.5 times the time of optimized SimpleGLA at 170M and about 3 times at 760M. In an attention-only RTX 3090 inference benchmark (B=16, L=2048, H=1), Palimpsa peaks near 770k tokens/s at D=512 but is consistently about 4 times slower than SimpleGLA; at D=2048 it is about 50k versus 188k tokens/s. Constant-in-length memory should not be conflated with equal state bytes or equal throughput.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "2.4 Fine-tuning Mamba2 with Metaplasticity / speed motivation"},
+        {"page": 22, "section": "Appendix A.12 implementation bottlenecks and A.13 inference efficiency"},
+        {"page": 23, "section": "Figure 7 Inference Speed Benchmark"}
+      ]
+    },
+    {
+      "claim": "The broad abstract claim of consistent baseline outperformance is not supported without qualification.",
+      "evidence": "Paired no-meta ablations generally support a metaplasticity effect, especially on MQAR and 760M average accuracy. But fully trained 170M Palimpsa-D falls below its no-meta counterpart, the 170M Palimpsa-M variants remain below Transformer++, LongBench short-context performance drops 2.8 points, and RULER loses 24-26 points at 4k-8k Variable Tracing. The defensible claim is task- and horizon-dependent improvement in memory management, not consistent superiority across all baselines and settings.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract"},
+        {"page": 2, "section": "Contribution summary"},
+        {"page": 8, "section": "Table 2"},
+        {"page": 9, "section": "Table 3"},
+        {"page": 21, "section": "Appendix Table 6"}
+      ]
+    },
+    {
+      "claim": "Important empirical controls and uncertainty reports are uneven across scales.",
+      "evidence": "MQAR reports eight seeds and dispersion, but language-model and 2.7B tables do not state repeat counts or uncertainty. MesaNet is omitted because the authors encountered numerical instability in its public GPU code and because its published model used SlimPajama, leaving a particularly close second-order Bayesian/online-regression competitor unevaluated. The per-token NLL claim that Palimpsa processes nearly five times more tokens before losing to a Transformer is read from one benchmark curve without a stated threshold or interval. The Bayesian head's output uncertainty is proposed only as future work and is never calibrated or evaluated.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "1.1 Related Work / uncertainty as future work"},
+        {"page": 7, "section": "3.3 omission of MesaNet"},
+        {"page": 8, "section": "Table 2 and Figure 4 discussion"},
+        {"page": 9, "section": "Table 3"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Treat the fixed-size in-context attention state as a continual Bayesian learner and adapt each memory element's plasticity according to its accumulated precision, while an input-dependent prior pull prevents indefinite rigidity.",
+    "mechanism": "At every token, projections produce key k, query q, value v, importance gate beta, and forgetting gate alpha. A diagonal precision state updates as I_t=alpha_t I_(t-1)+(1-alpha_t)I_prior+beta_t tensor k_t^2. A precision-weighted first-moment recurrence yields the posterior mean memory mu_t; the output is mu_t q_t. The rule is derived from a Gaussian linear-regression free energy under a recursively discounted posterior. A chunk-wise associative scan parallelizes the two recurrent states for training. For pretrained Mamba2 conversion, beta is initialized near zero so I stays close to I_prior, selected Mamba2 layers are replaced, and fine-tuning lets metaplasticity emerge gradually.",
+    "assumptions": [
+      "Keys and values are modeled by a conditionally Gaussian linear regression, with a Gaussian prior over every memory row.",
+      "The variational posterior factorizes across value rows and the implemented precision is diagonal across key dimensions; off-diagonal correlations are discarded.",
+      "The unavailable oldest likelihood in a sliding window can be approximated by a geometric-mean discount of all prior evidence.",
+      "An input-dependent effective window can be represented by alpha=exp(-A d)=1-1/N and learned stably.",
+      "Per-element precision is an operational proxy for association importance and inverse plasticity.",
+      "Pretrained Mamba2 layers can enter the Palimpsa parameterization near the high-forgetting I approximately I_prior limit without destructive functional drift.",
+      "MQAR and the selected commonsense/long-context benchmarks diagnose the memory-interference behavior that motivates the update."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "bayesian-weighted-posterior-forgetting",
+      "role": "Discounts accumulated evidence toward a prior to approximate an input-dependent finite memory window and prevent catastrophic remembering."
+    },
+    {
+      "id": "per-state-metaplasticity",
+      "role": "Uses a learned precision for every recurrent memory element as its inverse learning rate, protecting consolidated associations while leaving uncertain cells plastic."
+    },
+    {
+      "id": "diagonal-precision-linear-attention",
+      "role": "Makes vector-valued input importance and closed-form elementwise Bayesian updates computationally tractable at the cost of discarded covariance."
+    },
+    {
+      "id": "mamba2-limit-initialization",
+      "role": "Initializes beta near zero so a converted layer begins near the Mamba2 recurrence and can be fine-tuned into a metaplastic regime."
+    },
+    {
+      "id": "layerwise-memory-window-surgery",
+      "role": "Selects the eight pretrained Mamba2 layers with the weakest forgetting for replacement by Palimpsa blocks."
+    },
+    {
+      "id": "chunkwise-associative-scan",
+      "role": "Parallelizes first-moment and precision recurrences within chunks while passing final states sequentially between chunks."
+    },
+    {
+      "id": "maximum-load-mqar-curriculum",
+      "role": "Stress-tests fixed-state interference using L/4 key-value pairs as sequence length progresses from 128 to 1024."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Two-layer, width-128 MQAR curriculum with 8 heads, 16 state dimensions per head, L/4 key-value pairs, and eight seeds",
+      "metric": "Associative-recall accuracy at L=1024 (256 key-value pairs)",
+      "result": "Figure 2 shows approximately 0.78 for Palimpsa-D and 0.72 for Palimpsa-M.",
+      "baseline": "Approximately 0.70 for matched Palimpsa-D without meta, 0.65 for matched Palimpsa-M without meta, and roughly 0.72 for Gated DeltaNet; values are plot-read and the best learning rate was selected from four candidates."
+    },
+    {
+      "setting": "170M models pretrained on 15B FineWeb-Edu tokens; metaplastic variants fine-tuned for the last 1B tokens",
+      "metric": "Mean zero-shot commonsense accuracy over LAMBADA, PIQA, HellaSwag, WinoGrande, ARC-Easy, ARC-Challenge, and SIQA",
+      "result": "Palimpsa-D: 43.96 fine-tuned and 43.45 fully trained; Palimpsa-M: 43.48 fine-tuned and 43.57 fully trained.",
+      "baseline": "No-meta D 43.91, no-meta M 42.90, Transformer++ 43.80, and Gated DeltaNet 43.59. Fully trained D is a negative result."
+    },
+    {
+      "setting": "760M models trained for a matched 30B-token budget; metaplastic variants fine-tuned for 2B tokens from 28B checkpoints",
+      "metric": "Mean zero-shot commonsense accuracy",
+      "result": "Fine-tuned Palimpsa-D reaches 52.27 (+0.45 over its no-meta variant) and fine-tuned Palimpsa-M reaches 52.16 (+0.63).",
+      "baseline": "No-meta D 51.82, no-meta M 51.53, Gated DeltaNet 51.50, and Transformer++ 51.28."
+    },
+    {
+      "setting": "760M FineWeb-Edu language evaluation",
+      "metric": "WikiText and LAMBADA perplexity",
+      "result": "Fine-tuned D obtains 19.02 WikiText and 14.86 LAMBADA; fine-tuned M obtains 19.60 and 16.35.",
+      "baseline": "Transformer++ is better on WikiText at 18.91; no-meta D is 19.33/16.54 and no-meta M is 19.96/16.34, so M's LAMBADA result does not improve."
+    },
+    {
+      "setting": "2.7B hybrid produced from a 300B-token Mamba2 checkpoint by replacing eight layers and applying 15B tokens of continued/context training plus instruction tuning",
+      "metric": "Mean commonsense accuracy",
+      "result": "60.06, an absolute gain of 0.84 points.",
+      "baseline": "Identically trained Palimpsa-M without meta/Mamba2 baseline at 59.22."
+    },
+    {
+      "setting": "Same 2.7B models on LongBench",
+      "metric": "Easy, hard, short, medium, long, and overall category scores",
+      "result": "Fine-tuned Palimpsa scores 22.4/18.6/16.1/23.3/20.4/20.4.",
+      "baseline": "No-meta baseline 22.4/17.4/18.9/19.5/19.4/19.3: +3.8 medium and +1.1 overall, but -2.8 short."
+    },
+    {
+      "setting": "Same 2.7B models on RULER Variable Tracing at 4k, 8k, 16k, and 32k context",
+      "metric": "Variable Tracing score",
+      "result": "33.5/24.9/22.5/24.4 for fine-tuned Palimpsa.",
+      "baseline": "59.6/49.7/26.0/14.9 without meta, giving -26.1/-24.8/-3.5/+9.5 and a crossover only at 32k."
+    },
+    {
+      "setting": "RULER aggregation at 32k context",
+      "metric": "Common Words Extraction and Frequent Words Extraction",
+      "result": "Fine-tuned Palimpsa scores 0.2 CWE and 24.7 FWE.",
+      "baseline": "No-meta baseline scores 0.4 and 31.9; metaplasticity does not help these aggregation tasks at any reported length."
+    },
+    {
+      "setting": "Fused recurrent attention-only inference on one RTX 3090, B=16, L=2048, H=1",
+      "metric": "Tokens per second",
+      "result": "Palimpsa is about 770k tokens/s at D=512 and about 50k tokens/s at D=2048.",
+      "baseline": "SimpleGLA is consistently about 4 times faster and reaches about 188k tokens/s at D=2048."
+    },
+    {
+      "setting": "End-to-end training implementation at 170M and 760M parameter scales",
+      "metric": "Relative training time",
+      "result": "Palimpsa takes approximately 1.5 times SimpleGLA training time at 170M and approximately 3 times at 760M.",
+      "baseline": "Optimized SimpleGLA kernel; the main text separately reports Mamba2 as more than 3 times faster than Palimpsa at 760M."
+    }
+  ],
+  "limitations": [
+    "Author-stated: fully training Palimpsa-D from random initialization underperforms fine-tuning because learning useful metaplasticity jointly with basic plasticity is harder.",
+    "Author-stated: MesaNet is excluded because its public GPU code was numerically unstable in the authors' tests and its published runs used a different corpus.",
+    "Author-stated: the parallel kernel must retain both intra-chunk moment and precision states in registers and materialize inter-chunk states in HBM, causing register pressure, smaller chunks, reduced batch size, and substantial training overhead.",
+    "Author-stated: Palimpsa's Bayesian output uncertainty is not used; exploiting it is deferred to future work.",
+    "Reviewer-identified: the weighted posterior is an exponentially discounted proxy for a sliding window, and the deployed diagonal precision is not the exact full-covariance posterior suggested by unqualified exact-inference wording.",
+    "Reviewer-identified: language and 2.7B results do not report seeds, error bars, or significance, so sub-point aggregate differences cannot be separated from run variance.",
+    "Reviewer-identified: the large-scale surgery lacks random-layer, opposite-layer, replacement-count, state-byte-matched, and FLOP-matched controls.",
+    "Reviewer-identified: no benchmark compares memory bytes or end-to-end generation latency against an equal-parameter Mamba2 or Transformer; the inference plot isolates one attention head.",
+    "Reviewer-identified: the study is confined to synthetic recall, perplexity, commonsense suites, LongBench, and RULER; it does not test streaming distribution shift, tool use, factual correction, or adversarially conflicting context.",
+    "Reviewer-identified: the best MQAR learning rate is selected using the same seed/length pool used for reporting, with no held-out model-selection split.",
+    "Reviewer-identified: no precision calibration, posterior predictive check, or intervention on high-importance cells verifies that I behaves as Bayesian uncertainty or causes the retained associations."
+  ],
+  "failure_modes": [
+    "Training metaplastic Palimpsa-D from scratch can reduce rather than improve downstream average accuracy at 170M.",
+    "Metaplasticity can sharply hurt shorter-context sequential tracing: RULER VT loses 26.1 and 24.8 points at 4k and 8k.",
+    "LongBench short-context score falls 2.8 points even as medium and overall scores improve.",
+    "Frequent-word and common-word aggregation remain worse than the no-meta model through 32k context.",
+    "Single-needle retrieval generally favors the no-meta baseline; benefits are concentrated in multi-item or very long dependency settings.",
+    "When beta remains near zero or forgetting stays high, precision cannot differentiate and the layer remains effectively Mamba2-like.",
+    "When precision becomes large without adequate prior pull, new evidence is suppressed, reproducing catastrophic remembering; when forgetting is too strong, old associations are erased.",
+    "Diagonal precision cannot represent correlated key directions, so interference requiring off-diagonal covariance may be misestimated.",
+    "Register pressure and dual-state HBM traffic make training increasingly slower with width, limiting from-scratch scaling.",
+    "Palimpsa-M couples input integration to forgetting through d_t, so it cannot write new information without simultaneously forgetting; Palimpsa-D removes this coupling but changes the backbone."
+  ],
+  "reusable_insights": [
+    "Separate a recurrent memory's content state from an importance or plasticity state; this creates an explicit stability-plasticity control surface instead of asking one scalar decay gate to do both jobs.",
+    "A prior pull on the importance state is a principled way to prevent uncertainty from vanishing and learning rates from freezing in online Bayesian memories.",
+    "Derive the full probabilistic update first and label every approximation afterward; the distinction between exact conjugacy, posterior discounting, and diagonal deployment is essential for trustworthy mechanism claims.",
+    "Initialize a more expressive recurrence at a known simpler-model limit, then fine-tune away from that limit; this is a general model-surgery recipe for upgrading pretrained recurrent architectures.",
+    "Select where to add expensive memory machinery using a diagnostic of the pretrained model's effective time horizon, but validate that heuristic against random and opposite selections.",
+    "Report long-context results as curves or horizon crossovers rather than one aggregate: Palimpsa's RULER result would be badly misrepresented by either the 4k or 32k endpoint alone.",
+    "Stress fixed-size memories at maximum associative load and increase sequence length while holding state size fixed; this exposes interference that ordinary language perplexity can hide.",
+    "Constant memory in sequence length is not synonymous with cheap memory: number of recurrent states, state precision, register residency, and HBM materialization all belong in efficiency accounting."
+  ],
+  "open_questions": [
+    "Does the learned precision correlate with controlled deletion, key collision, posterior error, or the causal value of individual associations?",
+    "Can a low-rank-plus-diagonal or block-diagonal covariance recover correlated-key benefits without MesaNet's iterative solve or Palimpsa's full-matrix cost?",
+    "What objective or initialization lets metaplasticity train reliably from scratch rather than requiring a Mamba2-like warm start?",
+    "Why does metaplasticity reverse from a large deficit to a gain on Variable Tracing between 16k and 32k, and can a router avoid the short-horizon penalty?",
+    "Can effective-window diagnostics predict layer replacements prospectively across checkpoints, or were the chosen eight layers specific to this model and recipe?",
+    "How do Palimpsa's recurrent-state bytes, energy, and end-to-end latency compare with Mamba2, Gated DeltaNet, MesaNet, TTT, and attention at equal quality?",
+    "Can Bayesian predictive uncertainty from the attention head be calibrated and used for write gating, abstention, or adaptive forgetting?",
+    "Would the method retain its benefit under factual conflicts, distribution shifts, repeated corrections, or natural long-context tasks where salience is not equivalent to age?",
+    "Can the input and forgetting gates be decoupled in the Mamba2-compatible variant without losing its pretrained-limit initialization?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2405.21060",
+      "title": "Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality",
+      "url": "https://arxiv.org/abs/2405.21060v1",
+      "relationship": "Mamba2 is the principal pretrained backbone, no-metaplasticity ablation, efficiency reference, and claimed limiting case of Palimpsa-M.",
+      "difference": "Mamba2 uses a single selective SSM/SSD recurrence and no learned per-memory precision state. Palimpsa adds elementwise importance and Bayesian prior forgetting, trading a second state and slower kernels for adaptive plasticity; the equivalence holds only near I approximately I_prior under Palimpsa's reparameterization.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, submitted 2024-05-31; ICML 2024"
+    },
+    {
+      "canonical_id": "arxiv:2412.06464",
+      "title": "Gated Delta Networks: Improving Mamba2 with Delta Rule",
+      "url": "https://arxiv.org/abs/2412.06464v3",
+      "relationship": "A direct gated linear-attention competitor and the base design for Palimpsa-D; it is also evaluated on MQAR, commonsense reasoning, retrieval, and long context.",
+      "difference": "Gated DeltaNet combines forgetting with an error-correcting delta rule but uses a fixed identity stability matrix/first-order objective approximation. Palimpsa adds a dynamically accumulated diagonal precision per state, while incurring dual-state cost and a Gaussian/diagonal posterior assumption.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, updated 2025-03-06; ICLR 2025 camera-ready"
+    },
+    {
+      "canonical_id": "arxiv:2407.14207",
+      "title": "Longhorn: State Space Models are Amortized Online Learners",
+      "url": "https://arxiv.org/abs/2407.14207v5",
+      "relationship": "A close online-regression derivation of an efficient recurrent sequence layer and an explicit comparator in Palimpsa's unified update table.",
+      "difference": "Longhorn derives an input-dependent closed-form associative update but does not accumulate a per-element in-context precision state; its plasticity rate is effectively fixed within a sequence for a memory element. Palimpsa makes that rate history-dependent through a second state and adds explicit prior-based forgetting.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v5, updated 2024-10-02; ICLR 2025"
+    },
+    {
+      "canonical_id": "arxiv:2506.05233",
+      "title": "MesaNet: Sequence Modeling by Locally Optimal Test-Time Training",
+      "url": "https://arxiv.org/abs/2506.05233v2",
+      "relationship": "The closest full-covariance/second-order in-context regression competitor and the most important omitted empirical baseline.",
+      "difference": "MesaNet spends iterative conjugate-gradient compute to solve a locally optimal regression with a precision shared across value rows, retaining correlations. Palimpsa uses vector-valued per-row input importance and a diagonal precision for one-pass associative scans; this is cheaper conceptually but approximate and still substantially slower than simple gated recurrences.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, updated 2026-06-03; ICLR 2026"
+    },
+    {
+      "canonical_id": "arxiv:2407.04620",
+      "title": "Learning to (Learn at Test Time): RNNs with Expressive Hidden States",
+      "url": "https://arxiv.org/abs/2407.04620v4",
+      "relationship": "A direct test-time-learning recurrent alternative that also casts the hidden state as a learned model updated online for long-context language modeling.",
+      "difference": "TTT updates a linear or MLP hidden-state learner by self-supervised gradient steps and emphasizes state expressivity. Palimpsa restricts the learner to Gaussian linear regression with a closed-form diagonal Bayesian update, gaining explicit importance/forgetting semantics but less expressive state and different systems costs.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v4, updated 2025-08-31; related-work and limitations revision"
+    },
+    {
+      "canonical_id": "arxiv:2501.00663",
+      "title": "Titans: Learning to Memorize at Test Time",
+      "url": "https://arxiv.org/abs/2501.00663v1",
+      "relationship": "A direct long-term neural-memory architecture that learns and forgets at test time and competes with recurrent and attention models on language and long-context tasks.",
+      "difference": "Titans uses a more expressive neural memory updated by surprise/gradient signals and combines it with attention, reporting contexts beyond two million tokens. Palimpsa is a fixed-size linear-attention recurrence with a Bayesian diagonal precision and a direct Mamba2 conversion path; it does not establish comparable extreme-context scaling.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, submitted 2024-12-31"
+    },
+    {
+      "canonical_id": "doi:10.1038/s41467-025-64601-w",
+      "title": "Bayesian continual learning and forgetting in neural networks",
+      "url": "https://www.nature.com/articles/s41467-025-64601-w",
+      "relationship": "MESU is the direct metaplastic Bayesian precursor from overlapping authors and supplies Palimpsa's learning-versus-forgetting formulation.",
+      "difference": "MESU applies uncertainty-scaled updates to network weights across streaming training tasks and evaluates continual image learning and OOD uncertainty. Palimpsa moves the idea inside the forward-pass attention state for token-level ICL, derives a closed-form linear-regression recurrence, and builds GPU kernels; it does not inherit MESU's demonstrated predictive-uncertainty evaluation.",
+      "source_kind": "publisher",
+      "checked_at": "2026-08-23",
+      "source_version": "Nature Communications version of record, published 2025-10-30, volume 16 article 9614"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim the first use of metaplasticity inside in-context attention, a Bayesian framework unifying gated recurrent models, a dual-state layer that prevents both in-context catastrophic forgetting and remembering, and a way to upgrade pretrained Mamba2 models by fine-tuning from a limiting case.",
+    "evidence": "The paper derives a mean-and-precision recurrence from a discounted Gaussian variational objective, provides matched no-meta ablations in two backbones, shows widening MQAR gains at fixed state size, and demonstrates modest 760M/2.7B aggregate gains plus a 32k Variable-Tracing crossover. The appendix supplies the full posterior derivation, architectural distinctions, model-surgery recipe, and kernel/efficiency accounting.",
+    "reviewer_inference": "The strongest novelty is the practical combination of per-element precision metaplasticity, explicit prior forgetting, associative-scan implementation, and initialization at a pretrained Mamba2-like limit. The broader Bayesian unification builds directly on MESU, online-regression views, MesaNet, Longhorn, and TTT; 'exact' applies only before the deployed approximations, and Mamba2 is a conditional asymptotic limit. Empirical evidence supports horizon-dependent memory gains, not universal baseline superiority, and the substantial short-context and systems costs are central to the contribution's boundary."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Primary full-text review of all 23 PDF pages, including references and Appendices A.1-A.13. Tables 2, 3, 4, 5, and 6 and Figures 2, 3, 4, 6, and 7 were checked against PDF page images; plot-read MQAR values are explicitly marked approximate, while all tabulated arithmetic was recomputed. The audit distinguishes the authors' conjugate exactness claim from the weighted-window and diagonal-covariance approximations, and distinguishes within-backbone metaplasticity ablations from Palimpsa-D/Palimpsa-M architecture differences. Source hashes and page count were pinned to the local full-text index. Seven primary competitor records were checked on 2026-08-23 against current arXiv API versions or the publisher version of record; no search-result or secondary page is used as a competitor URL. Confidence is high because the derivation, tables, and appendices are complete, with residual uncertainty limited to approximate values read from MQAR plots and unreported run-to-run variance in language experiments."
+}

@@ -1,0 +1,590 @@
+{
+  "stable_id": "arxiv:2510.27688",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2510.27688",
+    "pdf_sha256": "42d0420f6ac7df6517c4cd7b03b4cc2fdd127704966be26fc10349c08fabcc04",
+    "text_sha256": "db5ef799eac192fc7ea7e467383d9a7efb74e69f6ef4ee074819a1788dbd2380",
+    "page_count": 33,
+    "extracted_at": "2026-08-23T14:30:22.835245+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a language model reduce autoregressive sequence length by predicting a continuous latent vector for each K-token chunk, while retaining competitive predictive quality, single-step sampling, likelihood-free evaluation, and temperature control at lower training and inference FLOPs than token-level Transformers?",
+  "key_findings": [
+    {
+      "claim": "CALM compresses each non-overlapping K-token chunk into a variational latent and predicts the next latent with a single-step stochastic energy head, reducing the number of backbone autoregressive steps by K.",
+      "evidence": "The context-free autoencoder maps V^K to an l-dimensional Gaussian posterior and decodes to K vocabulary logits; token and latent dropout plus per-dimension KL clipping make the code robust. A Transformer hidden state and uniform noise feed residual SwiGLU MLP blocks that emit the next vector. For K=4, the robust default uses l=128, N=8 model samples and M=100 posterior target samples in the energy-score estimator.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "2.1 High-Fidelity Reconstruction"
+        },
+        {
+          "page": 4,
+          "section": "2.2 Robust Vector Representation"
+        },
+        {
+          "page": 5,
+          "section": "3.1 Next-Vector Prediction and 3.2 Generative Head"
+        },
+        {
+          "page": 6,
+          "section": "3.3.2 Energy Loss"
+        },
+        {
+          "page": 7,
+          "section": "3.3.3 Model Architecture"
+        }
+      ]
+    },
+    {
+      "claim": "The deployed autoregressive loop is a continuous-output/discrete-feedback hybrid rather than an end-to-end continuous-state sequence model.",
+      "evidence": "Although Equations 5–7 write the sequence and backbone input as latent vectors, Figure 2 and the implementation description say the predicted latent is immediately decoded to K discrete tokens; those tokens are embedded and compressed to form the next backbone input. Table 5 shows this discrete input scores 4.70 BrierLM, versus 3.25 for direct continuous input and 4.40 for their combination. Thus discrete grounding is not incidental—it is critical to the reported model.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "3.1 Next-Vector Prediction"
+        },
+        {
+          "page": 7,
+          "section": "3.3.3 Discrete Token Input and Figure 2"
+        },
+        {
+          "page": 8,
+          "section": "3.3.3 Discrete Feedback Loop"
+        },
+        {
+          "page": 19,
+          "section": "7.4 Model Input and Table 5"
+        }
+      ]
+    },
+    {
+      "claim": "At K=4, the reported models trade predictive score for compute and sit only slightly above the authors' interpolated Transformer frontier; they do not strictly dominate same-scale baselines.",
+      "evidence": "Table 1 reports Transformer-S/M/L BrierLM scores 6.05/7.07/8.98 at training FLOPs 6.6/11.9/22.5e20 and inference FLOPs 4.4/7.9/15.0e8 per token. CALM-M/L/XL report 5.72/6.58/8.53 at 3.7/7.7/19.5e20 and 2.9/4.6/9.4e8 per token. CALM-M is called comparable to Transformer-S while scoring 0.33 lower; CALM-XL scores 0.45 below Transformer-L while using less compute. Figure 4 shows K=1 is clearly inefficient, K=2 is mixed, K=4 provides the favorable point, and K=8 loses substantially more quality.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 15,
+          "section": "7.2 Main Results and Table 1"
+        },
+        {
+          "page": 16,
+          "section": "Figure 4 — Effect of chunk size"
+        }
+      ]
+    },
+    {
+      "claim": "The main quality comparison is confounded by unequal token context: CALM receives K times as many historical tokens at the same 2048 backbone-step context.",
+      "evidence": "Section 7.1 sets context length to 2048 steps and explicitly says this corresponds to 2048K tokens for CALM; at K=4 that is 8192 tokens, versus 2048 tokens for a baseline Transformer. Table 1 computes attention FLOPs assuming 2048 context positions. The paper does not report a matched-token-context ablation, so the favorable WikiText BrierLM score can reflect both chunk prediction and access to four times more token history.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 14,
+          "section": "7.1 Settings — Datasets"
+        },
+        {
+          "page": 15,
+          "section": "7.1 Training Details and Table 1"
+        }
+      ]
+    },
+    {
+      "claim": "Autoencoder regularization is necessary but has important negative regimes: a naive VAE degrades downstream modeling through posterior collapse.",
+      "evidence": "Table 2 gives BrierLM 3.99 for reconstruction-only, 3.48 with raw KL, 4.13 with clipped per-dimension KL, 4.55 with clipped KL plus token dropout, 4.46 with clipped KL plus latent dropout, and 4.70 with both dropouts. The authors report that raw KL collapses 71 of 128 dimensions. Figure 6 also shows beta=0.1 reduces reconstruction to about 99% and sharply lowers BrierLM.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 16,
+          "section": "7.3 Effect of Autoencoder"
+        },
+        {
+          "page": 17,
+          "section": "Table 2 and Figures 6–7"
+        }
+      ]
+    },
+    {
+      "claim": "The claimed latent-dimension optimum is not isolated because latent dropout is changed simultaneously with dimension.",
+      "evidence": "Figure 7 compares dimensions 32, 64, 128, and 256 while respectively changing dropout to 0.05, 0.10, 0.15, and 0.20, then attributes the peak at l=128 to a capacity-versus-noise trade-off. Because two variables move together, the figure cannot identify a dimension-only causal effect.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 17,
+          "section": "7.3 Latent Demension and Figure 7"
+        }
+      ]
+    },
+    {
+      "claim": "The single-step energy head outperforms the tested diffusion and flow-matching heads, but the comparison is a small ablation without end-to-end latency reporting.",
+      "evidence": "Figures 8 and 9 show diffusion around 3.1 BrierLM, flow midpoint around 4.0, and the energy head around 4.7; diffusion and flow use 100 inference iterations by default, while energy uses one pass. The paper varies sampler steps for iterative heads but does not report measured wall-clock latency, memory, hardware utilization, or uncertainty across runs.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 17,
+          "section": "7.4 Effect of Model Architecture"
+        },
+        {
+          "page": 18,
+          "section": "Diffusion and Flow Matching — Figures 8–9"
+        }
+      ]
+    },
+    {
+      "claim": "The energy-loss sample-count text overstates monotonic improvement: increasing target samples from M=100 to M=200 makes the reported score worse.",
+      "evidence": "Table 3 reports BrierLM 4.37/4.53/4.70/4.72 for N=2/4/8/12 and 4.50/4.56/4.70/4.67 for M=1/16/100/200, with relative cost rising to 1.07x at M=200. The adjacent prose says increasing N and M 'consistently improves' BrierLM, which contradicts the M=200 entry and is unsupported without repeat-run uncertainty.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 18,
+          "section": "7.4 Energy Loss and Table 3"
+        }
+      ]
+    },
+    {
+      "claim": "The energy-score exponent has sharp optimization and identification failures despite the proper-scoring-rule motivation.",
+      "evidence": "Table 4 reports training failure at alpha=0.75, BrierLM 4.70/4.42/4.46/4.30 for alpha=1/1.25/1.5/1.75, and complete collapse to 0 at alpha=2. The authors attribute alpha<1 to gradient explosion and alpha=2 to loss of strict propriety.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 18,
+          "section": "7.4 Energy Loss"
+        },
+        {
+          "page": 19,
+          "section": "Table 4"
+        }
+      ]
+    },
+    {
+      "claim": "Equation 14 is an unbiased two-sample estimator of an individual discrete Brier score, but the paper does not establish that the geometric-mean BrierLM in Equation 15 is itself unbiased or strictly proper.",
+      "evidence": "For each outcome space, the two hit indicators minus the collision indicator have the stated Brier expectation. BrierLM then takes a nonlinear fourth root of the product of empirical Brier-1 through Brier-4. In general, the expectation of a geometric mean is not the geometric mean of expectations; individual estimates can be negative (for example, two identical wrong samples give -1), making a real-valued geometric mean potentially undefined or behaviorally perverse. Matching only the chosen 1–4-gram scores is also not proven here to identify the intended full sequence distribution. Pages 2 and 14 nevertheless call BrierLM unbiased and strictly proper without a theorem for the composite.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "1 Introduction — Likelihood-Free LM Evaluation"
+        },
+        {
+          "page": 8,
+          "section": "4.2 BrierLM: Brier for Language Modeling"
+        },
+        {
+          "page": 9,
+          "section": "Equations 14–15 and Figure 3"
+        },
+        {
+          "page": 14,
+          "section": "6.3 Likelihood-Free LM Evaluation"
+        }
+      ]
+    },
+    {
+      "claim": "The empirical validation of BrierLM is too confounded to justify universal cross-family comparability.",
+      "evidence": "Figure 3 pools checkpoints from the paper's related Transformer S/M/L training runs and finds Pearson -0.966 and Spearman -0.991 against cross-entropy. Scale and training progress jointly drive both metrics, and no CALM likelihood, alternative architecture family, calibration stress test, or controlled equal-cross-entropy comparison is available. A strong pooled correlation therefore does not validate the composite metric as a calibrated replacement for perplexity across implicit model families.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "4.2 Figure 3"
+        }
+      ]
+    },
+    {
+      "claim": "The exact black-box temperature sampler is mathematically correct for sharpening discrete distributions, but it excludes T>1 and can be computationally prohibitive at both ends of its T in (0,1) domain.",
+      "evidence": "Algorithm 1 and Theorem 1 accept x with probability P(x)^(1/T), using collision rejection plus a Bernoulli-factory fractional stage; Appendix A.1 proves the resulting normalized distribution. Theorem 2 and Corollary 2.1 show cost dependence on the normalizer and sample-space size |V|^K. The authors explicitly warn that cost may approach |X| as T approaches 1 and that low T requires many identical samples. Flattening temperatures T>1 are outside the algorithm and theorem.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 10,
+          "section": "5.1 Exact Temperature Sampling via Rejection and Algorithm 1"
+        },
+        {
+          "page": 11,
+          "section": "5.2 Expected Sampling Cost"
+        },
+        {
+          "page": 30,
+          "section": "A.1 Proof of Theorem 1"
+        },
+        {
+          "page": 31,
+          "section": "A.2 Proof of Theorem 2"
+        },
+        {
+          "page": 32,
+          "section": "A.2 Corollary 2.1"
+        }
+      ]
+    },
+    {
+      "claim": "The batch temperature algorithm is biased at every finite batch size, and useful low-temperature control can multiply the nominal inference cost by hundreds of samples per chunk.",
+      "evidence": "Algorithm 2 samples in proportion to combinatorial duplicate counts and falls back to a smaller exponent when no n-fold collision appears. Theorem 3 proves convergence only as N tends to infinity for T=1/n. Figure 11 reports that emulating Transformer temperatures 0.6 and 0.5 requires roughly N=100 and N=200 respectively. These extra head/decoder samples are not reflected in Table 1's base inference-FLOP comparison.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 11,
+          "section": "5.3 Batch Approximation"
+        },
+        {
+          "page": 12,
+          "section": "Algorithm 2 and Theorem 3"
+        },
+        {
+          "page": 20,
+          "section": "7.5 Temperature Sampling and Figure 11"
+        },
+        {
+          "page": 33,
+          "section": "A.3 Proof of Theorem 3"
+        }
+      ]
+    },
+    {
+      "claim": "The evaluation is narrow and does not demonstrate free-running long-form quality, downstream capability, or realized serving speed.",
+      "evidence": "Models train on the approximately 230B-token Pile uncopyrighted corpus and are evaluated only by teacher-forced BrierLM on WikiText-103. There is no perplexity-equivalent likelihood, downstream benchmark, human evaluation, MAUVE/quality study, long-form generation, measured latency/throughput, memory result, random-seed variance, confidence interval, or significance test. The paper's own future-work section calls for scaling laws and substantial autoencoder/model/sampling improvements.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 14,
+          "section": "7.1 Settings"
+        },
+        {
+          "page": 15,
+          "section": "7.2 Main Results"
+        },
+        {
+          "page": 20,
+          "section": "8 Conclusion and Future Work"
+        },
+        {
+          "page": 21,
+          "section": "8 Conclusion and Future Work"
+        }
+      ]
+    },
+    {
+      "claim": "Autoencoder errors and teacher-forcing mismatch can compound during generation, but sequence-level reconstruction and rollout stability are not measured.",
+      "evidence": "The autoencoder reports over 99.9% token-level reconstruction for K=4, not exact-chunk or long-sequence accuracy. Training feeds gold previous K-token chunks, whereas inference feeds the decoder's tokens from a sampled predicted vector. Even rare token reconstruction or vector-prediction errors therefore change subsequent discrete inputs and can cascade; Table 5 shows the model depends strongly on precisely that discrete feedback channel.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "2.1 High-Fidelity Reconstruction"
+        },
+        {
+          "page": 4,
+          "section": "2.2 Robust Vector Representation"
+        },
+        {
+          "page": 7,
+          "section": "3.3.3 Discrete Token Input"
+        },
+        {
+          "page": 19,
+          "section": "7.4 Model Input and Table 5"
+        }
+      ]
+    },
+    {
+      "claim": "Two motivating mathematical statements are overstated: the learned token-chunk map is not literally a bijection onto R^l, and continuity alone does not make likelihood intractable.",
+      "evidence": "Section 2.1 calls f_enc: V^K -> R^l and g_dec: R^l -> V^K a bijective mapping while only requiring approximate reconstruction; a finite discrete domain cannot be bijective with all of an uncountable Euclidean space. Section 3.1 says softmax is unavailable on R^l and therefore an explicit density is intractable, but normalized tractable continuous density families exist. Intractability follows from the chosen implicit stochastic head, not from the output space being continuous per se.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "2.1 High-Fidelity Reconstruction"
+        },
+        {
+          "page": 5,
+          "section": "3.1 Next-Vector Prediction"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Replace one-token output steps with stochastic prediction of an autoencoded K-token chunk, while retaining an autoregressive Transformer backbone and decoding each predicted latent back to discrete tokens for feedback. Supply sample-only training, evaluation, and temperature-control tools because the selected continuous head has no tractable likelihood.",
+    "mechanism": "A separately trained context-free variational autoencoder embeds K token IDs, flattens/compresses them to a Gaussian latent, and reconstructs K tied-vocabulary logits. KL free bits/clipping plus token and latent dropout aim to create a robust code. During LM training, a LLaMA-style causal backbone consumes a compressed embedding of the previous gold token chunk. A lightweight residual-MLP head combines the backbone state with uniform noise and emits N vector samples; an unbiased Monte Carlo energy-score loss compares them with M samples from the target chunk's encoder posterior. At inference the sampled vector is decoded immediately to K tokens, which become the next input. Brier-n estimates discrete n-gram Brier scores from two model samples; their geometric mean is reported as BrierLM. Temperature below one is implemented exactly with collision rejection/Bernoulli factory or approximately with batch duplicate counts.",
+    "assumptions": [
+      "A fixed non-overlapping chunk size K divides the modeled token sequence, and the context-free encoder/decoder can preserve nearly every token in each chunk.",
+      "The separately trained autoencoder's latent geometry remains suitable for the downstream implicit generative head after freezing.",
+      "A one-pass residual MLP with injected uniform noise can model the multimodal conditional distribution of K-token latents well enough for decoding.",
+      "During training, previous gold discrete chunks are available; inference instead feeds decoded sampled chunks, with no explicit mitigation for exposure bias.",
+      "Discrete token feedback is used for all headline results even though the motivating equations describe an autoregressive latent-vector sequence.",
+      "The energy score with alpha in (0,2) is strictly proper for the continuous target distribution and its N/M Monte Carlo estimator is sufficiently low variance at N=8, M=100.",
+      "Two independently drawn discrete model samples are available per prediction context for Brier estimation; empirical Brier-n values are suitable for a geometric mean.",
+      "WikiText-103 teacher-forced BrierLM is an adequate proxy for language-model quality and permits comparison between implicit CALM and explicit-softmax baselines.",
+      "FLOP accounting approximates practical efficiency; Table 1 includes the 75M-parameter autoencoder and base encoding/decoding overhead but not large temperature-control batches.",
+      "A 2048-step context is compared across systems even though it represents 2048 tokens for baselines and 2048K tokens for CALM.",
+      "The exact temperature method targets only sharpening temperatures T in (0,1); the practical approximation is analyzed only for reciprocal-integer T=1/n.",
+      "The Pile-derived training corpus and WikiText-103 test set are representative enough to support the proposed compute-quality scaling direction."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "chunk-variational-autoencoder",
+      "role": "Compresses K token IDs to a continuous Gaussian latent and reconstructs K tied-vocabulary outputs."
+    },
+    {
+      "id": "per-dimension-kl-clipping",
+      "role": "Applies a 0.5 free-bit floor per latent coordinate to prevent posterior dimensions from collapsing."
+    },
+    {
+      "id": "token-and-latent-dropout",
+      "role": "Forces redundant/contextual encoding so the decoder tolerates latent prediction error and masked chunk inputs."
+    },
+    {
+      "id": "energy-score-generative-head",
+      "role": "Trains a one-pass stochastic residual-MLP head without evaluating a conditional density."
+    },
+    {
+      "id": "multi-target-posterior-sampling",
+      "role": "Uses M=100 samples from the autoencoder posterior to reduce target-side variance in the energy loss."
+    },
+    {
+      "id": "discrete-feedback-compression",
+      "role": "Decodes each predicted vector to K tokens, embeds them, and compresses their embeddings into the next backbone input."
+    },
+    {
+      "id": "two-sample-brier-estimator",
+      "role": "Estimates a discrete outcome's probability and collision term using only two independent samples."
+    },
+    {
+      "id": "brier-n-and-brierlm",
+      "role": "Scores sampled next n-grams for n=1 through 4 and geometrically aggregates the four empirical scores."
+    },
+    {
+      "id": "collision-rejection-temperature-sampling",
+      "role": "Raises an implicit discrete distribution to inverse temperature using repeated identical samples and a Bernoulli-factory fractional exponent."
+    },
+    {
+      "id": "batch-combinatorial-temperature-approximation",
+      "role": "Weights unique batch samples by binomial duplicate counts and falls back to lower multiplicity when no target collision occurs."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Pile-uncopyrighted training and WikiText-103 teacher-forced evaluation; headline Transformer and K=4 CALM scales",
+      "metric": "BrierLM, total training FLOPs, and inference FLOPs per token",
+      "result": "Transformer-S/M/L: 6.05/7.07/8.98 BrierLM at 6.6/11.9/22.5e20 train FLOPs and 4.4/7.9/15.0e8 infer FLOPs per token. CALM-M/L/XL: 5.72/6.58/8.53 at 3.7/7.7/19.5e20 and 2.9/4.6/9.4e8.",
+      "baseline": "Standard LLaMA-style next-token Transformers; CALM counts include the 75M autoencoder and base encode/decode FLOPs"
+    },
+    {
+      "setting": "CALM-L with chunk sizes K=1, 2, 4, and 8",
+      "metric": "BrierLM versus training/inference FLOP position relative to the fitted Transformer scaling curve",
+      "result": "K=1 is worse than the discrete frontier; K=2 roughly halves cost with a small score loss; K=4 gives the favorable reported frontier point; K=8 suffers a larger quality drop.",
+      "baseline": "Transformer S/M/L compute-performance curve in Figure 4"
+    },
+    {
+      "setting": "K=4 autoencoder reconstruction and robustness",
+      "metric": "Token-level reconstruction accuracy under sampled latent noise",
+      "result": "The robust l=128 posterior has coordinate standard deviations around 0.3 and still exceeds 99.9% token accuracy; exact chunk/sequence accuracy is not reported.",
+      "baseline": "A reconstruction-only compact l=10 code also exceeds 99.9% but is described as too brittle for downstream generation"
+    },
+    {
+      "setting": "Autoencoder objective/dropout ablation with a fixed 50k-step downstream Energy Transformer",
+      "metric": "WikiText-103 BrierLM",
+      "result": "Reconstruction only 3.99; raw KL 3.48; clipped KL 4.13; +token dropout 4.55; +latent dropout 4.46; both dropouts 4.70.",
+      "baseline": "Reconstruction-only autoencoder; raw KL exhibits 71/128 collapsed dimensions"
+    },
+    {
+      "setting": "Latent dimensions 32/64/128/256 with dropout simultaneously changed to 0.05/0.10/0.15/0.20",
+      "metric": "Reconstruction accuracy and downstream BrierLM",
+      "result": "All reconstruct well and the combined configuration peaks at dimension 128; the dimension effect is not separable from dropout.",
+      "baseline": "The default dimension-128/dropout-0.15 configuration"
+    },
+    {
+      "setting": "Energy, diffusion, and flow-matching continuous generative heads",
+      "metric": "BrierLM versus training and number of inference iterations",
+      "result": "Energy reaches about 4.7 in one head pass, midpoint flow about 4.0 and diffusion about 3.1; iterative heads use 100 default steps, with midpoint flow near its plateau by four steps.",
+      "baseline": "Matched backbone/head setup with N=8 replicated conditions for diffusion and flow"
+    },
+    {
+      "setting": "Energy loss samples N and target posterior samples M",
+      "metric": "BrierLM and relative training cost",
+      "result": "N=2/4/8/12 gives 4.37/4.53/4.70/4.72 at 0.82/0.91/1.00/1.13x cost; M=1/16/100/200 gives 4.50/4.56/4.70/4.67 at 0.92/0.94/1.00/1.07x.",
+      "baseline": "Default N=8 and M=100"
+    },
+    {
+      "setting": "Energy-score exponent alpha",
+      "metric": "BrierLM and training stability",
+      "result": "alpha=0.75 fails; alpha=1/1.25/1.5/1.75 scores 4.70/4.42/4.46/4.30; alpha=2 collapses to 0.",
+      "baseline": "Default strictly proper alpha=1 energy score"
+    },
+    {
+      "setting": "Backbone input representation for a generated previous chunk",
+      "metric": "Brier-1/2/3/4 and BrierLM",
+      "result": "Discrete decoded-token input scores 21.81/6.88/2.59/1.25 and 4.70 composite; continuous latent input 17.43/5.04/1.74/0.73 and 3.25; combined input 21.17/6.49/2.44/1.12 and 4.40.",
+      "baseline": "Direct continuous-latent feedback and combined discrete-plus-continuous feedback"
+    },
+    {
+      "setting": "Baseline Transformer S/M/L checkpoints across training",
+      "metric": "Correlation between BrierLM and cross-entropy",
+      "result": "Pearson correlation -0.966 and Spearman rank correlation -0.991 in the pooled checkpoint plot.",
+      "baseline": "Cross-entropy loss on the same related baseline runs"
+    },
+    {
+      "setting": "Approximate likelihood-free temperature control on CALM",
+      "metric": "Accuracy/collision-rate trajectory and matching to a softmax Transformer",
+      "result": "Varying batch size traces a similar plotted trade-off; approximately N=100 matches Transformer T=0.6 and N=200 matches T=0.5, at correspondingly multiplied sample cost.",
+      "baseline": "A nearly BrierLM-matched Transformer with softmax temperatures 1.0 down to 0.4"
+    }
+  ],
+  "limitations": [
+    "All headline language-model comparisons use one test corpus, WikiText-103, after Pile-derived training; there are no downstream, human, generation-quality, or long-form rollout results.",
+    "CALM and baseline models receive different token-context lengths at the same 2048-step context, confounding the reported quality-compute frontier.",
+    "No random seeds, error bars, confidence intervals, or significance tests are reported, so small frontier and ablation differences cannot be separated from run variance.",
+    "The best system decodes every latent immediately and feeds discrete tokens back; fully continuous input is substantially worse, narrowing the claimed paradigm shift.",
+    "Teacher forcing uses gold previous chunks, whereas inference feeds sampled and reconstructed chunks; cumulative exposure/reconstruction error is unevaluated.",
+    "Autoencoder quality is reported as token accuracy rather than exact-chunk or sequence reconstruction, despite K-token chunks being atomic generation steps.",
+    "BrierLM's geometric aggregation is not proved unbiased or strictly proper, may encounter negative component estimates, and is validated only by a confounded pooled correlation on related Transformers.",
+    "Brier-1 through Brier-4 do not directly report likelihood/perplexity, calibration curves, tail behavior, or semantic quality, limiting comparison with established LM evidence.",
+    "The exact temperature sampler supports only T<1 and can explode in cost; the finite-batch approximation is biased and only has an asymptotic theorem for T=1/n.",
+    "Table 1's inference FLOPs do not include the 100–200 head/decoder samples used to reproduce common low temperatures in Figure 11.",
+    "Latent-dimension and dropout effects are confounded in Figure 7, and the head comparison lacks measured latency or memory.",
+    "The model's inability to compute likelihood also blocks standard probability-based reinforcement learning and distillation; the paper explicitly leaves those toolkits open.",
+    "CALM K=1 is substantially behind a standard Transformer, and K=8 loses considerable quality, so the claimed bandwidth scaling law is not established.",
+    "The Pile includes Wikipedia-family data while evaluation is WikiText-103; the paper does not provide overlap or contamination analysis."
+  ],
+  "failure_modes": [
+    "Naive variational regularization collapses 71/128 latent dimensions and reduces downstream BrierLM below the reconstruction-only autoencoder.",
+    "Overly large KL weight lowers reconstruction toward 99% and sharply degrades language modeling.",
+    "A compact or brittle latent is fed directly to the backbone: BrierLM falls from 4.70 with decoded-token feedback to 3.25.",
+    "Energy exponent alpha<1 produces gradient explosion/training failure; alpha=2 loses strict identification and collapses score to zero.",
+    "Chunk size increases beyond model capacity: K=8 loses enough predictive quality to erase much of the compute advantage.",
+    "A decoded token error changes the next compressed discrete input and cascades through subsequent chunks during free-running generation.",
+    "A Brier-n sample pair collides on the wrong outcome, yielding a negative empirical component and making the composite geometric mean ill-behaved.",
+    "Temperature approaches one from below or becomes very small: exact rejection cost becomes dominated by huge sample space or rare repeated collisions.",
+    "A finite approximate-temperature batch contains no n-fold collision: fallback silently implements a weaker exponent and biases the output.",
+    "Low-temperature serving uses N=100–200 or more parallel candidates per chunk, erasing the nominal one-pass inference advantage and increasing memory pressure.",
+    "A longer token history—not the next-vector objective—accounts for part of CALM's teacher-forced score because step context rather than token context is held fixed.",
+    "An apparent ablation trend is treated as monotonic despite M=200 scoring worse than M=100 and no repeated-run uncertainty."
+  ],
+  "reusable_insights": [
+    "A continuous output interface can reduce sequential depth even when stable autoregressive state remains discrete; separate output bandwidth from state representation when classifying architectures.",
+    "For latent language models, evaluate exact-chunk reconstruction and free-running error accumulation, not only per-token autoencoder accuracy.",
+    "Per-coordinate KL free bits plus corruption can transform a high-fidelity but brittle code into one that tolerates generative prediction error.",
+    "Energy scores provide a likelihood-free, sample-only objective for multimodal continuous prediction, but optimization must be tested across exponent and sample-count regimes.",
+    "Two independent samples suffice to estimate a discrete Brier score through hit and collision indicators; preserve the linear estimator if unbiasedness is required.",
+    "Do not assume a nonlinear aggregate of unbiased proper scores remains unbiased or well-defined; prove domain, expectation, and identification properties explicitly.",
+    "Compute-quality comparisons for block models should match both token context and model-step context or report a two-dimensional frontier.",
+    "Black-box collision sampling can exactly sharpen any implicit discrete distribution, but the expected collision cost must be part of the serving budget.",
+    "Report controlled-decoding FLOPs separately from base-temperature FLOPs because sample-based temperature control can dominate inference.",
+    "A block size or semantic-bandwidth axis is promising, but its scaling law must include prediction difficulty, reconstruction loss, context benefit, and head capacity."
+  ],
+  "open_questions": [
+    "Does CALM retain its apparent frontier advantage when baseline and CALM see the same number of historical tokens and are evaluated with repeated-run uncertainty?",
+    "What are exact K-token chunk reconstruction accuracy and long-horizon free-running error rates, and how do they scale with K and model size?",
+    "Can an end-to-end continuous feedback state match the discrete-feedback score, making the vector-sequence formulation operational rather than output-only?",
+    "Is there a formally unbiased, strictly proper, always-real-valued composite language score that preserves the sample-only advantages intended for BrierLM?",
+    "How does BrierLM behave across unrelated model families at matched likelihood, under calibration/tail stress tests, and on distributions that agree on short n-grams but differ globally?",
+    "Can tractable continuous density heads or discrete mixtures recover likelihood/perplexity without sacrificing the one-step bandwidth advantage?",
+    "Can likelihood-free temperature sampling support T>1 and common truncation controls at small constant sample cost?",
+    "What measured tokens-per-second, time-to-first-token, KV-cache memory, and energy trade-offs arise on serving hardware, including N=100–200 temperature batches?",
+    "How should policy optimization, preference learning, and distillation be reformulated when log probabilities and KL divergences are unavailable?",
+    "Do downstream reasoning, code, multilingual, and long-form generation gains follow the K-token bandwidth axis, or is the benefit specific to WikiText teacher forcing?",
+    "How much Pile/Wikipedia overlap exists with WikiText-103, and does deduplicated evaluation change the main frontier?",
+    "Can adaptive or semantic chunk boundaries outperform fixed non-overlapping chunks without creating alignment and decoding instability?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2601.04854",
+      "title": "Projected Autoregression: Autoregressive Language Generation in Continuous State Space",
+      "url": "https://arxiv.org/abs/2601.04854v3",
+      "relationship": "A later direct competitor that moves autoregressive prediction into continuous embedding space and projects to discrete tokens at commitment.",
+      "difference": "Projected Autoregression predicts token vectors with regression/contrastive objectives and can delay/revise a short suffix; CALM predicts a stochastic latent for a fixed K-token chunk with an energy score and immediately decodes it for discrete feedback.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2601.04854v3"
+    },
+    {
+      "canonical_id": "arxiv:2412.08821",
+      "title": "Large Concept Models: Language Modeling in a Sentence Representation Space",
+      "url": "https://arxiv.org/abs/2412.08821v2",
+      "relationship": "Autoregressively models continuous higher-level text representations rather than individual tokens.",
+      "difference": "LCM uses pretrained multilingual sentence-level SONAR concepts and evaluates generation tasks at much larger scale; CALM learns context-free fixed-token-chunk codes and focuses on likelihood-free WikiText prediction efficiency.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2412.08821v2"
+    },
+    {
+      "canonical_id": "arxiv:2505.21189",
+      "title": "Exploring the Hidden Capacity of LLMs for One-Step Text Generation",
+      "url": "https://arxiv.org/abs/2505.21189v2",
+      "relationship": "Tests whether many text tokens can be reconstructed in one token-parallel forward pass from a small number of continuous learned embeddings.",
+      "difference": "It optimizes per-text embeddings for frozen pretrained LLMs as an existence demonstration; CALM trains a reusable encoder, causal backbone, and stochastic chunk predictor as a new language model.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2505.21189v2"
+    },
+    {
+      "canonical_id": "arxiv:2404.19737",
+      "title": "Better & Faster Large Language Models via Multi-token Prediction",
+      "url": "https://arxiv.org/abs/2404.19737v1",
+      "relationship": "Predicts multiple future tokens from each backbone position to improve sample efficiency and parallel decoding.",
+      "difference": "Multi-token prediction retains discrete softmax heads and uses future-token heads as auxiliary objectives/speculative outputs; CALM uses one implicit continuous distribution over an autoencoded token chunk and gives up tractable likelihood.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2404.19737v1"
+    },
+    {
+      "canonical_id": "arxiv:2406.02657",
+      "title": "Block Transformer: Global-to-Local Language Modeling for Fast Inference",
+      "url": "https://arxiv.org/abs/2406.02657v2",
+      "relationship": "A fixed-block autoregressive competitor that reduces global sequence/KV-cache cost while locally decoding tokens.",
+      "difference": "Block Transformer remains likelihood-based and reports 10–20x measured throughput at matched perplexity/zero-shot performance; CALM replaces the block output with a continuous implicit latent and reports FLOP/BrierLM trade-offs without serving throughput.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2406.02657v2"
+    },
+    {
+      "canonical_id": "arxiv:2305.07185",
+      "title": "MEGABYTE: Predicting Million-byte Sequences with Multiscale Transformers",
+      "url": "https://arxiv.org/abs/2305.07185v2",
+      "relationship": "Uses global patch-level and local within-patch autoregression to reduce long-sequence attention cost and improve decoding parallelism.",
+      "difference": "MEGABYTE models discrete bytes with explicit global/local probability factors and broad modalities; CALM uses subword token chunks, an autoencoded continuous output, and a likelihood-free head.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2305.07185v2"
+    },
+    {
+      "canonical_id": "arxiv:2412.09871",
+      "title": "Byte Latent Transformer: Patches Scale Better Than Tokens",
+      "url": "https://arxiv.org/abs/2412.09871v1",
+      "relationship": "Compresses raw bytes into entropy-adaptive latent patches to shift the primary compute unit above individual symbols.",
+      "difference": "BLT uses dynamically sized byte patches and reports FLOP-controlled scaling to 8B/4T bytes with tractable token prediction; CALM uses fixed K subword chunks and an implicit stochastic continuous next-vector objective.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2412.09871v1"
+    },
+    {
+      "canonical_id": "arxiv:2510.17206",
+      "title": "Soft-Masked Diffusion Language Models",
+      "url": "https://arxiv.org/abs/2510.17206v2",
+      "relationship": "A near-contemporaneous implicit language-model competitor that carries continuous predictive information between parallel masked-diffusion steps.",
+      "difference": "Soft-masking blends top-k token embeddings during iterative sequence-wide diffusion and reports perplexity/MAUVE/coding results; CALM remains left-to-right at chunk granularity with a single-step energy head and sample-only BrierLM.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2510.17206v2"
+    },
+    {
+      "canonical_id": "arxiv:2511.08923",
+      "title": "TiDAR: Think in Diffusion, Talk in Autoregression",
+      "url": "https://arxiv.org/abs/2511.08923v1",
+      "relationship": "A later hybrid competitor combining parallel diffusion drafting with autoregressive token commitment for high-throughput language generation.",
+      "difference": "TiDAR preserves exact autoregressive token probabilities/KV caching and reports measured throughput at 1.5B/8B scale; CALM commits K decoded tokens from one continuous latent and relies on likelihood-free evaluation/control.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2511.08923v1"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims a new continuous next-vector scaling axis that reduces autoregressive steps K-fold, together with a robust chunk autoencoder, single-step likelihood-free energy training, the unbiased strictly proper BrierLM metric, and exact/approximate black-box temperature samplers, yielding a superior performance-compute frontier.",
+    "evidence": "The architecture combines a separately regularized K-token VAE, a stochastic energy-score head, immediate K-token decoding, sample-only n-gram scoring, and collision-based temperature algorithms; Table 1 and Figure 4 provide the headline WikiText FLOP/BrierLM comparison, while Theorems 1–3 analyze sharpening from an implicit sampler.",
+    "reviewer_inference": "The most distinctive contribution is the integrated likelihood-free toolkit around stochastic continuous chunk outputs, especially exact black-box distribution sharpening. Chunk/block autoregression, latent higher-level units, continuous embedding prediction, and multi-token generation all have close predecessors. The empirical frontier evidence is preliminary because token context is unmatched, only one teacher-forced corpus/novel composite metric is used, and discrete feedback is essential. The BrierLM unbiased/strictly-proper claim does not follow for the nonlinear geometric composite, while practical temperature control can dominate inference cost. CALM is therefore a promising hybrid block-output formulation, not yet evidence that fully continuous autoregression is a generally superior scalable LM paradigm."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Primary full-text audit covered all 33 indexed pages: Sections 1–8, every equation (1–15), Algorithms 1–2, Theorems 1–3 and Corollary 2.1, Tables 1–5, Figures 1–11 with captions and plotted trends, all ablations/negative results, conclusion limitations, references, and Appendix A proofs (Equations 16–37). Figures and dense tables were also visually inspected from rendered PDF pages rather than relying only on extracted text. The official arXiv submission history and API were checked on 2026-08-23: the latest and only focal revision is arXiv:2510.27688v1. The versioned official PDF (PDF 1.7; 33 pages; every page 612 x 792 points) was independently downloaded from export.arxiv.org and matched the indexed PDF SHA-256 exactly; cached page-marked text matched the indexed text SHA-256 and had text on 33/33 pages. The PDF contains seven NUL extraction artifacts, but visual checks resolved all affected figure/table content. All findings use PDF page anchors and distinguish author reports, reviewer inference, and contradiction audits. Competitor metadata was checked against the official arXiv API and versioned abstract pages on 2026-08-23; every landscape entry records the current revision observed then, including later work where explicitly identified."
+}

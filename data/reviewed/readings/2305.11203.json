@@ -1,0 +1,215 @@
+{
+  "stable_id": "arxiv:2305.11203",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2305.11203",
+    "pdf_sha256": "34bfa5ce7e74011142721969f84566770cc855a8554424d5310b4385e75efb33",
+    "text_sha256": "b8a566a8651bca0ab07c10b390ed8ce052197072d0ee411e56295f31b8a14738",
+    "page_count": 23,
+    "extracted_at": "2026-08-23T19:51:32.647129+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a differentiable approximation to magnitude thresholding learn accurate sparse networks from scratch without adding trainable mask parameters?",
+  "key_findings": [
+    {
+      "claim": "Parameter-free Differentiable Pruning replaces a hard magnitude mask with a temperature-controlled logistic comparison between each weight magnitude and the current pruning threshold.",
+      "evidence": "The mask is the ratio of exp(w squared over tau) to that term plus exp(t squared over tau), where t is the midpoint between the largest weight to prune and the smallest weight to retain at the target sparsity; masked weights remain differentiable during training.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "Differentiable pruning mask"}
+      ]
+    },
+    {
+      "claim": "Differentiating through the mask creates an extra gradient term concentrated near the pruning boundary and permits weights to cross that boundary in either direction.",
+      "evidence": "The derived update adds a factor proportional to w squared times m(1-m) over temperature, which is largest when mask membership is uncertain; unlike irreversible monotone pruning, thresholds and memberships are recomputed as weights evolve.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "Gradient analysis"}
+      ]
+    },
+    {
+      "claim": "One mask construction is applied to unstructured, N:M semi-structured, and channel pruning by changing the comparison group and magnitude statistic.",
+      "evidence": "Global or layerwise scalar weights are ranked for unstructured sparsity, N of every M weights are retained for semi-structured sparsity, and channel norms serve as structured mask inputs for channel pruning.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "General pruning forms"},
+        {"page": 6, "section": "N:M and channel extensions"}
+      ]
+    },
+    {
+      "claim": "Across the reported ImageNet networks, PDP produces strong accuracy-compute tradeoffs relative to pruning-from-scratch baselines.",
+      "evidence": "Representative results include about 69.0% ResNet-18 top-1 at 85.5% sparsity and 74.7% ResNet-50 top-1 at 89.8% sparsity; matched-budget variants are competitive across ResNet and MobileNet families.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "ImageNet unstructured pruning"},
+        {"page": 8, "section": "Accuracy-compute frontier"}
+      ]
+    },
+    {
+      "claim": "The method also matches or exceeds tested baselines for BERT transfer, GPT-2 language modeling, N:M sparsity, and channel pruning in the paper's training recipes.",
+      "evidence": "PDP leads the reported MNLI and QQP comparisons with self-distillation, matches OptG at GPT-2 75% sparsity with perplexity 33.7 while using lower reported training cost, improves over the tested N:M baseline, and reaches about 75.9% ResNet-50 top-1 with roughly 55% MAC reduction in channel pruning.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 9, "section": "BERT pruning"},
+        {"page": 10, "section": "GPT-2 and N:M pruning"},
+        {"page": 11, "section": "Channel pruning"}
+      ]
+    },
+    {
+      "claim": "The average threshold-update complexity can be linear in the number of weights, but differentiable masks do not make the physical training computation sparse by themselves.",
+      "evidence": "The appendix describes top-k threshold selection and an O(W) average procedure, while the forward pass still forms soft-masked dense operations unless supported sparse kernels are introduced; the paper's cost accounting is a schedule-level proxy rather than a full wall-clock and memory audit.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 19, "section": "Threshold and mask complexity"},
+        {"page": 20, "section": "PDP training algorithm"}
+      ]
+    },
+    {
+      "claim": "The name parameter-free means no additional trainable mask tensor, not an absence of pruning hyperparameters or user-specified budgets.",
+      "evidence": "PDP still selects target sparsity or MAC allocation, temperature, warmup length, and sparsity-ramp schedule before a final hard rounding step; several task recipes also use method-specific distillation and training settings.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Mask temperature and threshold"},
+        {"page": 6, "section": "Gradual sparsity schedule"},
+        {"page": 18, "section": "Training hyperparameters"},
+        {"page": 20, "section": "Algorithm parameters"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Make target-sparsity magnitude pruning differentiable by computing a soft mask directly from existing weights and the current order-statistic threshold, avoiding a separate learned score or mask parameter for every weight.",
+    "mechanism": "After warmup, a scheduled target sparsity determines a threshold from current weight magnitudes. A temperature-controlled soft comparison generates masks, backpropagation flows through both masked weights and the membership function, and thresholds are recomputed so connections can leave or re-enter the retained set. Training ends with hard masks at the requested structure.",
+    "assumptions": [
+      "Weight magnitude relative to a global or local threshold is a useful sparsity criterion.",
+      "The soft-mask gradient near the threshold improves exploration of sparse connectivity.",
+      "A gradual sparsity schedule avoids early irreversible damage.",
+      "The requested overall, N:M, or channel budget is known in advance.",
+      "Theoretical MAC and sparsity reductions correlate with target-hardware benefits.",
+      "Task-specific training and distillation recipes are comparable enough to support method-level ranking."
+    ]
+  },
+  "techniques": [
+    {"id": "order-statistic-threshold", "role": "Derives the current pruning boundary directly from weight magnitudes and the requested sparsity."},
+    {"id": "temperature-soft-mask", "role": "Approximates hard magnitude selection while preserving gradients through membership."},
+    {"id": "boundary-gradient-boost", "role": "Amplifies learning for weights whose retained/pruned status is uncertain."},
+    {"id": "gradual-sparsity-ramp", "role": "Moves from dense warmup to target sparsity before final hard rounding."},
+    {"id": "structure-specific-ranking", "role": "Adapts the same masking rule to individual weights, N:M groups, or channel norms."},
+    {"id": "dynamic-mask-reentry", "role": "Recomputes thresholds and allows previously weak weights to become active later."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "ImageNet training from scratch with ResNet-18, ResNet-50, MobileNetV1, and MobileNetV2 under multiple unstructured sparsity or MAC targets.",
+      "metric": "Top-1 accuracy, sparsity, MACs, and reported relative training cost.",
+      "result": "PDP variants lie on a strong reported accuracy-cost frontier, including competitive high-sparsity ResNet results.",
+      "baseline": "GMP, DNW, GraNet, STR, OptG, AC/DC, and dense training."
+    },
+    {
+      "setting": "BERT-base fine-tuning on MNLI and QQP with pruning and self-distillation.",
+      "metric": "Matched accuracy and F1 or accuracy at target sparsity.",
+      "result": "PDP has the strongest values in the paper's comparison table under its distillation recipe.",
+      "baseline": "Movement pruning, PLATON, and related transformer-pruning methods."
+    },
+    {
+      "setting": "GPT-2 language modeling at 75% unstructured sparsity.",
+      "metric": "Perplexity and normalized training cost.",
+      "result": "PDP and OptG both report perplexity 33.7, while PDP reports about 42% lower training cost; both remain far above the dense perplexity around 22.4.",
+      "baseline": "Dense GPT-2, magnitude pruning, and OptG."
+    },
+    {
+      "setting": "ImageNet N:M semi-structured sparsity and ResNet-50 channel pruning.",
+      "metric": "Top-1 accuracy, pattern sparsity, and MAC reduction.",
+      "result": "PDP improves on the tested N:M training baseline and attains about 75.9% top-1 with roughly 55% MAC reduction for channel pruning.",
+      "baseline": "Learning N:M sparsity and structured channel-pruning baselines."
+    },
+    {
+      "setting": "Ablations over temperature and pruning dynamics.",
+      "metric": "Accuracy and mask evolution.",
+      "result": "Intermediate smoothness and the ability to revise pruning decisions support the proposed explanation, though no causal isolation spans all architectures.",
+      "baseline": "Harder masks, static or monotone decisions, and alternative schedule settings."
+    }
+  ],
+  "limitations": [
+    "Parameter-free excludes per-weight trainable mask variables but not target budgets, temperature, warmup, sparsity ramps, layer allocation, optimizer, or distillation choices.",
+    "Soft masks generally retain dense forward/backward tensors during training, so target sparsity need not equal physical training speed or memory savings.",
+    "Unstructured sparsity has limited acceleration on many commodity devices; N:M and channel results are more directly deployable but cover fewer settings.",
+    "Reported MACs and normalized training costs are not a substitute for wall-clock latency, peak memory, energy, compiler, and kernel measurements.",
+    "Many comparisons combine quoted and reproduced results under different epoch counts, batches, augmentation, and distillation recipes.",
+    "The main vision results train from scratch and do not establish behavior when compressing large already-pretrained foundation models.",
+    "Run-to-run uncertainty and statistical significance are generally absent from the headline tables.",
+    "A fixed magnitude prior can remove small but functionally important parameters and does not optimize downstream hardware cost directly."
+  ],
+  "failure_modes": [
+    "A temperature that is too high leaves diffuse masks and a train-deploy mismatch; too low makes membership nearly discontinuous.",
+    "Aggressive early sparsity can prevent weak-but-promising weights from ever receiving useful gradients.",
+    "Threshold recomputation can cause mask churn around the boundary and destabilize optimization.",
+    "Global ranking can over-prune sensitive layers, while fixed layerwise budgets can waste capacity in redundant layers.",
+    "Magnitude can underrate small weights that participate in cancellation, normalization, or rare-feature circuits.",
+    "Nominally sparse models can be slower than dense ones when indexing and irregular memory access dominate.",
+    "A final hard round can expose accuracy loss hidden by residual contributions from many soft-masked weights."
+  ],
+  "reusable_insights": [
+    "State exactly which parameters are absent when calling a method parameter-free; distinguish learned variables from user hyperparameters.",
+    "Differentiable order-statistic selection can provide reversible structure search without a full auxiliary mask tensor.",
+    "Evaluate the gap between soft training masks and final hard deployment masks explicitly throughout the sparsity ramp.",
+    "Match sparsity structure to actual accelerator support and report wall-clock, memory, and energy beside MACs.",
+    "Pruning comparisons need standardized training budgets, augmentation, distillation, and repeated runs."
+  ],
+  "open_questions": [
+    "Can temperature and sparsity schedules be derived adaptively from mask entropy or loss curvature rather than tuned manually?",
+    "How often do boundary crossings improve final subnetworks, and which layers benefit from reversible membership?",
+    "Can differentiable masks optimize measured latency or energy under compiler and hardware constraints?",
+    "What guarantees connect soft-mask training to the loss after hard thresholding?",
+    "How does PDP behave during post-training compression or continual pretraining of multi-billion-parameter models?",
+    "Can sensitivity or second-order information protect small but important weights without adding per-weight learned parameters?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2002.03231",
+      "title": "Soft Threshold Weight Reparameterization for Learnable Sparsity",
+      "url": "https://arxiv.org/abs/2002.03231",
+      "relationship": "direct differentiable-threshold antecedent",
+      "difference": "STR learns soft-threshold parameters that induce nonuniform layer sparsity through reparameterization; PDP fixes the requested budget, derives thresholds from current order statistics, and adds no trainable mask or threshold tensor.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2005.07683",
+      "title": "Movement Pruning: Adaptive Sparsity by Fine-Tuning",
+      "url": "https://arxiv.org/abs/2005.07683",
+      "relationship": "transformer-pruning competitor",
+      "difference": "Movement pruning learns first-order scores for whether pretrained weights move toward or away from zero during fine-tuning; PDP masks weights directly by current magnitude and emphasizes training sparse networks from scratch without auxiliary scores.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2201.12826",
+      "title": "OptG: Optimizing Gradient-driven Criteria in Network Sparsity",
+      "url": "https://arxiv.org/abs/2201.12826",
+      "relationship": "gradient-driven sparsity competitor",
+      "difference": "OptG uses supermask optimization to accumulate gradient-based pruning criteria and mitigate weight-dependence effects; PDP eliminates learned supermask parameters and concentrates extra gradient around a magnitude threshold.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2106.12379",
+      "title": "AC/DC: Alternating Compressed/DeCompressed Training of Deep Neural Networks",
+      "url": "https://arxiv.org/abs/2106.12379",
+      "relationship": "sparse-training schedule competitor",
+      "difference": "AC/DC alternates compressed and dense phases and analyzes a variant's convergence, accepting periodic dense computation to improve sparse accuracy; PDP maintains differentiable soft masks along a gradual target-sparsity trajectory.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "PDP is a parameter-free differentiable pruning framework that efficiently trains accurate networks from scratch across unstructured, N:M, and channel sparsity without auxiliary pruning variables.",
+    "evidence": "A direct weight-derived soft mask yields a boundary-focused gradient, supports reversible selection, and gives strong reported results across vision and language benchmarks at lower normalized cost than several baselines.",
+    "reviewer_inference": "The direct order-statistic mask and unified treatment of several structures are clean contributions. The parameter-free label is technically defensible only in the narrow auxiliary-variable sense, and deployment-efficiency claims remain weaker than the accuracy tables because soft training is dense and hardware timing is not comprehensively measured."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Read all 23 extracted pages, including derivations, vision and language tables, N:M/channel variants, complexity discussion, algorithms, and hyperparameters. The contradiction audit separates absence of trainable mask parameters from absence of tuning, and theoretical sparsity/MAC from realized hardware savings. Primary competitor records were checked on arXiv on 2026-08-23."
+}

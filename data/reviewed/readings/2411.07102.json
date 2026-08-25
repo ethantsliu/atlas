@@ -1,0 +1,109 @@
+{
+  "stable_id": "arxiv:2411.07102",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2411.07102",
+    "pdf_sha256": "a70ab038c4469e1a69d4d505edcf94f26fa0402c65d034f6c6de6e1c4cc633e5",
+    "text_sha256": "9a97906be76a3c2bb6fdb1084706636e6c9b35d4edec081c096afac01a840155",
+    "page_count": 29,
+    "extracted_at": "2026-08-23T17:42:22.760433+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can overlapping consecutive minibatches make momentum directions compatible with stochastic line search, and can nonlinear conjugate-gradient rules set momentum without extra gradient evaluations?",
+  "key_findings": [
+    {
+      "claim": "Fresh minibatches undermine a line search along a momentum direction because the previous step was useful for a different sampled loss; overlap measurably restores alignment.",
+      "evidence": "The paper measures the angle between the previous displacement and the negative gradient of hypothetical next batches on ijcnn and MNIST. Increasing overlap from 0% toward 100% sharply reduces misalignment and the count of non-descent momentum terms, motivating reuse of half of one batch in the next.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 7, "section": "3.1-3.2"}, {"page": 8, "section": "Table 1"}, {"page": 9, "section": "Figure 1"}]
+    },
+    {
+      "claim": "MBCG-DP computes momentum from conjugate-gradient information on the persistent subset and then safeguards it before an Armijo search.",
+      "evidence": "The persistent subset supplies gradients at consecutive iterates, allowing Fletcher-Reeves, Hestenes-Stiefel, or Polak-Ribiere beta values without extra gradient calls. If the combined direction is not descent for the current batch, the method clips momentum, restarts with the stochastic gradient, inverts it, or solves a two-dimensional subproblem; experiments select Fletcher-Reeves, a generalized Polyak initial step, and clipping.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 10, "section": "4 Data-persistent conjugate-gradient rules"}, {"page": 11, "section": "Equation 11"}, {"page": 13, "section": "Algorithm 1"}, {"page": 20, "section": "Figure 4 ablations"}]
+    },
+    {
+      "claim": "The convergence guarantee is for a bias-corrected algorithm that the authors deliberately do not use in the headline experiments.",
+      "evidence": "Overlapping batches over-weight retained examples, so Proposition 5.1 reweights new samples to make function and gradient estimators conditionally unbiased. Algorithm 2 obtains linear convergence under smoothness, minimizer interpolation, PL/strong-growth, direction safeguards, bounded/clipped momentum, and a variance condition. Section 6 states that this correction opposes the intended persistency effect and slows MNIST, so all subsequent comparisons use the biased version; convergence of that practical version is left open.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 13, "section": "5.1.1 estimator bias"}, {"page": 14, "section": "Proposition 5.1"}, {"page": 17, "section": "Theorem 5.3"}, {"page": 19, "section": "6 Computational experiments and Figure 3"}, {"page": 24, "section": "7 Conclusions"}]
+    },
+    {
+      "claim": "Across six modest classification tasks, MBCG-FR usually reduces training loss fastest and is strongest at batch size 512, but results are curve-based and narrowly tuned.",
+      "evidence": "Three kernel classifiers and MLP/CNN/ResNet-18 tasks compare three-seed wall-clock curves against momentum SGD, Adam, SLS, PoNoS, and MSL-SGDM. MBCG-FR is fastest on all convex losses, competitive on nonconvex losses, and reaches the highest displayed CIFAR-10 validation accuracy at batch 512. No tabulated uncertainty, time-to-threshold values, modern Transformer workload, or data-pipeline stress test is given.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 21, "section": "Benchmark setup and Table 2"}, {"page": 22, "section": "Figure 5"}, {"page": 23, "section": "Figure 6 and tuning details"}, {"page": 24, "section": "Results discussion"}]
+    },
+    {
+      "claim": "Persistency is not a universal throughput win because overlap increases update count per epoch and its benefit vanishes for compute-bound architectures.",
+      "evidence": "The 50% construction uses every sample twice and doubles updates while potentially avoiding duplicate disk reads. The authors' sweep finds overlap almost always useful for kernel models but often selects zero overlap for ResNet-18 and other nonconvex settings; they attribute this to forward/backward compute dominating I/O. Thus the method is most plausible in data-loading-bound or large-batch regimes, not automatically at scale.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 9, "section": "Persistency implementation"}, {"page": 21, "section": "Table 2"}, {"page": 22, "section": "Compute-versus-I/O discussion"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Reuse part of each minibatch so the previous direction remains relevant, infer momentum with a nonlinear conjugate-gradient formula on reused samples, and line-search along a safeguarded descent direction.",
+    "mechanism": "Form B_k from a retained set and fresh samples; compute beta from retained-set gradients at x_k and x_{k+1}; combine -g_k with beta d_{k-1}; repair non-descent directions; use a stochastic Armijo/nonmonotone backtracking step.",
+    "assumptions": [
+      "Persistent samples make adjacent sampled objectives similar enough for conjugate-gradient momentum to transfer.",
+      "For theory, the loss is smooth, satisfies PL and minimizer interpolation, and induces a strong-growth condition.",
+      "Direction norms, descent angles, momentum values, and conditional variance obey explicit safeguards.",
+      "Wall-clock savings from fewer backtracks and less I/O exceed the extra updates caused by data reuse."
+    ]
+  },
+  "techniques": [
+    {"id": "overlapping-minibatch-persistency", "role": "Makes successive stochastic objectives share examples."},
+    {"id": "persistent-subset-cg-momentum", "role": "Computes a momentum coefficient from gradient change on exactly reused samples."},
+    {"id": "stochastic-armijo-backtracking", "role": "Adapts the step size to the current sampled objective."},
+    {"id": "descent-direction-safeguard", "role": "Clips or restarts a momentum direction that fails the sampled descent test."},
+    {"id": "persistency-bias-correction", "role": "Reweights fresh samples for the theorem, although omitted from main experiments."}
+  ],
+  "evaluations": [
+    {"setting": "RBF classifiers on mushrooms, ijcnn, and rcv1, batch sizes 128/512", "metric": "Training loss versus wall-clock over three seeds", "result": "MBCG-FR reaches high-quality convex solutions fastest in the displayed curves", "baseline": "SGD+momentum, Adam, SLS, PoNoS, MSL-SGDM with overlap swept per method"},
+    {"setting": "MNIST MLP and Fashion-MNIST CNN", "metric": "Training loss and validation accuracy versus wall-clock", "result": "MBCG-FR is competitive and most favorable at batch size 512", "baseline": "Same optimizer suite"},
+    {"setting": "Normalization-free ResNet-18 on CIFAR-10", "metric": "Validation accuracy versus wall-clock", "result": "MBCG-FR batch 512 attains the highest displayed peak accuracy", "baseline": "SGD+momentum, Adam, SLS, PoNoS, MSL-SGDM"},
+    {"setting": "MNIST bias-correction ablation", "metric": "Optimization curve", "result": "The unbiased variant is slower, motivating use of the theoretically uncovered biased implementation", "baseline": "Uncorrected MBCG-DP"}
+  ],
+  "limitations": [
+    "Author-stated: theory for persistent minibatches without bias correction is open, despite that being the empirically used algorithm.",
+    "Author-stated: Transformer and substantially larger-model experiments remain future work.",
+    "Reviewer-identified: evaluation has only three seeds and visual curves, without tabulated confidence intervals or time-to-target statistics.",
+    "Reviewer-identified: overlap and optimizer hyperparameters are selected through problem-specific preliminary experiments, obscuring tuning cost and robustness.",
+    "Reviewer-identified: the strict interpolation/PL/variance assumptions are not verified on the deep-network experiments."
+  ],
+  "failure_modes": [
+    "Persistent sampling biases gradients toward recently retained examples and can distort class or subgroup frequencies.",
+    "Compute-bound networks pay for twice as many updates without enough I/O savings.",
+    "A momentum direction can remain non-descent despite overlap, causing repeated clipping and backtracking.",
+    "Known or accurate minibatch lower loss is needed for the generalized Polyak initial-step heuristic.",
+    "The unbiased correction can nullify the empirical benefit on which the method relies."
+  ],
+  "reusable_insights": [
+    "Sampling order and optimizer state are coupled: momentum is more meaningful when consecutive stochastic objectives share support.",
+    "Adaptive-step methods should report backtracks, function evaluations, data I/O, and accelerator utilization, not just epochs.",
+    "A theorem for a corrected algorithm should not be presented as coverage for an intentionally biased implementation.",
+    "Overlap is a systems/optimization tradeoff that should be selected from measured I/O-to-compute ratios."
+  ],
+  "open_questions": [
+    "Can biased persistent sampling be analyzed directly under random reshuffling or controlled Markov sampling?",
+    "Does MBCG-DP help Transformer pretraining when input pipelines are already heavily prefetched?",
+    "Can overlap be adapted online from momentum-gradient alignment and device utilization?",
+    "How does persistency affect rare groups, calibration, and generalization under non-i.i.d. data?",
+    "Can a no-extra-forward-pass acceptance test replace Armijo backtracking at large scale?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:1806.07353", "title": "Faster SGD Training by Minibatch Persistency", "url": "https://arxiv.org/abs/1806.07353", "relationship": "sampling-strategy predecessor", "difference": "Reuses an entire large minibatch for several SGD iterations; MBCG-DP overlaps consecutive batches and specifically exploits the shared subset to estimate conjugate-gradient momentum."},
+    {"canonical_id": "openreview:UfvQbl7Kpx", "title": "MSL: An Adaptive Momentum-based Stochastic Line-search Framework", "url": "https://openreview.net/forum?id=UfvQbl7Kpx", "relationship": "closest momentum line-search competitor", "difference": "MSL corrects or restarts momentum until it is a sampled descent direction; MBCG-DP argues fresh batches cause excessive correction and uses overlap plus CG beta estimation."},
+    {"canonical_id": "pmlr:v202:wang23l", "title": "Generalized Polyak Step Size for First Order Optimization with Momentum", "url": "https://proceedings.mlr.press/v202/wang23l.html", "relationship": "adaptive momentum step-size predecessor", "difference": "Generalizes the Polyak step directly for momentum and supplies the initial-step rule used by MBCG-DP; it does not use overlapping data or an Armijo acceptance search."},
+    {"canonical_id": "neurips:2023:6d0bf1265ea9635fb4f9d56f16d7efb2", "title": "Don't be so Monotone: Relaxing Stochastic Line Search in Over-Parameterized Models", "url": "https://proceedings.neurips.cc/paper_files/paper/2023/hash/6d0bf1265ea9635fb4f9d56f16d7efb2-Abstract-Conference.html", "relationship": "strong stochastic line-search baseline", "difference": "PoNoS uses a nonmonotone Armijo rule and Polyak initial step for SGD/Adam; MBCG-DP adds persistent data and a CG-derived momentum direction."},
+    {"canonical_id": "neurips:2019:2557911c1bf75c2b643afb4ecbfc8ec2", "title": "Painless Stochastic Gradient: Interpolation, Line-Search, and Convergence Rates", "url": "https://proceedings.neurips.cc/paper/2019/hash/2557911c1bf75c2b643afb4ecbfc8ec2-Abstract.html", "relationship": "foundational stochastic Armijo method", "difference": "Provides interpolation-based rates for gradient directions; the reviewed work tackles the additional incompatibility introduced by momentum and changing minibatches."}
+  ],
+  "novelty_assessment": {
+    "author_claim": "MBCG-DP is a convergent stochastic line-search framework that effectively combines minibatch persistency with conjugate-gradient momentum.",
+    "evidence": "The overlap-alignment probe, persistent-subset beta rule, safeguarded algorithm, and broad small-benchmark comparison form a coherent new combination.",
+    "reviewer_inference": "Computing CG momentum on exactly shared data is a meaningful refinement over prior persistency and momentum-line-search methods. The central qualification is that the proven bias-corrected algorithm is not the high-performing implementation, so practical convergence remains empirical."
+  },
+  "confidence": 0.95,
+  "reviewer_notes": "Read all 29 pages, including bias derivation, theorem assumptions, ablations, curves, and declarations. Competitors were checked against primary NeurIPS, PMLR, OpenReview, and arXiv records on 2026-08-23."
+}

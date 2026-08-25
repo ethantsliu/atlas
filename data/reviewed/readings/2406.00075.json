@@ -1,0 +1,114 @@
+{
+  "stable_id": "arxiv:2406.00075",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2406.00075",
+    "pdf_sha256": "1b7d262066c467ab7dfe2ab89cc164aa0c212862294e2d43ed21b7529af2aae8",
+    "text_sha256": "48205d456757adff5886026fe0f836fb0151aa2373c0662e32fc5c1c96703f62",
+    "page_count": 8,
+    "extracted_at": "2026-08-23T17:58:30.323068+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a tiny Transformer trained only on local one- and two-column addition transitions be reused recurrently to add numbers far longer than any training sequence?",
+  "key_findings": [
+    {
+      "claim": "Training examples factor addition into two finite transition types: add a pair of digits, or add the next digit pair conditioned on the previous local output and carry.",
+      "evidence": "Section 2 defines a 14-token vocabulary and examples such as 69 to 15S and 15C29 to 12S. Inputs and targets are padded to fixed lengths five and three, so the learned mapping is a bounded local transition.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "Section 2.1, first-type instances"},
+        {"page": 4, "section": "Section 2.2, carry-conditioned instances"}
+      ]
+    },
+    {
+      "claim": "A two-layer, 64-dimensional decoder-only Transformer with two attention heads and a 256-dimensional feed-forward block learns this local transition under ordinary Adam training.",
+      "evidence": "Section 3 specifies the architecture, modified attention mask, learning rate 5e-4, weight decay 0.01, 20% dropout, and batch size 512.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "Section 3, model setting"}
+      ]
+    },
+    {
+      "claim": "An external autoregressive controller applies the bounded learned transition from least to most significant column and assembles the last digits into the final answer.",
+      "evidence": "Section 4 walks through 65785+8765 as five separate model calls and specifies a deterministic collation rule. The model never attends over either complete long operand in one forward pass.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "Section 4, token generation and worked example"}
+      ]
+    },
+    {
+      "claim": "The implementation reportedly gets every one of more than 1,000 sampled additions up to 1,000 digits correct and also succeeds on selected operands up to 300,000 digits.",
+      "evidence": "Section 4.1 reports no errors in those tests but does not provide a per-length sample table, confidence bound, adversarial carry-chain suite, or independent replication.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Section 4.1, small experiment"},
+        {"page": 8, "section": "Section 5, final remarks"}
+      ]
+    },
+    {
+      "claim": "The title's arbitrary-length Transformer generalization is operationally a learned finite-state digit adder embedded in a hand-coded loop, not one Transformer forward pass generalizing its attention or position representation to arbitrary sequence length.",
+      "evidence": "Training and inference always present at most five input tokens to the model; length is handled entirely by repeated calls and deterministic carry/result bookkeeping. The paper itself states that the model handles at most two single digits at a time.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "Fixed local training pairs"},
+        {"page": 6, "section": "External autoregressive procedure"},
+        {"page": 7, "section": "Claimed length tests"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Learn the constant-size transition rule for one addition column and compose that rule an arbitrary number of times outside the Transformer.",
+    "mechanism": "Generate local training pairs with and without carry context, train a tiny decoder on fixed-size sequences, traverse operands right-to-left at inference, feed each column and previous local output back into the model, and concatenate returned digits deterministically.",
+    "assumptions": [
+      "Base-10 two-operand addition is exactly representable by a finite carry state.",
+      "The model learns all relevant local digit/carry cases rather than a brittle subset.",
+      "An external controller may perform segmentation, recurrence, padding, and output assembly."
+    ]
+  },
+  "techniques": [
+    {"id": "local-transition-training", "role": "Reduces unbounded addition to a finite supervised table."},
+    {"id": "carry-token-state", "role": "Communicates the only cross-column state."},
+    {"id": "right-to-left-recurrence", "role": "Composes the learned map over arbitrary operand length."},
+    {"id": "external-output-collation", "role": "Builds the global result from local predictions."}
+  ],
+  "evaluations": [
+    {"setting": "More than 1,000 randomly sampled two-operand additions with up to 1,000 digits", "metric": "Exact string-match correctness", "result": "The paper reports 100% accuracy on all sampled cases.", "baseline": "Exact integer addition computed by the test script"},
+    {"setting": "Selected additions with operands extending to 300,000 digits", "metric": "Exact output check", "result": "The paper reports positive results on all attempted tests but gives no sample count or runtime curve.", "baseline": "Exact addition"}
+  ],
+  "limitations": [
+    "No comparative baseline, per-length accuracy table, multiple-seed study, or statistical interval is reported.",
+    "The recurrent controller encodes most of the known addition algorithm and constrains the learned task to a finite local map.",
+    "Inference requires one model call per digit column and runtime scaling is not measured.",
+    "Only two-operand base-10 addition is evaluated; transfer to harder algorithms is speculative.",
+    "The very large-digit tests are described informally and limited by compute."
+  ],
+  "failure_modes": [
+    "A rare local transition error propagates through later carry states and corrupts the full suffix.",
+    "A different tokenizer, radix, signed-number convention, or operand count invalidates the handcrafted state representation.",
+    "Adversarial all-nine carry chains may expose local cases underrepresented in random testing.",
+    "Autoregressive error probability accumulates approximately with the number of model calls."
+  ],
+  "reusable_insights": [
+    "Factor an algorithm into a minimal bounded transition and test local completeness before claiming length generalization.",
+    "Distinguish model-internal sequence generalization from algorithmic composition supplied by an external controller.",
+    "Report adversarial transition coverage and end-to-end error scaling, not only randomly sampled perfect accuracy."
+  ],
+  "open_questions": [
+    "Can the local transition be formally verified over all digit and carry cases?",
+    "How does end-to-end reliability scale to millions of recurrent calls under stochastic decoding or quantization?",
+    "Which less obviously finite-state tasks can be learned with similarly minimal external scaffolding?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2307.03381", "title": "Teaching Arithmetic to Small Transformers", "url": "https://arxiv.org/abs/2307.03381", "relationship": "Small-transformer arithmetic and scratchpad training", "difference": "Lee et al. study next-token arithmetic, formatting, sample complexity, and chain-of-thought; this paper instead trains a fixed local carry transition and composes model calls externally.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:2405.17399", "title": "Transformers Can Do Arithmetic with the Right Embeddings", "url": "https://arxiv.org/abs/2405.17399", "relationship": "Addition length generalization through positional structure", "difference": "The Abacus-style approach processes full operand sequences and improves extrapolation with digit-position embeddings; this paper keeps every learned input fixed-length and delegates global recurrence to code.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:2405.20671", "title": "Position Coupling: Improving Length Generalization of Arithmetic Transformers Using Task Structure", "url": "https://arxiv.org/abs/2405.20671", "relationship": "Task-structured positional encoding for addition", "difference": "Position Coupling aligns equal-significance digits inside one Transformer sequence and gives a one-layer construction; this method removes long positions altogether through a recurrent local interface.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:2410.15787", "title": "Arithmetic Transformers Can Length-Generalize in Both Operand Length and Count", "url": "https://arxiv.org/abs/2410.15787", "relationship": "Later arithmetic length-generalization system", "difference": "The later work tackles simultaneous operand-length and operand-count extrapolation with scratchpads and multi-level position coupling; the reviewed system handles only two operands with a hard-coded per-column loop.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"}
+  ],
+  "novelty_assessment": {
+    "author_claim": "Representative local training instances let a tiny Transformer trained on two-digit addition generalize perfectly to arbitrary operand lengths without a scratchpad.",
+    "evidence": "A reproducible R implementation reports no failures in over 1,000 additions up to 1,000 digits and selected much longer cases.",
+    "reviewer_inference": "The useful result is reliable learned finite-state composition. It should not be conflated with a Transformer itself extrapolating attention across arbitrary input lengths, and the perfect-accuracy claim needs exhaustive local verification and stronger end-to-end testing."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Read all 8 pages, checking every training-instance type, architecture setting, recurrent inference rule, empirical claim, limitation, and reference. Current arithmetic competitors were checked on arXiv on 2026-08-23."
+}

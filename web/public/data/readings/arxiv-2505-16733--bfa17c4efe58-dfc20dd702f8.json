@@ -1,0 +1,229 @@
+{
+  "stable_id": "arxiv:2505.16733",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2505.16733",
+    "pdf_sha256": "9a3e37fb4f653c313b75ac40b66508b0ab64e1b1fabccac5434bf58b91a92567",
+    "text_sha256": "502f9a9bae0a7a96a93829b5bea6b47d272d70a63891cfe3ef6286a83d610998",
+    "page_count": 30,
+    "extracted_at": "2026-08-23T16:53:00.401499+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can image restoration be learned as one analytically tractable, state-dependent forward diffusion from a degraded observation to its clean target, with competitive quality and genuinely useful few-step inference?",
+  "key_findings": [
+    {
+      "claim": "FoD defines a componentwise multiplicative mean-reverting SDE whose residual to the clean target has an exact log-normal transition.",
+      "evidence": "The drift is theta_t(mu-x_t) and the diffusion is sigma_t(x_t-mu), so both vanish at the clean endpoint mu. Solving the linear Itô SDE gives x_t-mu=(x_s-mu) exp[-integral(theta+sigma^2/2)+integral sigma dw], enabling direct conditional sampling without a learned reverse-time score.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "3.1 State-dependent forward diffusion, Equation (4)"},
+        {"page": 6, "section": "Closed-form transition, Equations (5)-(7)"},
+        {"page": 17, "section": "Appendix A, derivation of the SDE solution"}
+      ]
+    },
+    {
+      "claim": "The stochastic flow-matching loss is a first-order surrogate rather than exact likelihood matching for the log-normal transition.",
+      "evidence": "Training regresses a network velocity toward mu-x_t with an MSE objective. The appendix derives this target by a first-order approximation to the log residual dynamics and explicitly notes that the approximation can be loose early in training when the predicted endpoint is inaccurate.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "3.2 Stochastic flow matching, Equations (8)-(10)"},
+        {"page": 18, "section": "Appendix B, relation between flow matching and log-residual likelihood"},
+        {"page": 19, "section": "Appendix B, first-order approximation caveat"}
+      ]
+    },
+    {
+      "claim": "Across four paired restoration benchmarks, FoD has strong overall distortion and perceptual metrics but does not dominate every task and metric.",
+      "evidence": "At 100 Euler steps, FoD reports deraining 32.56 PSNR/0.925 SSIM/0.038 LPIPS/14.10 FID, low-light enhancement 21.61/0.819/0.105/41.31, dehazing 26.57/0.932/0.033/8.14, and face inpainting 30.28/0.923/0.029/16.12. PMRF has higher face-inpainting PSNR at 30.45, and several baselines win isolated metric-task cells, so the evidence supports a favorable aggregate tradeoff rather than uniform superiority.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "4.2 Main quantitative comparison, Table 1"},
+        {"page": 8, "section": "Task-specific qualitative results"},
+        {"page": 9, "section": "4.2 comparison discussion"}
+      ]
+    },
+    {
+      "claim": "Ten-step closed-form samplers can improve distortion metrics over 100-step Euler sampling, but their perceptual behavior is mixed and the non-Markov variant sometimes substantially worsens FID.",
+      "evidence": "For deraining, ten-step MC and NMC raise PSNR from 32.56 to 33.27 and 33.63 while FID rises from 14.10 to 15.14 and 15.64. For face inpainting, PSNR rises from 30.28 to 31.02/31.32 but FID worsens from 16.12 to 18.06/23.28. On low-light, MC improves FID to 32.37 whereas NMC worsens it to 47.87. Thus few-step acceleration is credible, but sampler choice shifts the perception-distortion tradeoff.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "4.3 Few-step sampling construction"},
+        {"page": 11, "section": "Table 4, EM/MC/NMC comparison"},
+        {"page": 24, "section": "Appendix F, runtime and NFE comparison, Table A2"}
+      ]
+    },
+    {
+      "claim": "Removing the state-dependent noise causes a large quality loss, providing evidence that the stochastic term matters rather than merely the mean-reverting drift.",
+      "evidence": "On Rain100H, the noise-free variant drops from 32.56 to 29.44 PSNR, 0.925 to 0.880 SSIM, and degrades LPIPS/FID from 0.038/14.10 to 0.132/59.54. Similar degradation is reported for low-light, dehazing, and inpainting. Schedule ablations further show cosine drift plus linear diffusion is best for perceptual metrics, while a cosine diffusion schedule can favor distortion.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 11, "section": "4.4 Noise ablation, Table 5"},
+        {"page": 12, "section": "Schedule ablation, Table 6"}
+      ]
+    },
+    {
+      "claim": "The claimed efficiency is supported under reported hardware by a shared lightweight backbone and a ten-step sampler, though baseline architecture differences limit a pure algorithmic comparison.",
+      "evidence": "The appendix reports 3.85 seconds and 73.45M parameters for 100-step FoD, close to 3.86 seconds for ReFlow, while FoD-MC takes 0.43 seconds at 10 NFE and reaches 33.27 PSNR. IR-SDE, GOUB, and UniDB use a different 137.15M-parameter U-Net and take 11.59-20.17 seconds; PMRF additionally has a 36.22M posterior-mean network. These figures demonstrate end-to-end speed for the implementation, not a backbone-controlled comparison against every method.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "4.1 implementation and training setup"},
+        {"page": 24, "section": "Appendix F, computational efficiency, Table A2"}
+      ]
+    },
+    {
+      "claim": "The exact target-conditioned SDE has a structural sign/orthant constraint that is obscured once inference repeatedly substitutes an estimated target.",
+      "evidence": "Because the exponential factor in the closed-form solution is strictly positive, each nonzero component of x_t-mu retains the sign of x_s-mu: conditioned paths move along a fixed residual ray/orthant and cannot cross the target. At test time mu is unknown and the algorithms replace it with a network prediction, so the realized plug-in chain is not exactly the target-conditioned process whose solution is derived.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "3.1 componentwise state-dependent SDE"},
+        {"page": 6, "section": "Equation (6) exact multiplicative residual solution"},
+        {"page": 10, "section": "Algorithms 1-3, predicted-endpoint sampling"},
+        {"page": 20, "section": "Appendix C, MC and NMC transition derivations"}
+      ]
+    },
+    {
+      "claim": "The additional JPEG experiment broadens task coverage, but documented failure cases and evaluation design leave real-world robustness and uncertainty unresolved.",
+      "evidence": "On DIV2K-to-LIVE1 JPEG quality 10, FoD variants are competitive and win different metrics by small margins; FoD reports 28.60 PSNR/0.8002 SSIM/0.271 LPIPS/70.98 FID. The appendix shows semantic eye artifacts for face inpainting and residual haze/local-contrast errors under complex illumination. Experiments use paired curated datasets, one output per input, and no repeated-seed significance or stochastic calibration study.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 25, "section": "Appendix H, JPEG restoration, Table A5"},
+        {"page": 25, "section": "Appendix I, failure cases, Figure A8"},
+        {"page": 26, "section": "Appendix I, qualitative failure discussion"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Replace the conventional clean-to-noisy forward plus learned reverse diffusion pair with one degraded-to-clean state-dependent stochastic process whose drift and noise both vanish at the clean endpoint.",
+    "mechanism": "Sample intermediate states from an exact multiplicative-residual transition, train an attention-free U-Net by stochastic flow matching to predict the clean-directed velocity, and infer with Euler-Maruyama or ten-step closed-form Markov/non-Markov updates using the network's endpoint estimate.",
+    "assumptions": [
+      "Training provides paired low-quality and clean images from a fixed restoration task.",
+      "A componentwise multiplicative diffusion around the clean target is expressive enough for the conditional transport.",
+      "The first-order stochastic flow-matching surrogate yields useful endpoint predictions despite early approximation error.",
+      "Plugging a learned clean endpoint into target-conditioned transition formulas remains stable under recursive sampling.",
+      "PSNR, SSIM, LPIPS, and FID on curated benchmarks jointly reflect restoration utility."
+    ]
+  },
+  "techniques": [
+    {"id": "state-dependent-forward-sde", "role": "Uses both drift and diffusion proportional to the residual from the clean target."},
+    {"id": "lognormal-residual-transition", "role": "Provides an exact conditional sampler for the multiplicative linear SDE."},
+    {"id": "stochastic-flow-matching", "role": "Regresses a clean-directed velocity without learning a reverse-time score."},
+    {"id": "closed-form-markov-sampler", "role": "Recursively advances the current estimate with only ten network evaluations."},
+    {"id": "non-markov-source-anchoring", "role": "Recomputes few-step states relative to the original degraded observation."},
+    {"id": "attention-free-guided-unet", "role": "Reduces restoration-time compute while retaining the common guided-diffusion backbone."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Rain100H deraining, RESIDE-6K dehazing, LOL low-light enhancement, and CelebA-HQ face inpainting",
+      "metric": "PSNR, SSIM, LPIPS, and FID with 100-step sampling",
+      "result": "Strong aggregate results, including 32.56 PSNR/14.10 FID on Rain100H and 26.57/8.14 on dehazing, but not every metric-task cell is best",
+      "baseline": "U-Net, IR-SDE, GOUB, UniDB, ReFlow, and PMRF"
+    },
+    {
+      "setting": "Four restoration tasks with ten-step MC and NMC sampling",
+      "metric": "Quality metrics, NFE, and wall-clock latency",
+      "result": "Distortion often improves over 100-step Euler; FoD-MC runs in 0.43 seconds for deraining, while perceptual metrics sometimes worsen, especially NMC FID",
+      "baseline": "100-step FoD Euler-Maruyama and 10-100-step ReFlow"
+    },
+    {
+      "setting": "Ablations on Rain100H and the four main tasks",
+      "metric": "Noise removal, drift/diffusion schedules, and backbone variants",
+      "result": "State-dependent noise is essential; schedule choice changes distortion/perception balance; adding attention gives only a modest quality change at higher architectural complexity",
+      "baseline": "Noise-free interpolation, alternative schedules, ViT and attention-augmented U-Net"
+    },
+    {
+      "setting": "JPEG artifact removal trained on DIV2K and tested on LIVE1 at quality 10",
+      "metric": "PSNR, SSIM, LPIPS, and FID",
+      "result": "FoD variants are competitive with small margins and different variants winning different metrics",
+      "baseline": "IR-SDE, GOUB, UniDB, ReFlow, and PMRF"
+    }
+  ],
+  "limitations": [
+    "The multiplicative process preserves the target-relative sign of every component when conditioned on the true endpoint, restricting conditional path geometry.",
+    "Inference substitutes a changing learned endpoint into a formula derived for a fixed known target, without an error or stability bound.",
+    "The flow-matching objective is a first-order surrogate that the paper acknowledges can be loose early in training.",
+    "Experiments cover supervised paired degradations rather than blind, mixed, or genuinely unknown real-world degradation distributions.",
+    "One output per test input does not test uncertainty calibration, sample diversity, or best-of-N behavior of the stochastic process.",
+    "Architecture, parameter count, and training pipeline differ across baseline families, complicating attribution of speed and quality gains.",
+    "No multiple-seed confidence intervals or statistical significance tests are reported; FID can be unstable on small restoration test sets."
+  ],
+  "failure_modes": [
+    "Endpoint-prediction errors can feed back through recursive MC updates and make the plug-in chain depart from the intended target-conditioned dynamics.",
+    "NMC source anchoring may improve pixel distortion while producing worse perceptual distributions, as reflected by inpainting and low-light FID.",
+    "The orthant-preserving conditional path can be too rigid when plausible restoration requires overshoot or crossing around a target component.",
+    "Stochastic texture may hide distortion while hallucinating semantically inconsistent details, including asymmetric facial features.",
+    "Complex illumination and spatially varying haze can leave residual degradation and local-contrast errors."
+  ],
+  "reusable_insights": [
+    "Design corruption or restoration noise to shrink with task residuals when uncertainty should concentrate spatially on unresolved regions.",
+    "Report few-step methods on both distortion and perceptual axes; faster sampling can move those axes in opposite directions.",
+    "Separate implementation-level efficiency from controlled algorithmic efficiency by matching backbone, parameter count, NFE, and hardware.",
+    "Audit whether a closed-form conditional process imposes hidden invariants such as sign preservation before using it as a flexible transport model.",
+    "Test plug-in endpoint dynamics directly rather than assuming exact target-conditioned transition properties survive learned target substitution."
+  ],
+  "open_questions": [
+    "Can a richer state-dependent diffusion retain analytical sampling without componentwise sign preservation?",
+    "What conditions guarantee stability when the unknown clean target is re-estimated at every sampling step?",
+    "Does the ten-step quality advantage persist under backbone-, compute-, and training-budget-matched diffusion bridges and modern flow models?",
+    "How well calibrated is FoD's conditional variability, and does it represent ambiguity rather than arbitrary texture noise?",
+    "Can the method handle blind mixtures of degradations, real sensor pipelines, or unpaired training without leaking task identity?",
+    "Which sampler or schedule produces a Pareto-optimal perception-distortion-runtime frontier across tasks?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2301.11699",
+      "title": "Image Restoration with Mean-Reverting Stochastic Differential Equations",
+      "url": "https://arxiv.org/abs/2301.11699",
+      "relationship": "Direct predecessor from the same research line",
+      "difference": "IR-SDE diffuses a clean image toward the degraded observation and learns a reverse-time score; FoD reverses the construction into a single degraded-to-clean state-dependent process trained by flow matching.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2312.10299",
+      "title": "Image Restoration Through Generalized Ornstein-Uhlenbeck Bridge",
+      "url": "https://arxiv.org/abs/2312.10299",
+      "relationship": "Competing mean-reverting diffusion bridge",
+      "difference": "GOUB uses a Doob h-transform to form a point-to-point generalized OU bridge and also derives a Mean-ODE; FoD uses state-dependent multiplicative noise and a directly forward clean-directed process.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2502.05749",
+      "title": "UniDB: A Unified Diffusion Bridge Framework via Stochastic Optimal Control",
+      "url": "https://arxiv.org/abs/2502.05749",
+      "relationship": "Contemporary stochastic-control bridge competitor",
+      "difference": "UniDB generalizes Doob bridges through a tunable terminal penalty balancing control cost and endpoint fidelity; FoD avoids reverse bridge learning and instead exploits a closed-form state-dependent forward transition.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v5"
+    },
+    {
+      "canonical_id": "arxiv:2410.00418",
+      "title": "Posterior-Mean Rectified Flow: Towards Minimum MSE Photo-Realistic Image Restoration",
+      "url": "https://arxiv.org/abs/2410.00418",
+      "relationship": "Competing few-step flow-based restoration method",
+      "difference": "PMRF first predicts the posterior mean and rectified-flows it toward the clean distribution to target the perception-distortion optimum; FoD learns one stochastic residual-dependent transport without a separate posterior-mean stage.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2209.03003",
+      "title": "Flow Straight and Fast: Learning to Generate and Transfer Data with Rectified Flow",
+      "url": "https://arxiv.org/abs/2209.03003",
+      "relationship": "Foundational deterministic flow-matching alternative",
+      "difference": "Rectified Flow learns an ODE along straight source-target interpolations and improves couplings by reflow; FoD retains stochasticity with residual-scaled diffusion and an exact log-normal conditional transition.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "A single state-dependent forward diffusion can replace coupled forward-reverse restoration diffusion, remain analytically tractable, train with simple stochastic flow matching, and achieve efficient few-step sampling with strong restoration quality.",
+    "evidence": "The paper derives an exact multiplicative-residual transition, shows large noise-ablation effects, reports favorable aggregate results on four main tasks plus JPEG restoration, and demonstrates a 0.43-second ten-step MC sampler on its hardware.",
+    "reviewer_inference": "The clean-directed state-dependent SDE and usable closed-form few-step samplers are a meaningful synthesis beyond IR-SDE and diffusion bridges. The evidence supports practical efficiency and competitive quality, but broader claims should be tempered by plug-in endpoint dynamics, path invariants, mixed perceptual results, and limited robustness/statistical evaluation."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Read all 30 extracted pages, including SDE and flow-matching derivations, four-task experiments, sampler/schedule/noise ablations, efficiency and backbone tables, JPEG transfer, and documented failure cases. Competitor identities, abstracts, and current arXiv versions were checked against primary arXiv pages on 2026-08-23."
+}

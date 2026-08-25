@@ -1,0 +1,593 @@
+{
+  "stable_id": "arxiv:2602.10097",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2602.10097",
+    "pdf_sha256": "f7dfd00fb9eb99e344f63fe77521860778724f81446ec5472ceac64261230bd0",
+    "text_sha256": "5ad6d12d9637d054a6b6076bba5340e597a8a9708d297e9224403ad69b0bbe10",
+    "page_count": 30,
+    "extracted_at": "2026-08-23T13:06:08.437753+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can checkpoint-gradient data attribution for a weight-tied looped transformer be decomposed exactly into influence at each recurrent computation step, computed without materializing full per-example gradients, and used to reveal when training examples matter in latent algorithmic reasoning?",
+  "key_findings": [
+    {
+      "claim": "Step-Decomposed Influence (SDI) refines loop-body TracIn into a test-side trajectory over recurrent steps.",
+      "evidence": "For training example z and test example z′, SDI defines I_t(z,z′)=Σ_k η_k ∇_{w_body}ℓ(w_k;z)·φ_t(w_k;z′), where φ_t is the contribution of test loop step t to the total shared-body gradient.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "3 Step-Decomposed Influence; Equations 5 and 7"}
+      ]
+    },
+    {
+      "claim": "The step decomposition follows exactly from backpropagation through a reused parameter block.",
+      "evidence": "Proposition 1 writes dℓ/dw_body=Σ_t φ_t, with φ_t=Σ_j (dℓ/dh_{t,j})(∂h_{t,j}/∂w_body) while holding the incoming state and injected input fixed at the local module call. For a linear weight, φ_t is a token-sum of outer products δ_{t,j}⊗a_{t,j}; biases are token-sums of δ.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "3 Gradients as a sum over steps; Proposition 1, Equations 2–4"}
+      ]
+    },
+    {
+      "claim": "SDI conserves loop-body TracIn exactly before sketching.",
+      "evidence": "Linearity gives TracIn_{w_body}(z,z′)=Σ_{t=1}^τ I_t(z,z′). The identity applies to the recurrent body's parameter contribution, not automatically to read-in/read-out parameters or to a full-model TracIn score.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "2 Background; parameter partition"},
+        {"page": 3, "section": "3 Step-Decomposed Influence; Equation 6"}
+      ]
+    },
+    {
+      "claim": "The default SDI trajectory is asymmetric and answers when a training example affects the test recurrence, not which training-time step caused the effect.",
+      "evidence": "The training gradient is summed over all training steps, while φ_t resolves the test side. The paper separately defines a training-step alternative and a joint K-checkpoint stepwise matrix I_{s,t}=Σ_k η_k φ_s(z;w_k)·φ_t(z′;w_k).",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "3 SDI; Equations 7–8"},
+        {"page": 4, "section": "3 Stepwise influence matrix; Equation 9"}
+      ]
+    },
+    {
+      "claim": "The systems contribution sketches per-example, per-step gradients during the same backward pass rather than projecting materialized gradients afterward.",
+      "evidence": "Hooks cache each transformer's token activations and backpropagated signals. CountSketch handles vector parameters; TensorSketch convolves independent sketches of δ and a to embed each outer product, sums over tokens, and concatenates independent per-parameter sketches.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "3 Sketch-during-backprop and Algorithm 1"},
+        {"page": 12, "section": "B Overview of CountSketch and TensorSketch"},
+        {"page": 13, "section": "B.2 TensorSketch"}
+      ]
+    },
+    {
+      "claim": "The apparent sketch dimension m is per parameter tensor, so the global feature dimension grows with the number of sketched tensors.",
+      "evidence": "If α parameter tensors are included, the concatenated sketch has αm coordinates. In the 135.1M experiment the paper uses 48 tensors and m=2,048, so the global vector has 98,304 coordinates; the reported approximately 1,000× memory ratio compares about 100M body parameters with that global feature size.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "3 Sketch map and systems complexity"},
+        {"page": 25, "section": "C Proof of Lemma 1; concatenated global sketch"}
+      ]
+    },
+    {
+      "claim": "The sketched SDI dot product is unbiased and has an error bound independent of the original parameter dimension.",
+      "evidence": "Lemma 1 states E[ẽι_{k,t}]=ι_{k,t} and Var(ẽι_{k,t})≤(4/m²+6/m)||g_k||²||p_{k,t}||² for even m, leading to a checkpoint-summed mean-square bound with the same factor. The appendix proves the per-tensor independence and correlated-checkpoint covariance steps.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "3 Error bounds; Lemma 1 and Equation 12"},
+        {"page": 24, "section": "C Proof of Lemma 1"},
+        {"page": 26, "section": "C Proof conclusion"}
+      ]
+    },
+    {
+      "claim": "The paper's exact TensorSketch variance derivation is extensive and claims a tight improvement over prior art.",
+      "evidence": "Appendix B expands hash-collision cases, derives a closed-form variance, bounds it by (4/m²+6/m)||X||²_F||Y||²_F, and constructs parallel all-ones outer products whose variance approaches that bound. The main text calls this strictly tighter than the prior 8/m factor.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 14, "section": "B.2 Lemma 4"},
+        {"page": 15, "section": "B.2 variance expansion"},
+        {"page": 16, "section": "B.2 case analysis"},
+        {"page": 23, "section": "B.2 Equation 24 and comparison"},
+        {"page": 24, "section": "B.2 tightness construction"}
+      ]
+    },
+    {
+      "claim": "The statement of Lemma 4 conflicts with its later derivation by swapping which closed-form term receives 1/m versus 2/m².",
+      "evidence": "On page 14 the displayed lemma states Var=(1/m)(P1−N1)+(2/m²)(P2−N2), while page 23 Equation 23 states Var=(2/m²)(P1−N1)+(1/m)(P2−N2). The case-grouping prose and final 4/m²+6/m bound align with Equation 23, making the earlier statement an internal formula error.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 14, "section": "B.2 Lemma 4 statement"},
+        {"page": 22, "section": "B.2 grouping P1/P2"},
+        {"page": 23, "section": "B.2 Equation 23"}
+      ]
+    },
+    {
+      "claim": "A second appendix line understates the m⁻² coefficient in the claimed TensorSketch bound.",
+      "evidence": "The proof roadmap on page 24 describes Item 2 as Var≤(2/m²+6/m)||X||²_F||Y||²_F, but Lemma 4, Equation 24, the main-text Lemma 1, and the subsequent proof use 4/m²+6/m. This is another internal typographical inconsistency, not a distinct proved bound.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "3 Lemma 1"},
+        {"page": 23, "section": "B.2 Equation 24"},
+        {"page": 24, "section": "C Proof roadmap, Item 2"}
+      ]
+    },
+    {
+      "claim": "Proposition 1 contains a parameter-count dimensional typo for the bias term.",
+      "evidence": "The proposition defines W∈R^{d_out×d_in}, b and δ∈R^{d_out}, but then writes |w_body|=d_out d_in+d_in. Unless d_out=d_in, the concatenated weight-plus-bias dimension should be d_out d_in+d_out.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "3 Proposition 1; Equations 3–4"}
+      ]
+    },
+    {
+      "claim": "The sketched conservation display has a train/test-example notation mismatch.",
+      "evidence": "Equation 11 writes the sketch of ∇ℓ(w_k;z) as a sum of φ_t(w_k;z′), although conservation requires all terms to refer to the same example. Algorithm 1 and the unsketched identity make clear that the z′ is a notation error unless z=z′.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "3 Equation 6"},
+        {"page": 4, "section": "3 Equation 11"},
+        {"page": 5, "section": "Algorithm 1, line 11"}
+      ]
+    },
+    {
+      "claim": "On a 135.1M-parameter looped GPT, m=2,048 approximates full-gradient SDI and TracIn with low relative error.",
+      "evidence": "Over 10 independent sketch trials, relative Frobenius errors are 0.0388±0.0030 for SDI and 0.0220±0.0052 for TracIn. Across m=256–8,192, the SDI error log–log slope is −0.489, close to the predicted −1/2.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "4 Scalability and Correctness"},
+        {"page": 27, "section": "D.1 Fidelity metrics; Figure 4"}
+      ]
+    },
+    {
+      "claim": "The projected implementation raises feasible batch size by 10× in the reported full-BPTT benchmark.",
+      "evidence": "On one 48GB RTX A6000, the full stepwise-gradient baseline fits batch 4 while m=2,048 sketching fits batch 40 for sequence length 128 and τ=32. The model has 2 prelude blocks, a 4-block recurrent core reused 32 times, and 2 coda blocks, for effective depth 132 in float32.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "4 Scalability and Correctness"},
+        {"page": 27, "section": "D.1 Model, baselines, memory and runtime"}
+      ]
+    },
+    {
+      "claim": "Sketched conservation holds numerically, but the runtime claim lacks a fully reported denominator.",
+      "evidence": "The direct sketch of the full gradient and sum of step sketches differ by about 10⁻⁷ absolute. At batch 40, the paper reports 2.55±0.002 seconds added per checkpoint relative to inference-only over 10 trials, but does not give the inference-only or plain-backward wall time in the text, so 'negligible overhead' cannot be independently converted to a percentage.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "4 Scalability and Correctness"},
+        {"page": 27, "section": "D.1 Conservation check and Memory and runtime"}
+      ]
+    },
+    {
+      "claim": "Parity SDI exhibits a period-4 signature that guides a finite-state circuit hypothesis.",
+      "evidence": "A one-block causal looped transformer trained with maximum length increasing from 2 to 21 reaches 100% on length-40 OOD parity. On the alternating 0101… probe, summed SDI has a sawtooth period of about 4 and a final peak at readout step n; logit-margin jumps show the same period and lag SDI peaks by one iteration.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "4 SDI as a MechInterp hypothesis generator"},
+        {"page": 6, "section": "Figure 1A"},
+        {"page": 28, "section": "D.2 Task, model, and mechanistic readouts"}
+      ]
+    },
+    {
+      "claim": "Hidden-state analysis supports a four-state cycle, but the circuit evidence remains observational and probe-conditioned.",
+      "evidence": "For the alternating probe, cos(h_t,h_{t+4})≈0.95 and k-means with k=4 yields an almost deterministic dominant cycle. The discretization and state-to-parity lookup are chosen after observing the period-4 SDI pattern; no activation intervention or ablation establishes that those clusters causally implement parity.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "4 Parity mechanism; Figure 1B"},
+        {"page": 28, "section": "D.2 Mechanistic readouts and Proxy circuit evaluation"}
+      ]
+    },
+    {
+      "claim": "The discrete parity proxy generalizes well within its favored input family but imperfectly to ordinary test examples.",
+      "evidence": "Nearest-centroid state plus a calibration lookup reaches 100% on 1,024 held-out alternating inputs across in- and out-of-training lengths, but approximately 93% on the actual length-40 test set without refitting the discretization. The calibration set itself contains 256 alternating examples.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "4 Parity proxy results"},
+        {"page": 28, "section": "D.2 Proxy circuit evaluation"}
+      ]
+    },
+    {
+      "claim": "Sudoku accuracy and SDI energy jointly indicate that harder puzzles use later recurrent computation.",
+      "evidence": "A bidirectional one-block transformer is trained with loop counts drawn from a clipped Poisson log-normal distribution with mean 32. Harder SATNet puzzles lose more board accuracy when loops are reduced and retain higher per-step absolute SDI energy deeper into a τ=32 analysis horizon.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "4 Scaling laws of loop compute"},
+        {"page": 7, "section": "Figure 2"},
+        {"page": 28, "section": "D.3 Dataset, split, and loop sampling"},
+        {"page": 29, "section": "D.3 SDI energy curves"}
+      ]
+    },
+    {
+      "claim": "The main text gives conflicting Sudoku saturation depths.",
+      "evidence": "The page-6 prose says increasing loops yields gains 'up to about τ≈64 before saturating,' while the Figure 2 caption on page 7 says gains extend to about the training-mean depth τ≈32 and that loops above 32 show the plateau. Without numeric figure values, these descriptions cannot both be the precise saturation point.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "4 Scaling laws of loop compute"},
+        {"page": 7, "section": "Figure 2 caption"}
+      ]
+    },
+    {
+      "claim": "Sudoku difficulty correlates with both self-influence and cross-influence mass.",
+      "evidence": "Self-influence versus blank count has Spearman ρ=0.428 (p<0.001); cross-influence mass versus difficulty has ρ=0.500 (p<0.001), and cross-mass versus self-influence has ρ=0.919 (p<0.001). No example in the bottom self-influence quartile lies in the top cross-mass quartile in this run.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "4 Step-resolved influence across difficulty"}
+      ]
+    },
+    {
+      "claim": "Hard Sudoku training puzzles have about twice the median self-influence and more cross-influence mass.",
+      "evidence": "Easy versus hard training groups have self-TracIn medians 0.225 [0.155,0.367] versus 0.451 [0.303,0.787] and cross-mass medians 3.07 [2.60,3.82] versus 4.43 [3.77,5.80]. On hard tests, their shares of absolute TracIn mass are 27.9% versus 38.9%.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "Table 1 Influence, memorisation, and SDI timing"}
+      ]
+    },
+    {
+      "claim": "The statistically significant late-SDI group differences are small in absolute effect size.",
+      "evidence": "Late mass at steps 17–32 is 24.0% for easy versus 24.9% for hard training examples on easy tests, and 24.3% versus 25.3% on hard tests. Table 1 reports p<0.001 for every comparison, but the late-timing effect is only 0.9–1.0 percentage point.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Table 1"},
+        {"page": 30, "section": "D.4 Statistical tests"}
+      ]
+    },
+    {
+      "claim": "The Sudoku attribution analysis uses a deliberately non-IID difficulty split and small stratified subsets.",
+      "evidence": "The easiest 80% of 10,000 SATNet puzzles form train and the hardest 20% form test. Influence is computed on 512 sampled train and 512 sampled test puzzles at τ=32 and m=2,048, not on the full train×test matrix; board difficulty is defined solely by number of blank cells.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 28, "section": "D.3 Dataset and non-IID split"},
+        {"page": 29, "section": "D.4 SDI artifacts and sampled subsets"}
+      ]
+    },
+    {
+      "claim": "In the 328.3M-parameter recursive Nanochat case study, GSM8K influence concentrates geometrically near the final recurrent steps.",
+      "evidence": "After recomputing full BPTT for analysis horizons τ=2–16, signed SDI increases approximately exponentially with t and the final step usually contributes at least 50% of total signed influence from GSM8K train to GSM8K test. The result aggregates 82 mid-training and 71 SFT checkpoints with m=2,048.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "4 Nanochat"},
+        {"page": 8, "section": "Figure 3 and Nanochat findings"},
+        {"page": 30, "section": "D.5 Model, checkpoints, and SDI computation"}
+      ]
+    },
+    {
+      "claim": "The proposed implicit loop-step counter is a hypothesis, not a measured representation.",
+      "evidence": "Late influence appears in the final four steps regardless of analysis horizon and GSM8K performance plateaus for test-time τ>4, leading the authors to suggest the model 'knows' which steps are last. No counter probe, decoder, intervention, or state readout directly identifies a step counter.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 8, "section": "4 Nanochat interpretation"}
+      ]
+    },
+    {
+      "claim": "Training with truncated BPTT can make early-step SDI identically zero by construction, so the analysis must change the differentiation graph to recover a full trajectory.",
+      "evidence": "Nanochat trains with k=4 and detaches recurrent state before the last four iterations. Appendix D.5 states default SDI inherits this truncation; the main case study instead recomputes full BPTT through τ, which analyzes the checkpoint under a credit-assignment graph different from training.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "5 Limitations"},
+        {"page": 30, "section": "D.5 Model and recurrence; SDI computation"}
+      ]
+    },
+    {
+      "claim": "SDI remains a TracIn-style gradient-similarity diagnostic rather than a causal influence function under modern optimization.",
+      "evidence": "The discussion notes that momentum, adaptive preconditioning, and optimizer transformations are not represented by the nominal η_k-weighted Euclidean inner product. It also states that SDI does not certify that deleting or reweighting a training example would change behavior and cannot disentangle shared-feature confounds.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "5 Discussion and future work; Limitations"},
+        {"page": 11, "section": "A Extended Related Work; Data attribution"}
+      ]
+    },
+    {
+      "claim": "Sketching removes per-example gradient materialization but not dense train×test scaling.",
+      "evidence": "Per-step feature storage scales with Bτ times the concatenated sketch width, but forming every influence pair remains expensive at large |D_train|. The authors propose approximate-nearest-neighbor retrieval over sketched gradients as future work rather than demonstrate it.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "3 Systems complexity"},
+        {"page": 8, "section": "5 Future Work"}
+      ]
+    },
+    {
+      "claim": "The empirical validation establishes sketch fidelity to full-gradient SDI, not fidelity of SDI to actual data removal effects.",
+      "evidence": "The synthetic 135.1M benchmark treats unprojected per-example gradients as ground truth and measures Frobenius distortion, conservation, memory, and runtime. None of the parity, Sudoku, or Nanochat studies retrains after deleting high-SDI points or compares predicted with realized loss changes.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "4 Scalability and Correctness"},
+        {"page": 8, "section": "5 Limitations"},
+        {"page": 27, "section": "D.1 Data, baselines, and fidelity metrics"}
+      ]
+    },
+    {
+      "claim": "The application evidence is varied but remains narrow relative to the claim of transformer-scale latent-reasoning attribution.",
+      "evidence": "Mechanistic analyses use parity and Sudoku; the language-model case is a 328.3M recursive Nanochat focused on 1,024 sampled conversations and GSM8K. There is no evaluation on billion-parameter recurrent models, naturalistic long-form behaviors, RLHF, adaptive halting, or causal data curation.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "4 Experiments"},
+        {"page": 7, "section": "Nanochat"},
+        {"page": 8, "section": "5 Future Work"},
+        {"page": 30, "section": "D.5 Recursive Nanochat"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Exploit the repeated use of a shared transformer body: unroll its total loss gradient into a sum of module-call contributions, insert one contribution into the test side of each checkpoint-gradient dot product, and thereby turn scalar loop-body TracIn into an exactly conserving step trajectory. Compute those trajectories with per-module CountSketch/TensorSketch features produced inline during backpropagation.",
+    "mechanism": "BPTT supplies each recurrent call's activation a_{t,j} and adjoint δ_{t,j}. Linear-weight gradients factor as token-sums of δ⊗a and vector gradients as token-sums of δ. Independent CountSketch/TensorSketch maps per parameter tensor compress those local gradients without forming the outer products, concatenate them into per-example/per-step features, and sum step features for the full body gradient. Dot products across learning-rate-weighted checkpoints yield test-step SDI; summing over t recovers sketched loop-body TracIn. The method is evaluated by full-gradient distortion and systems cost, then used as a hypothesis generator for parity cycles, a compute/difficulty diagnostic in Sudoku, and a recurrence-progress probe in recursive Nanochat.",
+    "assumptions": [
+      "TracIn checkpoint gradient similarity is a meaningful proxy for training-example influence on test loss.",
+      "Nominal checkpoint learning rates η_k adequately weight the realized optimizer trajectory, even under momentum or adaptive preconditioning.",
+      "The recurrent body is truly weight-tied and its unrolled module calls define semantically comparable steps.",
+      "Attribution to loop-body and injection-adapter parameters captures the relevant behavior even though read-in/read-out parameters are excluded.",
+      "A test-side decomposition is the desired notion of 'when' influence manifests; training-side and joint decompositions answer different questions.",
+      "BPTT through the chosen horizon represents the computation of interest; truncation and detach operations alter the attribution definition.",
+      "Step t has comparable meaning across examples with randomized horizons, different difficulty, or adaptive compute.",
+      "Independent per-parameter CountSketch/TensorSketch hashes and even sketch dimension m satisfy the stated unbiasedness/variance analysis.",
+      "The concatenated αm-dimensional sketch is small enough even as α, τ, batch size, and checkpoints grow.",
+      "Unprojected per-example gradients are an adequate ground truth for evaluating sketch fidelity, although they are not causal data influence ground truth.",
+      "TracIn self-influence is a valid proxy for memorization and number of Sudoku blanks is a sufficient proxy for difficulty.",
+      "Absolute TracIn mass and absolute per-step SDI energy are interpretable despite sign cancellation and scale variation.",
+      "Post-hoc PCA/k-means states on a selected alternating parity probe correspond to an implemented finite-state circuit.",
+      "Full-BPTT analysis of a model trained with k=4 truncation meaningfully reveals dependencies the optimizer never propagated end-to-end.",
+      "Checkpoint subsamples and 1,024-example source/query sets adequately represent the training data influence distribution."
+    ]
+  },
+  "techniques": [
+    {"id": "unrolled-shared-gradient-decomposition", "role": "Splits the total shared-body gradient into one contribution per recurrent module call."},
+    {"id": "step-decomposed-tracin", "role": "Places each test-step gradient contribution into checkpoint dot products while preserving their scalar sum."},
+    {"id": "train-test-step-matrix", "role": "Optionally resolves both training and test recurrence into an s-by-t influence surface."},
+    {"id": "sketch-during-backprop", "role": "Uses hooks to compress per-example gradient factors inline, avoiding full gradient materialization."},
+    {"id": "countsketch-vector-gradients", "role": "Embeds bias, normalization, and other vector-parameter gradients with unbiased sparse random maps."},
+    {"id": "tensorsketch-outer-product-gradients", "role": "Computes FFT-based sketches of transformer matrix-gradient outer-product sums without constructing the matrices per example."},
+    {"id": "tight-variance-analysis", "role": "Derives and claims tight the 4/m²+6/m dot-product variance factor used to control SDI sketch error."},
+    {"id": "sdi-energy-curve", "role": "Aggregates absolute influence over training points to summarize how long an example remains sensitive to training data across loop steps."},
+    {"id": "influence-guided-circuit-discovery", "role": "Uses periodic SDI signatures to select hidden-state recurrence, clustering, and discrete proxy analyses."},
+    {"id": "checkpoint-trajectory-aggregation", "role": "Sums stepwise gradient similarities over saved learning-rate-weighted training checkpoints."}
+  ],
+  "evaluations": [
+    {
+      "setting": "135.1M looped GPT, τ=32, sequence 128, float32 full BPTT, 10 sketch seeds (p.5; p.27 D.1)",
+      "metric": "Relative Frobenius error at m=2,048",
+      "result": "SDI 0.0388±0.0030; summed TracIn 0.0220±0.0052.",
+      "baseline": "Full materialized per-example, per-step gradients are treated as exact ground truth."
+    },
+    {
+      "setting": "Same synthetic benchmark, m sweep 256–8,192 (p.5; p.27 Figure 4)",
+      "metric": "Log–log slope of mean SDI relative error versus sketch dimension",
+      "result": "−0.489.",
+      "baseline": "The theoretical O(m^−1/2) rate corresponds to slope −0.5."
+    },
+    {
+      "setting": "Same model on one 48GB RTX A6000 (p.5; p.27 D.1)",
+      "metric": "Maximum feasible batch size",
+      "result": "Projected m=2,048 SDI fits batch 40.",
+      "baseline": "Full per-example stepwise-gradient SDI fits batch 4, a reported 10× increase."
+    },
+    {
+      "setting": "Same model, direct-versus-summed sketches (p.5; p.27 D.1)",
+      "metric": "Maximum absolute conservation discrepancy",
+      "result": "Approximately 10^−7.",
+      "baseline": "Direct TensorSketch of the summed full matrix gradient versus sum of per-step TensorSketch features."
+    },
+    {
+      "setting": "Same model at batch 40, 10 timing trials (p.5)",
+      "metric": "Added per-checkpoint wall time relative to inference-only forward",
+      "result": "2.55±0.002 seconds.",
+      "baseline": "Inference-only forward is the reference, but its numeric duration and the plain-backward duration are not reported in the text."
+    },
+    {
+      "setting": "Length-generalization parity, train curriculum max length 2→21, test length 40 (p.5; p.28 D.2)",
+      "metric": "Model exact parity accuracy",
+      "result": "100% on length-40 out-of-distribution inputs.",
+      "baseline": "Training curriculum contains lengths only through 21; later iterations after readout are causally unused and have zero SDI."
+    },
+    {
+      "setting": "Alternating parity probe 0101… at length 40 (p.5–6, Figure 1)",
+      "metric": "SDI/logit periodicity and hidden-state recurrence",
+      "result": "Apparent period 4; logit-margin increases lag SDI peaks by one step; mean cos(h_t,h_{t+4})≈0.95.",
+      "baseline": "A scalar TracIn score has no step trajectory and cannot expose the periodic phase relationship."
+    },
+    {
+      "setting": "Post-hoc four-cluster parity proxy (p.6; p.28 D.2)",
+      "metric": "Discrete proxy accuracy",
+      "result": "100% on 1,024 held-out alternating inputs; approximately 93% on the ordinary length-40 test set without refitting.",
+      "baseline": "The learned transformer itself is 100% on length-40 parity; the proxy loses about 7 points off the alternating manifold."
+    },
+    {
+      "setting": "SATNet Sudoku with train-mean τ=32 and test budgets 4–64 (p.6–7, Figure 2)",
+      "metric": "Exact-board accuracy stratified by blank count and per-step SDI energy",
+      "result": "Harder puzzles show larger accuracy loss at small loop budgets and slower SDI-energy decay; the paper gives curves rather than numeric accuracy cells.",
+      "baseline": "Easier puzzles and the τ=32 training-mean depth; prose disagrees whether saturation occurs near 32 or 64."
+    },
+    {
+      "setting": "Sampled Sudoku train set, easy ≤42 blanks versus hard ≥45 (p.7, Table 1)",
+      "metric": "Self-TracIn median [IQR] and cross-influence mass median [IQR]",
+      "result": "Hard: 0.451 [0.303,0.787] and 4.43 [3.77,5.80].",
+      "baseline": "Easy: 0.225 [0.155,0.367] and 3.07 [2.60,3.82]."
+    },
+    {
+      "setting": "Sudoku influence association (p.7)",
+      "metric": "Spearman correlation",
+      "result": "Difficulty–self ρ=0.428, difficulty–cross-mass ρ=0.500, self–cross-mass ρ=0.919; all p<0.001.",
+      "baseline": "Null monotone association ρ=0."
+    },
+    {
+      "setting": "Sudoku training-group contribution on hard 49–50-blank tests (p.7, Table 1)",
+      "metric": "Share of absolute TracIn mass and late SDI mass at steps 17–32",
+      "result": "Hard train: 38.9% share and 25.3% late mass.",
+      "baseline": "Easy train: 27.9% share and 24.3% late mass; timing differs by only 1.0 point despite p<0.001."
+    },
+    {
+      "setting": "328.3M recursive Nanochat, GSM8K train→test, τ=2–16, 82 mid-training plus 71 SFT checkpoints (p.7–8; p.30 D.5)",
+      "metric": "Normalized signed SDI share across recurrent steps",
+      "result": "Influence rises approximately geometrically; the final step usually contributes at least 50% of total signed influence.",
+      "baseline": "Training uses truncated BPTT k=4; the reported figure recomputes full BPTT so early steps are not forced to zero."
+    },
+    {
+      "setting": "Recursive Nanochat GSM8K test-time compute (p.8)",
+      "metric": "Task performance as recurrence count increases",
+      "result": "Performance plateaus for all test-time τ>4.",
+      "baseline": "τ≤4; the plateau supports but does not prove the proposed implicit final-step counter."
+    }
+  ],
+  "limitations": [
+    "Author-stated: TracIn has its cleanest interpretation under SGD; momentum, adaptive preconditioning, and optimizer-specific transformations are not captured by the nominal learning-rate-weighted Euclidean gradient product.",
+    "Author-stated: SDI is tied to a chosen unrolling and horizon; randomized depths, adaptive halting, and different loop counts make step indices difficult to compare.",
+    "Author-stated: truncated BPTT removes long-range credit assignment and makes early-step SDI exactly zero by construction.",
+    "Author-stated: full-horizon BPTT becomes expensive for long recurrences even though sketching removes full per-example gradient storage.",
+    "Author-stated: SDI does not certify that deleting/reweighting a point changes behavior and cannot disentangle shared-feature confounds.",
+    "Author-stated: dense train×test influence matrices remain costly; nearest-neighbor indexing of sketches is proposed but not evaluated.",
+    "Reviewer-identified: conservation covers only selected recurrent-body/injection parameters, not the model's complete read-in/read-out parameter influence.",
+    "Reviewer-identified: the global sketch has αm coordinates, so memory and dot-product cost grow with parameter-tensor count even though theorem notation emphasizes m.",
+    "Reviewer-identified: the scalability baseline uses synthetic random tokens and a 135.1M model; it does not establish end-to-end cost on the 328.3M case or billion-scale recurrent LMs.",
+    "Reviewer-identified: the 2.55-second timing lacks numeric forward/backward denominators, so the claim of negligible overhead cannot be checked as a fraction.",
+    "Reviewer-identified: sketch fidelity is measured against full gradients, not against true leave-one-out/retraining effects or an external attribution benchmark.",
+    "Reviewer-identified: no direct efficacy comparison is made with current scalable attribution systems such as TRAK, DataInf, or GraSS.",
+    "Reviewer-identified: parity circuit discovery starts from hand-selected alternating probes and post-hoc k=4 clustering; no causal hidden-state intervention validates the inferred finite-state machine.",
+    "Reviewer-identified: Sudoku training/test are intentionally split by difficulty and SDI uses only 512×512 sampled boards; results may combine difficulty, distribution shift, and sampling.",
+    "Reviewer-identified: blank count is an imperfect difficulty measure, and self-TracIn is treated as memorization without a data-removal or uniqueness test.",
+    "Reviewer-identified: all Table 1 p-values are <0.001, but late-mass effect sizes are only 0.9–1.0 percentage point and multiple-comparison handling is not discussed.",
+    "Reviewer-identified: the Nanochat evidence is 328.3M parameters, selected datasets, 1,024 sampled conversations, and GSM8K; it does not test general natural-language behaviors or large recurrent foundation models.",
+    "Reviewer-identified: normalizing signed SDI by a signed total can be unstable under cross-step cancellation; the paper does not report denominator diagnostics for Figure 3.",
+    "Reviewer-identified: full-BPTT Nanochat analysis changes the backward graph from the k=4 training graph, complicating claims about the actual optimization credit path.",
+    "Reviewer-identified: optimizer configuration, checkpoint spacing sensitivity, and alternative checkpoint weights are not ablated even though they define TracIn.",
+    "Internal-consistency limitation: Lemma 4 swaps P1/P2 coefficients between its statement and Equation 23; the proof roadmap also writes 2/m² where the final bound uses 4/m².",
+    "Internal-consistency limitation: Proposition 1 gives the wrong general bias dimension, Equation 11 mixes z and z′, and Sudoku saturation is described as near both 32 and 64 loops."
+  ],
+  "failure_modes": [
+    "With Adam-like optimizers, a large Euclidean gradient dot product can disagree with the preconditioned update direction and hence with realized influence.",
+    "Sparse checkpoints can miss short-lived positive/negative influence changes along training and alter the SDI trajectory.",
+    "If positive and negative step effects cancel, scalar TracIn hides them; conversely, signed-normalized SDI can become unstable when its total is near zero.",
+    "Truncated BPTT forces early-step influence to zero even when early activations causally affect the forward prediction.",
+    "Different or adaptive loop horizons make absolute step labels misaligned across examples; 'late' can mean different computational phases.",
+    "Small m or too many parameter tensors can induce sketch collisions and accumulate dot-product error despite unbiased expectation.",
+    "Very long horizons still require activations or recomputation for BPTT and τ feature vectors per example, exhausting memory or time.",
+    "Dense pairwise attribution remains quadratic in sampled train/query counts after features are computed.",
+    "Attribution restricted to the recurrent core misses behaviors driven mainly by input embedding, read-in, coda, or output-head parameters.",
+    "A periodic SDI curve can reflect periodic gradients or probe regularity without identifying a causal hidden-state circuit.",
+    "K-means state proxies can look exact on the alternating calibration manifold and fail on ordinary inputs, as the 100% versus approximately 93% parity results show.",
+    "Self-influence can reflect gradient norm, loss, or rarity rather than memorization; cross-influence mass can reflect group size and feature overlap.",
+    "Absolute SDI energy discards helpful/harmful sign and may conflate persistent small effects with a few large opposing effects.",
+    "Full-BPTT analysis of a truncated-BPTT-trained model may reveal mathematical dependencies that did not receive training credit.",
+    "The apparent last-step concentration can arise from vanishing/exploding gradient geometry or final-readout proximity rather than an encoded loop counter.",
+    "The variance proof's typographical inconsistencies create implementation or downstream-theory risk if readers copy the wrong coefficient assignment."
+  ],
+  "reusable_insights": [
+    "For any weight-tied recurrent module, decompose its total gradient by module invocation before forming attribution scores; exact conservation gives an immediate audit check.",
+    "State explicitly whether a temporal attribution resolves training-side causes, test-side effects, or both; these are different objects.",
+    "Outer-product gradient structure lets systems sketch during backpropagation, avoiding a large intermediate even when the final attribution method differs from TracIn.",
+    "Report per-tensor sketch dimension and global concatenated dimension separately; the latter determines actual memory and retrieval cost.",
+    "Use direct-sketch-versus-sum-of-step-sketch conservation as a numerical invariant for hook-based gradient tooling.",
+    "Pair a stepwise influence signature with forward-state dynamics to generate mechanistic hypotheses, then validate them causally rather than treating clustering as proof.",
+    "Influence-energy depth can complement accuracy-versus-compute curves by showing where extra recurrent computation remains data-sensitive.",
+    "Always report practical effect size alongside p-values; tiny timing shifts can be highly significant with paired samples.",
+    "When training truncates BPTT, distinguish the optimizer's credit graph from a post-hoc full-graph sensitivity analysis.",
+    "Approximate-nearest-neighbor indexing of sketched gradient features is a natural route from pairwise attribution research to deployable debugging.",
+    "The exact conservation identity provides a useful unit test even when a different unbiased random projection replaces TensorSketch."
+  ],
+  "open_questions": [
+    "Do high-SDI training points actually cause predicted step-specific behavior changes under deletion, reweighting, or targeted fine-tuning?",
+    "How does SDI compare with TRAK, DataInf, GraSS, and curvature-aware influence on attribution quality, memory, and throughput at equal budgets?",
+    "Can optimizer-aware or preconditioned SDI preserve a conservation law while matching AdamW training geometry?",
+    "How should steps be aligned across randomized horizons, adaptive halting, and examples that finish computation at different rates?",
+    "Can online/forward-mode, checkpointed, or reversible differentiation compute long-horizon SDI without full activation storage?",
+    "Can a joint train-step × test-step SDI matrix reveal distinct phases that the default test-side trajectory conflates, and can it be computed economically?",
+    "Does the period-4 parity state machine survive causal centroid swaps, activation patching, or targeted removal of phase-specific training examples?",
+    "Why do Sudoku late-mass differences remain around one point while total influence shares differ by roughly 10 points?",
+    "Is Nanochat's final-step geometric growth a learned counter, generic backpropagation-to-readout geometry, or an artifact of signed normalization?",
+    "Would models trained with full BPTT, explicit step embeddings, or adaptive halting exhibit the same final-step concentration?",
+    "How does sketch error accumulate across thousands of tensors, hundreds of recurrent steps, and many checkpoints in billion-scale systems?",
+    "Which coefficient order is intended in the Lemma 4 statement, and can the authors issue a corrected theorem/proof version that removes the 2/m² versus 4/m² inconsistency?",
+    "Can per-step gradient embeddings support depth-targeted data curation that improves late reasoning without damaging early parsing/grounding?",
+    "Can the method extend to preference optimization or RL trajectories while retaining an interpretable conserved total?",
+    "What attribution normalization remains stable under strong cross-step sign cancellation?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "neurips:2020:e6385d39ec9394f2f3a354d9d2b88eec",
+      "title": "Estimating Training Data Influence by Tracing Gradient Descent",
+      "url": "https://proceedings.neurips.cc/paper/2020/hash/e6385d39ec9394f2f3a354d9d2b88eec-Abstract.html",
+      "relationship": "Direct methodological foundation: TracIn defines the checkpoint-weighted gradient-similarity scalar that SDI decomposes.",
+      "difference": "TracIn attributes examples but aggregates all uses of tied recurrent parameters; SDI preserves the loop-body TracIn sum while resolving individual test-side recurrent calls and adds inline TensorSketch features.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2020 proceedings edition, Advances in Neural Information Processing Systems 33"
+    },
+    {
+      "canonical_id": "pmlr:v202:park23c",
+      "title": "TRAK: Attributing Model Behavior at Scale",
+      "url": "https://proceedings.mlr.press/v202/park23c.html",
+      "relationship": "Direct scalable data-attribution competitor using randomly projected gradient/kernel features.",
+      "difference": "TRAK targets attribution efficacy for large non-convex models and aggregates static model behavior; SDI targets exact recurrent-step localization of TracIn and sketches outer-product gradients during BPTT, but does not benchmark against TRAK's attribution metric.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2023 proceedings edition, PMLR volume 202 (23–29 July 2023)"
+    },
+    {
+      "canonical_id": "openreview:9m02ib92Wz",
+      "title": "DataInf: Efficiently Estimating Data Influence in LoRA-tuned LLMs and Diffusion Models",
+      "url": "https://openreview.net/forum?id=9m02ib92Wz",
+      "relationship": "Direct large-generative-model influence competitor with a closed-form approximation specialized to parameter-efficient tuning.",
+      "difference": "DataInf uses curvature-inspired closed forms and demonstrates Llama-2-13B/Stable Diffusion influence applications; SDI uses checkpoint gradient similarity, focuses on tied recurrent steps, and validates sketch distortion rather than leave-one-out influence accuracy.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "OpenReview ICLR 2024 conference-paper record (last modified 2024-03-13)"
+    },
+    {
+      "canonical_id": "neurips:2025:3e7bf1abfb9964af3412284e2290d335",
+      "title": "GraSS: Scalable Data Attribution with Gradient Sparsification and Sparse Projection",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2025/hash/3e7bf1abfb9964af3412284e2290d335-Abstract-Conference.html",
+      "relationship": "Closest systems competitor for avoiding dense per-sample gradients in gradient-based attribution.",
+      "difference": "GraSS/FactGraSS exploit gradient sparsity and report throughput on billion-scale models; SDI exploits exact outer-product structure with TensorSketch and adds recurrent-step conservation, but its systems benchmark is 135.1M parameters.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2025 proceedings edition, Advances in Neural Information Processing Systems 38"
+    },
+    {
+      "canonical_id": "pmlr:v202:giannou23a",
+      "title": "Looped Transformers as Programmable Computers",
+      "url": "https://proceedings.mlr.press/v202/giannou23a.html",
+      "relationship": "Direct architectural predecessor showing that a fixed shared transformer in a loop can execute iterative programs.",
+      "difference": "Giannou et al. construct/program looped transformers and analyze computational expressivity; the reviewed paper assumes learned looped models and traces training-example gradient influence across their recurrent executions.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2023 proceedings edition, PMLR volume 202 (23–29 July 2023)"
+    },
+    {
+      "canonical_id": "arxiv:2409.15647",
+      "title": "Looped Transformers for Length Generalization",
+      "url": "https://arxiv.org/abs/2409.15647",
+      "relationship": "Closest experimental predecessor for the parity architecture, adaptive loop count, and length-generalizable iterative algorithms.",
+      "difference": "Fan et al. train looped transformers to generalize known RASP-L-style computations; the reviewed work applies SDI to one such parity model and infers a four-state mechanism from influence and hidden-state trajectories.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v5 (2025-05-12; ICLR 2025 version)"
+    },
+    {
+      "canonical_id": "arxiv:2502.05171",
+      "title": "Scaling up Test-Time Compute with Latent Reasoning: A Recurrent Depth Approach",
+      "url": "https://arxiv.org/abs/2502.05171",
+      "relationship": "Direct recurrent-latent-reasoning predecessor and source of the test-time loop-scaling setting.",
+      "difference": "Geiping et al. scale recurrent-depth language modeling to 3.5B parameters/800B tokens and measure task gains with extra loops; SDI instead localizes training-data gradient influence by loop step, with its natural-language case limited to 328.3M Nanochat.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2 (2025-02-17)"
+    },
+    {
+      "canonical_id": "arxiv:2506.19143",
+      "title": "Thought Anchors: Which LLM Reasoning Steps Matter?",
+      "url": "https://arxiv.org/abs/2506.19143",
+      "relationship": "Direct step-importance competitor for reasoning interpretability, using sentence-level counterfactual, attention, and causal analyses.",
+      "difference": "Thought Anchors resolves explicit token-space reasoning sentences and includes counterfactual/attention interventions; SDI resolves latent recurrent module calls and links them to training examples, but does not causally intervene on the identified training data or states.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v4 (2025-10-27)"
+    },
+    {
+      "canonical_id": "arxiv:2505.08146",
+      "title": "Tensor Sketch: Fast and Scalable Polynomial Kernel Approximation",
+      "url": "https://arxiv.org/abs/2505.08146",
+      "relationship": "Direct random-sketch theory predecessor whose corrected variance analysis is specialized and tightened by the reviewed paper.",
+      "difference": "Pham and Pagh analyze Tensor Sketch for polynomial-kernel/tensor-product embeddings; SDI treats transformer gradient matrices as sums of activation–adjoint outer products and derives a claimed tight 4/m²+6/m dot-product bound, though its appendix contains coefficient typos.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2 (2025-05-18; extension/correction of KDD 2013)"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim the first step-resolved training-data influence estimator for weight-tied looped transformers, an exact conservation identity back to TracIn, a streaming TensorSketch implementation that never materializes per-example gradients, a tight variance bound improving prior TensorSketch analysis, and new per-step insights into parity circuits, Sudoku compute scaling, and recursive-language-model progress.",
+    "evidence": "The algebraic φ_t decomposition and Equations 5–9 define test-side, train-side, and joint step influence; Algorithm 1 and the 135.1M benchmark establish inline sketch fidelity and a 4→40 batch-size gain; Appendices B–C derive the variance result; parity, Sudoku, and 328.3M Nanochat cases show periodic, difficulty-dependent, and geometric trajectories unavailable from scalar TracIn.",
+    "reviewer_inference": "TracIn, scalable random-projection attribution, influence for recurrent/sequential data, stepwise input/reasoning attribution, looped-transformer interpretability, and TensorSketch all predate this work. The defensible novelty is their combination: an exact test-recurrence decomposition of loop-body TracIn plus per-step, per-example sketch-during-BPTT for tied transformer blocks. The conservation identity is mathematically clean but follows directly from shared-gradient additivity; the systems and attribution-quality claims are narrower than the abstract suggests because global dimension is αm, the largest systems benchmark is 135.1M, and no leave-one-out or modern attribution baseline is used. The claimed variance improvement appears supported by the later derivation, but Lemma 4's swapped coefficients and the 2/m²-versus-4/m² roadmap typo require correction before the proof should be treated as publication-clean. The parity/Sudoku/Nanochat results are useful hypothesis generation, not causal validation of circuits, memorization, or an implicit step counter."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "All 30 pages of the current cached arXiv v1 source were read, including the complete main text, references, extended related work, CountSketch/TensorSketch definitions, every page of the collision-case variance derivation, the tightness construction, the full Lemma 1 proof, and all experimental details for scalability, parity, Sudoku, and recursive Nanochat. Numeric claims were checked against the main text, Table 1, Figure captions, and Appendix D. Nine current primary competitors were verified on official arXiv, NeurIPS, ICLR, or PMLR pages on 2026-08-23 and version-pinned; none is the reviewed paper. Contradiction audits explicitly preserve the Lemma 4 coefficient swap, proof-roadmap coefficient typo, Proposition 1 dimension error, Equation 11 z/z′ mismatch, 32-versus-64 Sudoku saturation conflict, small late-mass effects, 100%-versus-93% parity proxy gap, and training-versus-analysis BPTT mismatch. This is a primary full-text reading, not code execution, independent reproduction, causal data-removal validation, or second-review verification."
+}

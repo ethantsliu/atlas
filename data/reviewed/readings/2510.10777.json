@@ -1,0 +1,86 @@
+{
+  "stable_id": "arxiv:2510.10777",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2510.10777",
+    "pdf_sha256": "db8f2f8c79abb74e1cc008f9ad8e5be7a7124800987dfb8b013e5fcbf1368396",
+    "text_sha256": "27408da2634818a36bee391538d41e85f57b0ee47e625ce36c20daa6909946f0",
+    "page_count": 24,
+    "extracted_at": "2026-08-23T14:41:41.652003+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can steepest descent under non-Euclidean matrix geometry and curvature-aware preconditioning be represented by one norm construction, and can that construction produce useful spectral-and-adaptive optimizers with provable reparameterization invariance?",
+  "key_findings": [
+    {
+      "claim": "Left/right and elementwise preconditioned matrix norms reduce their linear minimization oracles to an oracle in a transformed gradient space.",
+      "evidence": "Definitions 1-2 introduce the two norm families, while Theorem 1 maps the gradient into the preconditioned space, applies the base-norm oracle, and maps the direction back. Table 1 recovers normalized SGD, SignSGD, Muon, K-FAC, Shampoo, Adam, SOAP, and SPlus as instances.",
+      "anchors": [{"page": 6, "section": "2, Definitions 1-2 and Theorem 1"}, {"page": 7, "section": "Table 1"}]
+    },
+    {
+      "claim": "The framework yields necessary and sufficient transformation rules for affine and coordinate-scale invariance of matrix-parameterized updates.",
+      "evidence": "Theorem 2 states that left/right preconditioners must transform with the two basis changes for affine invariance, while an elementwise preconditioner must scale elementwise with the parameter rescaling; Corollary 1 applies the latter condition to MuAdam-SANIA when epsilon is zero.",
+      "anchors": [{"page": 9, "section": "3, Theorem 2 and Corollary 1"}]
+    },
+    {
+      "claim": "MuAdam combines Adam-style moment statistics with a spectral linear-minimization step by preconditioning both before and after Newton-Schulz orthogonalization.",
+      "evidence": "Algorithm 1 uses exponent p=1/4 for MuAdam and p=1/2 for MuAdam-SANIA, divides the bias-corrected momentum by the adaptive statistic, applies the Muon-style Newton-Schulz map, and divides a second time before updating parameters.",
+      "anchors": [{"page": 7, "section": "Algorithm 1"}]
+    },
+    {
+      "claim": "The empirical advantage is task-dependent rather than uniform.",
+      "evidence": "MuAdam leads the reported LoRA GLUE average, but AdamW leads full fine-tuning. On Qwen2-7B it beats both baselines on BoolQ and HellaSwag but trails on ARC-Challenge. On character Shakespeare it beats AdamW for three and four layers but not two layers.",
+      "anchors": [{"page": 10, "section": "4.2-4.3 and Table 2"}, {"page": 11, "section": "4.3-4.4 and Table 3"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Encode curvature or coordinate adaptation inside a matrix norm, then derive the corresponding steepest-descent direction from the base norm's linear minimization oracle.",
+    "mechanism": "Two-sided matrices represent Kronecker-style preconditioning and an elementwise matrix represents Adam-style scaling. The framework transforms the gradient, applies a selectable base geometry such as Frobenius, sign, or spectral, and transforms the direction back. MuAdam instantiates the spectral choice with adaptive moments and Newton-Schulz orthogonalization.",
+    "assumptions": [
+      "The preconditioners are invertible or regularized enough for the inverse transformations.",
+      "The base-norm oracle has a unique solution in the invariance theorem.",
+      "Finite Newton-Schulz iterations adequately approximate the spectral oracle.",
+      "The epsilon-free invariance result remains a useful guide even though practical optimizers generally need numerical stabilization."
+    ]
+  },
+  "techniques": [
+    {"id": "preconditioned-matrix-norm", "role": "Makes geometry and curvature adaptation composable in one optimization abstraction."},
+    {"id": "transformed-space-lmo", "role": "Derives update directions by applying a base-norm oracle after preconditioning the gradient."},
+    {"id": "double-adaptive-spectral-step", "role": "Places a Newton-Schulz spectral map between two adaptive scaling operations."},
+    {"id": "reparameterization-invariance", "role": "Characterizes exactly how preconditioners must change under basis or coordinate rescaling."}
+  ],
+  "evaluations": [
+    {"setting": "Two-layer MLP on original and exponentially rescaled Mushrooms features", "metric": "Training-loss and test-accuracy trajectory agreement", "result": "Adam-SANIA and MuAdam-SANIA retain overlapping original/scaled trajectories; MuAdam-SANIA matches or exceeds Adam-SANIA", "baseline": "AdamW and Muon, whose trajectories degrade under rescaling"},
+    {"setting": "DistilBERT on eight GLUE tasks with LoRA and full fine-tuning", "metric": "Average validation score", "result": "Reported LoRA average is 0.7869 for AdaMuon/MuAdam-like method, versus 0.7663 AdamW and 0.7687 Muon; full AdamW is best at 0.8271", "baseline": "AdamW, Muon, RMS-spectral variants"},
+    {"setting": "Character-level Shakespeare transformers", "metric": "Best validation accuracy", "result": "MuAdam scores 0.5483, 0.5597, and 0.5664 at 2/3/4 layers", "baseline": "AdamW scores 0.5506, 0.5580, 0.5636; Muon scores 0.5382, 0.5274, 0.5568"}
+  ],
+  "limitations": [
+    "Reviewer-identified: the experiments are fine-tuning and small-language-model studies, not controlled pretraining-scale tests of optimizer efficiency or stability.",
+    "Reviewer-identified: best-over-learning-rate reporting and task-dependent wins do not establish a generally dominant optimizer.",
+    "Author-visible caveat: exact scale invariance for MuAdam-SANIA is proved only with epsilon equal to zero, whereas numerical implementations use epsilon.",
+    "Reviewer-identified: the unifying vocabulary does not itself prove that every combination of preconditioner and norm has favorable convergence or computational cost."
+  ],
+  "failure_modes": [
+    "Near-singular adaptive statistics can make the transformed-space direction unstable.",
+    "An inaccurate or low-iteration polar-factor approximation can change the intended spectral geometry.",
+    "The double preconditioning can over-amplify low-variance coordinates.",
+    "Optimizer rankings may reverse across full fine-tuning, LoRA, model depth, or dataset."
+  ],
+  "reusable_insights": [
+    "Treat optimizer design as the orthogonal choice of a geometry and a curvature estimator.",
+    "Check equivariance of state variables, not only the final update, when claiming reparameterization invariance.",
+    "Report per-task losses alongside aggregate scores because optimizer improvements are heterogeneous."
+  ],
+  "open_questions": [
+    "Which preconditioner/base-norm combinations retain convergence guarantees under stochastic nonconvex training?",
+    "Does MuAdam preserve its advantage in compute-matched pretraining at billion-parameter scale?",
+    "Can epsilon-regularized variants obtain approximate invariance with a quantitative error bound?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2409.11321", "title": "SOAP: Improving and Stabilizing Shampoo using Adam", "url": "https://arxiv.org/abs/2409.11321", "relationship": "direct predecessor", "difference": "SOAP runs Adam-like adaptation in Shampoo's slowly changing eigenbasis; this paper abstracts that interaction as a preconditioned norm and instead proposes spectral MuAdam variants."},
+    {"canonical_id": "arxiv:1802.09568", "title": "Shampoo: Preconditioned Stochastic Tensor Optimization", "url": "https://arxiv.org/abs/1802.09568", "relationship": "foundational preconditioner", "difference": "Shampoo supplies Kronecker-factored matrix statistics under Frobenius geometry; the reviewed framework makes the base geometry selectable and treats Shampoo as one instance."},
+    {"canonical_id": "arxiv:1503.05671", "title": "Optimizing Neural Networks with Kronecker-factored Approximate Curvature", "url": "https://arxiv.org/abs/1503.05671", "relationship": "foundational curvature method", "difference": "K-FAC approximates natural-gradient curvature from activations and gradients; the reviewed work focuses on a norm-level representation of two-sided preconditioning and alternative linear-minimization geometries."}
+  ],
+  "novelty_assessment": "Reviewer inference: the strongest novelty is the algebraic packaging of two-sided and elementwise preconditioning with arbitrary matrix-norm oracles plus an explicit matrix-invariance criterion. The individual ingredients—Kronecker preconditioning, adaptive moments, spectral descent, and Newton-Schulz updates—substantially predate the paper, and the empirical evidence supports competitiveness rather than general superiority.",
+  "confidence": 0.88,
+  "reviewer_notes": "Read against the exact v3 extraction. Quantitative claims are confined to the paper's selected hyperparameter sweeps; the distinction between theorem-level exact invariance and stabilized implementation is reviewer emphasis. Competitor records were checked on arXiv on 2026-08-23."
+}

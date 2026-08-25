@@ -1,0 +1,496 @@
+{
+  "stable_id": "arxiv:2305.17559",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2305.17559",
+    "pdf_sha256": "b5675e975d2cf36e8a36a66e19ee673dd03a585e904749edfcca3e18f741304f",
+    "text_sha256": "f609b54d527ffa6fae0013d89e7851447e33be4abe4897ed9d76bee43a0e57e3",
+    "page_count": 13,
+    "extracted_at": "2026-08-23T19:26:57.345503+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can randomized matrix-multiplication sketching explain pruning at initialization, justify data-free mask selection, and improve deep sparse-network training by sampling rather than thresholding saliency scores?",
+  "key_findings": [
+    {
+      "claim": "Lemma 4.2 is false because its proof discards positive cross-terms in a squared sum.",
+      "evidence": "Lemma 4.1 gives the conditional error as s^{-1}(sum_k ||X_(k)|| |w_k|)^2 minus a nonnegative correction. In Appendix B.2, the proof then upper-bounds the expectation of that squared nonnegative sum by s^{-1} sum_k E||X_(k)||^2 w_k^2. The inequality goes in the wrong direction: expanding the square adds positive cross-terms. Independence of the rows makes their expectations factorize; it does not make them zero. An exact counterexample is n=1, d=3, and w=(1,1,1): Lemma 4.1 gives expected error 12/(pi s), which exceeds the claimed 3/s upper bound. The advertised ||w^0||_2^2/s random-data bound is therefore false.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Lemma 4.1 and Lemma 4.2"},
+        {"page": 11, "section": "Appendix B.2 / proof of Lemma 4.2"}
+      ]
+    },
+    {
+      "claim": "The exact sketching identity uses a weighted random estimator, not an ordinary binary pruning mask.",
+      "evidence": "Algorithm 1 makes s draws with replacement and adds 1/(s p_i) each time an index is selected. Its surviving entries are unequal, can exceed one, and can accumulate after repeated draws; there can also be fewer than s distinct nonzeros. This scaling is what makes X^T(w multiplied by m) unbiased in Appendix B.1. A standard pruned network instead keeps selected weights unchanged with a binary mask, so the exact approximation identity is about importance-sampling compression rather than conventional pruning.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Algorithm 1 / sketching for mask"},
+        {"page": 10, "section": "Appendix B.1 / expectation and variance"}
+      ]
+    },
+    {
+      "claim": "The variable s is a sample count, yet the paper repeatedly interprets it as mask density.",
+      "evidence": "Algorithm 1 declares integer s and performs exactly s draws with replacement; its own text acknowledges ||m||_0 can be strictly below s. Calling s density and saying entries are sampled until the desired density is achieved conflates number of draws, number of unique retained coordinates, and retained fraction. The later statement s=O(sqrt(d)) therefore does not directly specify the percentage sparsity used in experiments.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Algorithm 1 and sampling discussion"},
+        {"page": 6, "section": "Theorem 6.2 / s-dense NTK mask"}
+      ]
+    },
+    {
+      "claim": "The principal linear theorem approximates a dense final vector after the fact; it does not analyze the sparse network's training trajectory.",
+      "evidence": "Theorem 4.4 chooses a mask from X and w^0, then bounds reconstruction of X^T w^star by X^T(w^star multiplied by m), where w^star is described as the learned dense final weight vector. Pruning at initialization instead trains under a fixed support and produces a different final vector. No result relates the masked dense optimum to the optimization path, loss, or predictor obtained by training the sparse model, so the theorem is not a lottery-ticket or sparse-training guarantee.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Section 4 / pruning approximation target"},
+        {"page": 4, "section": "Theorem 4.4 and post-training comparison"}
+      ]
+    },
+    {
+      "claim": "Theorem 4.4 can be vacuous because its constant is the maximum coordinatewise ratio between final and initial weights.",
+      "evidence": "The bound is c^2 ||w^0||_1^2/s with c=max_j |w^star_j/w^0_j|. Merely assuming every initialized coordinate is nonzero does not control c: common continuous zero-centered initializers place some coordinates arbitrarily close to zero as dimension grows. A small global parameter displacement in an NTK regime also does not bound every coordinatewise ratio. The paper never measures c, the bound, or its relationship to accuracy in any network.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Theorem 4.4 and Lemma 4.5 comparison"},
+        {"page": 11, "section": "Appendix B.3 / nonzero-initialization assumption"}
+      ]
+    },
+    {
+      "claim": "The theorem statements suppress mask randomness and thereby misstate what is averaged.",
+      "evidence": "The paper says the mask is random, and Lemma 4.3 explicitly uses E_m. But Lemma 4.2 and Theorem 4.4 display only E_X even though m is sampled from probabilities that themselves depend on X. Their proofs nest or invoke the conditional mask expectation. The relevant quantity is an expectation over both X and m, with their dependence made explicit, not E_X of a still-random expression.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Section 4 / expected approximation error"},
+        {"page": 4, "section": "Lemma 4.3 and Theorem 4.4"},
+        {"page": 11, "section": "Appendix B.2-B.3 proofs"}
+      ]
+    },
+    {
+      "claim": "The comparison with uniform sampling does not establish that the proposed bound is tighter.",
+      "evidence": "The paper contrasts c^2||w^0||_1^2/s with dc^2||w^0||_2^2/s and emphasizes removal of a dimension factor. Yet ||w||_1^2 can equal d||w||_2^2 for equal magnitudes, so the displayed upper bounds can tie; neither bound is evaluated on the actual initial and final parameters. More importantly, both use the same uncontrolled c and address feature reconstruction rather than sparse-model accuracy.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "Lemma 4.5 / uniform-mask baseline"},
+        {"page": 12, "section": "Appendix B.4 / uniform-mask proof"}
+      ]
+    },
+    {
+      "claim": "The theoretical data-independence result depends on an isotropic Gaussian input model and ignores labels and real feature structure.",
+      "evidence": "Lemmas 4.2 and 4.5 and Theorem 4.4 assume X has independent N(0,1/n) entries. Real images are correlated, non-Gaussian, augmented, and paired with labels; the optimal sampling probabilities in Equation 2 depend directly on row norms of X. No robustness result covers covariance shift, nonisotropic data, classification loss, or the label-conditioned information used by supervised pruning criteria.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "Equation 2 and Lemma 4.2"},
+        {"page": 4, "section": "Theorem 4.4 / Gaussian data"}
+      ]
+    },
+    {
+      "claim": "The claimed SynFlow resemblance is a limited linear analogy rather than an equivalence for deep networks.",
+      "evidence": "For a scalar linear model the paper replaces SynFlow's all-ones input with the vector of data-row norms and observes that the resulting score is proportional to ||X_(j)|| |w_j|. SynFlow in a multilayer network scores parameters through products over input-output paths and iterates pruning to avoid layer collapse. The paper's chi input follows only because Gaussian row norms are chi-distributed; it neither proves that deep SynFlow samples the sketch distribution nor connects the linear reconstruction error to deep accuracy.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "Section 5 / connection to SynFlow"},
+        {"page": 5, "section": "Equation 4 / chi-distributed input"}
+      ]
+    },
+    {
+      "claim": "The SNIP derivation applies only to a specially constructed loss and input pattern.",
+      "evidence": "The analysis switches to an l1 loss and constructs sparse samples so that each input coordinate is nonzero in exactly one example. Under that restrictive design the sensitivity becomes proportional to a weight magnitude times a row norm. It is not a general equivalence to SNIP under the cross-entropy classification losses and ordinary minibatches used in the reported image experiments.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "Section 5 / SNIP with sparse inputs"}
+      ]
+    },
+    {
+      "claim": "The empirical random-mask intervention does not implement Algorithm 1 or inherit its theorem.",
+      "evidence": "In experiments the authors first obtain a globally thresholded saliency mask, preserve the resulting number of weights in each layer, and then sample a binary mask within each layer because global sampling was computationally infeasible. There is no inverse-probability rescaling, repeated-draw multiplicity, or random unique-count behavior. Thus the practical method preserves layerwise information from the original score mask but loses the unbiased estimator on which the sketching analysis rests.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Algorithm 1 / weighted sampling"},
+        {"page": 7, "section": "Section 7 / practical mask randomization"}
+      ]
+    },
+    {
+      "claim": "The NTK theorem is an idealized linearized-output bound with potentially explosive inverse-coordinate and inverse-Jacobian factors.",
+      "evidence": "Theorem 6.2 assumes the wide-network NTK conditions, full-rank analytic kernel, bounded local Jacobian, sufficiently small learning rate, and width n at least N. Its right side includes F(theta_0)=sum 1/|theta_0k|, F(J(theta_0))=sum 1/||J(theta_0)^(k)||, lambda_min^{-2}, l1 norms, powers of K, R_0, and sqrt(d). Any small initialized coordinate, insensitive parameter, or ill-conditioned kernel can make the result enormous or undefined. The conclusion concerns expected linearized feature reconstruction, not nonlinear sparse training or test accuracy.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "Definition 6.1 and Theorem 6.2"},
+        {"page": 12, "section": "Appendix B.5 / NTK proof"},
+        {"page": 13, "section": "Appendix B.5 / final NTK bound"}
+      ]
+    },
+    {
+      "claim": "The paper never validates that its approximation bounds predict the empirical pruning outcomes.",
+      "evidence": "None of Figures 1-3 or Tables 1-6 reports the feature error in the theorems, the constants c or F, the sampled-mask variance, the number of unique Algorithm 1 selections, or correlation between a bound and accuracy. The theory is evaluated on a linear/Gaussian target while experiments report deep classification accuracy for a different binary per-layer intervention, leaving the theoretical and empirical sections disconnected.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "Theorem 4.4"},
+        {"page": 5, "section": "Table 1"},
+        {"page": 6, "section": "Table 2 and Theorem 6.2"},
+        {"page": 7, "section": "Tables 3-4 / experiments"}
+      ]
+    },
+    {
+      "claim": "The data-free experiments still use statistics and structural information derived from the original task.",
+      "evidence": "Random inputs are sampled from a normal distribution with the same mean and standard deviation as the original dataset. Randomized masks also retain per-layer counts induced by the original globally thresholded pruning scores. These are weaker dependencies than using labeled examples, but the setup is not fully dataset-independent or score-independent; transfer to a new dataset without its moments or a new architecture without recomputing quotas is not tested.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Section 7 / data-free pruning and mask construction"}
+      ]
+    },
+    {
+      "claim": "Mask randomization yields mixed and often very small gains rather than a uniformly robust improvement.",
+      "evidence": "Table 1 includes degradations for VGG-19 CIFAR-10 at 5% and several chi variants, and Table 4 shows Kaiming randomization falling from 92.68 to 92.44 at 5% and from 91.68 to 91.63 at 2%, despite the caption saying it matches or enhances performance across all schemes. On ImageNet ResNet-50, Table 3 reports only 0.29 and 0.34 percentage-point gains at 10% and 5%, without uncertainty. Three seeds are used for the smaller experiments, with no statistical tests.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Table 1"},
+        {"page": 7, "section": "Tables 3-4"},
+        {"page": 8, "section": "Results / state-of-the-art claim"}
+      ]
+    },
+    {
+      "claim": "The ProsPr results reveal a severe unexplained instability that weakens aggregate conclusions.",
+      "evidence": "For VGG-19 on CIFAR-100, Table 2 reports supervised ProsPr at 59.12/52.61/52.63, random-data ProsPr collapsing to 11.55/8.43/8.39, and adding a random mask jumping to 72.68/71.38/69.00 at 10/5/2% density. A randomization that exceeds the supervised method by 13-16 points after the underlying random-data score nearly fails suggests an implementation, threshold, layer-collapse, or variance issue. The paper does not diagnose it, add learning curves, or repeat with more seeds.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "Table 2 / CIFAR-100 ProsPr rows"}
+      ]
+    },
+    {
+      "claim": "The experiments do not establish end-to-end efficiency or a new state of the art.",
+      "evidence": "The paper reports final accuracy but no wall-clock training time, pruning time, sparse-kernel implementation, realized training FLOPs, peak memory, or energy. Unstructured masks do not automatically accelerate commodity hardware. The ImageNet evidence is one ResNet-50 comparison against SynFlow at two densities with no reported variance, while stronger data-agnostic, structured, random, path-based, and topology-aware methods are absent. The phrase new state of the art is therefore unsupported by the evaluation panel.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Table 3 / Tiny-ImageNet and ImageNet"},
+        {"page": 8, "section": "Results / new-state-of-the-art statement"}
+      ]
+    },
+    {
+      "claim": "The reviewed source does not provide the code it says is attached.",
+      "evidence": "Page 7 states that the code is attached in supplementary material and is based on four cited repositories. The official arXiv v2 source archive contains PAMI.tex, ref.bib, two style files, one README manifest, and five figure PDFs, but no source code, configuration, environment, tests, logs, raw results, or license. No public author repository for this paper was located. A publisher-hosted attachment may exist behind IEEE's article interface, but it was not exposed by the reviewed arXiv source or a stable public artifact URL, so the reported tables are not independently executable from the available record.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Section 7 / code and implementation statement"}
+      ]
+    },
+    {
+      "claim": "The paper itself confines the proved connection to a simple linear setting and leaves the essential deep extension open.",
+      "evidence": "The limitations section says future work must generalize the linear-features framework to deeper models, where the mask search is larger and different masks can realize the same output. That admission is important: the paper's deep experiments are heuristic transfers of a sampling intuition, not a proved extension of the sketching equivalence or bounds.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "Conclusion and limitations"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "View selection of coordinates in a linear predictor as randomized matrix-multiplication sketching, use importance probabilities proportional to input-row norm times initial weight magnitude, and transfer the resulting sampling intuition to pruning-at-initialization scores.",
+    "mechanism": "For X in R^{d by n} and w in R^d, sample s coordinate indices with replacement using p_i proportional to ||X_(i)|| |w_i| and add 1/(s p_i) to the sampled mask entries. This produces an unbiased weighted approximation to X^T w and a conditional variance expression. Apply a mask selected from w^0 to an unknown dense final w^star, derive Gaussian-input reconstruction bounds, relate the linear score to modified SynFlow and a special SNIP construction, extend the feature-error calculation to a linearized NTK model, and empirically replace global hard thresholding with binary within-layer sampling based on existing saliency scores.",
+    "assumptions": [
+      "The linear feature-reconstruction problem is an adequate proxy for selecting a trainable deep sparse subnetwork.",
+      "A nonbinary inverse-probability sketch can inform a binary pruning mask without changing the guarantee.",
+      "The number of with-replacement samples is interchangeable with unique mask density and retained fraction.",
+      "Input rows are independent isotropic Gaussian vectors when deriving the data-free bounds.",
+      "Every initialized coordinate and every relevant initial Jacobian column has nonzero norm.",
+      "The maximum coordinatewise ratio |w^star_j/w^0_j| is controlled in practical training.",
+      "Approximating a dense final predictor after training says something about training a sparse predictor from initialization.",
+      "Feature reconstruction predicts task loss, generalization, and classification accuracy.",
+      "The linear SynFlow and special l1-loss SNIP calculations transfer to multilayer cross-entropy networks.",
+      "The NTK remains effectively fixed, full rank, locally Lipschitz, and well conditioned at sufficient width and learning rate.",
+      "Sampling a binary mask inside layer quotas selected by global thresholding is a faithful implementation of the sketch estimator.",
+      "Three image-classification seeds and a single unreported-variance ImageNet run suffice to support generic improvement claims."
+    ]
+  },
+  "techniques": [
+    {"id": "row-sampling", "role": "Samples coordinates with probabilities proportional to input-row norm times parameter magnitude."},
+    {"id": "weighted-mask", "role": "Rescales every sampled coordinate by inverse sampling probability to preserve unbiased features."},
+    {"id": "variance-bound", "role": "Uses randomized matrix-multiplication variance identities to bound linear feature reconstruction."},
+    {"id": "gaussian-input", "role": "Averages row-norm expressions under an isotropic normal data model."},
+    {"id": "ratio-bound", "role": "Controls final-to-initial parameter change through a maximum coordinatewise ratio c."},
+    {"id": "synflow-link", "role": "Replaces SynFlow's all-ones input with row norms, producing a chi input for Gaussian data."},
+    {"id": "snip-link", "role": "Constructs sparse inputs under l1 loss so linear sensitivity resembles the sampling score."},
+    {"id": "ntk-linearize", "role": "Applies the sketch calculation to Jacobian-weighted linearized outputs under wide-network assumptions."},
+    {"id": "score-sampling", "role": "Randomizes thresholded saliency masks while preserving induced per-layer parameter counts."},
+    {"id": "random-input", "role": "Runs data-dependent pruners on Gaussian samples matched to each dataset's mean and standard deviation."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Linear predictor with known X and w^0, then isotropic Gaussian X and unknown dense final w^star.",
+      "metric": "Expected squared error between dense features X^T w and weighted masked features X^T(w multiplied by m).",
+      "result": "Lemma 4.1 gives the standard importance-sampling identity; Theorem 4.4 gives c^2||w^0||_1^2/s; Lemma 4.5 gives a uniform upper bound d||w^star||_2^2/s. Lemma 4.2's stronger ||w^0||_2^2/s claim has an invalid proof.",
+      "baseline": "Uniform with-replacement coordinate sampling; no exact subset-selection optimum, binary-mask bound, trained sparse solution, loss, or held-out prediction baseline."
+    },
+    {
+      "setting": "VGG-19 and ResNet-20 on CIFAR-10/100 at 10%, 5%, and 2% retained weights.",
+      "metric": "Mean test accuracy plus or minus standard deviation over three seeds.",
+      "result": "Randomized SynFlow and sparse-input randomized SNIP often improve accuracy, but SynFlow gains are generally fractions of a point and include degradations; CIFAR-100 VGG-19 SNIP at 2% is unstable with standard deviations near 14-15 points.",
+      "baseline": "Vanilla SynFlow, chi-input SynFlow, normal-random-input SNIP, sparse-input SNIP, and magnitude-only pruning; no ERK, PHEW, Rare Gems, structured PaI, or post-2023 topology-aware baseline."
+    },
+    {
+      "setting": "GraSP, IMP, and ProsPr with supervised or matched-Gaussian random inputs and optional mask randomization on CIFAR-10/100.",
+      "metric": "Mean test accuracy plus or minus standard deviation over three seeds.",
+      "result": "Effects vary by method and architecture. The most anomalous case is CIFAR-100 VGG-19 ProsPr: random data nearly collapses, while randomizing that mask reports 69-73% accuracy and greatly exceeds the supervised ProsPr rows without diagnosis.",
+      "baseline": "Supervised versions are reference points, but IMP uses warm-up iterations and is not literally an initialization-only method; there are no learning curves, implementation cross-checks, or higher-seed confirmations."
+    },
+    {
+      "setting": "ResNet-18 and WideResNet on Tiny-ImageNet at 10%, 5%, and 2%; ResNet-50 on ImageNet at 10% and 5%.",
+      "metric": "Top-1 test accuracy.",
+      "result": "Tiny-ImageNet randomized SynFlow gains roughly 0.9-1.35 points. ImageNet rises from 62.76 to 63.05 at 10% and 57.65 to 57.99 at 5%.",
+      "baseline": "Only vanilla SynFlow is shown; Table 3 reports no uncertainty for Tiny-ImageNet or ImageNet and omits ImageNet at 2%."
+    },
+    {
+      "setting": "VGG-19 on CIFAR-10 under Kaiming, normal, and Xavier initializations.",
+      "metric": "Three-seed test accuracy at 10%, 5%, and 2% density.",
+      "result": "Randomization improves every normal and Xavier row but slightly degrades Kaiming at 5% and 2%, contradicting the table caption's across-all-schemes match-or-enhance wording.",
+      "baseline": "Vanilla SynFlow under the same initializer; no initializer-scale sweep or bound-constant measurement."
+    },
+    {
+      "setting": "VGG-19 CIFAR-10 with layerwise rather than global SNIP densities.",
+      "metric": "Three-seed test accuracy at 10%, 5%, and 2% density.",
+      "result": "Binary randomization raises 85.12/78.26/64.64 to 91.12/89.64/87.97 and sharply reduces reported variance.",
+      "baseline": "Layerwise SNIP without data; only one architecture and dataset, with no investigation of whether the gain is avoidance of isolated neurons or layer collapse."
+    },
+    {
+      "setting": "Illustrative analysis of a Fashion-MNIST fully connected network and VGG-19 CIFAR-10 masks.",
+      "metric": "Ticket norms, saliency-score histograms, and retained initial-weight histograms in Figures 1-3.",
+      "result": "IMP and SynFlow masks favor larger-magnitude weights, and random score sampling broadens retained-score distributions.",
+      "baseline": "Illustrative plots only; no confidence intervals, preregistered statistic, causal ablation, or link to the theorem's reconstruction bound."
+    },
+    {
+      "setting": "Theorem 6.2 under the cited wide-network NTK assumptions.",
+      "metric": "High-probability upper bound on expected squared error of masked linearized outputs.",
+      "result": "The error scales as 1/s multiplied by initialization l1 norms, inverse coordinate/Jacobian sums, kernel conditioning, and constants from the NTK theorem.",
+      "baseline": "No finite-width numerical evaluation, nonlinear-output error, sparse training theorem, or empirical comparison of bound values."
+    }
+  ],
+  "limitations": [
+    "Lemma 4.2 relies on a reversed inequality and is false for ordinary nonzero weight vectors.",
+    "Algorithm 1 produces a weighted nonbinary mask, while experiments use fixed-cardinality binary masks.",
+    "The sample count s is conflated with unique nonzeros and percentage density.",
+    "Theorem 4.4 evaluates a masked dense final vector rather than the final vector learned by a sparse training trajectory.",
+    "The maximum coordinatewise change c is uncontrolled and unmeasured.",
+    "Mask randomness is missing from several theorem expectations.",
+    "The data-free theory assumes independent isotropic Gaussian inputs and contains no labels or classification loss.",
+    "The SynFlow and SNIP relationships hold only for simplified linear constructions.",
+    "The NTK result requires strong infinite-width-style assumptions and contains inverse quantities that can diverge.",
+    "No experiment measures the theorem's error, constants, tightness, or predictive relationship to accuracy.",
+    "The practical randomizer retains layer quotas from the thresholded method and cannot be sampled globally at reported scale.",
+    "Random inputs use the original dataset's mean and standard deviation.",
+    "Most reported experiments use only three seeds and no statistical tests; the large-scale table reports no uncertainty.",
+    "No realized training speed, memory reduction, energy saving, or sparse-hardware behavior is evaluated.",
+    "The public arXiv source does not include the code that the paper says is attached in supplementary material.",
+    "The authors explicitly leave extension from linear features to deep mask identifiability for future work."
+  ],
+  "failure_modes": [
+    "Near-zero initialized weights make c and F(theta_0) enormous even when the total parameter displacement is small.",
+    "Zero or nearly zero Jacobian columns make the NTK bound undefined or vacuous.",
+    "Sampling with replacement yields fewer unique parameters than requested, especially when the probability mass is concentrated.",
+    "Inverse-probability weights can have high variance and large magnitudes when a low-probability coordinate is sampled.",
+    "Converting the estimator to a binary mask destroys unbiasedness and can change both activation and gradient scale.",
+    "Per-layer resampling may work only because it preserves layerwise density, a fact already exposed by shuffling sanity checks.",
+    "A good dense-feature approximation can train poorly because sparse optimization, path connectivity, normalization, and gradient flow differ.",
+    "Matched Gaussian pixels can be a poor proxy for structured inputs and can destabilize gradient- or meta-gradient-based pruners.",
+    "Global unstructured sparsity can isolate neurons or collapse layers without explicit topology constraints.",
+    "A small accuracy delta from three seeds can reverse across seeds, training recipes, or initializer scales.",
+    "An unstructured parameter-count reduction can increase or preserve wall-clock cost on dense hardware.",
+    "An unexplained implementation pathology can appear as a large benefit of randomization, as suggested by the ProsPr rows."
+  ],
+  "reusable_insights": [
+    "Separate importance-sampling compression, binary pruning, and sparse training; they have different estimators and guarantees.",
+    "Report sample count, unique retained count, and retained fraction separately for with-replacement mask generators.",
+    "Stress-test any ratio-based bound under the minimum absolute initialization coordinate, not just an l2 movement theorem.",
+    "Write dependent expectations explicitly as E_X E_{m|X} and test proof inequalities on equal-coordinate counterexamples.",
+    "Connect a pruning theorem to the actual sparse optimizer and final sparse weights rather than masking a dense solution after training.",
+    "Evaluate theoretical proxy values and their rank correlation with loss, convergence, and held-out accuracy across masks.",
+    "Use binary-aware sampling theory, such as without-replacement or dependent rounding, when the deployed mask is binary and fixed-cardinality.",
+    "Always include random, ERK, magnitude-only, layer-shuffled, reinitialized, and layer-quota-only baselines for pruning at initialization.",
+    "Treat large gains that follow a collapsed precursor as an artifact-audit trigger, with learning curves and independent implementations.",
+    "Define data-free precisely by separating labels, raw examples, dataset moments, architecture statistics, and transferred masks.",
+    "Measure realized sparse training time, memory, FLOPs, and energy rather than equating parameter sparsity with efficiency.",
+    "Release exact masks, scores, seeds, per-run tables, source revisions, environments, and executable pruning code."
+  ],
+  "open_questions": [
+    "What is the correct Gaussian expectation and concentration bound for the weighted sketch after retaining all positive cross-terms?",
+    "Can a without-replacement binary sampling scheme preserve comparable feature guarantees at exactly fixed sparsity?",
+    "Can c be replaced by a stable norm, quantile, or pathwise change measure that remains finite under standard random initialization?",
+    "What theorem relates a mask chosen at initialization to the weights and predictor produced by constrained sparse training?",
+    "Do feature-reconstruction bounds predict convergence speed or test accuracy after controlling for layerwise density and connectivity?",
+    "Is the benefit of randomizing scores entirely explained by layer-collapse avoidance, topology, or stochastic regularization?",
+    "Why does random-data ProsPr collapse before random-mask sampling apparently exceeds supervised ProsPr by a large margin?",
+    "How do results change with exact global weighted sampling, without-replacement sampling, and dependent rounding?",
+    "Does a mask computed from dataset moments transfer to datasets with different covariance, label structure, or input modality?",
+    "Which data-agnostic signal best predicts realized sparse training efficiency on accelerators rather than parameter count alone?",
+    "Can the NTK bound be made finite-width, binary-mask, and free of inverse minimum-coordinate terms?",
+    "Would a preregistered multi-seed benchmark still support the claimed ImageNet and initializer-robust improvements?",
+    "Where is the exact supplementary implementation, and does it reproduce the anomalous rows and all reported standard deviations?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1803.03635",
+      "title": "The Lottery Ticket Hypothesis: Finding Sparse, Trainable Neural Networks",
+      "url": "https://arxiv.org/abs/1803.03635",
+      "relationship": "Foundational predecessor defining winning tickets and iterative magnitude pruning.",
+      "difference": "It identifies trainable subnetworks through dense training and rewinding, whereas the target seeks an initialization-only linear sketch explanation and a cheaper score randomizer.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v5"
+    },
+    {
+      "canonical_id": "arxiv:1810.02340",
+      "title": "SNIP: Single-shot Network Pruning based on Connection Sensitivity",
+      "url": "https://arxiv.org/abs/1810.02340",
+      "relationship": "Direct gradient-based pruning-at-initialization predecessor and experimental substrate.",
+      "difference": "SNIP uses task-loss sensitivity on a minibatch and a binary mask; the target derives a resemblance only for l1 loss and a specially sparse input, then randomizes scores.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2002.07376",
+      "title": "Picking Winning Tickets Before Training by Preserving Gradient Flow",
+      "url": "https://arxiv.org/abs/2002.07376",
+      "relationship": "Direct second-order gradient-flow pruning predecessor represented by GraSP in the experiments.",
+      "difference": "GraSP scores the effect of pruning on gradient flow with Hessian information; the target uses a feature-sketching score and reports that random-data/random-mask effects vary substantially by architecture.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2006.05467",
+      "title": "Pruning neural networks without any data by iteratively conserving synaptic flow",
+      "url": "https://arxiv.org/abs/2006.05467",
+      "relationship": "Closest data-free predecessor and the main empirical method modified by the target.",
+      "difference": "SynFlow conserves multilayer synaptic flow iteratively to avoid layer collapse; the target proves only a scalar-linear score resemblance after changing the input and samples within the resulting layer quotas.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2009.08576",
+      "title": "Pruning Neural Networks at Initialization: Why are We Missing the Mark?",
+      "url": "https://arxiv.org/abs/2009.08576",
+      "relationship": "Direct sanity-check predecessor showing that within-layer mask shuffling often preserves or improves PaI accuracy.",
+      "difference": "It interprets shuffling robustness as evidence that per-weight decisions add little beyond layerwise sparsity; the target adopts score-based randomization as an improvement but does not isolate it from that layer-quota explanation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2009.11094",
+      "title": "Sanity-Checking Pruning Methods: Random Tickets can Win the Jackpot",
+      "url": "https://arxiv.org/abs/2009.11094",
+      "relationship": "Direct predecessor testing random tickets, data dependence, and mask perturbations.",
+      "difference": "Its controlled ablations motivate the target's data-independent narrative; the target adds a sketching lens but does not surpass the need for random and layerwise-shuffled controls.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2010.11354",
+      "title": "PHEW: Constructing Sparse Networks that Learn Fast and Generalize Well without Training Data",
+      "url": "https://arxiv.org/abs/2010.11354",
+      "relationship": "Data-free probabilistic predecessor that constructs sparse networks through biased random walks and path structure.",
+      "difference": "PHEW explicitly balances high-weight paths against bottleneck layers and tests generalization; the target independently samples weight coordinates and omits PHEW from its empirical panel.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2202.02643",
+      "title": "The Unreasonable Effectiveness of Random Pruning: Return of the Most Naive Baseline for Sparse Training",
+      "url": "https://arxiv.org/abs/2202.02643",
+      "relationship": "Direct random-pruning competitor showing that scale and layerwise allocation can dominate fine-grained saliency.",
+      "difference": "It evaluates accuracy, calibration, robustness, FLOPs, architecture scale, and ERK-style allocations; the target evaluates score sampling but lacks equally broad random-topology and efficiency controls.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2202.08132",
+      "title": "Prospect Pruning: Finding Trainable Weights at Initialization using Meta-Gradients",
+      "url": "https://arxiv.org/abs/2202.08132",
+      "relationship": "Meta-gradient pruning-at-initialization predecessor directly modified in Table 2.",
+      "difference": "ProsPr estimates prospective trainability through meta-gradients; the target's random-data and random-mask variants produce an unexplained collapse-then-jump that requires artifact-level validation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2202.12002",
+      "title": "Rare Gems: Finding Lottery Tickets at Initialization",
+      "url": "https://arxiv.org/abs/2202.12002",
+      "relationship": "Direct competitor optimizing sparse subnetworks to beat random-ticket sanity checks at initialization.",
+      "difference": "Gem-Miner spends optimization compute to find high-initial-accuracy masks and reports competitiveness with IMP; the target is cheaper and generic but mostly compares only small perturbations of existing scores.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2203.02549",
+      "title": "Structured Pruning is All You Need for Pruning CNNs at Initialization",
+      "url": "https://arxiv.org/abs/2203.02549",
+      "relationship": "Hardware-oriented competitor arguing that layerwise compression ratios, not fine-grained masks, drive PaI accuracy.",
+      "difference": "PreCropping converts layerwise ratios to dense structured subnetworks and measures practical training/inference benefits; the target retains unstructured binary weights and reports neither hardware speed nor memory.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2304.02840",
+      "title": "NTK-SAP: Improving neural network pruning by aligning training dynamics",
+      "url": "https://arxiv.org/abs/2304.02840",
+      "relationship": "Near-contemporaneous data- and weight-agnostic NTK-spectrum pruning competitor.",
+      "difference": "NTK-SAP explicitly optimizes preservation of the NTK spectrum over random inputs and multiple initializations; the target bounds a masked linearized output with uncontrolled inverse terms and does not compare against NTK-SAP.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "openreview:xdOoCWCYaY",
+      "title": "Towards Data-Agnostic Pruning At Initialization: What Makes a Good Sparse Mask?",
+      "url": "https://openreview.net/forum?id=xdOoCWCYaY",
+      "relationship": "NeurIPS 2023 successor analyzing effective paths and nodes and proposing node-path balancing.",
+      "difference": "It directly evaluates topology, layerwise shuffling, inference FLOPs, and PHEW and reports a data-agnostic optimizer; the target's independent coordinate sketch lacks explicit connectivity control and these stronger comparisons.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS-2023-final"
+    },
+    {
+      "canonical_id": "arxiv:2402.01089",
+      "title": "No Free Prune: Information-Theoretic Barriers to Pruning at Initialization",
+      "url": "https://arxiv.org/abs/2402.01089",
+      "relationship": "Direct theoretical successor questioning whether good task-specific masks can be found before training.",
+      "difference": "It frames during/after-training masks as carrying more mutual information and gives barriers separating existence from efficient identification; the target's Gaussian feature bound does not address information needed to locate a trainable task-specific mask.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "openreview:hvLBTpiDt3",
+      "title": "DPaI: Differentiable Pruning at Initialization with Node-Path Balance Principle",
+      "url": "https://openreview.net/forum?id=hvLBTpiDt3",
+      "relationship": "ICLR 2025 successor that differentiably optimizes trainability and node-path balance.",
+      "difference": "DPaI treats the sparse topology and saliency optimization jointly across broader benchmarks; the target applies a fixed score randomizer without an explicit trainability or topology objective.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR-2025-final"
+    },
+    {
+      "canonical_id": "pmlr:v328:navarrete26a",
+      "title": "What Scalable Second-Order Information Knows for Pruning at Initialization",
+      "url": "https://proceedings.mlr.press/v328/navarrete26a.html",
+      "relationship": "Current 2026 successor benchmarking scalable curvature information for pruning at initialization.",
+      "difference": "It evaluates empirical-Fisher and Hutchinson diagonals with linear complexity, batch-normalization warmup, ViTs, and ImageNet and reports code; the target's first-order sketch proxy has a much narrower panel and no executable artifact in the public arXiv source.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "PMLR-328-2026"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Pruning a linear model at initialization is equivalent to randomized matrix-multiplication sketching; this yields end-of-training approximation bounds, theoretically supports data-independent mask search, explains aspects of SynFlow and SNIP, and supplies a generic score-randomization improvement that reaches a new SynFlow state of the art.",
+    "evidence": "The paper imports an importance-sampling estimator, derives feature-error expressions for a linear Gaussian model and a linearized NTK regime, constructs special-case score correspondences, and evaluates binary within-layer sampling across SynFlow, SNIP, GraSP, IMP, and ProsPr on four image datasets.",
+    "reviewer_inference": "The sketching perspective is a useful and reasonably novel conceptual bridge, and randomized score selection is a modular empirical heuristic. The strongest claims do not survive close audit: Lemma 4.2 contains a false inequality, the valid bound targets a masked dense final vector and an uncontrolled coordinate ratio, the estimator is weighted/nonbinary while the empirical method is binary/per-layer, and neither theoretical proxy is measured. Existing shuffling, random-pruning, path, structured, NTK, topology, information-barrier, and second-order work provides direct alternative explanations and stronger controls. The defensible contribution is therefore a linear importance-sampling analogy plus a mixed empirical mask-randomization heuristic, not a validation of data-independent deep lottery tickets or a demonstrated state of the art."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Read all 13 canonical arXiv v2 PDF pages, including the mostly blank tail of page 13; visually inspected every panel and caption in Figures 1-3 and Tables 1-6 at original rendered resolution; checked Algorithm 1, Equations 1-5, Lemmas 4.1-4.5, Definition 6.1, Theorem 6.2, Lemmas B.1-B.2, and every appendix proof. All canonical figure pixels were available; no figure pixels are undisclosed or unavailable. The official arXiv record was revised 2025-11-11 and links the published IEEE TPAMI article DOI 10.1109/TPAMI.2025.3598343. The official v2 source archive fetched from https://export.arxiv.org/e-print/2305.17559 contains the TeX, bibliography, two style files, README manifest, and five figure PDFs but no code or experimental data, despite page 7's supplementary-code statement; a publisher-hosted attachment could not be independently inspected through a stable public artifact endpoint, so its possible existence is not denied. No public official review text was identified or claimed. Checked 16 direct primary-source predecessors, competitors, and successors through 2026-08-23, including 2024 information-theoretic barriers, ICLR 2025 topology-aware pruning, and the published 2026 scalable second-order benchmark."
+}

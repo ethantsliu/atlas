@@ -1,0 +1,215 @@
+{
+  "stable_id": "arxiv:2312.00752",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2312.00752",
+    "pdf_sha256": "adf70ed1803c85b1899dec3e21f3af0b124411439e8654b840ea65f7b9f52b2e",
+    "text_sha256": "b3fc4d65c54a6cb4d0302a3b94a5ece6e7dfe948beaaf2f1e4225d897887a21f",
+    "page_count": 36,
+    "extracted_at": "2026-08-23T18:44:23.017953+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can an input-dependent state-space recurrence recover content-sensitive sequence processing while retaining linear-time recurrent inference and hardware-efficient training?",
+  "key_findings": [
+    {
+      "claim": "Mamba's central change is to make the state-space discretization step and input/output projections depend on the current token, replacing an LTI convolution with a selective time-varying recurrence.",
+      "evidence": "The S6 layer computes input-conditioned Delta, B, and C parameters; this prevents use of one fixed convolutional kernel but lets the recurrence selectively retain, overwrite, or expose state according to content.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "Selective state-space models"},
+        {"page": 6, "section": "Selection mechanism"}
+      ]
+    },
+    {
+      "claim": "A one-state selective SSM exactly recovers a familiar gated recurrence under the paper's parameterization.",
+      "evidence": "Theorem 1 sets N=1, A=-1, B=1, and an input-dependent softplus discretization so the update becomes a sigmoid-gated interpolation between the previous state and current input; the appendix supplies the algebraic proof.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "Theorem 1: connection to gating"},
+        {"page": 27, "section": "Proof of Theorem 1"}
+      ]
+    },
+    {
+      "claim": "The selective scan algorithm trades convolutional parallelism for a fused parallel scan that avoids materializing the expanded recurrent state in high-bandwidth memory.",
+      "evidence": "The implementation fuses discretization, scan, and output projection, keeps expanded state in SRAM, uses an associative scan across sequence positions, and recomputes intermediates during backward rather than storing them.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "Hardware-aware state expansion"},
+        {"page": 7, "section": "Selective scan implementation"},
+        {"page": 28, "section": "Appendix D: selective scan details"}
+      ]
+    },
+    {
+      "claim": "Mamba solves the paper's content-sensitive synthetic tasks and extrapolates far beyond the training length on induction heads.",
+      "evidence": "On selective copying and induction, Mamba reaches near-perfect accuracy while several LTI SSM and convolution baselines fail; an induction model trained at length 256 remains accurate at reported lengths above one million.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 10, "section": "Synthetic tasks"},
+        {"page": 11, "section": "Length extrapolation"}
+      ]
+    },
+    {
+      "claim": "Across the reported language, DNA, and audio experiments, selectivity is most consistently useful when the task requires content-dependent filtering, whereas LTI structure can remain beneficial for smooth signals.",
+      "evidence": "Mamba improves language and genomic modeling as context grows and exceeds SaShiMi on audio, but the audio appendix finds that retaining LTI SSMs in outer layers can help uniformly sampled waveforms; the discussion explicitly describes a continuous-versus-discrete tradeoff.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 13, "section": "DNA modeling"},
+        {"page": 14, "section": "Audio modeling"},
+        {"page": 17, "section": "Discussion and limitations"},
+        {"page": 35, "section": "Audio architecture ablations"}
+      ]
+    },
+    {
+      "claim": "The paper supports competitive sub-3B language modeling and kernel-level efficiency, but not unrestricted million-token natural-language recall or frontier-scale replacement of attention.",
+      "evidence": "The million-length result is a controlled induction task; language pretraining stops at 2.8B parameters and ordinary training contexts, while the authors list prompting, fine-tuning, RLHF, quantization, and larger-scale engineering as unresolved.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 11, "section": "Synthetic induction experiment"},
+        {"page": 12, "section": "Language modeling"},
+        {"page": 17, "section": "Limitations"}
+      ]
+    },
+    {
+      "claim": "Linear asymptotic complexity does not by itself imply lower end-to-end memory or latency in every tested regime.",
+      "evidence": "The fused scan becomes faster at sufficiently long sequences and generation throughput is reported at roughly four to five times a similar-size Transformer, yet the memory table shows the 125M Mamba run using slightly more memory than the optimized Transformer at several batch sizes.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 15, "section": "Efficiency benchmarks"},
+        {"page": 28, "section": "Hardware-aware implementation"},
+        {"page": 36, "section": "Training memory comparison"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Introduce content-dependent selection into a structured state-space recurrence and co-design a fused scan kernel plus a homogeneous gated architecture around it.",
+    "mechanism": "Token projections parameterize the discretization and state input/output maps. An associative recurrent scan evaluates the resulting time-varying system without an attention matrix, and a Mamba block combines the selective SSM path with multiplicative gating and expansion/projection layers.",
+    "assumptions": [
+      "A fixed-width recurrent state can compress the task-relevant history sufficiently.",
+      "Content-dependent state updates compensate for losing a globally accessible attention cache.",
+      "The target accelerator exposes enough fast on-chip memory and scan efficiency for the fused implementation to realize the algorithmic advantage.",
+      "Language-model quality at the studied 125M-to-2.8B range predicts useful behavior at larger scales.",
+      "Synthetic selection and induction tasks isolate mechanisms relevant to natural sequence modeling."
+    ]
+  },
+  "techniques": [
+    {"id": "input-conditioned-ssm", "role": "Makes Delta, B, and C depend on each token so state updates can select information by content."},
+    {"id": "selective-parallel-scan", "role": "Evaluates the time-varying recurrence with an associative scan rather than a materialized convolution."},
+    {"id": "kernel-fusion-and-recomputation", "role": "Keeps expanded state in SRAM and recomputes intermediates to reduce HBM traffic."},
+    {"id": "homogeneous-mamba-block", "role": "Combines the selective SSM with a gated expansion/projection path without separate attention or MLP blocks."},
+    {"id": "mechanism-isolating-synthetics", "role": "Tests selective copying and induction-head behavior independently of broad benchmark accuracy."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Selective copying and induction-head synthetic tasks with training and evaluation length sweeps.",
+      "metric": "Token accuracy across sequence length.",
+      "result": "Mamba solves both tasks and reports extreme induction length extrapolation, unlike tested LTI SSM and convolution baselines.",
+      "baseline": "S4, H3, Hyena, attention, and related recurrent/convolutional variants."
+    },
+    {
+      "setting": "Pile language-model pretraining from roughly 125M to 1.3B parameters, plus a 2.8B model evaluated zero-shot.",
+      "metric": "Validation perplexity and standard zero-shot task accuracy.",
+      "result": "Mamba scales similarly to a strong Transformer recipe, exceeds same-size Pythia and RWKV models on reported zero-shot averages, and is competitive with some models around twice its size.",
+      "baseline": "Transformer++, Pythia, RWKV, and other sub-7B open language models."
+    },
+    {
+      "setting": "Genomic language modeling with context lengths from 1K up to 1M under a fixed token budget.",
+      "metric": "Next-token pretraining loss and downstream genomic classification accuracy.",
+      "result": "Longer context continues to improve Mamba in the reported setup, and a 40M model is competitive with baselines several times larger.",
+      "baseline": "HyenaDNA and convolutional or Transformer genomic models."
+    },
+    {
+      "setting": "Raw-audio autoregressive modeling on YouTubeMix and SC09.",
+      "metric": "Bits per byte or negative log-likelihood and unconditional sample quality measures.",
+      "result": "Mamba improves over SaShiMi overall, while hybrid arrangements retaining LTI outer layers can be stronger on smooth audio.",
+      "baseline": "SaShiMi and S4-based audio configurations."
+    },
+    {
+      "setting": "A100 selective-scan microbenchmarks and end-to-end autoregressive generation.",
+      "metric": "Kernel runtime, throughput, and training memory.",
+      "result": "The scan core is faster than optimized alternatives at longer lengths and generation throughput improves substantially; training-memory dominance is not universal.",
+      "baseline": "PyTorch scan implementations and a FlashAttention Transformer."
+    }
+  ],
+  "limitations": [
+    "The recurrent state is a fixed-capacity lossy summary; exact arbitrary retrieval is not guaranteed as context complexity grows.",
+    "Million-token extrapolation is shown on a low-entropy synthetic induction task, not on million-token natural-language understanding or retrieval.",
+    "Language experiments remain below the scale at which modern instruction-following and emergent capabilities are usually assessed.",
+    "No results establish instruction tuning, in-context learning breadth, tool use, RLHF compatibility, quantization behavior, or long-context retrieval robustness.",
+    "Hardware gains depend on custom kernels, SRAM capacity, sequence length, batch size, datatype, and accelerator generation.",
+    "Comparisons do not always match context length, training tokens, tokenizer, optimization, or kernel maturity across model families.",
+    "Input dependence removes the exact convolutional training route and can sacrifice useful LTI inductive bias for continuous signals.",
+    "The paper does not provide uncertainty estimates over the large pretraining runs."
+  ],
+  "failure_modes": [
+    "State capacity can saturate when many independently retrievable facts must remain accessible.",
+    "Selective gates can learn premature forgetting or overwrite rare but later-relevant tokens.",
+    "A fused scan can underperform at short lengths or on hardware without efficient associative-scan support.",
+    "Synthetic length extrapolation can overstate long-context competence when the learned update rule is algorithmically simple.",
+    "Removing attention may hurt tasks that benefit from explicit pairwise comparison or content-addressable lookup.",
+    "Content-dependent dynamics can discard smooth-system structure that a stable LTI layer models efficiently."
+  ],
+  "reusable_insights": [
+    "For long-sequence architectures, separate asymptotic complexity, kernel speed, end-to-end throughput, and realized memory measurements.",
+    "Use mechanism-isolating synthetic tasks, but validate the same mechanism under natural, adversarial, and high-entropy contexts.",
+    "Input-dependent recurrence is a general bridge between classical gated RNNs and structured state-space models.",
+    "Algorithm-hardware co-design can matter as much as nominal FLOP count when intermediate-state traffic dominates.",
+    "Report where selectivity hurts; continuous-signal tasks may prefer a hybrid of selective and invariant dynamics."
+  ],
+  "open_questions": [
+    "How should recurrent state dimension scale with the number and entropy of facts that must remain independently retrievable?",
+    "Can selective SSMs expose calibrated signals that their state has forgotten or conflated evidence?",
+    "Which mixtures of attention and selective recurrence give the best quality-latency frontier for retrieval-heavy workloads?",
+    "Do Mamba scaling trends persist through modern 10B-to-100B parameter, trillion-token, and instruction-tuning regimes?",
+    "How robust are selective scans to quantization, low precision, sparsity, and non-NVIDIA accelerators?",
+    "What natural-task evaluation cleanly distinguishes learned state selection from dataset-specific shortcut behavior?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2111.00396",
+      "title": "Efficiently Modeling Long Sequences with Structured State Spaces",
+      "url": "https://arxiv.org/abs/2111.00396",
+      "relationship": "direct structured-state-space antecedent",
+      "difference": "S4 supplies the structured linear state-space foundation and fast convolutional training; Mamba gives up input-invariant convolution to add content selection and implements the resulting time-varying recurrence with a scan.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2302.10866",
+      "title": "Hyena Hierarchy: Towards Larger Convolutional Language Models",
+      "url": "https://arxiv.org/abs/2302.10866",
+      "relationship": "attention-free long-convolution competitor",
+      "difference": "Hyena uses gated implicit long convolutions with subquadratic sequence mixing; Mamba instead uses a fixed-width content-dependent recurrence and emphasizes linear-time decoding plus selective forgetting.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2307.08621",
+      "title": "Retentive Network: A Successor to Transformer for Large Language Models",
+      "url": "https://arxiv.org/abs/2307.08621",
+      "relationship": "recurrent-parallel sequence-model competitor",
+      "difference": "RetNet presents parallel, recurrent, and chunkwise-recurrent forms of retention with explicit decay; Mamba's recurrence is a selective SSM whose transition discretization and projections depend on the token.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2405.21060",
+      "title": "Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality",
+      "url": "https://arxiv.org/abs/2405.21060",
+      "relationship": "direct successor and reformulation",
+      "difference": "Mamba-2 derives a state-space duality connecting structured SSMs to attention-like matrix forms and reports a more efficient SSD core; it retains the target's selection agenda while changing the theoretical framing and implementation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Mamba is a general-purpose attention-free sequence backbone that matches or exceeds strong models across modalities while providing linear sequence scaling and fast inference.",
+    "evidence": "The paper combines input-conditioned SSM parameters, a hardware-aware selective scan, a simplified block design, mechanism tests, multi-domain scaling experiments, and accelerator benchmarks.",
+    "reviewer_inference": "The co-design of selection, recurrence, and a practical scan kernel is a major architectural contribution. The evidence is strong for the studied scale and tasks, but claims about frontier-scale language ability, arbitrary long-context retrieval, and universal deployment efficiency remain extrapolations."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Read all 36 extracted pages, including the scan implementation, gating proof, modality appendices, memory table, and limitations. The audit treats synthetic million-length induction as mechanism evidence rather than natural-context validation and distinguishes asymptotic complexity from measured hardware behavior. Competing primary records were checked on arXiv on 2026-08-23."
+}

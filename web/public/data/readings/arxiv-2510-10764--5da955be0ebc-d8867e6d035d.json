@@ -1,0 +1,180 @@
+{
+  "stable_id": "arxiv:2510.10764",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2510.10764",
+    "pdf_sha256": "18362111d548bf2076cef70789255c9605516d70309a0c29ef28ef51c242a42a",
+    "text_sha256": "05c6e67ddba3e0b19d3b23eb00db55900c6b1d5ded476ee27e8d6fb96270f3cf",
+    "page_count": 6,
+    "extracted_at": "2026-08-23T14:41:37.086848+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a fixed residual architecture be shortened for a target image dataset by progressively activating blocks until a user-selected accuracy threshold is met, while retaining nearly all full-depth accuracy?",
+  "key_findings": [
+    {
+      "claim": "The method searches only along a fixed prefix-depth axis: it warms every depth briefly, restores the warmed checkpoint when a new prefix is activated, and stops when validation accuracy reaches a user-specified target.",
+      "evidence": "ResNet-18 is partitioned into eight residual blocks and ResNet-34/50 into sixteen; every prefix receives a separate output head. Algorithm 1 warms the full parameter set, starts from an initial prefix, declares convergence after 23 epochs without improved accuracy, appends a block, reloads the warm-up state, and returns once the target is reached.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "Section III, Optimally Deep Networks"},
+        {"page": 4, "section": "Sections III.A-C and Algorithm 1"},
+        {"page": 5, "section": "Algorithm 1 continuation"}
+      ]
+    },
+    {
+      "claim": "The reported compact models stay within one percentage point of their separately reported full-depth accuracies while reducing stored parameters by 73.06% to 98.64% across five dataset/architecture pairs.",
+      "evidence": "Table I reports MNIST ResNet-18 at 2/8 blocks, 0.61 MB, and 99.31% versus 44.78 MB and 99.61%; EMNIST at 3/8 and 95.04% versus 95.17%; SVHN ResNet-34 at 5/16 and 96.08% versus 96.51%; Fashion-MNIST at 6/16 and 93.54% versus 94.52%; and CIFAR-10 ResNet-50 at 11/16 and 94.12% versus 95.01%.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "Table I and Section IV"},
+        {"page": 5, "section": "Section IV, Experiments and Results"}
+      ]
+    },
+    {
+      "claim": "The experiment does not isolate progressive expansion from ordinary depth selection, so it cannot show that the proposed search is better than training the winning shallow prefix directly.",
+      "evidence": "Table I compares the selected prefix only with the full-depth model. There is no independently trained same-depth baseline, no exhaustive depth sweep, no random or successive-halving search, and no ablation of warm-up, checkpoint restoration, separate heads, or progressive ordering. Figure 4 only contrasts a warm-up/no-warm-up curve for one dataset without numerical uncertainty.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Table I and Figure 4"},
+        {"page": 5, "section": "Section IV and Figure 4"}
+      ]
+    },
+    {
+      "claim": "The paper's efficiency claim is a deployment-size result, not a demonstrated search-cost reduction.",
+      "evidence": "The procedure first warms all depth levels and then trains successive prefixes to convergence, but reports neither cumulative search FLOPs, wall time, energy, nor comparison against NAS or a direct grid. Table I reports inference FLOPs and model size only after selection; its claimed savings therefore do not account for the one-time search.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "Section III, training procedure"},
+        {"page": 4, "section": "Algorithm 1 and Table I"},
+        {"page": 6, "section": "Conclusion"}
+      ]
+    },
+    {
+      "claim": "Calling the returned prefix an 'optimal depth' is not justified by the stopping rule: it is merely the first tested prefix to cross a chosen accuracy threshold under one training path.",
+      "evidence": "The objective is not a joint accuracy-cost optimization and the algorithm does not compare every feasible depth after converged independent training. Its result depends on initial depth, threshold, patience, warm-up checkpoint, depth order, and stochastic optimization; a later or separately trained shallower model could dominate it.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Section III, target-accuracy stopping"},
+        {"page": 4, "section": "Section III.C and Algorithm 1"},
+        {"page": 5, "section": "Algorithm 1"}
+      ]
+    },
+    {
+      "claim": "The evidence is confined to small image-classification benchmarks and a different backbone for different datasets, leaving transfer and task-complexity claims untested.",
+      "evidence": "Only five 10- or 26-class datasets are evaluated, and the pairing changes from ResNet-18 to ResNet-34 to ResNet-50. No ImageNet-scale task, non-vision domain, repeated seed, uncertainty interval, latency measurement, device measurement, calibration test, or cross-dataset reuse of a selected depth is reported.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 2, "section": "Contributions"},
+        {"page": 4, "section": "Section IV and Table I"},
+        {"page": 6, "section": "Conclusion"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Treat prefix depth in a preselected residual network as a one-dimensional capacity search and grow the active prefix only when the current prefix has converged without reaching a target validation accuracy.",
+    "mechanism": "Partition a ResNet into residual-block prefixes, attach an output head to each prefix, warm the entire network at a small learning rate, then train the shallowest selected prefix. After a patience counter reaches 23 epochs without improvement, append one block and reload its parameters from the warm-up checkpoint. Stop at the first prefix reaching the target, copy that prefix and its head, and fine-tune it for deployment.",
+    "assumptions": [
+      "Prefix depth is a useful monotone proxy for task capacity and later blocks can be removed without needing a different topology.",
+      "A user can select an accuracy target that meaningfully represents the desired performance-efficiency trade-off.",
+      "Warm-up gives every later prefix a fair initialization even though prefixes share upstream parameters and use separate heads.",
+      "Validation accuracy and convergence detection are stable enough that one stochastic training trajectory selects a reproducible depth.",
+      "Inference FLOPs and serialized float32 parameter size are adequate proxies for device latency, memory, and energy.",
+      "The chosen small image benchmarks represent the broader low-complexity tasks motivating the method."
+    ]
+  },
+  "techniques": [
+    {"id": "prefix-depth-partitioning", "role": "Defines a nested family of residual subnetworks by progressively including residual blocks."},
+    {"id": "multi-exit-output-heads", "role": "Provides a classifier at every candidate depth so each active prefix can be trained and evaluated."},
+    {"id": "full-model-warm-up", "role": "Initializes all blocks before any later block is activated in the progressive search."},
+    {"id": "patience-triggered-depth-growth", "role": "Adds a block after 23 non-improving epochs and stops at the first target-accuracy crossing."},
+    {"id": "post-selection-finetuning", "role": "Retrains the extracted prefix without changing its selected depth."}
+  ],
+  "evaluations": [
+    {"setting": "ResNet-18 on MNIST", "metric": "Accuracy, float32 model size, and FLOPs", "result": "The selected 2/8-block prefix reports 99.31% accuracy, 0.61 MB, and 117.36M FLOPs versus 99.61%, 44.78 MB, and 458.21M for full depth.", "baseline": "A separately reported full-depth ResNet-18; no independently trained 2-block control."},
+    {"setting": "ResNet-18 on EMNIST letters", "metric": "Accuracy and model-size reduction", "result": "The 3/8-block prefix reports 95.04% accuracy and a 96.54% size reduction.", "baseline": "Full-depth ResNet-18 at 95.17%; no seed distribution or equal-depth baseline."},
+    {"setting": "ResNet-34 on SVHN and Fashion-MNIST", "metric": "Accuracy, model size, and FLOPs", "result": "The selected 5/16 and 6/16 prefixes report 96.08% and 93.54% accuracy with 96.44% and 95.04% size reductions.", "baseline": "Full-depth ResNet-34 at 96.51% and 94.52%; no pruning, OFA, slimmable, or direct-search baselines."},
+    {"setting": "ResNet-50 on CIFAR-10", "metric": "Accuracy, model size, and FLOPs", "result": "The 11/16-block prefix reports 94.12%, 25.44 MB, and 906.19M FLOPs versus 95.01%, 94.43 MB, and 1315.02M at full depth.", "baseline": "Full-depth ResNet-50; no comparison with a CIFAR-sized architecture or independently trained shallow ResNet."},
+    {"setting": "ResNet-34 on Fashion-MNIST", "metric": "Training accuracy and loss curves", "result": "Figure 4 visually attributes smoother, faster convergence to warm-up.", "baseline": "A no-warm-up curve without numeric time-to-target, repeated seeds, or uncertainty."}
+  ],
+  "limitations": [
+    "[Author-visible scope] The search changes only prefix depth inside ResNet-18/34/50; widths, kernels, block types, resolution, and non-prefix selections are fixed.",
+    "[Reviewer-identified] The method is not compared with training each depth independently, simple grid search, pruning, stochastic depth, LayerDrop, slimmable/OFA networks, early exits, or contemporary hardware-aware NAS.",
+    "[Reviewer-identified] Search cost is not reported, although multiple prefixes are trained to convergence after an all-depth warm-up.",
+    "[Reviewer-identified] Results lack seeds, confidence intervals, validation/test split details, target thresholds by task, training-epoch totals, and hardware measurements.",
+    "[Reviewer-identified] The selected network can be almost as accurate as full depth by construction because the stopping threshold tolerates a chosen loss; the frontier at other tolerances is not shown.",
+    "[Reviewer-identified] Five small image datasets do not establish that selected depth tracks an intrinsic dataset complexity or transfers to similar datasets.",
+    "[Reviewer-identified] Accuracy and FLOP/parameter counts do not establish real edge-device latency, peak activation memory, energy, or throughput."
+  ],
+  "failure_modes": [
+    "A noisy validation improvement can reset or trigger the patience counter and select a different prefix across seeds.",
+    "A shallower prefix may learn more slowly but eventually dominate; first-crossing selection can incorrectly grow past it.",
+    "Reloading every newly activated prefix from the original warm-up state can discard useful co-adaptation from the current shallower trajectory.",
+    "Separate output heads add parameters during search and may give unequal optimization quality across depths.",
+    "Tasks needing high-level receptive fields can make prefix accuracy non-monotone or require redesigned downsampling rather than merely more blocks.",
+    "FLOP reductions may not translate to device speed when kernels become small, memory-bound, or poorly optimized.",
+    "Validation-driven target selection can leak repeated validation decisions and overfit the selected depth."
+  ],
+  "reusable_insights": [
+    "A nested prefix family turns architecture selection into an inexpensive-to-describe one-dimensional decision, which is useful when topology flexibility is less important than predictable deployment.",
+    "A genuine depth-selection study should separate the quality of the selected subnetwork from the cost and bias of the search trajectory.",
+    "Prospective selection rules need an explicit objective and a held-out test of whether the selected candidate lies on the independently trained Pareto frontier.",
+    "For generated RL environments, the analogue is to stop increasing environment complexity only after a prospective learner-independent signal crosses a threshold, then verify the chosen environment against independently trained agents and budgets."
+  ],
+  "open_questions": [
+    "Does progressive expansion select the same depth as an exhaustive, independently trained sweep, and at what cumulative search cost?",
+    "How stable are selected depths across random seeds, target thresholds, patience settings, data subsets, and distribution shifts?",
+    "Can a multi-objective rule replace the arbitrary accuracy target and recover a calibrated latency-accuracy Pareto frontier on actual devices?",
+    "Does a depth selected on one dataset transfer to another dataset claimed to have similar complexity?",
+    "Would stochastic-depth, LayerDrop, OFA, or slimmable training produce better reusable subnetworks under the same compute budget?",
+    "Can the method extend beyond prefix removal to preserve stage transitions, receptive field, and feature resolution when very shallow networks are selected?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1603.09382",
+      "title": "Deep Networks with Stochastic Depth",
+      "url": "https://arxiv.org/abs/1603.09382v3",
+      "relationship": "Direct prior work on training residual networks at varying effective depths.",
+      "difference": "Stochastic depth samples residual-layer bypasses during training and uses the full network at test time, primarily regularizing and shortening training paths. ODN instead follows one deterministic prefix-growth path and deploys the first target-crossing prefix, but does not compare against this established variable-depth training control.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:1603.09382v3"
+    },
+    {
+      "canonical_id": "arxiv:1908.09791",
+      "title": "Once-for-All: Train One Network and Specialize it for Efficient Deployment",
+      "url": "https://arxiv.org/abs/1908.09791v5",
+      "relationship": "Direct competitor for selecting compact subnetworks from a shared trained model.",
+      "difference": "Once-for-All trains a supernet supporting depth, width, kernel, and resolution choices and specializes subnetworks for measured hardware. ODN searches only a prefix depth for one dataset and claims simplicity, but provides neither the broader frontier nor a matched total-cost and device comparison.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:1908.09791v5"
+    },
+    {
+      "canonical_id": "arxiv:1909.11556",
+      "title": "Reducing Transformer Depth on Demand with Structured Dropout",
+      "url": "https://arxiv.org/abs/1909.11556v1",
+      "relationship": "Prior depth-elastic training method that makes one model robust to post-training layer removal.",
+      "difference": "LayerDrop trains many depth subnetworks through structured dropout and allows depth choice after training. ODN trains a deterministic sequence and yields one chosen prefix; it neither supports arbitrary post-hoc depths nor tests whether progressive expansion improves the accuracy-cost frontier.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:1909.11556v1"
+    },
+    {
+      "canonical_id": "arxiv:1812.08928",
+      "title": "Slimmable Neural Networks",
+      "url": "https://arxiv.org/abs/1812.08928v1",
+      "relationship": "Prior once-trained elastic-network method for deployment trade-offs.",
+      "difference": "Slimmable networks share weights across switchable widths and expose multiple accuracy-efficiency operating points. ODN changes depth rather than width and extracts a static prefix, but its evidence does not establish an advantage over a multi-operating-point shared model.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:1812.08928v1"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper presents progressive depth expansion as a novel NAS-like procedure that adapts a standard network's depth to dataset complexity and substantially reduces deployment footprint without significant accuracy loss.",
+    "evidence": "The concrete implementation is a warm-up followed by patience-triggered ResNet prefix growth and first-threshold stopping, evaluated on five small classification datasets.",
+    "reviewer_inference": "The exact packaging of warm-up, prefix heads, convergence-triggered growth, and target stopping may be distinct, but depth-varying training and reusable subnetworks are well established. Without independent-depth, elastic-network, or search-cost baselines, the supported novelty is a simple heuristic implementation rather than evidence of optimal depth selection or superior efficiency."
+  },
+  "confidence": 0.94,
+  "reviewer_notes": "Read all six extracted pages, including algorithm, tables, plots, conclusion, and references. Competitive records were checked against official arXiv records on 2026-08-23. The strongest qualification is that deployment compression is measured, but search efficiency and optimality are not."
+}

@@ -1,0 +1,416 @@
+{
+  "stable_id": "arxiv:2506.02244",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2506.02244",
+    "pdf_sha256": "b9ba78e93640388124f51c8c4ff5158690343017e2308c0cb03adb9aac7416e9",
+    "text_sha256": "645d0d81aba8c6e8c92e49c9c3bb16058c3f83b231e5f9e19da5267e0bcc7997",
+    "page_count": 23,
+    "extracted_at": "2026-08-23T14:23:20.667093+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a differentiable, low-frequency 3D Fourier-domain loss that fits translation, rotation, and scale patterns to a denoised video improve motion naturalness and apparent physical plausibility when fine-tuning pretrained text-to-video diffusion transformers without changing their architecture?",
+  "key_findings": [
+    {
+      "claim": "The method reconstructs the predicted clean video at every diffusion step and regularizes low-frequency spectral signatures of planar similarity motion.",
+      "evidence": "A centered 3D FFT is cropped to a cube with per-axis fraction rho = 0.3, retaining 0.3 cubed = 2.7% of coefficients. Translation is fit by a weighted plane in temporal-spatial frequency, rotation by angular harmonics and ring concentration, and scaling by radial spectral flow and temporal radial-centroid correlation. The three losses are combined with softmax weights and mixed with the base diffusion loss at coefficient 0.1.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "3 Physics-Guided Motion Loss overview"},
+        {"page": 4, "section": "3.1-3.3 translation, rotation, and scaling losses"},
+        {"page": 5, "section": "3.4 Adaptive loss weighting and implementation"}
+      ]
+    },
+    {
+      "claim": "The implemented objective encodes a narrow SIM(2) kinematic prior, not physical laws or dynamics.",
+      "evidence": "Constant 2D translation, in-plane rotation, and isotropic scaling constrain image-coordinate trajectories but contain no force, mass, momentum, acceleration, gravity, material, collision, or conservation variables. A static clip has a perfect zero-velocity translation fit, and a reversed or otherwise impossible constant-velocity trajectory can satisfy the same spectral equations. The loss also does not test whether motion direction agrees with the prompt.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 2, "section": "1 Introduction and claimed physical plausibility"},
+        {"page": 3, "section": "3 similarity-motion formulation"},
+        {"page": 11, "section": "Appendix A SIM(2) spectral derivation"}
+      ]
+    },
+    {
+      "claim": "The adaptive weighting favors the already easiest motion loss and can have a pathological gradient if its softmax weights are not detached.",
+      "evidence": "Weights are proportional to exp(-L_i/tau) with tau = 0.1, so a high violated component receives exponentially less weight. If gradients flow through the weights, differentiating sum_i w_i L_i gives partial derivative w_k[1 + (L_bar - L_k)/tau], which becomes negative when L_k exceeds the weighted mean by more than tau. The paper does not state that weights are stopped-gradient, and its claim that this weighting emphasizes the most sensitive component is opposite to the displayed formula for a larger loss.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "3.4 Adaptive motion loss weighting"},
+        {"page": 13, "section": "Appendix A combined objective"}
+      ]
+    },
+    {
+      "claim": "The rotation theorem and zero-loss claim do not hold for arbitrary rotating video appearance.",
+      "evidence": "The appendix asserts that ideal rotation concentrates energy in a single annulus, gives zero ring entropy, and therefore makes the rotation loss vanish. Rigid in-plane rotation constrains temporal frequency versus angular harmonic order, but the spatial radial energy distribution remains a property of the object's texture and shape and may occupy many rings. Thus an ideal rotation of a broadband image need not attain ring concentration one or loss zero.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "3.2 Rotation loss"},
+        {"page": 15, "section": "Appendix B.1-B.3 angular harmonics"},
+        {"page": 17, "section": "Appendix B Theorem B.1 and ring concentration"}
+      ]
+    },
+    {
+      "claim": "The claimed upper-bound relationship is written in the opposite mathematical direction in the appendix.",
+      "evidence": "The main text says the decomposed surrogate upper-bounds a unified residual. Equations A.10-A.11 and B.4/B.11 instead have L_surrogate less than or equal to a constant times L_unified plus an approximation error. That is an upper bound on the surrogate by the unified residual, not an upper bound on the residual by the implemented surrogate, so minimizing the surrogate is not guaranteed by those inequalities to control the unified violation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "3.4 theoretical justification"},
+        {"page": 13, "section": "Appendix A Equations A.10-A.11"},
+        {"page": 16, "section": "Appendix B Equations B.4 and B.11"}
+      ]
+    },
+    {
+      "claim": "The elegant combined SIM(2) spectral hyperplane is not the loss that is trained.",
+      "evidence": "The theory mixes Cartesian spatial frequencies, angular harmonic order, and log-radial frequency in one residual. The paper itself notes cross-slice interference and ill-conditioning, then implements separate translation, rotation, and scaling proxies. In particular, the scaling implementation uses radial-gradient alignment and absolute temporal centroid correlation rather than the tilted-line concentration C_scale used in the theoretical argument.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "3.1-3.3 implemented component losses"},
+        {"page": 12, "section": "Appendix A unified SIM(2) residual"},
+        {"page": 18, "section": "Appendix B scaling proxy and conditioning discussion"}
+      ]
+    },
+    {
+      "claim": "The low-pass energy theorem uses inconsistent cube and ball parameterizations, and the compute headline can be misread as whole-training savings.",
+      "evidence": "Appendix C defines eta_ball(rho) using a ball of radius rho R with cube circumradius R = sqrt(3), but its containment step treats a radius-rho Euclidean ball as lying inside the cube with coordinate limits rho. These radii differ by sqrt(3), so the stated 0.97-0.987 retained-energy interval is not derived as written. The empirical 97.5% retained energy over 1,000 random videos is not accompanied by sampling details and can be dominated by static/DC content. The reported 97.3% FLOP reduction applies to the spectral loss coefficient count; actual backbone-forward overhead is reported as 10-20%.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "3.4 low-frequency cropping and cost"},
+        {"page": 20, "section": "Appendix C.1-C.3 energy retention"},
+        {"page": 21, "section": "Appendix C.3 Equations C.3-C.5 and complexity"}
+      ]
+    },
+    {
+      "claim": "Several appendix validation procedures are recommendations rather than experiments actually reported in the paper.",
+      "evidence": "Appendix B.10 recommends synthetic SIM(2) validation, calibration of gating constants, and ridge scans. No corresponding controlled synthetic recovery table, fitted-motion error, gate calibration, or ridge-sensitivity plot appears in the 23-page pinned PDF. The formal discussion consequently remains tied to ideal or narrow-band conditions that are not checked on the training data.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 19, "section": "Appendix B.10 Validation recommendations"},
+        {"page": 22, "section": "Appendix D implementation notes"},
+        {"page": 23, "section": "Appendix conclusion"}
+      ]
+    },
+    {
+      "claim": "One cited direct antecedent is attached to an unrelated arXiv identifier.",
+      "evidence": "The reference entry labels arXiv:2310.13830 as 'Physics-guided diffusion for video motion inpainting.' The official arXiv record for 2310.13830 is 'ML-Based Feedback-Free Adaptive MCS Selection for Massive Multi-User MIMO,' and an exact-title search did not locate the claimed primary paper. This materially weakens the related-work trail for the paper's closest stated spectral/physics precedent.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "2 Related Work"},
+        {"page": 10, "section": "References"}
+      ]
+    },
+    {
+      "claim": "The evaluation metrics primarily measure appearance, temporal coherence, text alignment, and generic motion rather than physical correctness.",
+      "evidence": "EvalCrafter VQA, action recognition, motion accuracy, optical flow, warping error, temporal consistency, CLIP, and BLIP can reward coherent motion without checking forces, acceleration, collision response, conservation, or material behavior. There is no simulator-grounded trajectory error, parameter recovery, law-specific benchmark such as Physics-IQ, or human question isolating physics from visual quality and motion naturalness.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "4 Experimental setup and metrics"},
+        {"page": 6, "section": "Table 1"},
+        {"page": 9, "section": "User study and Figure 5"}
+      ]
+    },
+    {
+      "claim": "Open-Sora and MVDIT gains are confounded by an unclear matched-fine-tuning control, although the Hunyuan comparison is better controlled.",
+      "evidence": "Tables for Open-Sora and MVDIT compare 'Baseline' with 'Ours' after a four-epoch fine-tuning recipe but do not show a base-diffusion-loss-only four-epoch control. Therefore some gain could be ordinary additional fine-tuning. The Hunyuan table does include a LoRA base-loss control and a RAFT-flow-loss control, allowing a more informative within-recipe comparison.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "4.1 Training settings"},
+        {"page": 6, "section": "Table 1 Open-Sora and MVDIT"},
+        {"page": 7, "section": "Table 2 HunyuanVideo LoRA comparison"}
+      ]
+    },
+    {
+      "claim": "Table 1 reports broad metric improvements, but its surrounding narrative assigns the larger action gain to the wrong backbone.",
+      "evidence": "For Open-Sora, action recognition changes 60.77 to 69.71 (+8.94) and motion accuracy 44 to 49; for MVDIT, action changes 62.34 to 69.70 (+7.36) and motion 44 to 51. The text describes the Open-Sora result as about +7 action and +5 motion, but +7 is the MVDIT action gain. Warping error falls from 0.0089 to 0.0056 for Open-Sora and 0.0080 to 0.0062 for MVDIT, while most other displayed metrics also improve slightly or moderately.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Table 1(a)-(b) and accompanying discussion"}
+      ]
+    },
+    {
+      "claim": "The HunyuanVideo LoRA control supports an incremental benefit over matched adaptation, but only as a single uncertainty-free result.",
+      "evidence": "Against LoRA trained with base loss, the proposed loss changes VQA-A 73.84 to 74.79, VQA-T 85.16 to 87.37, SD 68.42 to 69.83, warping error 0.0022 to 0.0016, temporal consistency 63.70 to 66.03, action recognition 69.02 to 73.15, motion accuracy 56 to 59, text alignment 60.62 to 65.34, and BLIP 24.42 to 25.23. No seed-level values, uncertainty, or significance tests are reported.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "Table 2 HunyuanVideo ablation against LoRA base and flow loss"}
+      ]
+    },
+    {
+      "claim": "The simple-versus-complex prompt split suggests gains in both strata but cannot support the stated complexity analysis.",
+      "evidence": "In the complex stratum, SD rises 70.20 to 71.34, CLIP temporal 99.92 to 99.96, warping error falls 0.0020 to 0.0011, flow rises 1.39 to 1.46, and BLIP rises 26.41 to 26.92. In the simple stratum, corresponding changes are 67.82 to 69.42, 99.90 to 99.95, 0.0025 to 0.0018, 1.38 to 1.46, and 23.87 to 24.77. GPT-5 assigns strata, but the paper gives no stratum counts, agreement check, or the promised complete split list in the pinned appendix.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 8, "section": "Table 3 simple and complex prompts"},
+        {"page": 9, "section": "Complexity analysis discussion"},
+        {"page": 23, "section": "End of appendix"}
+      ]
+    },
+    {
+      "claim": "The component ablation does not isolate the loss from training variance or reveal which term is sufficient.",
+      "evidence": "Removing translation, rotation, or scaling makes every displayed metric worse than the full loss, but the table has no no-physics fine-tuning row, no single-term variants, and no error bars. The full-loss ablation row nearly duplicates the main Open-Sora result—VQA-A is 69.20 versus 69.26 and the other entries are identical—without explaining whether it is the same run.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 9, "section": "Table 4 component ablation"},
+        {"page": 6, "section": "Table 1(a) Open-Sora"}
+      ]
+    },
+    {
+      "claim": "The user study reports strong pooled preferences but omits design details and one claimed backbone breakdown.",
+      "evidence": "The text states 106 people each answered 15 randomized trials, implying 1,590 nominal decisions across three backbones. Figure 5 reports only Open-Sora and MVDIT: 79.4% and 82.7% preference for ours on the combined visual-quality/motion-naturalness question, and 74.2% and 77.9% on text alignment. No Hunyuan result, recruitment, demographics, stimulus count, repeated-measures treatment, confidence interval, or significance test is given; the first question also conflates image quality with motion naturalness.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 8, "section": "4.3 User study protocol"},
+        {"page": 9, "section": "Figure 5 user preference"}
+      ]
+    },
+    {
+      "claim": "A qualitative motion-direction example contradicts its own written description.",
+      "evidence": "The displayed prompt asks for a football kicked from right to left, whereas the following prose describes the same sphere as instructed to move left-to-right. Because direction compliance is central to the qualitative claim, this is not a harmless paraphrase and illustrates that the spectral loss itself is direction-agnostic with respect to text.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Qualitative comparison figure and prompt"},
+        {"page": 9, "section": "Qualitative results discussion"}
+      ]
+    },
+    {
+      "claim": "Promised supplemental failure cases and the complete prompt split are absent from the pinned full paper.",
+      "evidence": "The main text says simple-SIM(2) failure examples and a complete simple/complex prompt split are in the supplement. Pages 10-23 contain references and appendices through the final page but include neither the failure-case gallery nor the prompt list. An external supplementary video may exist, but those claims are not auditable from the repository-pinned PDF.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Prompt complexity split note"},
+        {"page": 9, "section": "Limitations and failure-case note"},
+        {"page": 23, "section": "End of pinned appendix"}
+      ]
+    },
+    {
+      "claim": "The experiment record is too incomplete for an exact reproduction or a strong universality claim.",
+      "evidence": "The paper names four epochs, learning rate 2e-5, four A100 GPUs, rho 0.3, tau 0.1, BF16 backbone operations, and FP32 FFT/solvers. It does not provide code, exact pretrained checkpoint identifiers, the fine-tuning data subset, prompt and evaluation sample counts, random seeds, optimizer schedule details, or Hunyuan LoRA rank and insertion points. Reported metrics have no run-to-run uncertainty.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "4.1 Implementation details"},
+        {"page": 9, "section": "Limitations"},
+        {"page": 22, "section": "Appendix D implementation details"}
+      ]
+    },
+    {
+      "claim": "The related-work review omits direct pre-submission physics post-training and evaluation competitors.",
+      "evidence": "PISA Experiments (submitted March 2025) directly post-trains video diffusion on simulated free fall plus a learned reward, Physics-IQ (January 2025) tests physical principles independently of realism, ReVision (April 2025) explicitly refines 3D motion, and VideoREPA (May 29, 2025) distills physics-aware video representations. None is discussed despite addressing the same physics-improvement or physics-evaluation question before or essentially contemporaneously with this June 3 submission.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "2 Related Work"},
+        {"page": 10, "section": "References"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Use analytically expected Fourier signatures of constant planar translation, in-plane rotation, and isotropic scaling as a lightweight regularizer on predicted clean videos during diffusion fine-tuning.",
+    "mechanism": "At each diffusion timestep the model reconstructs x-hat-zero, transforms the video with a 3D FFT, fftshifts it, and retains a centered low-frequency cube. The translation term fits a weighted plane omega_t + v_x omega_x + v_y omega_y + b_0 = 0. The rotation term converts spatial spectra to polar coordinates, measures energy near angular-harmonic lines omega_t + m Omega = 0, and adds a ring-concentration entropy term. The scale term aligns radial spectral gradients through time and maximizes the absolute temporal correlation of a radial spectral centroid. Component losses are softmax-weighted with exp(-L_i/tau), tau 0.1, and the result is added to the denoising objective with coefficient 0.1. Open-Sora and MVDIT are fully fine-tuned; HunyuanVideo uses LoRA.",
+    "assumptions": [
+      "Perceptually or physically important video motion is well approximated by global constant SIM(2) motion.",
+      "Multiple objects, articulated motion, camera motion, occlusion, deformation, lighting change, and scene cuts do not destroy the fitted spectral signature.",
+      "Low-frequency energy contains the motion signal rather than mainly static appearance and DC content.",
+      "A centered cube retaining 2.7% of Fourier coefficients preserves the quantities needed by all three component losses.",
+      "Translation energy lies near one plane and rotation/scaling energy near narrow tilted structures under finite windows and discrete sampling.",
+      "Ring concentration measures rotational purity independently of the object's appearance spectrum.",
+      "The implemented decomposed proxies control the unified SIM(2) residual despite using different coordinates and statistics.",
+      "The negative-loss softmax weighting is detached or otherwise produces a stable minimization direction, although detach behavior is unspecified.",
+      "Absolute radial-centroid correlation distinguishes physically correct expansion from contraction and prompt-correct direction.",
+      "Improving generic motion, temporal, visual, and text metrics implies improved physical plausibility.",
+      "The base checkpoints, data, and fine-tuning schedules make the baseline comparisons matched apart from the proposed loss.",
+      "A single four-epoch run per configuration is representative despite absent seed uncertainty."
+    ]
+  },
+  "techniques": [
+    {"id": "predicted-clean-video-reconstruction", "role": "Applies motion supervision to x-hat-zero rather than directly to timestep noise."},
+    {"id": "centered-low-pass-3d-fft", "role": "Restricts spectral computation to a 0.3-by-0.3-by-0.3 frequency cube."},
+    {"id": "weighted-spectral-plane-fit", "role": "Estimates constant planar translation from omega_t + v dot omega_xy + b = 0."},
+    {"id": "angular-harmonic-rotation-lines", "role": "Scores energy near omega_t + m Omega = 0 after polar/angular decomposition."},
+    {"id": "ring-concentration-entropy", "role": "Penalizes rotation spectra spread across radial annuli."},
+    {"id": "radial-gradient-flow-alignment", "role": "Encourages scale-consistent evolution of the spatial radial spectrum."},
+    {"id": "radial-centroid-correlation", "role": "Rewards monotonic temporal evolution of radial spectral mass while discarding its sign."},
+    {"id": "negative-loss-softmax-mixing", "role": "Combines translation, rotation, and scale losses with weights favoring smaller component values."},
+    {"id": "architecture-agnostic-finetuning", "role": "Adds the objective to Open-Sora, MVDIT, and HunyuanVideo without changing the backbone architecture."},
+    {"id": "fp32-spectral-solver", "role": "Uses FP32 for FFT and small linear solves while retaining BF16 for the backbone."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Open-Sora fine-tuning for four epochs",
+      "metric": "EvalCrafter appearance, temporal, motion, action, optical-flow, text, and BLIP metrics",
+      "result": "VQA-A 65.15 to 69.26, VQA-T 59.57 to 69.71, SD 68.24 to 68.42, CLIP temporal 99.80 to 99.85, warping error 0.0089 to 0.0056, temporal consistency 61.45 to 63.82, action recognition 60.77 to 69.71, motion accuracy 44 to 49, flow 1.15 to 1.18, text alignment 54.02 to 61.05, and BLIP 23.73 to 24.52.",
+      "baseline": "Reported pretrained baseline; a matched four-epoch base-loss-only control is not shown"
+    },
+    {
+      "setting": "MVDIT fine-tuning for four epochs",
+      "metric": "Same EvalCrafter metric suite",
+      "result": "VQA-A 66.65 to 69.30, VQA-T 63.96 to 70.24, SD 68.31 to 68.78, CLIP temporal 99.83 to 99.89, warping error 0.0080 to 0.0062, temporal consistency 62.21 to 64.73, action recognition 62.34 to 69.70, motion accuracy 44 to 51, flow 1.01 to 1.22, text alignment 61.04 to 63.62, and BLIP 24.14 to 24.76.",
+      "baseline": "Reported pretrained baseline; a matched four-epoch base-loss-only control is not shown"
+    },
+    {
+      "setting": "HunyuanVideo LoRA adaptation",
+      "metric": "Same EvalCrafter metric suite",
+      "result": "Against matched LoRA base loss, the proposed loss improves VQA-A 73.84 to 74.79, VQA-T 85.16 to 87.37, warping error 0.0022 to 0.0016, temporal consistency 63.70 to 66.03, action recognition 69.02 to 73.15, motion accuracy 56 to 59, text alignment 60.62 to 65.34, and BLIP 24.42 to 25.23; it also generally exceeds the RAFT-flow-loss control.",
+      "baseline": "Hunyuan pretrained baseline, LoRA base-diffusion loss, and LoRA RAFT optical-flow loss"
+    },
+    {
+      "setting": "GPT-5-labeled simple versus complex prompt strata",
+      "metric": "SD, CLIP temporal, warping error, flow, and BLIP",
+      "result": "All five displayed metrics improve in both strata; warping error changes 0.0020 to 0.0011 for complex prompts and 0.0025 to 0.0018 for simple prompts. Stratum sizes and the promised complete prompt allocation are absent.",
+      "baseline": "HunyuanVideo without the proposed physics loss"
+    },
+    {
+      "setting": "Open-Sora component ablation",
+      "metric": "Full EvalCrafter table after removing translation, rotation, or scale",
+      "result": "The full three-component objective is best in every displayed column, but no no-physics matched fine-tuning row, single-term rows, seeds, or error bars are reported.",
+      "baseline": "Three leave-one-component-out variants"
+    },
+    {
+      "setting": "Pairwise human preference study with 106 participants and 15 randomized trials each",
+      "metric": "Combined visual quality/motion naturalness and text alignment",
+      "result": "Ours is preferred 79.4% and 82.7% for quality/motion and 74.2% and 77.9% for alignment on Open-Sora and MVDIT, respectively. The claimed third-backbone breakdown and inferential statistics are absent.",
+      "baseline": "Videos from the corresponding baseline backbone"
+    },
+    {
+      "setting": "Low-pass efficiency check on 1,000 unspecified random videos",
+      "metric": "Retained spectral energy and estimated spectral-loss FLOPs",
+      "result": "The paper reports about 97.5% energy retained while using 2.7% of coefficients, described as 97.3% fewer physics-loss FLOPs; measured end-to-end backbone-forward overhead is 10-20%.",
+      "baseline": "Full-spectrum motion-loss computation"
+    }
+  ],
+  "limitations": [
+    "Author-stated: the SIM(2) assumption is weakest for complex non-rigid motion, multiple interacting objects, and motion outside simple translation, rotation, or scaling.",
+    "Author-stated: the added predicted-clean-video forward path and FP32 spectral solvers increase training cost by roughly 10-20%.",
+    "Reviewer-identified: the objective regularizes image-space kinematics rather than forces, dynamics, conservation laws, contacts, materials, or causality.",
+    "Reviewer-identified: a physically wrong or prompt-reversed constant motion can score as well as the correct one.",
+    "Reviewer-identified: the rotation ring-concentration theorem depends on appearance and is false for general textured rotating objects.",
+    "Reviewer-identified: the appendix inequalities do not establish the main-text upper-bound claim for the implemented surrogate.",
+    "Reviewer-identified: the low-pass energy derivation mixes incompatible ball radii, and high retained total energy does not verify retained motion information.",
+    "Reviewer-identified: Open-Sora and MVDIT lack a matched extra-fine-tuning control, while all tables lack run-level uncertainty.",
+    "Reviewer-identified: evaluation does not include a law-specific physics benchmark or simulator-grounded trajectory metric.",
+    "Reviewer-identified: the paper omits prompt counts, evaluation counts, seeds, exact checkpoints, data subset, code, and several LoRA details.",
+    "Reviewer-identified: promised supplement content is absent from the pinned PDF, preventing audit of failure cases and prompt stratification.",
+    "Reviewer-identified: one related-work citation resolves to an unrelated wireless-communications paper, while several direct physics-video competitors are omitted."
+  ],
+  "failure_modes": [
+    "A static video can minimize the translation residual through zero velocity without depicting the requested event.",
+    "Constant but physically impossible motion, including reversed direction or motion through an obstacle, can satisfy the spectral line equations.",
+    "Camera movement can be mistaken for global object translation, rotation, or scale and receive a favorable score.",
+    "Oppositely moving objects can create multiple spectral planes that the single-plane fit averages or suppresses.",
+    "Articulation, deformation, collision, acceleration, and gravity generate curved or multi-component spectra outside the ideal narrow-band assumptions.",
+    "Textures with broad radial spectra incur ring entropy even under perfect rigid rotation; radially symmetric appearance can hide rotation.",
+    "Absolute radial correlation treats expansion and contraction symmetrically and cannot enforce prompt-specified direction.",
+    "The negative-loss softmax can ignore the largest violated component; if differentiated, it can reward increasing that loss.",
+    "DC-dominated scenes can pass the low-frequency energy check while losing motion-relevant high-frequency edges and small objects.",
+    "Looping or temporally periodic artifacts can produce sharp frequency structure and look more SIM(2)-consistent than natural nonperiodic motion.",
+    "Optimizing generic optical-flow magnitude can create more movement without improving physical plausibility.",
+    "A global spectral objective can improve aggregate metrics while degrading local contacts, hands, object boundaries, or conservation behavior."
+  ],
+  "reusable_insights": [
+    "Analytic spectral motion priors are cheap auxiliary signals, but they should be named as kinematic regularizers unless tied to force- or simulator-grounded supervision.",
+    "Predicting x-zero before applying perceptual or motion losses is a portable way to supervise diffusion models at arbitrary timesteps.",
+    "Frequency cropping should be validated on motion-estimation error, not only retained total energy.",
+    "Adaptive multi-loss weighting needs an explicit stop-gradient convention and gradient-sign analysis, especially at small temperature.",
+    "Direction, acceleration, contacts, conservation, and material response should be tested separately from appearance and temporal smoothness.",
+    "Matched additional-fine-tuning controls and seed-level intervals are essential when reported gains are modest and training itself can move the metrics.",
+    "Synthetic known-motion calibration would directly expose identifiability failures before deployment on unconstrained text-to-video prompts."
+  ],
+  "open_questions": [
+    "How accurately do the fitted translation, angular velocity, and scale parameters recover known synthetic motions under finite windows and occlusion?",
+    "Does stopping gradients through adaptive weights eliminate the pathological derivative, and how does it compare with uniform or uncertainty weighting?",
+    "Can the rotation loss remove appearance-dependent ring entropy while retaining the angular-harmonic line constraint?",
+    "How much motion-estimation accuracy is lost when retaining only the central 2.7% of coefficients, especially for small or fast objects?",
+    "Do improvements persist against matched base-loss-only fine-tuning over multiple seeds and exact checkpoints?",
+    "Does the method improve Physics-IQ, free-fall acceleration error, collision response, conservation tests, or simulator-grounded trajectory metrics?",
+    "Can prompt-conditioned signed velocity, acceleration, or object masks prevent direction reversals and camera-motion shortcuts?",
+    "How does the Fourier objective compare at equal compute with RAFT flow supervision, VideoREPA, PISA post-training, and 3D or simulator-conditioned methods?",
+    "What happens for multi-object, articulated, deformable, fluid, and camera-motion scenes outside one global SIM(2) transform?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2503.09595",
+      "title": "PISA Experiments: Exploring Physics Post-Training for Video Diffusion Models by Watching Stuff Drop",
+      "url": "https://arxiv.org/abs/2503.09595",
+      "relationship": "Closest pre-submission direct physics post-training competitor for video diffusion.",
+      "difference": "PISA fine-tunes on simulator-grounded free-fall videos and adds a learned reward with a task-specific physical benchmark; this paper avoids simulator data but only regularizes generic SIM(2) spectral kinematics and evaluates indirect motion metrics.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2503.09595v1 (2025-03-12)"
+    },
+    {
+      "canonical_id": "arxiv:2505.23656",
+      "title": "VideoREPA: Learning Physics for Video Generation through Relational Alignment with Foundation Models",
+      "url": "https://arxiv.org/abs/2505.23656",
+      "relationship": "Near-contemporaneous direct physics-aware video-model fine-tuning competitor submitted before the target paper.",
+      "difference": "VideoREPA distills token-relation structure from a video understanding foundation model into CogVideoX; the target paper supplies hand-designed low-frequency motion priors that are cheaper and backbone-agnostic but much narrower than learned physics representations.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2505.23656v1 (2025-05-29)"
+    },
+    {
+      "canonical_id": "arxiv:2409.18964",
+      "title": "PhysGen: Rigid-Body Physics-Grounded Image-to-Video Generation",
+      "url": "https://arxiv.org/abs/2409.18964",
+      "relationship": "Prior simulator-grounded rigid-body image-to-video generation system.",
+      "difference": "PhysGen infers geometry, material, and physical parameters, runs image-space rigid-body simulation, and refines with video diffusion; the target method is far lighter but has no explicit dynamics, controllable forces, or material model.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2409.18964v1 (2024-09-27), ECCV 2024"
+    },
+    {
+      "canonical_id": "arxiv:2504.21855",
+      "title": "ReVision: Refining Video Diffusion with Explicit 3D Motion Modeling",
+      "url": "https://arxiv.org/abs/2504.21855",
+      "relationship": "Pre-submission explicit motion-refinement competitor for physically plausible video generation.",
+      "difference": "ReVision builds and refines an object-centric 3D motion sequence before feeding it back to the video model; the spectral loss changes no architecture and needs no 3D reconstruction, but cannot provide comparable object-level motion control or interaction structure.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2504.21855v2 (2026-01-08; v1 2025-04-30), TMLR camera-ready"
+    },
+    {
+      "canonical_id": "arxiv:2501.09038",
+      "title": "Do generative video models understand physical principles?",
+      "url": "https://arxiv.org/abs/2501.09038",
+      "relationship": "Direct pre-submission physics-evaluation benchmark and important contrary evidence.",
+      "difference": "Physics-IQ isolates fluid, optics, solid mechanics, magnetism, and thermodynamics and finds visual realism unrelated to physical understanding; the target paper uses mostly realism, flow, coherence, action, and alignment metrics to infer physical improvement.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2501.09038v3 (2025-02-27)"
+    },
+    {
+      "canonical_id": "arxiv:2510.02284",
+      "title": "Learning to Generate Rigid Body Interactions with Video Diffusion Models",
+      "url": "https://arxiv.org/abs/2510.02284",
+      "relationship": "Later direct rigid-body interaction and low-level motion-control method, KineMask.",
+      "difference": "KineMask trains on synthetic interactions with staged removal of future mask supervision and conditions on object velocity; the target paper predates it and is less data-intensive, but has neither object masks nor explicit velocity control and does not learn contacts.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2510.02284v3 (2026-03-20)"
+    },
+    {
+      "canonical_id": "arxiv:2509.20358",
+      "title": "PhysCtrl: Generative Physics for Controllable and Physics-Grounded Video Generation",
+      "url": "https://arxiv.org/abs/2509.20358",
+      "relationship": "Later direct physics-grounded and controllable video-generation competitor.",
+      "difference": "PhysCtrl learns 3D point trajectories over rigid, elastic, sand, and plasticine dynamics from 550,000 simulator animations with force and parameter control; the target paper is a substantially cheaper regularizer but covers only image-space similarity motion.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2509.20358v2 (2025-11-07), NeurIPS 2025 camera-ready"
+    },
+    {
+      "canonical_id": "arxiv:2601.10553",
+      "title": "Inference-time Physics Alignment of Video Generative Models with Latent World Models",
+      "url": "https://arxiv.org/abs/2601.10553",
+      "relationship": "Later inference-time alternative for physics alignment without retraining the video generator.",
+      "difference": "WMReward uses VJEPA-2 as a latent-world-model reward to search and steer candidate denoising trajectories and validates on a physics challenge; the target method changes training with a closed-form spectral prior and incurs no multi-candidate inference search.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2601.10553v2 (2026-02-27)"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims the first architecture-agnostic physics-guided motion loss that unifies translation, rotation, and scaling in the 3D Fourier domain, retains nearly all relevant energy at small cost, and consistently improves physical plausibility across multiple open video-diffusion backbones.",
+    "evidence": "It derives frequency-domain signatures for SIM(2) motion, implements three differentiable low-pass component losses, reports broad EvalCrafter and human-preference gains on Open-Sora, MVDIT, and HunyuanVideo, and measures only 10-20% additional backbone-forward cost.",
+    "reviewer_inference": "The defensible novelty is a lightweight combination of translation-plane fitting, angular-harmonic/ring heuristics, and radial scale-flow heuristics applied to predicted clean videos across three backbones. The work is more accurately a global image-space kinematic regularizer than a physics loss. Direct simulator/reward post-training, 3D motion refinement, physics benchmarks, and physics-representation distillation predate or are essentially contemporaneous with it; later methods substantially broaden physical control. Central theory overstates what is proved: the rotation zero-loss theorem is appearance-dependent, the surrogate inequality is reversed relative to the headline, and the low-pass bound mixes incompatible radii. Evaluation supports improved generic motion/coherence under one recipe, especially against the Hunyuan LoRA control, but does not establish improved physical-law compliance."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Primary full-text review of the locally pinned arXiv v2 PDF, including all 23 extracted pages, main tables, qualitative figures, equations, references, and Appendices A-D. The official arXiv record was checked on 2026-08-23 and identifies v2 dated 2025-09-25; repository PDF and extracted-text hashes are exact content pins. Official primary competitor records were checked at their current versions on the same date. Author-reported results are separated from reviewer inference and contradiction audit. This is not a secondary verification pass: no independent reviewer has yet rechecked every cited passage and equation."
+}

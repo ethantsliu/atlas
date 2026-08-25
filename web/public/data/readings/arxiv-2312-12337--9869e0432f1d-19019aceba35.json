@@ -1,0 +1,350 @@
+{
+  "stable_id": "arxiv:2312.12337",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2312.12337",
+    "pdf_sha256": "606933b1f086ad92b5863b1b8d21a8af565bfb02b71ac47fb8c8f850d987f5b5",
+    "text_sha256": "b2983b3a6406f308c40bb6cf7807651156bee3acda5d9b796aee84cff9987a49",
+    "page_count": 16,
+    "extracted_at": "2026-08-23T16:53:07.578638+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a feed-forward network reconstruct a renderable 3D Gaussian scene from two posed images, while learning scene-gauge-consistent depths and avoiding the local minima that prevent direct regression of sparse primitive positions?",
+  "key_findings": [
+    {
+      "claim": "pixelSplat was an early demonstration that two posed images can be mapped in one forward pass to an explicit, real-time-renderable 3D Gaussian radiance field.",
+      "evidence": "A DINO-pretrained ResNet-50 plus ViT-B/8 encoder exchanges features along epipolar lines, and a pixel-aligned head predicts Gaussian depth, covariance, opacity, and spherical-harmonic appearance. Gaussians from both reference views are transformed to world space, unioned, and rasterized with the 3D-GS renderer.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 1, "section": "1 / Overview and contributions"},
+        {"page": 3, "section": "4 / Image-conditioned 3D Gaussian inference"},
+        {"page": 4, "section": "Algorithm 1"},
+        {"page": 12, "section": "Appendix A.1 / World-space transformation"}
+      ]
+    },
+    {
+      "claim": "The epipolar transformer resolves consistency with each scene's arbitrary SfM gauge, not metric real-world scale.",
+      "evidence": "For a pixel in one image, features sampled along the other image's epipolar line are concatenated with triangulated depths computed from the supplied camera translations. Those translations already carry the unknown per-scene scale factor, so attention can copy a depth in that same coordinate gauge. With no metric observation, the method cannot recover the unknown physical scale itself.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "4.1 / Scale ambiguity and Equations 1-2"},
+        {"page": 4, "section": "4.1 / Epipolar and self-attention"}
+      ]
+    },
+    {
+      "claim": "Gaussian means are sampled from per-pixel categorical depth distributions instead of regressed directly.",
+      "evidence": "The head predicts softmax probabilities over disparity-spaced depth buckets plus a within-bucket offset. A sampled bucket and offset determine the 3D point along the camera ray; covariance and spherical harmonics are predicted per pixel. In training, three depths are independently sampled per ray.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "4.2 / Probabilistic pixel-aligned Gaussians"},
+        {"page": 5, "section": "Equations 6-8"},
+        {"page": 12, "section": "Appendix A.1 / Three samples per ray"}
+      ]
+    },
+    {
+      "claim": "Setting opacity to the sampled bucket probability is a biased surrogate, not a categorical reparameterization gradient.",
+      "evidence": "The discrete bucket index remains non-differentiable and the method does not backpropagate a pathwise derivative through the sampled mean. It sets alpha = phi_z and copies the rendered opacity gradient to the selected probability entry, ignoring the derivative of the sampling distribution and gradients from moving the mean. This is useful stochastic credit assignment, but it is not the VAE-style reparameterization claimed in the text and is not an unbiased gradient of expected rendering loss.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "4.2 / Making sampling differentiable by setting alpha = phi_z"}
+      ]
+    },
+    {
+      "claim": "The opacity coupling implicitly sharpens the depth distribution and does not preserve unit expected opacity while probabilities are diffuse.",
+      "evidence": "With z sampled from categorical phi and alpha set to phi_z, expected opacity per draw is sum_j phi_j squared. With three samples whose opacities are divided by three, the expected total remains sum_j phi_j squared, which is below one except at a point mass. Thus the appendix's statement that total opacity is roughly one holds only after the distribution has become concentrated.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "4.2 / Opacity-probability coupling"},
+        {"page": 12, "section": "Appendix A.1 / Multi-sample opacity scaling"}
+      ]
+    },
+    {
+      "claim": "On the two reported video benchmarks, pixelSplat improves all three image-fidelity metrics over the retrained pre-Gaussian baselines.",
+      "evidence": "On ACID it reports PSNR 28.27, SSIM 0.843, and LPIPS 0.146 versus the next-best 26.88, 0.799, and 0.218. On RealEstate10K it reports 26.09, 0.863, and 0.136 versus 24.78, 0.820, and 0.213 for Du et al.'s wide-baseline light-field transformer.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "5.2 / Table 1"}
+      ]
+    },
+    {
+      "claim": "The approximately 650-fold speedup applies to per-frame rendering, while the paper's encode-plus-100-frames statement overstates the same factor.",
+      "evidence": "Table 1 gives 0.002 seconds per pixelSplat render and 1.309 seconds for the next-fastest Du baseline, a 654.5x ratio. Including encoding for 100 frames gives 0.102 + 100*0.002 = 0.302 seconds versus 0.016 + 100*1.309 = 130.916 seconds, about 434x rather than 650x.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Table 1 / Inference Time"},
+        {"page": 6, "section": "5.2 / Training and inference cost"}
+      ]
+    },
+    {
+      "claim": "The headline training-memory comparison is an extrapolated ray-equivalent estimate, not measured peak hardware memory for a common executable workload.",
+      "evidence": "Table 1 reports 14.4 GB for pixelSplat versus 314.3, 3,789.9, and 436.7 GB for baselines, explicitly extrapolating from their smaller ray batches to 256-by-256 rays. Actual training uses different iteration counts, batch definitions, and hardware: pixelSplat uses one 80 GB GPU, Du et al. four 44 GB GPUs, GPNR six 67 GB GPUs, and pixelNeRF one 20 GB GPU.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Table 1 / Memory footnote"},
+        {"page": 12, "section": "Appendix A / Training details"}
+      ]
+    },
+    {
+      "claim": "The ablations support both epipolar matching and probabilistic depth prediction, but do not uniquely establish the proposed local-minimum mechanism.",
+      "evidence": "Removing epipolar encoding drops RealEstate10K PSNR from 26.09 to 19.89; removing encoded depth yields 24.97; replacing probabilistic sampling with direct depth regression yields 24.62. The last comparison simultaneously changes discretization, stochasticity, opacity parameterization, and the number of usable depth hypotheses, so the 1.47 dB gap is not a controlled diagnosis of local minima alone.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "5.3 / Table 2 and Figure 7"}
+      ]
+    },
+    {
+      "claim": "Image-space novel-view scores do not validate the paper's stronger claims of interpretable, editable, or geometrically accurate 3D reconstruction.",
+      "evidence": "No ground-truth depth, point-cloud distance, pose consistency, surface completeness, or editing benchmark is reported. The point clouds are qualitative and use an extra 50,000-step depth-regularized checkpoint; the authors acknowledge transparent reflective surfaces and billboard-like Gaussians from out-of-distribution views, while depth regularization slightly worsens PSNR and LPIPS.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "5.2 / Point cloud rendering and failure modes"},
+        {"page": 8, "section": "Table 2 / Plus Depth Regularization"},
+        {"page": 12, "section": "Appendix A.1 / Depth regularization"}
+      ]
+    },
+    {
+      "claim": "The evaluation is view interpolation at 256-by-256 resolution with known calibrated cameras, not unconstrained sparse-view reconstruction.",
+      "evidence": "RealEstate10K home walkthroughs and ACID aerial videos provide SfM poses; targets are frames between the two chosen reference frames. Training grows reference distance from 25 to 45 video frames. There is no pose-noise study, extrapolation metric, casually captured uncalibrated input, dynamic scene, or cross-dataset quantitative test.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "5.1 / Dataset and target-view protocol"},
+        {"page": 12, "section": "Appendix A / Reference-view curriculum"}
+      ]
+    },
+    {
+      "claim": "The dense pixel-aligned representation and epipolar attention have unfavorable scaling with image resolution and number of views.",
+      "evidence": "At 256-by-256, three samples for every pixel in each of two inputs imply up to 393,216 predicted Gaussians before any visibility effects, and Gaussians from views are unioned without fusion or deduplication. The supplement states that many-view epipolar attention becomes prohibitively memory-intensive; its three-view result comes from a fixed three-view extension and improves PSNR to 28.31.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "4.2 / M Gaussians per pixel and union across views"},
+        {"page": 12, "section": "Appendix A.1 / Three Gaussians per ray"},
+        {"page": 13, "section": "Appendix B-C / Three-view result and limitations"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Use epipolar feature matching to predict scene-gauge-consistent pixel depths, then instantiate a dense set of pixel-aligned 3D Gaussians whose sampled depth probabilities also control opacity so photometric gradients can reshape future sampling.",
+    "mechanism": "DINO-pretrained CNN and ViT features from two posed views undergo epipolar cross-attention with triangulated-depth positional encodings and per-image self-attention. For each input pixel, a head predicts a categorical distribution over disparity bins, offsets, covariance, and spherical harmonics. Three bin samples are unprojected along the ray, assigned probability-proportional opacity, transformed into world coordinates, unioned across views, and rendered by differentiable Gaussian rasterization under MSE plus LPIPS supervision.",
+    "assumptions": [
+      "Accurate intrinsics and relative extrinsics, including each SfM scene's arbitrary baseline scale, are available at training and inference.",
+      "Two video frames contain enough overlap for epipolar attention to recover most visible geometry.",
+      "Self-attention can inpaint useful depths for pixels without a cross-view correspondence.",
+      "A finite disparity-bin range with near plane 0.1 and far plane 10 covers relevant scene depths in the normalized gauge.",
+      "Opacity-gradient credit to sampled depth probabilities is a sufficient surrogate for optimizing a discrete placement distribution.",
+      "Pixel-aligned Gaussians and their union approximate one coherent scene despite duplicates, occlusions, and view-dependent effects.",
+      "Photometric novel-view loss is a sufficient supervisory signal for useful 3D geometry.",
+      "Results on held-out RealEstate10K and ACID videos transfer to the intended real-world reconstruction setting."
+    ]
+  },
+  "techniques": [
+    {"id": "depth-aware-epipolar-attention", "role": "Matches pixels across posed views while attaching triangulated depths expressed in the scene's SfM coordinate gauge."},
+    {"id": "self-attention-depth-inpainting", "role": "Propagates correspondence-derived geometry to pixels that are occluded or unmatched in the other image."},
+    {"id": "categorical-disparity-sampling", "role": "Represents multimodal or uncertain pixel depth with probability mass over inverse-depth buckets and sampled offsets."},
+    {"id": "opacity-probability-gradient-surrogate", "role": "Sets each sampled Gaussian's opacity from its bucket probability so rendering gradients update the selected probability entry."},
+    {"id": "multi-sample-pixel-gaussians", "role": "Draws three depths per pixel during training to expose multiple candidate surfaces to photometric gradients."},
+    {"id": "pixel-aligned-gaussian-unprojection", "role": "Turns sampled ray depths into 3D means while predicting covariance and spherical-harmonic appearance from image features."},
+    {"id": "feed-forward-gaussian-rasterization", "role": "Amortizes reconstruction into an encoder and obtains low-cost novel views from the explicit Gaussian set."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Two posed 256-by-256 reference frames and intervening targets from the ACID test split.",
+      "metric": "PSNR, SSIM, and LPIPS.",
+      "result": "28.27 PSNR, 0.843 SSIM, 0.146 LPIPS.",
+      "baseline": "Du et al. 26.88/0.799/0.218; GPNR 25.28/0.764/0.332; pixelNeRF 20.97/0.547/0.533."
+    },
+    {
+      "setting": "Two posed 256-by-256 reference frames and intervening targets from RealEstate10K.",
+      "metric": "PSNR, SSIM, and LPIPS.",
+      "result": "26.09 PSNR, 0.863 SSIM, 0.136 LPIPS.",
+      "baseline": "Du et al. 24.78/0.820/0.213; GPNR 24.11/0.793/0.255; pixelNeRF 20.43/0.589/0.550."
+    },
+    {
+      "setting": "Single-scene encoding and one 256-by-256 render on the reported implementation.",
+      "metric": "Wall-clock seconds.",
+      "result": "0.102 seconds encoding and 0.002 seconds rendering.",
+      "baseline": "Next-fastest Du et al.: 0.016 encoding and 1.309 rendering; 650x applies to rendering alone."
+    },
+    {
+      "setting": "Memory estimate normalized to a scene and 256-by-256 rays.",
+      "metric": "Training and inference GB.",
+      "result": "14.4 GB training and 3.002 GB inference.",
+      "baseline": "Du et al. 314.3/19.604, GPNR 3789.9/19.441, pixelNeRF 436.7/3.962; training values are extrapolated."
+    },
+    {
+      "setting": "RealEstate10K epipolar-encoder ablations.",
+      "metric": "PSNR, SSIM, and LPIPS.",
+      "result": "No epipolar encoder: 19.89/0.639/0.295; no depth encoding: 24.97/0.830/0.158; full: 26.09/0.863/0.136.",
+      "baseline": "Independent per-image encoding and epipolar attention without triangulated-depth positional encoding."
+    },
+    {
+      "setting": "RealEstate10K primitive-placement ablation.",
+      "metric": "PSNR, SSIM, and LPIPS.",
+      "result": "Direct depth regression: 24.62/0.828/0.171 versus probabilistic sampling 26.09/0.863/0.136.",
+      "baseline": "A point-estimate Gaussian mean head."
+    },
+    {
+      "setting": "RealEstate10K with an extra 50,000-step edge-aware depth regularizer.",
+      "metric": "PSNR, SSIM, and LPIPS.",
+      "result": "25.94/0.862/0.137 versus 26.09/0.863/0.136 without the regularizer.",
+      "baseline": "Main photometric model; regularized checkpoint is used for point-cloud figures."
+    },
+    {
+      "setting": "Fixed three-view RealEstate10K extension with the middle reference added.",
+      "metric": "PSNR, SSIM, and LPIPS.",
+      "result": "Three views 28.31/0.908/0.100 versus two views 26.09/0.863/0.136.",
+      "baseline": "Original two-view model; scaling beyond three views is not evaluated."
+    }
+  ],
+  "limitations": [
+    "The method requires accurate camera intrinsics and relative poses and only produces geometry consistent with their arbitrary scale gauge.",
+    "The discrete sampling rule receives opacity gradients but no pathwise gradient through the sampled mean and is not an unbiased categorical reparameterization.",
+    "Three Gaussians per pixel per view create a dense, resolution- and view-count-dependent representation with no fusion or deduplication.",
+    "Many-view epipolar attention is explicitly reported as prohibitively memory-intensive.",
+    "Benchmarks use 256-by-256 targets interpolated between video frames from only two domains.",
+    "No geometry, depth, point-cloud, editability, or pose-robustness metric validates the explicit 3D reconstruction claim.",
+    "Reflective surfaces become transparent and out-of-distribution views reveal billboard-like Gaussians.",
+    "Unseen scene regions are not generatively completed.",
+    "Training uses a large DINO-pretrained ResNet-50 plus ViT-B/8 encoder and one 80 GB GPU for 300,000 steps, so cheap training is relative to selected baselines.",
+    "Baseline training memory is extrapolated rather than measured at a common feasible batch, and training time or total FLOPs are absent.",
+    "The probabilistic-depth ablation does not isolate sampling from discretization, multimodality, opacity coupling, or multiple hypotheses."
+  ],
+  "failure_modes": [
+    "Little image overlap or repetitive texture can make epipolar attention select the wrong correspondence and put Gaussians at incorrect depths.",
+    "Incorrect or noisy camera poses directly corrupt triangulated depth encodings and world-space Gaussian alignment.",
+    "Occluded, reflective, transparent, and textureless regions can yield floaters, ghosting, transparent surfaces, or billboards.",
+    "A correct but initially low-probability depth bucket may be sampled too rarely to acquire enough opacity credit.",
+    "Duplicate Gaussians from the two views can waste memory and produce inconsistent appearance or overdraw.",
+    "Fixed near/far bounds and disparity bins can clip geometry or undersample distant depths under a new pose gauge.",
+    "Photometric interpolation quality can remain high while geometry is wrong, particularly through view-dependent spherical harmonics.",
+    "Memory and primitive count grow rapidly with input resolution and number of views.",
+    "No generative prior exists to fill surfaces unseen in both reference images."
+  ],
+  "reusable_insights": [
+    "When poses are defined only up to scale, condition geometry predictions on quantities expressed in the same pose gauge rather than claiming metric scale recovery.",
+    "Separate representation placement from differentiable primitive parameters: a dense depth distribution can let a sparse renderer explore nonlocal hypotheses.",
+    "Label straight-through or surrogate categorical gradients accurately and compare them with score-function, Gumbel-softmax, soft-expectation, and supervised-depth alternatives.",
+    "Novel-view fidelity is not a geometry metric; pair PSNR/SSIM/LPIPS with depth, point-cloud, reprojection, and cross-view consistency tests.",
+    "Report actual peak memory and wall time at executable workloads instead of only linearly extrapolated ray-equivalent memory.",
+    "For amortized renderers, publish separate encoding, per-frame rendering, primitive count, storage, and break-even curves over number of requested views.",
+    "Decouple primitives from the input pixel grid or adaptively allocate them by scene uncertainty to avoid quadratic resolution scaling."
+  ],
+  "open_questions": [
+    "Can a principled discrete-gradient estimator retain pixelSplat's exploration benefit while optimizing the true expected rendering objective?",
+    "How much of the probabilistic-head gain comes from multimodal depth classification, stochastic regularization, opacity coupling, or extra hypotheses?",
+    "Can predicted Gaussians be fused across views and adaptively densified without non-differentiable per-scene heuristics?",
+    "How robust is reconstruction to calibrated pose perturbations, rolling shutter, changing intrinsics, and independently captured photographs?",
+    "Can an unposed canonical-frame encoder match posed performance without ground-truth pose supervision?",
+    "What quantitative relationship holds between novel-view fidelity and actual surface/depth accuracy for feed-forward splats?",
+    "Can variable-view attention scale to dozens of high-resolution images without primitive or memory growth tied to every pixel?",
+    "Can a generative prior complete jointly unseen regions while preserving multi-view geometry and calibrated uncertainty?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2308.04079",
+      "title": "3D Gaussian Splatting for Real-Time Radiance Field Rendering",
+      "url": "https://arxiv.org/abs/2308.04079",
+      "relationship": "Foundational representation and renderer predecessor.",
+      "difference": "Kerbl et al. optimize one scene from many posed views and use non-differentiable adaptive density control. pixelSplat amortizes Gaussian prediction from two views and replaces split/prune heuristics with a stochastic depth head, trading single-scene fidelity and adaptive allocation for immediate generalization.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "SIGGRAPH 2023 / arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2304.08463",
+      "title": "Learning to Render Novel Views from Wide-Baseline Stereo Pairs",
+      "url": "https://arxiv.org/abs/2304.08463",
+      "relationship": "Closest input protocol and encoder predecessor.",
+      "difference": "Du et al. introduce the wide-baseline two-view epipolar transformer and fast light-field renderer used as pixelSplat's strongest baseline. pixelSplat's main advance is an explicit rasterizable Gaussian scene with much faster repeated rendering, while retaining the known-pose video setting.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "CVPR 2023 / arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2403.14627",
+      "title": "MVSplat: Efficient 3D Gaussian Splatting from Sparse Multi-View Images",
+      "url": "https://arxiv.org/abs/2403.14627",
+      "relationship": "Direct successor and strongest like-for-like competitor.",
+      "difference": "MVSplat replaces stochastic per-pixel depth with a plane-sweep cost volume, supports sparse multi-view inputs, and reports over 2x faster inference, 10x fewer parameters, higher appearance and geometry quality, and stronger cross-dataset transfer than pixelSplat. It directly weakens the necessity of pixelSplat's probability-opacity surrogate.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "ECCV 2024 / arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2405.12218",
+      "title": "MVSGaussian: Fast Generalizable Gaussian Splatting Reconstruction from Multi-View Stereo",
+      "url": "https://arxiv.org/abs/2405.12218",
+      "relationship": "Direct generalizable multi-view Gaussian competitor.",
+      "difference": "MVSGaussian uses MVS geometry, hybrid Gaussian-volume rendering, and optional fast per-scene refinement across DTU, forward-facing, synthetic, and Tanks and Temples data. pixelSplat is simpler and purely feed-forward from two views but has much narrower geometry and domain validation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "ECCV 2024 / arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2408.13912",
+      "title": "Splatt3R: Zero-shot Gaussian Splatting from Uncalibrated Image Pairs",
+      "url": "https://arxiv.org/abs/2408.13912",
+      "relationship": "Direct uncalibrated two-image successor.",
+      "difference": "Splatt3R predicts pixel-aligned Gaussians from an image pair without camera parameters by building on learned stereo reconstruction. It removes pixelSplat's calibrated-pose and SfM-gauge dependency, though both inherit dense per-pixel primitive scaling.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2410.24207",
+      "title": "No Pose, No Problem: Surprisingly Simple 3D Gaussian Splats from Sparse Unposed Images",
+      "url": "https://openreview.net/forum?id=b115e0eb446ac0910842794d2c92d02decc591a0",
+      "relationship": "Pose-free feed-forward successor.",
+      "difference": "NoPoSplat predicts all views' Gaussians in one canonical camera frame, embeds intrinsics, performs pose estimation, and reports stronger NVS than posed pixelSplat especially at low overlap plus cross-dataset evaluation. It addresses two of pixelSplat's largest scope limits: required extrinsics and inconsistent per-view unions.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2025 oral record"
+    },
+    {
+      "canonical_id": "arxiv:2410.13862",
+      "title": "DepthSplat: Connecting Gaussian Splatting and Depth",
+      "url": "https://openaccess.thecvf.com/content/CVPR2025/html/Xu_DepthSplat_Connecting_Gaussian_Splatting_and_Depth_CVPR_2025_paper.html",
+      "relationship": "Direct depth-aware multi-view successor.",
+      "difference": "DepthSplat combines pretrained monocular depth features, multi-view matching, explicit depth evaluation, and Gaussian photometric pretraining; it handles 12 views at 512-by-960 in 0.6 seconds and evaluates ScanNet, RealEstate10K, and DL3DV. pixelSplat lacks depth supervision/evaluation and scalable many-view evidence.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "CVPR 2025 official proceedings record"
+    },
+    {
+      "canonical_id": "arxiv:2412.09573",
+      "title": "FreeSplatter: Pose-free Gaussian Splatting for Sparse-view 3D Reconstruction",
+      "url": "https://arxiv.org/abs/2412.09573",
+      "relationship": "Scalable uncalibrated reconstruction successor.",
+      "difference": "FreeSplatter predicts per-pixel Gaussians in one reference frame and recovers cameras with off-the-shelf solvers for both objects and scenes, later outperforming pixelSplat on most ScanNet++ metrics. pixelSplat remains a historical posed baseline rather than the current unconstrained frontier.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "ICCV 2025 / arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2505.23716",
+      "title": "AnySplat: Feed-forward 3D Gaussian Splatting from Unconstrained Views",
+      "url": "https://arxiv.org/abs/2505.23716",
+      "relationship": "Current unconstrained sparse-to-dense view competitor.",
+      "difference": "AnySplat jointly predicts Gaussians and all camera intrinsics/extrinsics from uncalibrated image collections and scales to casual dense captures. It generalizes the problem well beyond pixelSplat's fixed posed pair, while pixelSplat offers a more transparent epipolar/probability construction.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "ACM TOG / SIGGRAPH Asia 2025; arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2607.20417",
+      "title": "ATSplat: Compact Feed-forward 3D Gaussian Splatting with Adaptive Token Expansion",
+      "url": "https://arxiv.org/abs/2607.20417",
+      "relationship": "Subsequent direct compactness competitor.",
+      "difference": "ATSplat explicitly identifies dense pixel-aligned Gaussians as resolution- and viewpoint-coupled redundancy, replaces them with sparse 3D tokens, and expands uncertain regions adaptively, reporting over 5.7x fewer Gaussians. This directly targets pixelSplat's fixed three-per-pixel allocation and lack of deduplication.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, submitted 2026-07-22"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim the first single-forward-pass prediction of a 3D Gaussian scene from an image pair, enabled by a differentiable probability-based primitive-placement method that avoids local minima and yields explicit, editable 3D with much faster rendering than light-field transformers.",
+    "evidence": "The full paper predates the explosion of feed-forward Gaussian methods and gives a concrete epipolar gauge-conditioning plus probability-opacity placement rule, strong two-dataset NVS gains, and 3D-GS rendering speed. The primary-source audit confirms that 3D-GS and the wide-baseline epipolar input protocol were prior ingredients, while MVSplat, MVSGaussian, Splatt3R, NoPoSplat, DepthSplat, FreeSplatter, AnySplat, and ATSplat subsequently improve depth quality, view count, pose freedom, domain evaluation, or compactness.",
+    "reviewer_inference": "pixelSplat is a historically important systems contribution: it made amortized Gaussian scene prediction credible and established a benchmark later work directly builds on. Its distinctive probability-opacity surrogate is useful but mislabeled as a reparameterization trick and no longer appears necessary given cost-volume successors. Claims of accurate, interpretable, editable 3D and scalable training exceed the presented metrics. Today it is best read as the posed two-view starting point for feed-forward 3DGS, not the current quality, geometry, compactness, or unconstrained-capture frontier."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Primary full-text pass only, not secondary verification. I read all 16 extracted pages end to end, including the scale-gauge derivation, categorical depth and opacity rule, exact Table 1 resource/quality values, all ablations, training hardware, three-view extension, limitations, and qualitative result pages; I also visually inspected the original PDF's Table 1. I checked ten direct primary records on official CVF/OpenReview and arXiv through 2026-08-23, including current pose-free and compact successors. Architecture, training, metrics, resource entries, and author limitations are author-reported. The categorical-gradient derivation, expected-opacity calculation, 434x encode-plus-100 arithmetic, gauge-versus-metric distinction, geometry-evidence audit, and scaling qualifications are contradiction audits or reviewer inferences. No code rerun, renderer benchmark, independent geometry evaluation, or verified-status claim is made."
+}

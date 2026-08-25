@@ -1,0 +1,388 @@
+{
+  "stable_id": "arxiv:2602.22532",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2602.22532",
+    "pdf_sha256": "68b17ae4a63553e3f7de01cc4f9a9cd071a2a1fa8af3fd448ab79344a8a2f292",
+    "text_sha256": "6babfc0be324811d7d81a3c3ef8bf83d30d8fd87de84db3b4bf76e8033e4aa6d",
+    "page_count": 26,
+    "extracted_at": "2026-08-23T12:48:14.055510+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can continuously changing instantaneous and lagged causal graphs be learned efficiently by decoding sparse coarse-time graph states, interpolating them to every time step, and optimizing with a norm-scaled log-determinant acyclicity penalty?",
+  "key_findings": [
+    {
+      "claim": "Author method: DyCausal amortizes dynamic graph estimation over coarse sliding-window states and linearly interpolates decoded adjacency matrices to every time step.",
+      "evidence": "A CNN maps each length-K window, sampled every S steps, to a state vector. A two-stage parallel MLP decoder produces a weighted instantaneous-plus-lagged matrix at those coarse times, reducing the claimed direct-decoder complexity from O(d^3 m^2 tau) to O(d^2 m^2 tau). Adjacent coarse matrices are connected by first-order interpolation, so only floor((T-K)/S) matrices are decoded before time-step reconstruction.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "Figure 1 conceptual overview"},
+        {"page": 4, "section": "4.1 Coarse-to-Fine Encoding, Equations 3-4"},
+        {"page": 5, "section": "Equation 5 linear interpolation"}
+      ]
+    },
+    {
+      "claim": "Author method: one coarse-to-fine graph generator is adapted to linear SEM, nonlinear SEM, and ODE reconstruction while acyclicity is applied only to instantaneous edges.",
+      "evidence": "For linear SEM the decoded matrix directly reconstructs each window; for nonlinear SEM it becomes the first-layer weights of per-variable MLPs and edge strengths are grouped across hidden units; for ODE data the model reconstructs changes and drops the instantaneous acyclicity term. A central-path-like schedule downweights reconstruction plus L1 sparsity relative to the constraint over four outer iterations, followed by threshold pruning.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "3 SEM and instantaneous acyclicity"},
+        {"page": 6, "section": "4.3 Reconstruction, optimization, and Algorithm 1"},
+        {"page": 7, "section": "Nonlinear and ODE extensions, Equations 8-9"}
+      ]
+    },
+    {
+      "claim": "Author theory: dividing W elementwise-squared by its matrix 1-norm is claimed to keep the DAGMA log-determinant penalty inside its domain and to make the penalty exact, stable, and efficiently optimizable.",
+      "evidence": "The proposed h_norm is -log det(alpha I - (W∘W)/||W∘W||_1)+d log alpha with alpha=1.001. Theorems 1-2 claim h_norm is nonnegative and zero exactly on DAGs, has zero gradient exactly on DAGs, and is E-, V-, and D-stable. The appendix's stability proof relies on the normalized penalty being invariant under positive scalar multiplication.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "4.2 Equation 6 and Theorems 1-2"},
+        {"page": 6, "section": "Comparison with spectral-radius differentiation"},
+        {"page": 13, "section": "Appendix A Theorem 2 restatement"},
+        {"page": 14, "section": "Appendix A scale-invariance proof"}
+      ]
+    },
+    {
+      "claim": "Contradiction audit: the displayed gradient of h_norm is mathematically incomplete because it omits differentiation through the normalizing 1-norm.",
+      "evidence": "For B=W∘W and s=||B||_1, differentiating B/s produces dB/s - B ds/s^2. Theorem 1 includes only the first contribution, 2/s (alpha I-B/s)^(-T)∘W, and omits the ds term. The appendix simultaneously proves h_norm(cW)=h_norm(W) for c>0, so any correct gradient at a differentiable W must have Frobenius inner product zero with W; the printed gradient is generally nonzero in that radial direction. Consequently, the claimed gradient formula and the derived 'gradient zero iff DAG' characterization are not established as written.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "4.2 displayed gradient and Theorem 1(ii)"},
+        {"page": 14, "section": "Appendix A scale invariance of h_norm"}
+      ]
+    },
+    {
+      "claim": "Contradiction audit: h_norm is not 'always differentiable and optimizable' under the stated formula.",
+      "evidence": "At W=0 the denominator ||W∘W||_1 is zero, so the function has no value and no direction-independent continuous extension: approaching zero along different normalized graph structures gives different penalties. Away from zero, the induced 1-norm is a maximum column sum and is nondifferentiable when maximum columns tie. Theorem 2 correctly weakens D-stability to 'almost every' matrix, but the main text says always differentiable and the appendix concludes 'well defined everywhere.' No epsilon, tie rule, or zero initialization exception is specified.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Claim of always differentiable constraint"},
+        {"page": 5, "section": "Equation 6 and Theorem 2 almost-everywhere qualifier"},
+        {"page": 14, "section": "Appendix A everywhere conclusion"}
+      ]
+    },
+    {
+      "claim": "Contradiction audit: the printed tensor dimensions and pruning rule are inconsistent with the stated temporal model and signed-edge experiments.",
+      "evidence": "The maximum lag is p=0,...,tau, so [X_t|...|X_{t-tau}] contains tau+1 d-dimensional blocks; Appendix B likewise concatenates one instantaneous and tau lag matrices. Yet the method repeatedly declares W in R^(d tau × d), or R^(dm × d tau), omitting one block. Algorithm 1 then returns edges using W_t>delta, although synthetic nonzero weights are sampled from both negative and positive intervals. Literal signed thresholding would delete every inhibitory edge, so the implementation must differ or the algorithm is missing an absolute value.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "3 maximum-lag definition and W dimensions"},
+        {"page": 4, "section": "4.1 decoder dimensions"},
+        {"page": 6, "section": "Algorithm 1 pruning and cause-series construction"},
+        {"page": 14, "section": "Appendix B.1 signed weights and tau+1 graph blocks"}
+      ]
+    },
+    {
+      "claim": "Author-reported dynamic benchmark result: DyCausal substantially outperforms the tested static methods and DyCAST on synchronized sinusoidal/cosinusoidal weight trajectories.",
+      "evidence": "With N=200 trajectories, T=50, tau=1, DyCausal's F1 at t=1/25/50 is 91.43/94.38/90.38 for d=20 and 93.85/95.20/92.52 for d=80. DYCAST reaches 29.51/61.12/28.64 for d=20 and does not return d=80 results; DYNOTEARS and NTS-NOTEARS collapse near both endpoints. The estimated weight heatmaps visually match the generated matrices.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "5.1 dynamic experimental design"},
+        {"page": 8, "section": "Figure 3 and larger dynamic settings"},
+        {"page": 16, "section": "Appendix C.1 Table A1"},
+        {"page": 17, "section": "Figure A1 weight recovery"}
+      ]
+    },
+    {
+      "claim": "Reviewer inference: the synthetic evidence covers smooth coefficient drift on a largely fixed support, not arbitrary fully dynamic graph rewiring.",
+      "evidence": "Every nonzero edge is first sampled in W0 and then multiplied by one of only two globally synchronized functions, sin(pi t/T) or cos(pi t/T); no new edge outside W0 can appear. Support changes occur only when a coefficient crosses zero or the pruning threshold. The appendix's 'non-smooth' experiment still uses a cosine, which is mathematically smooth, and its most rapidly changing case sets K=S=1, eliminating the proposed coarse-to-fine approximation. Thus topology birth/death, abrupt asynchronous switches, and heterogeneous change points remain largely untested.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 14, "section": "Appendix B.1 Dynamic Model, Equation A4"},
+        {"page": 24, "section": "Appendix C.13 non-smooth setup"},
+        {"page": 25, "section": "Table A6 and K=1 limitation"}
+      ]
+    },
+    {
+      "claim": "Author-reported ablation: interpolation improves dynamic recovery, but the effect is small or mixed in some 20-node cells.",
+      "evidence": "For d=10, removing interpolation lowers endpoint F1 from 91.42/90.81 to 72.98/72.83 with much larger variance. For d=20, the changes are modest: at t=1 the no-interpolation TPR is slightly higher (90.06 versus 89.86), F1 differs by 0.08, and at t=50 TPR differs by 0.30 while F1 differs by 1.62. Table A7's K=1,S=1 failure also changes per-window sample size, so it is not an isolated interpolation ablation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 16, "section": "Appendix C.2 interpolation ablation"},
+        {"page": 17, "section": "Table A2"},
+        {"page": 25, "section": "Appendix C.14 interpolation claim"},
+        {"page": 26, "section": "Table A7"}
+      ]
+    },
+    {
+      "claim": "Author-reported static and real-data results: DyCausal is usually strongest on structural metrics and AUROC, with important comparator and ground-truth qualifications.",
+      "evidence": "On static linear/nonlinear/ODE simulations up to 80 nodes, Table A3 usually gives DyCausal the best F1 and SHD, though NGM has higher TPR and lower SHD in the 40-node ODE case and higher TPR at 80 nodes. On CausalTime, DyCausal F1 is 54.81/63.16/56.86 for traffic/AQI/medical versus the next-best 52.04/58.20/52.05. On NetSim/DREAM/Phoenix/CausalRivers, AUROC is 0.9391/0.6806/0.5472/0.7214 versus only CUTS+ and NGM.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 9, "section": "Table 1 CausalTime and 5.3 Real Case"},
+        {"page": 19, "section": "Appendix C.9 static settings"},
+        {"page": 21, "section": "Appendix C.11 real-world datasets"},
+        {"page": 22, "section": "Tables A3-A4"}
+      ]
+    },
+    {
+      "claim": "Contradiction audit: Table A3 contains an impossible uncertainty entry for bounded F1.",
+      "evidence": "For the 20-node ODE setting, DyCausal F1 is printed as 97.24±96.09 on a 0-100 scale, while the neighboring NGM mean is also 96.09±0.86. A variable bounded in [0,100] with mean 97.24 cannot have standard deviation 96.09; even the maximum population standard deviation at that mean is about 16.4. This is a transcription or column error and makes that reported uncertainty unusable. The 40-node linear F1 entry 98.40±8.73 is also unusually inconsistent with adjacent metrics and merits source-data verification.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 22, "section": "Table A3 static-causality results"}
+      ]
+    },
+    {
+      "claim": "Contradiction audit: Appendix D does not establish identifiability under the paper's stated general SEM assumptions.",
+      "evidence": "The model assumes an arbitrary function with independent additive noise, then the appendix invokes results for distinct regimes—linear non-Gaussian SEMs, linear Gaussian SEMs with equal error variances, and identifiable nonlinear additive-noise models—without adding their required conditions. It also says one can identify a Markov equivalence class and restore directed coefficients, although a Markov equivalence class alone does not identify all directions. The argument further relies on infinite samples, local causal invariance within every window, and correct interpolation, none of which yields the blanket conclusion 'dynamic causality is identifiable for DyCausal.'",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "3 Structural equation model"},
+        {"page": 26, "section": "Appendix D Identifiability of DyCausal"}
+      ]
+    },
+    {
+      "claim": "Author qualification: each W_t reconstructs an entire future-containing window, so fine-time causality is learned only under local stationarity and many repeated trajectories.",
+      "evidence": "Equation 7 uses the same W_t for observations from t through t+K. Appendix D explicitly admits this slightly violates dynamic causality, under which W_t should generate only time t, and repairs the argument by assuming K is small enough that causality is approximately invariant within the window. The formal input also assumes N independent series sharing one graph trajectory; static experiments instead split a single length-1000 series into 20 contiguous segments for methods requiring multiple series.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "3 N independent shared-structure series"},
+        {"page": 6, "section": "Equation 7 window reconstruction"},
+        {"page": 8, "section": "Static-data segmentation protocol"},
+        {"page": 26, "section": "Appendix D admitted local-invariance approximation"}
+      ]
+    },
+    {
+      "claim": "Negative and sensitivity results: the method degrades when each time point has too little local data, at low noise, and away from a tuned sparsity penalty.",
+      "evidence": "With only 20 trajectories on 50-node dynamic graphs, TPR falls to just above 0.5. Shorter T=10 series yield roughly 0.7 TPR/F1. Noise strength 0.5 performs worse than larger noise, which the authors attribute to difficulty separating direct and indirect effects. Beta sensitivity is severe: endpoint F1 at beta=0.05 is 95.49/96.06 but drops to 63.68/59.08 at beta=0.1 and 66.46/76.20 at beta=0.001. K=S=1 at d=200 gives F1 only 20.48/30.22/20.76.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 17, "section": "Appendix C.4 fewer samples"},
+        {"page": 18, "section": "Appendices C.5-C.6 length and noise"},
+        {"page": 23, "section": "Appendix C.12 beta sensitivity"},
+        {"page": 25, "section": "Table A5"},
+        {"page": 26, "section": "Table A7 K=S=1 failure"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Infer a small set of locally supported graph states with a shared CNN-decoder, interpolate those states over time, and fit them by sparse reconstruction plus a normalized log-determinant acyclicity penalty.",
+    "mechanism": "Sliding windows of multiple independent trajectories are encoded into coarse causal-state vectors. Parallel MLPs decode signed instantaneous and lagged weights; linear interpolation fills the skipped time steps. The graphs reconstruct each local observation window under linear, nonlinear-first-layer, or ODE parameterizations. A central-path schedule balances reconstruction/L1 sparsity with h_norm on instantaneous edges, then a threshold produces dynamic support graphs.",
+    "assumptions": [
+      "All N trajectories are independent, regularly sampled, and share exactly the same time-indexed causal graphs.",
+      "There are no latent confounders and instantaneous effects form a DAG at every time step.",
+      "The additive-noise SEM and reconstruction family satisfy the additional conditions needed for causal identifiability.",
+      "Causality is approximately invariant within every reconstruction window even though a different graph is nominally assigned to each time step.",
+      "The graph trajectory is smooth enough, and S small enough, for piecewise linear interpolation to recover skipped states.",
+      "A shared CNN and parallel decoder can distinguish graph evolution from distribution shifts, noise, and finite-sample variation.",
+      "The maximum lag is known or slightly overestimated, and every relevant cause lies within it.",
+      "L1 sparsity and a fixed pruning threshold recover signed support without distorting weak or rapidly crossing edges.",
+      "Norm-normalized log-det optimization behaves according to the stated gradient despite zero and norm-tie singularities.",
+      "Hyperparameters selected on the evaluated synthetic regime transfer to real systems and other rates of causal change."
+    ]
+  },
+  "techniques": [
+    {"id": "sliding-window-causal-encoder", "role": "Amortizes coarse graph-state inference across repeated trajectories."},
+    {"id": "parallel-factorized-graph-decoder", "role": "Reduces parameters and computation relative to direct dense decoding."},
+    {"id": "piecewise-linear-graph-interpolation", "role": "Fills time-step graphs between decoded coarse states."},
+    {"id": "norm-scaled-logdet-acyclicity", "role": "Attempts to keep log-determinant DAG regularization inside its spectral domain."},
+    {"id": "central-path-objective-schedule", "role": "Progressively prioritizes acyclicity over reconstruction and sparsity."},
+    {"id": "first-layer-grouped-causal-weights", "role": "Extends graph support estimation to nonlinear per-variable MLPs."},
+    {"id": "dynamic-signed-weight-benchmark", "role": "Tests recovery along sinusoidal and cosinusoidal coefficient trajectories."},
+    {"id": "time-indexed-structural-metrics", "role": "Reports TPR, F1, and SHD at individual graph states rather than only a summary graph."}
+  ],
+  "evaluations": [
+    {
+      "setting": "N=200, T=50, tau=1 smooth dynamic SEMs with d=20 and d=80",
+      "metric": "TPR, F1, and SHD at t=1,25,50",
+      "result": "DyCausal F1 is 91.43/94.38/90.38 at d=20 and 93.85/95.20/92.52 at d=80.",
+      "baseline": "DyCAST reaches 29.51/61.12/28.64 at d=20 and fails to return d=80 results; DYNOTEARS and NTS-NOTEARS are much lower, especially at endpoints."
+    },
+    {
+      "setting": "Dynamic interpolation ablation at d=10 and d=20",
+      "metric": "TPR, F1, SHD, and variance at t=1,25,50",
+      "result": "Removing interpolation sharply hurts d=10 endpoints but only modestly changes many d=20 cells; full F1 is 92.26/93.64/89.40 versus 92.18/91.28/87.78 without interpolation at d=20.",
+      "baseline": "Same graph generator without fine-time linear interpolation."
+    },
+    {
+      "setting": "Static linear SEM, nonlinear SEM, and Lorenz ODE graphs from 10 to 80 nodes",
+      "metric": "TPR, F1, SHD, and runtime",
+      "result": "DyCausal usually has best F1/SHD and reported speed, but NGM wins some ODE TPR/SHD cells; Table A3 contains an invalid 97.24±96.09 F1 entry.",
+      "baseline": "DYNOTEARS, NTS-NOTEARS, PCMCI, SVAM, NGM, and TECDI where applicable."
+    },
+    {
+      "setting": "CausalTime traffic, AQI, and medical subsets",
+      "metric": "Precision and F1",
+      "result": "DyCausal precision is 87.41/75.31/83.21 and F1 is 54.81/63.16/56.86.",
+      "baseline": "CUTS+, JRNGC, NTS-NOTEARS, DYNOTEARS, SVAM, PCMCI, NGM, and TECDI; the next-best F1 is 52.04/58.20/52.05."
+    },
+    {
+      "setting": "NetSim, DREAM-3, Phoenix transcription-factor subset, and CausalRivers Random-5",
+      "metric": "AUROC",
+      "result": "DyCausal reaches 0.9391±0.0075, 0.6806±0.0197, 0.5472±0.0185, and 0.7214±0.0405.",
+      "baseline": "CUTS+ reaches 0.7058/0.6229/0.5104/0.6072 and NGM 0.7499/0.5629/0.4809/0.4905."
+    },
+    {
+      "setting": "Uniform random matrices and signed cycle graphs across scale and dimension",
+      "metric": "Constraint value, gradient magnitude, and runtime",
+      "result": "Displayed curves keep h_norm bounded and fast; exponential/polynomial penalties explode or vanish, h_log weakens on long small-weight cycles, and spectral-radius gradients/runtimes degrade.",
+      "baseline": "NOTEARS h_exp, polynomial h_poly, DAGMA h_log, and SDCD spectral-radius h_rho."
+    },
+    {
+      "setting": "Norm-scaled versus original log-det penalty in 10-node nonlinear static and dynamic graphs",
+      "metric": "Recovered support, constraint trajectory, and iterations",
+      "result": "The reported h_log run repeatedly exits its domain and exceeds 60,000 iterations, while h_norm converges more steadily and recovers cleaner graphs.",
+      "baseline": "DyCausal with the original unnormalized DAGMA log-det constraint."
+    },
+    {
+      "setting": "Stress tests over d up to 300, N down to 20, T from 10-90, noise 0.5-5, and lag up to 5",
+      "metric": "TPR, F1, SHD, and runtime",
+      "result": "Performance remains strong in many sweeps but requires dimension-specific learning-rate reductions and degrades with N=20, T=10, noise=0.5, and K=S=1.",
+      "baseline": "No competing methods in most scalability and robustness sweeps."
+    }
+  ],
+  "limitations": [
+    "Author-stated: DyCausal assumes regularly sampled time series; irregular data require a separate imputation pipeline.",
+    "Author-stated: variables are fixed throughout the trajectory; dynamically entering or leaving variables are future work.",
+    "Author-admitted: one graph reconstructs an entire window even though fine-time causality should generate only its own time step, requiring approximate local invariance.",
+    "Reviewer-identified: the published h_norm gradient omits the derivative of its normalization, undermining the main analytic characterization.",
+    "Reviewer-identified: h_norm is undefined at zero and nondifferentiable at 1-norm ties, contrary to claims of universal differentiability.",
+    "Reviewer-identified: identifiability requires unstated distributional/functional assumptions and is not proved for the general SEM in Section 3.",
+    "Reviewer-identified: synthetic dynamic graphs use one fixed initial support and two synchronized smooth coefficient functions rather than general rewiring.",
+    "Reviewer-identified: the dynamic comparison omits several directly relevant time-varying DBN, kernel-reweighted, and regime-switching methods discussed in related work.",
+    "Reviewer-identified: DyCAST has no 80-node result, so the largest dynamic superiority claim lacks a functioning dynamic comparator.",
+    "Reviewer-identified: most scale/lag/noise sweeps evaluate DyCausal alone and retune learning rate by graph size.",
+    "Reviewer-identified: run counts, parameter-search ranges, statistical tests, and confidence intervals are not specified despite mean±deviation reporting.",
+    "Reviewer-identified: the real-data table compares only CUTS+ and NGM, and several benchmarks are simulated or have proxy/incomplete ground truth.",
+    "Reviewer-identified: beta and threshold selection are strongly outcome-sensitive and are not validated on a separate tuning split.",
+    "Reviewer-identified: printed dimensions, signed pruning, and an impossible Table A3 uncertainty indicate unresolved reporting or implementation discrepancies."
+  ],
+  "failure_modes": [
+    "Zero or tied-column adjacency norms make the proposed acyclicity penalty undefined or nondifferentiable.",
+    "An optimizer using the printed gradient follows the wrong direction because normalization's chain-rule term is absent.",
+    "Abrupt, asynchronous edge births or deaths occur between coarse endpoints and are averaged away by windowing or interpolation.",
+    "Causal coefficients cross zero inside a window, producing a weak average matrix that is pruned as no relation.",
+    "Too few independent trajectories per time point make a separate high-dimensional graph statistically underdetermined.",
+    "Latent confounding, contemporaneous feedback cycles, heteroskedasticity, or model misspecification defeats the reconstruction-based orientation.",
+    "Different subjects have different graph trajectories, violating the shared-structure assumption and creating a population-average graph.",
+    "A literal W>delta threshold silently removes negative causal edges.",
+    "An underestimated lag omits true parents; an overestimated lag creates enough candidates to reduce precision.",
+    "Strong sparsity or pruning erases weak but real edges, while weak sparsity produces dense false positives.",
+    "Irregular sampling or imputation creates spurious lag order and apparent graph changes.",
+    "A tuned smooth synthetic regime hides failures on actual structural change points."
+  ],
+  "reusable_insights": [
+    "Amortize expensive time-indexed structure learning over coarse states, but validate interpolation against explicit abrupt-change and asynchronous-rewiring benchmarks.",
+    "When normalizing a differentiable constraint, derive the full chain rule and test it with finite differences before making stationary-point claims.",
+    "Check zero, tie, and scale limits explicitly for any norm-normalized objective.",
+    "Separate support dynamics from coefficient dynamics; varying weights on fixed edges is not a complete dynamic-topology benchmark.",
+    "Report time-indexed structural metrics and signed-weight error, not only a summary graph or reconstruction loss.",
+    "Use magnitude-preserving signed pruning and state the exact support rule.",
+    "Benchmark against both static and genuinely time-varying competitors at every claimed scale.",
+    "State the precise SEM assumptions that confer identifiability and distinguish a Markov equivalence class from a uniquely oriented graph.",
+    "Keep model selection separate from evaluation for sparsity, thresholds, window size, step size, and learning rate."
+  ],
+  "open_questions": [
+    "What is the correct gradient of h_norm, and does the corrected objective still have no cyclic stationary points?",
+    "Can h_norm be modified to remain continuous and differentiable at zero and norm ties without losing domain control?",
+    "Do the empirical advantages persist when automatic differentiation uses the true normalized gradient rather than the printed expression?",
+    "How does DyCausal compare with DyCAST, TV-DBN, time-varying group-lasso, JIT-LiNGAM, and switching-state methods on a common dynamic benchmark?",
+    "Can it recover asynchronous edge births, abrupt interventions, periodic regime switches, and changing topological order?",
+    "What sample complexity is required per time point as d, lag, and change frequency grow?",
+    "Can uncertainty over graphs and change points be propagated instead of returning one thresholded trajectory?",
+    "Which identifiability theorem applies under the exact linear, nonlinear, and ODE implementations?",
+    "How should heterogeneous subject-specific graph trajectories be modeled?",
+    "Does performance remain after tuning all methods on disjoint validation trajectories and preserving negative edges explicitly?",
+    "What are the corrected Table A3 uncertainties and raw run counts?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "openreview:WjDjem8mWE",
+      "title": "DyCAST: Learning Dynamic Causal Structure from Time Series",
+      "url": "https://openreview.net/forum?id=WjDjem8mWE",
+      "relationship": "closest-direct-dynamic-graph-competitor",
+      "difference": "DyCAST models continuously changing instantaneous DAGs with a constrained neural ODE while keeping lagged structure static. DyCausal's clearest addition is allowing both instantaneous and lagged weights to change through coarse decoding and interpolation; its benchmark favors that setting, but DyCAST directly supports evolving topology rather than only interpolated endpoints.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "OpenReview forum WjDjem8mWE (current ICLR 2025 Poster record; modified 2025-02-27)"
+    },
+    {
+      "canonical_id": "arxiv:2209.08037",
+      "title": "DAGMA: Learning DAGs via M-matrices and a Log-Determinant Acyclicity Characterization",
+      "url": "https://arxiv.org/abs/2209.08037",
+      "relationship": "direct-constraint-antecedent",
+      "difference": "DAGMA introduces the exact log-det DAG characterization and central-path optimization reused by DyCausal. DyCausal's norm scaling aims to avoid DAGMA's finite spectral domain, but its published gradient drops the normalization derivative and therefore does not inherit DAGMA's gradient theorem as claimed.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2311.10263",
+      "title": "Stable Differentiable Causal Discovery",
+      "url": "https://arxiv.org/abs/2311.10263",
+      "relationship": "closest-stable-acyclicity-competitor",
+      "difference": "SDCD defines explicit stability criteria and combines a spectral-radius constraint with sparse training to scale to thousands of variables. DyCausal borrows those criteria and reports faster cycle-graph behavior, but its normalized penalty is undefined at zero and its theoretical gradient is incorrect, so the stability comparison is incomplete.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2002.00498",
+      "title": "DYNOTEARS: Structure Learning from Time-Series Data",
+      "url": "https://arxiv.org/abs/2002.00498",
+      "relationship": "direct-static-temporal-antecedent",
+      "difference": "DYNOTEARS jointly estimates instantaneous and lagged structure with a smooth DAG constraint but assumes one stationary graph. DyCausal amortizes a graph trajectory and dominates it on the tailored dynamic benchmark, while retaining stronger smoothness, repeated-series, and local-stationarity assumptions.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2109.04286",
+      "title": "NTS-NOTEARS: Learning Nonparametric DBNs With Prior Knowledge",
+      "url": "https://arxiv.org/abs/2109.04286",
+      "relationship": "direct-nonlinear-temporal-antecedent",
+      "difference": "NTS-NOTEARS uses 1-D CNNs and NOTEARS optimization for nonlinear instantaneous and lagged DBNs, including structural priors, but keeps the graph stationary. DyCausal adds time-indexed decoding/interpolation; its advantage is dynamic adaptation rather than a new nonlinear causal function class.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2407.07291",
+      "title": "Causal Discovery in Semi-Stationary Time Series",
+      "url": "https://arxiv.org/abs/2407.07291",
+      "relationship": "direct-regime-changing-competitor",
+      "difference": "PCMCI-Omega gives a sound constraint-based method for recurring semi-stationary mechanisms and explicit graph switches. DyCausal targets smoothly varying coefficients and both instantaneous/lagged weights, but does not compare against this method on periodic or abrupt regimes where interpolation may be the wrong inductive bias.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2410.13054",
+      "title": "Systems with Switching Causal Relations: A Meta-Causal Perspective",
+      "url": "https://arxiv.org/abs/2410.13054",
+      "relationship": "competing-dynamic-causality-model",
+      "difference": "Willig et al. model qualitative changes as meta-causal states in which relations emerge, disappear, or switch. That is a closer test of topological dynamics than DyCausal's synchronized smooth coefficient benchmark; DyCausal offers a scalable estimator but no discrete-state or change-point semantics.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "pmlr:v213-fujiwara23a",
+      "title": "Causal Discovery for Non-stationary Non-linear Time Series Data Using Just-In-Time Modeling",
+      "url": "https://proceedings.mlr.press/v213/fujiwara23a.html",
+      "relationship": "direct-local-stationarity-competitor",
+      "difference": "JIT-LiNGAM explicitly fits local linear causal models from neighboring samples under nonlinear nonstationarity and states LiNGAM conditions. DyCausal similarly relies on local invariance but amortizes graph states with a neural encoder and interpolates globally; it does not benchmark against this transparent local alternative.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "PMLR 213 (2023) version of record"
+    },
+    {
+      "canonical_id": "neurips:2009-a67f096809415ca1c9f112d96d27689b",
+      "title": "Time-Varying Dynamic Bayesian Networks",
+      "url": "https://proceedings.neurips.cc/paper/2009/hash/a67f096809415ca1c9f112d96d27689b-Abstract.html",
+      "relationship": "foundational-time-varying-network-prior",
+      "difference": "Song et al. already learn smoothly time-varying directed dependency structure with kernel-reweighted sparse autoregression and asymptotic consistency. DyCausal adds nonlinear amortization, instantaneous DAG constraints, and coarse interpolation, but its claim that earlier work is merely static understates this direct time-varying antecedent.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 22 (2009) version of record"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims the first efficient framework for fully dynamic instantaneous and lagged causal structures, combining coarse CNN states, fine linear interpolation, and an always-optimizable norm-scaled log-det acyclicity constraint with superior stability and accuracy.",
+    "evidence": "Time-indexed synthetic tables show large gains over static methods and DyCAST; interpolation helps especially on small graphs; static and benchmark results are broad; the normalized penalty stays in the log-det domain and its displayed empirical curves avoid several competitors' explosions or slowdowns.",
+    "reviewer_inference": "The coarse-state decoder plus interpolation is a plausible engineering contribution for smooth repeated-trajectory settings, and combining changing instantaneous and lagged coefficients is broader than DyCAST. The strongest theoretical novelty is not currently valid as written: the h_norm gradient omits the norm derivative, the objective is undefined at zero and nonsmooth at ties, and identifiability is overclaimed. Time-varying DBNs, local nonstationary models, and switching causal states are substantial antecedents, while the benchmark varies coefficients on a fixed support rather than general topology. Empirical claims should therefore be framed as strong performance on a tailored smooth-drift regime pending corrected mathematics and broader dynamic comparisons."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Primary full-text review covered all 26 pages, including the complete constraint proof, generation equations, every parameter setting, dynamic/static/real tables, interpolation and h_log ablations, scale/sample/length/noise/lag sweeps, beta sensitivity, non-smooth and K=S=1 failures, instantaneous-versus-lagged results, and identifiability appendix. Page 22 was visually checked at original resolution to confirm the printed 97.24±96.09 entry. Nine closest primary records were checked at exact current arXiv revisions or official OpenReview/proceedings records on 2026-08-23. The missing normalization derivative is a direct symbolic audit of Equation 6 and Theorem 1, not a claim about whether an unpublished implementation uses automatic differentiation correctly."
+}

@@ -1,0 +1,410 @@
+{
+  "stable_id": "arxiv:2510.18091",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2510.18091",
+    "pdf_sha256": "c360aa5490f58974ea9401586248ea687d4ece107c9e8b2951d049c302ce0229",
+    "text_sha256": "6dcd112f36844379b724b95b68eb4b1513e4cb026667fbee588471407f0c049a",
+    "page_count": 24,
+    "extracted_at": "2026-08-23T14:34:25.757382+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a pretrained Vision Transformer be accelerated in real wall-clock training and inference by assigning entropy-selected, differently sized patches within each image before the transformer, while preserving accuracy across classification, vision-language, detection, and segmentation tasks?",
+  "key_findings": [
+    {
+      "claim": "APT performs content-adaptive patchification before the transformer by recursively retaining low-entropy coarse regions and subdividing the rest, then embeds all selected patches into the pretrained ViT token space.",
+      "evidence": "The method bins pixel intensities to compute Shannon entropy, applies per-scale thresholds on a quadtree-like grid, and assigns any unresolved region the base patch size. A large patch is both resized to the base size and decomposed into base-patch embeddings; repeated convolutional downsampling aggregates the latter, and a zero-initialized linear layer adds that detail branch to the resized embedding.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "3.1, Equation (1) and hierarchical patch assignment"
+        },
+        {
+          "page": 4,
+          "section": "3.2 and Figures 2-3"
+        },
+        {
+          "page": 5,
+          "section": "3.2, Equation (2)"
+        }
+      ]
+    },
+    {
+      "claim": "Variable per-image token counts are made batchable with pre-transformer sequence packing, and dense outputs are reconstructed by repeating coarse-token features onto the base-patch grid.",
+      "evidence": "APT concatenates each batch's variable-length token sequences, uses a block-diagonal attention mask supported by FlashAttention or xFormers, and later splits the packed sequence. For detection and segmentation, a scale-i token is repeated over its covered base cells; window-attention regions are chosen as multiples of the largest patch size.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "3.3, Dynamic Input Sizes, Positional Encodings, and Adaptation to Downstream Tasks"
+        }
+      ]
+    },
+    {
+      "claim": "On ImageNet, APT preserves the reported pretrained-model accuracy while producing its largest measured gains at high resolution and model scale.",
+      "evidence": "Full MAE fine-tuning reports ViT-B/384 at 84.2% for both baseline and APT, with 1151 versus 1390 images/s and 11.6 versus 9.0 hours; ViT-L/336 reports 86.1% for both, 395 versus 527 images/s, and 15.9 versus 9.9 hours; ViT-L/448 reports 86.4% versus 86.3%, 190 versus 302 images/s, and 31.4 versus 16.9 hours. One-epoch adaptation reaches within 0.0-0.1 point of the baseline in all six ViT-B/L/H resolution settings and reaches 50% higher throughput for ViT-H/336.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Tables 1-2"
+        },
+        {
+          "page": 7,
+          "section": "4.2, Full Fine-Tuning and Short Fine-Tuning"
+        },
+        {
+          "page": 17,
+          "section": "Appendix A, Image Classification"
+        }
+      ]
+    },
+    {
+      "claim": "The broad downstream transfer evidence is strongest for dense prediction and weaker than the prose implies for visual question answering.",
+      "evidence": "APT raises full-model LLaVA throughput by 22-23%, but the 7B model is below its baseline on six of nine listed scores and the 13B model is below on seven of nine; this contradicts the table caption's unqualified claim that performance matches or exceeds the baseline. In contrast, EVA-02 detection gains 14-30% reported throughput with mAP losses of 0.14-0.21, and segmentation gains 11% with aAcc and mIoU within 0.01 and 0.07 of baseline, respectively.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "Tables 3-5 and 4.3"
+        }
+      ]
+    },
+    {
+      "claim": "APT has material fixed overhead, so token reduction—not adaptive patchification alone—is necessary for a net speedup.",
+      "evidence": "With the threshold set to retain all tokens, Table 6 reports APT throughput 7-12% below the standard implementation across six configurations. At a working threshold, the extra embedding path consumes about 10% of end-to-end latency, but reduced transformer cost produces a net 33% gain in the runtime breakdown. Entropy scoring is moved to a parallel CPU data loader and overlapped with GPU computation.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "4.4, Figure 6 and Table 6"
+        },
+        {
+          "page": 19,
+          "section": "Appendix B, Runtime Details"
+        }
+      ]
+    },
+    {
+      "claim": "The useful operating point is threshold-sensitive and task-dependent, and excessive coarsening cannot be repaired by the brief fine-tuning protocol.",
+      "evidence": "The default thresholds are stated as tau_32=5.75 and tau_64=4.0, while detection uses much lower values, including 0.3, 2, and 2 at successive scales. The threshold sweep says accuracy falls sharply above about 6.0 and is not 'fixable' with fine-tuning. The appendix also finds entropy only modestly better than Laplacian and resize-reconstruction scores at high reductions.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "4.4, Thresholds"
+        },
+        {
+          "page": 17,
+          "section": "Appendix A, Object Detection and Semantic Segmentation"
+        },
+        {
+          "page": 19,
+          "section": "Appendix C, Threshold Analysis"
+        },
+        {
+          "page": 20,
+          "section": "Appendix C, Scorer Analysis and Figure 9"
+        }
+      ]
+    },
+    {
+      "claim": "The scale-index equations are internally inconsistent with the method's own example and implementation description.",
+      "evidence": "Section 3.1 defines P_1 through P_S with P_i of size 2^i p and says recursion starts at 2^S p, but its S=3, p=16 example uses 16, 32, and 64 rather than 32, 64, and 128. The consistent indexing would be i=0,...,S-1 with coarsest size 2^(S-1)p.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "3.1, scale-set definition and S=3 example"
+        },
+        {
+          "page": 4,
+          "section": "3.1, hierarchical coarsest-scale description"
+        }
+      ]
+    },
+    {
+      "claim": "APT's saliency heuristic is deliberately task-agnostic, so visual simplicity can conflict with the information requested downstream.",
+      "evidence": "The authors explicitly note that a VLM asked for the background color would still receive an extremely coarse patch for a smooth pink wall. The qualitative figures show the intended texture allocation but do not establish preservation of small, low-contrast, or semantically rare details.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 10,
+          "section": "4.5, Example Visualizations"
+        },
+        {
+          "page": 20,
+          "section": "Appendix C, Scorer Analysis"
+        }
+      ]
+    },
+    {
+      "claim": "The strongest layer-level baseline comparison depends partly on author-modified baselines whose defining weighted-attention operation is disabled for FlashAttention inference.",
+      "evidence": "The paper reports both original and 'Advanced' EViT, ToMe, and DTEM versions, but the advanced operator turns off token weighting at inference to access fused attention. This improves systems fairness but changes the competing algorithms; the appendix supplies implementation code rather than evidence that accuracy and learned merging behavior remain equivalent to the official methods.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.1, Layer-level Merging Baselines"
+        },
+        {
+          "page": 7,
+          "section": "Figure 4 and baseline discussion"
+        },
+        {
+          "page": 17,
+          "section": "Appendix A, Advanced baselines with FlashAttention"
+        },
+        {
+          "page": 18,
+          "section": "Listing 1"
+        }
+      ]
+    },
+    {
+      "claim": "The paper demonstrates hardware-specific throughput, not a hardware-agnostic efficiency guarantee.",
+      "evidence": "All ImageNet work uses one 8xA100 node; VQA, detection, and segmentation use 8xA6000; inference throughput is measured on one GPU. No independent training seeds, confidence intervals, memory peaks, CPU provisioning, dataloader saturation study, energy totals, or alternative accelerator results are reported, even though CPU/GPU overlap and packed-attention kernels are integral to the gain.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 17,
+          "section": "Appendix A, Hardware Setup"
+        },
+        {
+          "page": 19,
+          "section": "Appendix B, Runtime Details"
+        }
+      ]
+    },
+    {
+      "claim": "The appendix contains a minor threshold-reporting inconsistency that complicates exact reproduction.",
+      "evidence": "The main text and Appendix C say 5.75 is used for the vast majority of experiments, while Figure 10's caption says tau=5.5 was used for most experiments. The paper does not enumerate a per-table threshold ledger that resolves which value generated every result.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "4.4, Thresholds"
+        },
+        {
+          "page": 19,
+          "section": "Appendix C, Threshold Analysis"
+        },
+        {
+          "page": 20,
+          "section": "Figure 10 caption"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Move token reduction ahead of the transformer: use cheap image entropy to represent homogeneous regions with large patches and detailed regions with base-size patches, then pack the resulting variable-length sequences so standard fused attention sees fewer tokens.",
+    "mechanism": "A thresholded quadtree assigns patch scales. Every selected patch is resized for the pretrained patch embedder, while a convolutionally aggregated base-patch branch restores higher-resolution information through a zero-initialized linear layer. Scale-specific positional encodings are interpolated; packed block-diagonal attention handles variable lengths; coarse features are repeated back to a regular grid for dense heads.",
+    "assumptions": [
+      "Low pixel-intensity entropy is a useful proxy for visual redundancy and will usually not hide information needed by the downstream task.",
+      "The image dimensions, window sizes, and chosen patch scales admit the regular quadtree and largest-patch alignment used by the implementation.",
+      "A pretrained ViT's patch embedding and positional encoding can accept resized mixed-scale patches after interpolation and at most brief fine-tuning.",
+      "FlashAttention or xFormers supports efficient packed variable-length attention, and enough CPU resources exist to hide entropy computation under GPU work.",
+      "Repeating one coarse feature across its base-patch cells preserves enough spatial structure for convolutional detection and segmentation heads.",
+      "Per-task entropy thresholds can be selected empirically; the reported gains do not include a threshold-search cost.",
+      "Reported wall-clock gains are conditional on the tested A100/A6000 systems, software kernels, batch construction, and sequence-length distribution."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "entropy-thresholded-quadtree",
+      "role": "Recursively keeps a coarse patch when its binned pixel entropy falls below a scale threshold and subdivides more complex regions."
+    },
+    {
+      "id": "dual-path-mixed-scale-embedding",
+      "role": "Combines a resized pretrained patch embedding with convolutionally aggregated embeddings of the original base-size subpatches."
+    },
+    {
+      "id": "zero-initialized-detail-adapter",
+      "role": "Starts the high-resolution detail branch at zero so the mixed-scale retrofit initially behaves like resizing and can be learned with a short fine-tune."
+    },
+    {
+      "id": "variable-length-sequence-packing",
+      "role": "Concatenates different image token counts into one packed sequence and uses block-diagonal fused attention masks instead of padding each image to the maximum."
+    },
+    {
+      "id": "scale-interpolated-position-encoding",
+      "role": "Samples each patch scale's positions from the base-grid encoding map to retain spatial correspondence."
+    },
+    {
+      "id": "coarse-feature-grid-expansion",
+      "role": "Repeats larger-patch features over covered base cells so existing rectangular dense-prediction heads can consume APT output."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "ImageNet-1K full fine-tuning from official MAE checkpoints on ViT-B/384, ViT-L/336, and ViT-L/448",
+      "metric": "Top-1 accuracy, throughput, GFLOPs, wall-clock training time, and reported speedup",
+      "result": "APT reports 84.2%, 86.1%, and 86.3% accuracy; 1390, 527, and 302 images/s; and 9.0, 9.9, and 16.9 hours, versus baseline 84.2%, 86.1%, and 86.4%; 1151, 395, and 190 images/s; and 11.6, 15.9, and 31.4 hours.",
+      "baseline": "Vanilla timm ViT plus random masking and resizing-only controls under the MAE recipe"
+    },
+    {
+      "setting": "One additional ImageNet epoch from already fine-tuned ViT-B/L/H checkpoints at 224-384 resolution",
+      "metric": "Top-1 accuracy, GFLOPs, and images/s",
+      "result": "APT stays within 0.0-0.1 accuracy point of all six vanilla checkpoints while throughput gains range from 7% for ViT-B/224 to 50% for ViT-H/336.",
+      "baseline": "Vanilla checkpoint, matched random patch dropping, and resizing-only mixed patches"
+    },
+    {
+      "setting": "ViT-L/224 and ViT-H/336 ImageNet compute-budget sweep",
+      "metric": "Accuracy versus measured throughput",
+      "result": "The plotted APT frontier is reported above EViT, ToMe, PPT, and DTEM across budgets, including author-modified FlashAttention variants where available.",
+      "baseline": "Official layer-level token methods and author-created 'Advanced' reproductions"
+    },
+    {
+      "setting": "LLaVA-1.5 7B and 13B after updating only APT's new modules on 5% of the original fine-tuning data",
+      "metric": "Full-model images/s and nine VQA/multimodal benchmark scores",
+      "result": "Throughput rises 22-23%; APT improves three of nine listed 7B scores and two of nine 13B scores, while most remaining metrics decline modestly and VQA-TextVQA/MME show larger losses.",
+      "baseline": "Original LLaVA-1.5, random masking, and resizing-only"
+    },
+    {
+      "setting": "COCO object detection at 1536 resolution with EVA-02-B/L and a ViTDet-style head",
+      "metric": "Images/s, mAP, and AP50",
+      "result": "APT reports 14% and 30% speedups; mAP changes 58.93 to 58.79 and 62.28 to 62.07, while AP50 changes 77.85 to 77.65 and 80.80 to 80.64.",
+      "baseline": "Original EVA-02 and resizing-only"
+    },
+    {
+      "setting": "ADE20K semantic segmentation with EVA-02-L plus UperNet at 512 and 640 resolution",
+      "metric": "Images/s, all-pixel accuracy, and mIoU",
+      "result": "APT reports 11% higher throughput at both resolutions; accuracy/mIoU are 86.68/59.70 versus 86.67/59.77 and 86.82/60.01 versus 86.83/60.05.",
+      "baseline": "Original EVA-02-L and resizing-only"
+    },
+    {
+      "setting": "Ablations on ViT-B/L/H, chiefly ImageNet at 224-384 resolution",
+      "metric": "No-reduction throughput, runtime share, top-1 accuracy, threshold frontier, and retained-token fraction",
+      "result": "APT is 7-12% slower when it removes no tokens; the working embedding path costs about 10% of latency; zero initialization is the best tested adapter; and accuracy drops sharply above approximately tau=6 despite continuing throughput gains.",
+      "baseline": "Vanilla patchification, residual/nonzero adapters, resizing, and Laplacian/reconstruction scorers"
+    }
+  ],
+  "limitations": [
+    "Author-stated: patch sizes are chosen by a hand-crafted entropy heuristic that may not align with a downstream user's preferences.",
+    "Author-stated: thresholds require empirical per-task tuning and create adoption friction.",
+    "Author-stated: APT currently supports image understanding but not image generation.",
+    "Reviewer-identified: the scale-set equations are off by one relative to the S=3 example and coarsest-scale implementation description.",
+    "Reviewer-identified: most LLaVA metrics decline, contradicting the unqualified claim that APT matches or exceeds the VQA baseline.",
+    "Reviewer-identified: the 5.75 default threshold conflicts with Figure 10's statement that 5.5 was used for most experiments, and no table-by-table threshold ledger is given.",
+    "Reviewer-identified: results lack independent training seeds, error bars, confidence intervals, significance tests, peak-memory measurements, energy accounting, and alternate hardware or kernel stacks.",
+    "Reviewer-identified: CPU entropy work is declared free because it overlaps GPU computation, but CPU model, core count, dataloader load, and saturation behavior are not reported.",
+    "Reviewer-identified: 'Advanced' merging baselines disable their weighted-attention operation to access FlashAttention, so they are not exact implementations of the named competing algorithms.",
+    "Reviewer-identified: full fine-tuning covers only three ImageNet configurations, dense/VQA adaptation uses only 5% of the original schedule, and no convergence or robustness sweep establishes that one brief recipe works generally.",
+    "Reviewer-identified: tiny objects, low-contrast boundaries, text, medical imagery, adversarial textures, corruptions, and distribution shifts are not separately evaluated even though entropy can be misaligned with semantic importance.",
+    "Reviewer-identified: dense reconstruction copies a coarse token over many spatial cells; close aggregate mAP/mIoU does not show that small-object and boundary subclasses are preserved.",
+    "Reviewer-identified: reported speedups depend on sequence packing, batch token-length distributions, and specific fused kernels, so FLOPs and throughput are not portable guarantees.",
+    "Reviewer-identified: the paper's 'any pretrained ViT' wording is broader than the evaluated MAE/timm, LLaVA, and EVA-02 backbones and does not cover architectures whose tokenization or heads cannot accept this retrofit."
+  ],
+  "failure_modes": [
+    "A smooth but semantically decisive region can be coarsened because pixel entropy is low even when the task asks about its color, faint boundary, watermark, text, or small anomaly.",
+    "A high-entropy but irrelevant texture can consume many tokens, reducing or eliminating the expected speedup on cluttered images.",
+    "Thresholds transferred between classification, detection, segmentation, and new domains can cross the sharp accuracy cliff observed near tau=6.",
+    "When token reduction is small, the mixed-scale embedding and packing overhead makes APT slower than vanilla ViT.",
+    "Packed batches with a few unusually complex images or unsupported fused-attention paths can lose much of the measured wall-clock advantage.",
+    "CPU scoring can become the bottleneck when preprocessing cores, memory bandwidth, or dataloader overlap are insufficient.",
+    "Repeating a coarse feature onto a dense grid can erase within-patch geometry and harm small-object localization or narrow segmentation boundaries even when aggregate metrics remain close.",
+    "Image augmentations change entropy and token counts; a training-time speed distribution can differ from inference, producing an inaccurate capacity or latency plan.",
+    "The zero-initialized detail branch initially reduces to resizing, so a no-training deployment can inherit a measurable accuracy loss and cannot recover information already blurred by excessive coarsening.",
+    "The method does not directly cover generative vision models, irregular image sizes that violate scale alignment, or heads that require one token per fixed patch without an expansion step."
+  ],
+  "reusable_insights": [
+    "Token reduction before expensive layers can unlock fused kernels and training acceleration that dynamic in-layer pruning often forfeits.",
+    "A retrofit adapter should begin as a behavior-preserving or near-preserving path; zero initialization is an effective way to introduce high-resolution corrections gradually.",
+    "Report the no-reduction operating point for every adaptive-compute system so fixed overhead is visible separately from savings.",
+    "Wall-clock efficiency claims should disclose the CPU preprocessing budget, packed-length distribution, attention backend, batch size, and hardware alongside FLOPs.",
+    "Adaptive token budgets should be calibrated against task-aware risk, not image complexity alone; uncertainty or downstream gradients may complement cheap entropy.",
+    "Dense-task evaluation should break out small objects, thin structures, and boundary quality because aggregate mAP/mIoU can hide the exact failures induced by coarse patches.",
+    "Competitor modernization can improve systems fairness, but results from altered algorithms should be labeled separately from official implementations and checked for behavioral equivalence.",
+    "A per-task threshold ledger and accuracy-latency frontier are more reproducible than a single default threshold."
+  ],
+  "open_questions": [
+    "Can a task-conditioned or learned scorer outperform entropy without losing APT's training speed and FlashAttention compatibility?",
+    "Can thresholds be chosen automatically under latency, energy, or accuracy constraints without a downstream sweep?",
+    "How robust is APT to corruptions, adversarial high-frequency patterns, text-heavy images, medical anomalies, and severe domain shift?",
+    "Do small-object AP, boundary IoU, calibration, and VLM OCR metrics reveal losses hidden by aggregate benchmarks?",
+    "How do gains change with batch size, CPU allocation, mixed-resolution batches, different attention backends, and non-NVIDIA accelerators?",
+    "Can a differentiable yet inexpensive pre-transformer scorer retain one-epoch retrofit behavior and avoid the task-agnostic failure mode?",
+    "Can mixed-scale patch embeddings support image generation while preserving spatial detail and compatible latent grids?",
+    "Does jointly training APT longer improve the frontier beyond the resizing control, or does semantic mismatch eventually dominate?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2307.02321",
+      "title": "MSViT: Dynamic Mixed-Scale Tokenization for Vision Transformers",
+      "url": "https://arxiv.org/abs/2307.02321",
+      "relationship": "closest-learned-mixed-scale-predecessor",
+      "difference": "MSViT learns a conditional gate that selects a token scale per region and validates classification and segmentation. APT replaces the learned gate and scale-specific embedding burden with entropy thresholds, packed pre-transformer sequences, and a zero-initialized retrofit, emphasizing actual training speed and one-epoch adaptation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2307.02321v2"
+    },
+    {
+      "canonical_id": "arxiv:2304.00287",
+      "title": "Vision Transformers with Mixed-Resolution Tokenization",
+      "url": "https://arxiv.org/abs/2304.00287",
+      "relationship": "closest-quadtree-tokenization-predecessor",
+      "difference": "Quadformer already builds a quadtree mosaic of arbitrary patch sizes from an image saliency score. APT's key distinction is a threshold-controlled variable token count rather than a fixed budget, plus a pretrained detail adapter, sequence packing, wall-clock training results, and broader dense/VLM transfer.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2304.00287v2"
+    },
+    {
+      "canonical_id": "arxiv:2203.03821",
+      "title": "CF-ViT: A General Coarse-to-Fine Method for Vision Transformer",
+      "url": "https://arxiv.org/abs/2203.03821",
+      "relationship": "coarse-to-fine-patch-competitor",
+      "difference": "CF-ViT runs a coarse classification stage and conditionally re-splits informative patches for a fixed two-stage inference pathway. APT assigns all patch sizes directly from raw-image entropy before the backbone, permits per-image sequence length, and targets both training and dense-task acceleration.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2203.03821v5"
+    },
+    {
+      "canonical_id": "arxiv:2106.02034",
+      "title": "DynamicViT: Efficient Vision Transformers with Dynamic Token Sparsification",
+      "url": "https://arxiv.org/abs/2106.02034",
+      "relationship": "dynamic-token-pruning-competitor",
+      "difference": "DynamicViT learns feature-dependent importance predictors and prunes tokens progressively inside the network. APT preserves full image coverage at mixed resolution and reduces sequence length before every transformer layer, avoiding the learned scorer's long fine-tune but relying on a hand-tuned entropy proxy.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2106.02034v2"
+    },
+    {
+      "canonical_id": "arxiv:2210.09461",
+      "title": "Token Merging: Your ViT But Faster",
+      "url": "https://arxiv.org/abs/2210.09461",
+      "relationship": "training-and-inference-token-merging-competitor",
+      "difference": "ToMe merges similar intermediate tokens without retraining and reports large off-the-shelf gains across image, video, and audio. APT instead merges implicitly through patch size at input, keeps efficient attention kernels throughout, and adapts token count to image entropy, but needs thresholds and usually brief training.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2210.09461v3"
+    },
+    {
+      "canonical_id": "arxiv:2412.10569",
+      "title": "Learning to Merge Tokens via Decoupled Embedding for Efficient Vision Transformers",
+      "url": "https://arxiv.org/abs/2412.10569",
+      "relationship": "learned-token-merging-competitor",
+      "difference": "DTEM learns a lightweight embedding dedicated to intermediate token merging and supports modular or end-to-end training across classification, captioning, and segmentation. APT's scorer is nonlearned and precedes the backbone; its Figure 4 comparison also modifies DTEM by disabling weighted attention for fused inference, so the systems comparison is not an exact official-method reproduction.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2412.10569v1"
+    },
+    {
+      "canonical_id": "arxiv:2202.07800",
+      "title": "Not All Patches are What You Need: Expediting Vision Transformers via Token Reorganizations",
+      "url": "https://arxiv.org/abs/2202.07800",
+      "relationship": "attention-guided-token-reorganization-competitor",
+      "difference": "EViT preserves attentive tokens and fuses inattentive tokens between transformer sublayers using class-token attention. APT makes a cheaper raw-image decision once, before the model, enabling whole-network sequence reduction and packed attention but sacrificing task-aware semantic scoring.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2202.07800v2"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "APT is a content-aware mixed-patch ViT retrofit that delivers up to roughly 40-50% throughput gains, larger benefits at high resolution and scale, one-epoch convergence from fine-tuned checkpoints, and no-loss transfer to classification, VQA, detection, and segmentation.",
+    "evidence": "The paper supplies an entropy-thresholded quadtree, a zero-initialized dual-path embedding, packed FlashAttention execution, three ImageNet full-fine-tune settings, six one-epoch settings, four downstream task/model groups, runtime and threshold ablations, and qualitative patch maps. It also documents fixed overhead, task-specific thresholds, and unsupported generation.",
+    "reviewer_inference": "Mixed-resolution quadtree tokenization and learned per-region scale selection predate APT in Quadformer and MSViT. The defensible novelty is their systems-oriented combination: a nonlearned per-image token budget, a pretrained high-resolution detail adapter, efficient packed attention from the first layer, rapid retrofit, and unusually broad wall-clock evaluation. The VQA 'matches or exceeds' and universal-backbone wording should be narrowed, and exact superiority over modified layer-merging baselines remains conditional on the chosen kernel and reimplementation."
+  },
+  "confidence": 0.95,
+  "reviewer_notes": "Complete primary reading of all 24 cached pages, including equations, all seven tables, every runtime/threshold/scorer ablation, implementation and hardware details, Listing 1, qualitative downstream figures, limitations, and references. The hashes pin the exact indexed PDF and text; the PDF is visibly arXiv:2510.18091v2 / ICLR 2026, and the official arXiv record was checked on 2026-08-23 and still lists v2 (22 April 2026) as current. Seven exact competitor records were checked at their then-current official arXiv revisions. Claim attribution separates author reports from reviewer inference and contradiction audit. The implementation-level speed evidence is substantial on the disclosed systems, but semantic preservation, reproducibility across hardware, and the altered FlashAttention baselines require independent code and checkpoint verification before a secondary-verified reading."
+}

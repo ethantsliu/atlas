@@ -1,0 +1,536 @@
+{
+  "stable_id": "arxiv:2510.16981",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2510.16981",
+    "pdf_sha256": "ca944010554e4e1e508403b9604c14c9231406371f9d730745c68219b1d93a68",
+    "text_sha256": "3ef0aec45da5457f60e6dc7430ea44d4d58d0224d783de29cb6e25af31c499dd",
+    "page_count": 26,
+    "extracted_at": "2026-08-23T14:37:15.881671+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can Muon's model-parallel communication overhead be reduced by orthogonalizing local parameter shards on most steps and the full matrix periodically, while preserving convergence and language-model training quality and approaching AdamW-like per-step throughput?",
+  "key_findings": [
+    {
+      "claim": "MuonBP interleaves communication-free shard-local orthogonalization with one gathered full-matrix orthogonalization every P steps.",
+      "evidence": "Each local block is defined to coincide with the tensor shard resident on a device under TP, FSDP2, or their intersection. Algorithm 1 applies Newton-Schulz orthogonalization locally on P-1 steps and gathers the momentum shards for global orthogonalization when t mod P=0. At P=1 it is Muon, while P approaching infinity gives BlockMuon; the experiments primarily use P=5, reducing optimizer-specific full-step communication frequency by fivefold.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "3 Algorithms and Convergence, block/shard alignment"
+        },
+        {
+          "page": 6,
+          "section": "3.2 Block-periodic orthogonalization"
+        },
+        {
+          "page": 7,
+          "section": "Algorithm 1 MuonBP and communication cost"
+        }
+      ]
+    },
+    {
+      "claim": "The deterministic theory frames full Muon and BlockMuon as non-Euclidean trust-region updates in operator and block-spectral norms and gives MuonBP an interpolation bound through their smoothness constants.",
+      "evidence": "Lemma 1 identifies the dual of the maximum block-spectral norm as a sum of block nuclear norms. Theorem 1 supplies a momentum NTR stationarity bound; Theorem 2 mixes full and block descent steps. In the noiseless, zero-momentum specialization, the displayed rate scales with the square root of a weighted harmonic-mean smoothness between L_op and L_B, lying between the corresponding Muon and BlockMuon bounds.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Theorem 1 and Lemma 1"
+        },
+        {
+          "page": 7,
+          "section": "Theorem 2, Equation 4 and noiseless specialization"
+        },
+        {
+          "page": 14,
+          "section": "Appendix A.1, Lemma 2 proof"
+        },
+        {
+          "page": 19,
+          "section": "Appendix A.2, proof of Theorem 2"
+        },
+        {
+          "page": 21,
+          "section": "Completion of Theorem 2 proof"
+        }
+      ]
+    },
+    {
+      "claim": "The stochastic-gradient terms in Theorems 1 and 2 are not justified by the stated norm-equivalence assumption.",
+      "evidence": "Assumption 2 bounds noise in Frobenius norm, while Assumption 3 states the primal inequality ||X|| <= rho||X||_F. Lemma 3 then takes rho=1 for the operator and block-spectral norms. In Lemma 7, Equation 5 uses rho to upper-bound the corresponding dual norm of a stochastic-noise sum by its Frobenius norm. The stated primal inequality implies the opposite direction for dual norms; for the operator norm, the dual nuclear norm can exceed Frobenius by a square-root-rank factor. Thus the noise terms with rho=1, and therefore the full stochastic statements, omit dimension/block factors. The sigma=0 corollary does not use this defective step.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Assumptions 2-3"
+        },
+        {
+          "page": 15,
+          "section": "Appendix A.1, Lemmas 3-4"
+        },
+        {
+          "page": 17,
+          "section": "Appendix A.2, Lemma 7"
+        },
+        {
+          "page": 18,
+          "section": "Lemma 7, Equations 5-7"
+        },
+        {
+          "page": 19,
+          "section": "Proofs of Theorems 1-2"
+        }
+      ]
+    },
+    {
+      "claim": "The stated range for the optimal block/full stepsize ratio is inconsistent with the paper's displayed formulas and norm bounds.",
+      "evidence": "Theorem 2's noiseless optimum displays eta_block/eta_full=L_op/L_B because both stepsizes share the same multiplicative factor and differ by 1/L_B versus 1/L_op. Lemma 4 proves L_op <= L_B <= rc L_op, which only implies a ratio in [1/(rc),1]. The main text instead says the ratio is between 1 and 1/sqrt(rc). The empirical RMS dimension rule is therefore a heuristic transfer rule rather than the exact range implied by the displayed Theorem 2 optimization.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "Theorem 2 noiseless optimal stepsizes and AdamW learning-rate transfer"
+        },
+        {
+          "page": 15,
+          "section": "Appendix A.1, Lemma 4"
+        },
+        {
+          "page": 16,
+          "section": "Lemma 4 smoothness bounds"
+        }
+      ]
+    },
+    {
+      "claim": "At 8B scale under eight-way tensor parallelism, MuonBP reports approximately 8% higher throughput than full Muon while slightly improving perplexity in both tested learning-rate regimes.",
+      "evidence": "Table 4 reports 113.37 versus 105.09 TFLOP/s/GPU for MuonBP and Muon, a 7.9% increase; Adam is still faster at 117.30. Table 3 reports validation perplexity 12.77 versus 12.90 at the smaller learning rate and 12.97 versus 13.40 at the larger rate. These are single reported runs on four eight-A100 nodes with 9.99B tokens and no uncertainty intervals.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "Table 3 and Section 4.2 experimental setting"
+        },
+        {
+          "page": 10,
+          "section": "Section 4.2 Results and Table 4"
+        },
+        {
+          "page": 22,
+          "section": "Appendix Table 5 hyperparameters"
+        },
+        {
+          "page": 25,
+          "section": "Appendix Table 6"
+        }
+      ]
+    },
+    {
+      "claim": "Across the reported 960M, 1.2B, extended 1.2B, and 8B settings, MuonBP has the best tabled training and validation perplexity except for the small-learning-rate extended run, where all Muon variants are nearly tied.",
+      "evidence": "Table 3 gives MuonBP validation perplexities 15.12, 13.78, 12.45, 12.77, and 12.97 across the five main columns, each below the reported Muon and BlockMuon value. Appendix Table 6 adds the small-learning-rate 1.2B extended run: BlockMuon 13.23, Muon 13.27, and MuonBP 13.30, showing that periodic orthogonalization is not uniformly best once the learning rate is reduced.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "Table 3"
+        },
+        {
+          "page": 23,
+          "section": "Figures 6-9"
+        },
+        {
+          "page": 24,
+          "section": "Figure 10"
+        },
+        {
+          "page": 25,
+          "section": "Table 6"
+        }
+      ]
+    },
+    {
+      "claim": "Block-only orthogonalization is sensitive to learning rate and is associated with substantially larger parameter norms, while periodic full steps mitigate that behavior in the tested settings.",
+      "evidence": "At the 8B large learning rate, BlockMuon validation perplexity rises to 24.68 versus 13.40 for Muon and 12.97 for MuonBP, with parameter norm 11,496 versus 6,841 and 7,063. At the small extended 1.2B learning rate BlockMuon remains stable and achieves similar perplexity, but its parameter norm is still roughly double. This is empirical correlation; the paper leaves the proposed regularization explanation unanalysed.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 10,
+          "section": "Section 4.2 Results and Figure 2"
+        },
+        {
+          "page": 22,
+          "section": "Appendix B experimental details"
+        },
+        {
+          "page": 23,
+          "section": "Figure 8"
+        },
+        {
+          "page": 25,
+          "section": "Table 6"
+        }
+      ]
+    },
+    {
+      "claim": "The wall-clock advantage is hardware- and sharding-layout-specific rather than an optimizer-intrinsic constant.",
+      "evidence": "The paper explains that layerwise ZeRO sharding already parallelizes matrices by layer, leaving TP gathers as Muon's extra cost, while FSDP2/TP layouts may require different all-gather or all-to-all patterns. At 160M, MuonBP throughput is only 51.40 versus 50.90 for Muon and below AdamW's 52.80; at 960M and 1.2B, gains are also small. The approximately 8% benefit appears only in the chosen 8B, TP=8, four-node A100 layout.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Table 1 and Communication cost of Muon"
+        },
+        {
+          "page": 8,
+          "section": "Section 4.1 and Table 2"
+        },
+        {
+          "page": 9,
+          "section": "Section 4.2 experimental setting"
+        },
+        {
+          "page": 10,
+          "section": "Throughput and Table 4"
+        }
+      ]
+    },
+    {
+      "claim": "The direct Dion comparison is too small to establish superiority over low-rank distributed orthogonalization.",
+      "evidence": "On the 160M FSDP2/TP setup, MuonBP reports validation loss 3.34 versus Dion 3.37 and throughput 51.40 versus 45.64 TFLOP/s/GPU. The authors explicitly state that throughputs in this setup are low relative to Megatron-LM, that Dion was tested only at small scale, and that larger-scale framework integration and comparison are future work. Appendix C provides asymptotic memory/compute/communication contrasts but no matched large-scale measurement.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "Section 4.1 and Table 2"
+        },
+        {
+          "page": 24,
+          "section": "Figure 11"
+        },
+        {
+          "page": 26,
+          "section": "Appendix C Comparison against Dion"
+        }
+      ]
+    },
+    {
+      "claim": "The empirical evidence does not isolate the claimed periodicity effect from hyperparameter selection, stochastic variation, or training duration.",
+      "evidence": "Learning rates are transferred and then increased by about threefold from a prior Muon recipe; separate Adam choices are described, but no complete equal-budget tuning ledger, random seeds, error bars, or repeated runs are reported. The 8B runs use only 9.99B tokens, while datasets change from OpenWebText below 8B to FineWeb at 8B. Figure 1 varies period and TP only on a 280M model, so P=5 is not ablated at the headline 8B scale.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "Choice of period"
+        },
+        {
+          "page": 8,
+          "section": "Section 4.1 hyperparameter grids and Figure 1"
+        },
+        {
+          "page": 9,
+          "section": "Section 4.2 experimental setting"
+        },
+        {
+          "page": 21,
+          "section": "Appendix B experimental details"
+        },
+        {
+          "page": 22,
+          "section": "Table 5"
+        }
+      ]
+    },
+    {
+      "claim": "MuonBP exchanges frequent communication for periodic full-matrix memory and compute spikes rather than eliminating orthogonalization overhead.",
+      "evidence": "Block steps use shard-sized Newton-Schulz operations and no optimizer-specific model-parallel collective, but each full step materializes the whole tensor, applies global Newton-Schulz, and scatters it. Appendix C summarizes average communication as O(mn/P) and average compute as a mixture of block and full costs, with an O(mn) transient full-step buffer. This differs from Dion's low-rank per-step state and communication and from later kernel-centric approaches.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Section 3 block computation and shard alignment"
+        },
+        {
+          "page": 7,
+          "section": "Communication cost of MuonBP"
+        },
+        {
+          "page": 21,
+          "section": "Algorithm 2 Newton-Schulz"
+        },
+        {
+          "page": 26,
+          "section": "Appendix C memory, compute, and communication"
+        }
+      ]
+    },
+    {
+      "claim": "A displayed step in Lemma 6 is malformed even though the intended self-bounding inequality is standard.",
+      "evidence": "The proof defines X+ through an argmin containing L/2 times an unsquared norm and then equates it to X minus eta times a dual-norm-scaled direction, with eta not defined at that display. The subsequent lines use the squared norm and set eta=1/L. This appears to be a transcription error rather than a novel argument, but it prevents the proof from being literally valid as printed.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 16,
+          "section": "Appendix A.2, Lemma 6 proof"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Align orthogonalization blocks with model-parallel tensor shards, run local Newton-Schulz updates without extra collectives on most iterations, and periodically gather each full momentum matrix for a global Muon update that restores cross-block coupling.",
+    "mechanism": "MuonBP maintains ordinary Muon momentum on each shard. Every Pth step it gathers shards, applies full-matrix Newton-Schulz orthogonalization, updates with eta_full, and scatters; other steps independently orthogonalize local blocks and update with eta_block. The analysis casts full and block updates as trust-region steepest descent in the operator and maximum block-spectral norms, relates their dual and smoothness constants, and combines one-step descent inequalities over each period. Experiments implement the method in SimpleFSDP/DTensor and Megatron-LM/ZeRO+TP stacks from 160M to 8B parameters.",
+    "assumptions": [
+      "The loss is lower bounded and smooth in both operator and block-spectral norms with finite constants L_op and L_B.",
+      "Stochastic gradients are unbiased and have uniformly bounded Frobenius variance.",
+      "Momentum uses a fixed coefficient and the theorem horizon is divisible by P.",
+      "The local blocks exactly match device-resident model-parallel shards.",
+      "The full matrix can be materialized periodically without unacceptable peak memory or synchronization cost.",
+      "A two-stepsize rule or RMS dimension scaling transfers adequately across matrix shapes and scales.",
+      "Validation perplexity at the reported token budgets predicts useful long-run optimizer quality.",
+      "Perplexity and throughput from single hardware layouts generalize to other network fabrics, sharding plans, and model architectures.",
+      "Reported hyperparameter choices give fair comparisons to AdamW, Dion, BlockMuon, and full Muon.",
+      "Optimizer-specific communication is the dominant relevant overhead after the unchanged training collectives."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "shard-aligned-block-orthogonalization",
+      "role": "Runs matrix orthogonalization locally on TP/FSDP shard intersections without extra optimizer collectives."
+    },
+    {
+      "id": "periodic-full-orthogonalization",
+      "role": "Restores global row/column coupling once every P iterations."
+    },
+    {
+      "id": "dual-stepsize-schedule",
+      "role": "Uses distinct effective learning rates for local block and gathered full updates."
+    },
+    {
+      "id": "newton-schulz-polar-update",
+      "role": "Approximates full or block matrix orthogonalization using matrix multiplications."
+    },
+    {
+      "id": "non-euclidean-trust-region-analysis",
+      "role": "Represents Muon and BlockMuon as steepest directions under operator and block-spectral norms."
+    },
+    {
+      "id": "block-spectral-dual-analysis",
+      "role": "Derives a sum-of-block-nuclear-norm dual and compares block and full norm smoothness."
+    },
+    {
+      "id": "harmonic-smoothness-interpolation",
+      "role": "Expresses the noiseless periodic rate between full and block endpoints."
+    },
+    {
+      "id": "adamw-rms-update-matching",
+      "role": "Transfers a baseline learning-rate scale using full or block matrix dimensions."
+    },
+    {
+      "id": "wall-clock-perplexity-benchmarking",
+      "role": "Evaluates iteration quality and device throughput jointly from 160M through 8B."
+    },
+    {
+      "id": "parameter-norm-stability-audit",
+      "role": "Uses parameter-norm growth to diagnose BlockMuon instability."
+    },
+    {
+      "id": "asymptotic-dion-comparison",
+      "role": "Contrasts persistent/transient memory, compute, and communication with low-rank Dion."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "280M Modded-NanoGPT/FineWeb with FSDP2 and varying tensor-parallel degree",
+      "metric": "Final validation loss across learning-rate, TP-degree, and orthogonalization-period sweeps",
+      "result": "Shorter periods improve final loss, with the largest degradation from blocking at the highest TP degree",
+      "baseline": "Full Muon at P=1 and increasingly block-only behavior as P grows"
+    },
+    {
+      "setting": "160M model, TP=2, FSDP=4, batch 1024, sequence length 1024",
+      "metric": "Minimum validation/training loss and TFLOP/s/GPU",
+      "result": "MuonBP 3.34/2.94 at 51.40 versus Muon 3.36/3.02 at 50.90, BlockMuon 3.36/2.97 at 51.77, Dion 3.37/2.95 at 45.64, and AdamW 3.62/3.21 at 52.80",
+      "baseline": "Muon, BlockMuon, Dion, and separately tuned AdamW"
+    },
+    {
+      "setting": "960M model, 9.503B tokens, DP=2, TP=4",
+      "metric": "Validation/training perplexity and throughput",
+      "result": "MuonBP 15.12/13.21 and 113.54 TFLOP/s/GPU versus Muon 15.33/13.44 and 112.97; BlockMuon validation perplexity is 20.29",
+      "baseline": "Muon, BlockMuon, and Adam"
+    },
+    {
+      "setting": "1.2B model, 14.143B tokens, DP=2, TP=4",
+      "metric": "Validation/training perplexity and throughput",
+      "result": "MuonBP 13.78/12.44 and 119.79 TFLOP/s/GPU versus Muon 14.13/12.83 and 118.29; BlockMuon validation perplexity is 16.28",
+      "baseline": "Muon and BlockMuon"
+    },
+    {
+      "setting": "1.2B model trained for 42.143B tokens under large and small learning rates",
+      "metric": "Validation/training perplexity and parameter norm",
+      "result": "At large LR MuonBP wins 12.45 versus Muon 12.62 and BlockMuon 13.29; at small LR BlockMuon 13.23, Muon 13.27, and MuonBP 13.30 are nearly tied, while BlockMuon's parameter norm remains about twice as large",
+      "baseline": "Full Muon, BlockMuon, and Adam where reported"
+    },
+    {
+      "setting": "8B model, 9.99B FineWeb tokens, DP=4, TP=8 on four 8xA100 nodes",
+      "metric": "Validation/training perplexity, wall-clock time to target perplexity, and TFLOP/s/GPU",
+      "result": "At small LR MuonBP reaches 12.77/11.59 and 113.37 versus Muon 12.90/11.74 and 105.09; the figure reports 10-13% less wall time to targets and 5-7% lower perplexity at selected times",
+      "baseline": "Muon, BlockMuon, and Adam"
+    },
+    {
+      "setting": "8B large-learning-rate stress test",
+      "metric": "Validation/training perplexity and parameter norm",
+      "result": "MuonBP 12.97/11.93 remains stable, Muon gives 13.40/12.39, and BlockMuon degrades to 24.68/23.17 with parameter norm 11,496",
+      "baseline": "Full Muon and BlockMuon under matched reported scaling rules"
+    },
+    {
+      "setting": "Asymptotic comparison with Dion",
+      "metric": "Persistent/transient memory, average compute, and optimizer communication",
+      "result": "MuonBP is characterized by O(mn) persistent momentum, periodic O(mn) transient materialization, and O(mn/P) average model-parallel communication; Dion retains low-rank bases and communicates O((m+n)r)-scale objects",
+      "baseline": "Dion's amortized low-rank power-iteration update"
+    }
+  ],
+  "limitations": [
+    "Author-stated: the period P is fixed; adaptive or time-varying scheduling is unexplored.",
+    "Author-stated: block orthogonalization with expert parallelism is left to future work.",
+    "Author-stated: Dion is experimentally compared only at 160M and requires larger-scale framework integration before a strong conclusion.",
+    "Author-stated: the possible regularization benefit from periodicity is conjectural and unanalysed.",
+    "Reviewer-identified: the stochastic theorem proof uses a norm-equivalence implication in the wrong dual direction, so its noise terms are invalid as written.",
+    "Reviewer-identified: the displayed optimal stepsizes and Lemma 4 do not imply the stated 1/sqrt(rc) lower limit on eta_block/eta_full.",
+    "Reviewer-identified: Lemma 6's defining minimization omits a square and introduces eta without defining it in that display.",
+    "Reviewer-identified: experiments report no independent seeds, confidence intervals, or run-level variance.",
+    "Reviewer-identified: hyperparameter tuning effort is not fully equalized or costed across methods, especially AdamW and Dion.",
+    "Reviewer-identified: the 8B headline uses only 9.99B tokens and one A100/network/sharding layout, limiting claims about full-scale pretraining.",
+    "Reviewer-identified: P=5 is swept only at smaller scale, not ablated in the headline 8B configuration.",
+    "Reviewer-identified: periodic full steps retain full-tensor transient memory and synchronization spikes.",
+    "Reviewer-identified: the dollar-savings claim is not backed by a cost model or measured end-to-end training budget.",
+    "Reviewer-identified: later DMuon and Dion3 systems results provide stronger current overhead baselines that were unavailable to the target."
+  ],
+  "failure_modes": [
+    "Pure BlockMuon can become unstable as TP degree, matrix partition count, or learning rate grows.",
+    "An overly short period forfeits communication savings; an overly long period loses cross-block coupling and can approach BlockMuon's worse behavior.",
+    "The full step can exceed memory headroom or create periodic latency stragglers on large tensors.",
+    "Network topology or a sharding plan with cheap existing full matrices can erase MuonBP's throughput advantage.",
+    "RMS dimension scaling can miscalibrate the unknown operator/block smoothness ratio.",
+    "A fixed period can be inappropriate across layers with very different aspect ratios, curvature, or communication costs.",
+    "Single-run validation differences of a few tenths can reverse under seed variation or equalized tuning.",
+    "Short-token 8B runs can favor early optimization behavior that does not persist to compute-optimal training.",
+    "The invalid stochastic dual-norm bound can make theoretical noise guarantees overly optimistic by rank- or block-dependent factors.",
+    "MuonBP does not remove Newton-Schulz computation and can lose to kernel-optimized or low-rank distributed alternatives.",
+    "Expert, pipeline, or irregular tensor sharding can make shard-aligned rectangular blocks poorly conditioned or operationally awkward.",
+    "Block parameter-norm growth can cause late divergence even when early validation curves look competitive."
+  ],
+  "reusable_insights": [
+    "Align optimizer algebra with the tensors already resident on each device; avoiding layout conversion can matter more than reducing arithmetic alone.",
+    "Intermittent global correction is a general systems pattern for trading local cheap steps against loss of cross-shard coupling.",
+    "Use separate controls for algorithmic iteration efficiency, optimizer-step latency, end-to-end throughput, peak memory, and time to a quality target.",
+    "A periodic method should expose layerwise or cost-aware schedules rather than assume one global period is optimal.",
+    "Check primal-to-dual norm implications explicitly in stochastic proofs; direction reversal can silently remove dimension factors.",
+    "Learning-rate transfer heuristics should be distinguished from theoretically optimal stepsizes involving unknown smoothness constants.",
+    "Report parameter-norm trajectories alongside loss when blockwise preconditioners can change update geometry.",
+    "Charge all HPO and short-run period selection to wall-clock comparisons.",
+    "Benchmark communication methods on at least two network fabrics and multiple TP/FSDP layouts before claiming general overhead reductions.",
+    "Compare periodic full-matrix methods with low-rank, compressed, and kernel-optimized competitors under equal quality targets and memory limits."
+  ],
+  "open_questions": [
+    "Can Theorems 1 and 2 be repaired with the correct dual/Frobenius constants, and how do the resulting rank and block factors change the stochastic rate?",
+    "What is the correct range for eta_block/eta_full under the displayed harmonic-smoothness optimization?",
+    "Does P=5 remain near-optimal at 8B and larger models after long compute-optimal training?",
+    "Can P and the block/full stepsizes adapt online by layer using measured curvature, parameter norms, or communication latency?",
+    "How much peak memory and latency variance do periodic full steps add at 70B, MoE, and multi-rack scale?",
+    "Do MuonBP's perplexity gains persist across seeds, datasets, architectures, tokenizers, sequence lengths, and equal HPO budgets?",
+    "How does MuonBP compare directly with Dion, Dion3, DMuon, Polar Express, Distributed Shampoo, and BlockMuon on the same modern stack?",
+    "Can global correction be approximated without materializing the full matrix, combining MuonBP with low-rank or hierarchical collectives?",
+    "What mechanism connects BlockMuon's larger parameter norms to instability, and can clipping or spectral regularization replace periodic gathers?",
+    "Does an adaptive period improve the conjectured regularization effect or merely change effective learning-rate noise?",
+    "How do pipeline and expert parallelism alter the correct definition of a block and the communication schedule?",
+    "What end-to-end dollar and energy savings remain after counting HPO, optimizer spikes, checkpointing, and the full training horizon?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2502.16982",
+      "title": "Muon is Scalable for LLM Training",
+      "url": "https://arxiv.org/abs/2502.16982v1",
+      "relationship": "scalable-Muon baseline and systems antecedent",
+      "difference": "Liu et al. establish update-scale and weight-decay rules, scaling-law gains, an open distributed implementation, and a 3B/16B MoE trained on 5.7T tokens. MuonBP inherits their RMS matching and distributed Muon baseline, then targets tensor-parallel gather overhead with periodic local blocks; its dense 8B evidence is much shorter and narrower in hardware scope.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "openreview:ppmyFtr9EW",
+      "title": "Towards Understanding Orthogonalization in Muon",
+      "url": "https://openreview.net/forum?id=ppmyFtr9EW",
+      "relationship": "direct concurrent BlockMuon predecessor",
+      "difference": "Boreiko et al. introduce block-wise orthogonalization, study up to 16-way tensor splits, learning-rate transfer, spectral regularization, and weight-decay scheduling on nanoGPT-scale models. MuonBP's distinct contribution is to interleave that block update with periodic full orthogonalization, add a convergence analysis, and test the hybrid at 8B where its own BlockMuon implementation can become unstable.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "HiLD at ICML 2025 Poster; published and last modified 2025-06-09; forum ppmyFtr9EW"
+    },
+    {
+      "canonical_id": "arxiv:2504.05295",
+      "title": "Dion: Distributed Orthonormalized Updates",
+      "url": "https://arxiv.org/abs/2504.05295v3",
+      "relationship": "closest distributed-orthogonalization competitor",
+      "difference": "Dion replaces full Newton-Schulz reconstruction with amortized low-rank power iteration, error feedback, and rank-controlled updates compatible with sharded weights, reporting models through 3B. MuonBP preserves ordinary Muon updates on periodic full steps and has simpler state, but retains O(mn/P) communication and full-tensor transient memory; its direct Dion comparison is only 160M.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2505.02222",
+      "title": "Practical Efficiency of Muon for Pretraining",
+      "url": "https://arxiv.org/abs/2505.02222v4",
+      "relationship": "Muon efficiency and hyperparameter-transfer baseline",
+      "difference": "This primary study evaluates Muon's compute-time Pareto frontier, large-batch data efficiency, and muP-aware hyperparameter transfer through 4B parameters. MuonBP addresses a different bottleneck—model-parallel orthogonalization collectives—and does not match its batch-size, architecture, or hyperparameter-transfer ablations.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4"
+    },
+    {
+      "canonical_id": "arxiv:2505.23725",
+      "title": "MuLoCo: Muon is a practical inner optimizer for DiLoCo",
+      "url": "https://arxiv.org/abs/2505.23725v3",
+      "relationship": "low-communication distributed-training alternative",
+      "difference": "MuLoCo reduces data-parallel synchronization frequency by using Muon inside DiLoCo and extensively tunes models from 150M to 3.1B before a 15B extrapolation, including quantized and long-interval variants. MuonBP instead reduces optimizer-specific model-parallel traffic within a synchronized step; the methods address orthogonal communication axes and could be combined.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2505.16932",
+      "title": "The Polar Express: Optimal Matrix Sign Methods and Their Application to the Muon Algorithm",
+      "url": "https://arxiv.org/abs/2505.16932v5",
+      "relationship": "orthogonalization-kernel and compute competitor",
+      "difference": "Polar Express accelerates the polar/sign computation itself with adaptive minimax polynomial iterations, bfloat16 safeguards, and GPT-2 validation-loss tests. MuonBP reduces shard communication and block compute by changing when and where full orthogonalization occurs; it retains fixed Newton-Schulz and could incorporate the newer kernel.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v5"
+    },
+    {
+      "canonical_id": "arxiv:2606.27153",
+      "title": "DMuon: Efficient Distributed Muon Training with Near-Adam Overhead",
+      "url": "https://arxiv.org/abs/2606.27153v1",
+      "relationship": "post-paper near-Adam distributed-Muon competitor",
+      "difference": "DMuon integrates a drop-in distributed implementation into existing stacks and reports 1.48-3.01x end-to-end step-time and 6.85-163x optimizer-step speedups across LLM and embodied-model workloads. It is later evidence that systems and kernel redesign can close the overhead gap without MuonBP's fixed periodic approximation, narrowing any current efficiency-leading claim.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2608.11612",
+      "title": "Dion3: Full-Stack Orthogonal Updates",
+      "url": "https://arxiv.org/abs/2608.11612v1",
+      "relationship": "post-paper full-stack orthogonal-update competitor",
+      "difference": "Dion3 combines Gram Newton-Schulz, symmetry-aware kernels, megabatching, and partial-row orthogonalization, reporting up to 6x lower optimizer-step time while matching or improving Muon loss. MuonBP's periodic shard/full schedule is simpler and theoretically motivated, but it is not compared against this current full-stack implementation and retains periodic full-tensor work.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim MuonBP as a simple block-periodic Muon variant that cuts model-parallel communication, uses theoretically necessary separate block/full stepsizes, smoothly interpolates between Muon and BlockMuon in convergence, and delivers Muon quality with coordinate-wise-optimizer-like throughput through 8B scale.",
+    "evidence": "Block-wise orthogonalization and distributed low-rank orthogonalization already existed in BlockMuon and Dion, while scalable Muon recipes and implementations predate the target. The distinctive contribution is the specific periodic hybrid: align blocks to device shards, use local updates on P-1 steps, restore global coupling on the Pth step, and analyze the mixed norm schedule. The 8B TP=8 run supports a layout-specific 7.9% throughput gain with slightly better reported perplexity. However, the stochastic part of the proof uses an invalid dual-norm implication, the displayed stepsize-ratio claim conflicts with the paper's own smoothness bounds, and current DMuon/Dion3 results supersede the breadth of the systems comparison.",
+    "reviewer_inference": "The credible novelty is a practical and easily implementable periodic-correction design, a useful deterministic mixed-norm perspective, and evidence that it can rescue block-only instability while reducing TP traffic on one 8B setup. Claims that the full stochastic theory dictates the practical learning-rate rule, that throughput is generally Adam-like, or that the method is the current distributed-Muon efficiency frontier should be narrowed pending corrected proofs, repeated long-run experiments, and matched comparisons on modern stacks."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Primary full-text review of the exact indexed 26-page arXiv:2510.16981v1 PDF, byte-identical to the official version endpoint. Every page was read, including Sections 1-5, all references, Appendix A proofs of Lemmas 2-7 and Theorems 1-2, Appendix B algorithms/curves/hyperparameters, Appendix C Dion comparison, Algorithms 1-2, Tables 1-6, and Figures 1-11. Rendered pages 5-10, 14, 16, 21, 25, and 26 were visually checked for assumptions, norm directions, theorem constants, tables, and system-cost claims. The indexed PDF SHA-256 is ca944010554e4e1e508403b9604c14c9231406371f9d730745c68219b1d93a68 and the text SHA-256 is 3ef0aec45da5457f60e6dc7430ea44d4d58d0224d783de29cb6e25af31c499dd; all 26 pages contain usable text. Eight exact-current official primary competitor records were checked through 2026-08-23 across BlockMuon, scalable Muon, Dion, MuLoCo, matrix-sign acceleration, DMuon, and Dion3. Confidence is high for the table transcription, systems-scope audit, and the explicit primal/dual proof defect; the deterministic theorem may be repairable and was not treated as invalid solely because the stochastic extension fails."
+}

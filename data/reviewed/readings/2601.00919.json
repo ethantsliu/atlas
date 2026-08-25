@@ -1,0 +1,290 @@
+{
+  "stable_id": "arxiv:2601.00919",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2601.00919",
+    "pdf_sha256": "4da6719882911f95e90da122bf241263d0403f357211ba5d7b54fd6bbf8bb09b",
+    "text_sha256": "4e25c6e7b4ccb8cfe90c8fedc16020b6e083f17ebd732fdd884c2bc05693bc07",
+    "page_count": 21,
+    "extracted_at": "2026-08-23T14:12:11.860750+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can representational collapse and attention sinks be usefully treated as opposite attention-allocation failures, and can learned positional discrimination plus a post-softmax threshold produce better long-context behavior and sink-free sparse attention without sacrificing language-model quality?",
+  "key_findings": [
+    {
+      "claim": "The paper proposes a unifying hypothesis rather than demonstrating a shared causal mechanism: attention overload spreads mass across too many tokens and is associated with representation collapse, while attention underload forces softmax mass onto irrelevant tokens and is associated with a first-token sink.",
+      "evidence": "The introduction and Section 3.3 define the two regimes and motivate one architecture for both. No intervention directly measures both collapse and sink under a single controlled allocation variable, so the claimed common root remains a conceptual synthesis.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 2, "section": "1 Introduction"},
+        {"page": 5, "section": "3.3 Attention Overload and Underload"}
+      ]
+    },
+    {
+      "claim": "Repeated-token probes show that several relative-position models lose their usual first-token sink pattern when semantic and representation differences are removed, whereas GPT-2 with absolute embeddings and gpt-oss with a learned denominator bias retain positional distinctions.",
+      "evidence": "Figure 3 compares GPT-2, Transformer-XL, Llama2, BLOOM, and gpt-oss-20b on natural and repeated inputs. Appendix G reports nearly uniform Q/K/V and hidden-state norms and variances across repeated positions for Qwen3-4B and BLOOM. These observations support score-level positional effects but do not isolate token identity, causal context size, and position in the natural-text controls.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "3.2 The Role of Position Encoding, Figure 3"},
+        {"page": 20, "section": "G Statistical Properties of the Sink Token, Table 4"},
+        {"page": 21, "section": "Appendix G, Tables 5-7"}
+      ]
+    },
+    {
+      "claim": "Lazy Attention combines a learned head- and distance-specific score bias with RoPE, then applies Elastic-Softmax: ReLU(softmax(s_ij)+tau_h/i), where tau is initialized to -1 and the surviving weights are not renormalized.",
+      "evidence": "Equation 4 defines the positional score with a learned bias inside a window and RoPE across dimensions. Equation 5 subtracts a row-length-scaled head threshold after softmax; Appendix F gives a two-pass computation that produces a variable-total-mass attention output.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "4.1 Positional Discrimination and 4.2 Elastic-Softmax"},
+        {"page": 19, "section": "F Compatibility with FlashAttention"}
+      ]
+    },
+    {
+      "claim": "At 340M parameters, full Lazy Attention improved the reported average over Transformer++ but was worse than its own no-Elastic ablation; at 760M it was essentially tied with the strongest reported competitor on the average.",
+      "evidence": "Table 1 reports 340M averages of 48.01 for Lazy Attention, 47.29 for Transformer++, and 48.39 for -Elastic; full Lazy also has worse WikiText and LAMBADA perplexity than -Elastic. At 760M, Lazy scores 51.53 versus 51.56 for Titans while beating Transformer++ at 48.69. Thus Elastic-Softmax supplies the sink/sparsity tradeoff, not a demonstrated quality improvement over the positional-only model.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Table 1 and 5.2 Overall Performance"}
+      ]
+    },
+    {
+      "claim": "The learned positional component improves length extrapolation in the reported 512-to-2048 test, but the experiment uses perplexity degradation as a proxy for resolving representational collapse and does not measure collapse directly.",
+      "evidence": "Figure 6 shows Lazy Attention and the no-Elastic variant degrading much less than the standard Transformer on WikiText and LAMBADA after training at length 512, while removing the learnable bias is especially damaging on WikiText. No representation-similarity, information-squashing, or token-distinguishability outcome is reported for the trained Lazy models.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "5.5 Resolution of Overload: Length Extrapolation, Figure 6"}
+      ]
+    },
+    {
+      "claim": "The selected Elastic-Softmax offset almost eliminates first-token mass while preserving the ablation-table average, but it also discards most of the row's total attention mass.",
+      "evidence": "Table 2 reports loss 2.64, average 45.70, non-first-token density 40.24%, and sink ratio 0.18% for tau_init=-1 with tau/i, versus softmax loss 2.62, average 45.48, density 94.53%, and sink 5.46%. Because the paper defines density as attention mass rather than the fraction of nonzero entries, the surviving total mass is only 40.42% for the selected variant.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 9, "section": "Table 2 and 5.6 Resolution of Underload"},
+        {"page": 15, "section": "C.3 Evaluation Metrics"}
+      ]
+    },
+    {
+      "claim": "The headline 59.58% 'attention sparsity' is not established by the reported metric; it is exactly 100% minus the 40.24% non-first-token mass and 0.18% sink mass, not a measured proportion of zero-valued weights.",
+      "evidence": "The abstract and Section 5.2 call 59.58% released weights or sparsity. Appendix C.3 defines density as mean attention mass on non-first tokens, and Table 2 gives density 40.24 and sink 0.18. Their complement is 59.58, but no nonzero-count/support-size statistic appears. Removed probability mass and exact-zero frequency are different quantities after a non-renormalized threshold.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract"},
+        {"page": 7, "section": "5.2 Overall Performance"},
+        {"page": 9, "section": "Table 2"},
+        {"page": 15, "section": "C.3 Attention density and sink ratio"}
+      ]
+    },
+    {
+      "claim": "Elastic-Softmax is only algorithmically compatible with a FlashAttention-style memory layout in the paper; its claimed minimal overhead is unsupported by timing data and the proposed implementation requires two quadratic passes.",
+      "evidence": "Table 2 labels all Elastic variants 'Two-pass' with O(n^2) theoretical time. Appendix F describes one pass for softmax statistics and a second for thresholding and the value sum, but gives no kernel, latency, throughput, memory-traffic, or end-to-end benchmark.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "Table 2"},
+        {"page": 19, "section": "F Compatibility with FlashAttention"}
+      ]
+    },
+    {
+      "claim": "The appendix's low-variance sink evidence is descriptive and lexically confounded: the first natural token has low variance, while every repeated 'sink' token has the same low statistics, but the design does not transplant the same lexical token across matched positions and contexts.",
+      "evidence": "Tables 4-7 contrast a natural phrase beginning with 'Once' against sequences containing only the token 'sink'. Qwen3-4B first-token V variance is 0.0017 versus much larger later-token values, and BLOOM shows the same pattern, but token identity, available causal context, and position change together.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 20, "section": "G Statistical Properties of the Sink Token"},
+        {"page": 21, "section": "Appendix G, Tables 5-7"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Allocate attention more selectively in two stages: make score patterns position-discriminative enough to avoid broad averaging, then permit a query row to allocate less than unit total mass so irrelevant keys can receive exactly zero weight.",
+    "mechanism": "RoPE rotates query and key dimensions using a larger base, while each head learns a distance-indexed attention bias within window W=512; outside that window the learned bias is zero. Standard causal softmax is then computed. Elastic-Softmax adds a learned head-specific tau divided by the number of available causal keys i and applies ReLU without renormalization. Tau starts at -1, so a uniform row is initially thresholded to zero; learned offsets vary by layer and head. The proposed Flash-compatible algorithm computes softmax statistics first and performs thresholding plus the value-weighted sum in a second pass.",
+    "assumptions": [
+      "Attention overload is a useful causal explanation for long-context representation collapse, and attention underload is a useful causal explanation for sink formation.",
+      "Relative score structure, rather than persistent position information in hidden states, is the principal source of positional discrimination in RoPE/ALiBi models.",
+      "A learned local distance bias plus a larger RoPE base separates useful positions without over-suppressing long-range dependencies.",
+      "Subtracting approximately the uniform-row average 1/i identifies irrelevant keys, even though semantic relevance labels are never used.",
+      "The model can safely use attention rows whose total weight is below one, relying on residual paths and later normalization to absorb variable output scale.",
+      "Non-first-token attention mass and first-token mass are adequate proxies for support sparsity and sink removal.",
+      "Reported baseline results and parameter labels are comparable despite mixed provenance and the appendix's 730M-versus-table-760M scale inconsistency."
+    ]
+  },
+  "techniques": [
+    {"id": "head-wise-distance-bias", "role": "Learns a separate relative-distance score adjustment for every head inside a finite window."},
+    {"id": "dimension-wise-rope-discrimination", "role": "Uses RoPE with a larger base to preserve dimension-wise relative-position distinctions over longer ranges."},
+    {"id": "post-softmax-relu-threshold", "role": "Subtracts a learned row-length-scaled threshold from normalized weights and clips at zero to create exact zeros without sorting."},
+    {"id": "variable-mass-attention", "role": "Leaves thresholded weights unnormalized so a query can allocate less than total mass one when no key stands out."},
+    {"id": "repeated-token-sink-probe", "role": "Removes lexical variation to inspect whether attention sinks and representation statistics persist under different position encodings."},
+    {"id": "layer-head-offset-profiling", "role": "Visualizes learned positional biases and thresholds across depth to infer locality and filtering regimes."},
+    {"id": "two-pass-flash-layout", "role": "Reuses online softmax statistics in one pass and applies thresholding plus the value sum in a second memory-efficient pass."}
+  ],
+  "evaluations": [
+    {
+      "setting": "340M-parameter models trained on 15B FineWeb-Edu tokens with 4096 context",
+      "metric": "WikiText/LAMBADA perplexity and mean accuracy over eight task columns",
+      "result": "Lazy Attention: WikiText 25.32, LAMBADA 31.84, average 48.01; no-Elastic ablation: 24.59, 31.56, and 48.39.",
+      "baseline": "Transformer++: 25.76, 38.02, and 47.29; the no-Elastic ablation is the strongest internal quality comparator."
+    },
+    {
+      "setting": "760M-table scale with a 30B-token budget",
+      "metric": "WikiText/LAMBADA perplexity and mean accuracy",
+      "result": "Lazy Attention: WikiText 24.08, LAMBADA 20.92, average 51.53.",
+      "baseline": "Transformer++ average 48.69; strongest reported average Titans 51.56. Appendix C.2 instead calls the cited Titans scale 730M."
+    },
+    {
+      "setting": "10B-token, context-512 Elastic-Softmax formulation ablation",
+      "metric": "Validation loss, mean benchmark performance, non-first attention mass, and first-token sink mass",
+      "result": "Chosen tau/i with tau_init=-1: loss 2.64, performance 45.70, density 40.24%, sink 0.18%.",
+      "baseline": "Softmax: 2.62, 45.48, 94.53%, 5.46%; sparsemax: 2.65, 45.92, 96.87%, 3.03%."
+    },
+    {
+      "setting": "Models trained at length 512 and tested on WikiText and LAMBADA at 512, 1024, and 2048",
+      "metric": "Perplexity degradation with sequence length",
+      "result": "Full Lazy Attention and no-Elastic degrade much less than the standard Transformer; removal of the learnable bias causes severe WikiText degradation. Exact plotted values are not tabulated.",
+      "baseline": "Standard Transformer, no-position model, no-learnable-bias, and no-Elastic ablations."
+    },
+    {
+      "setting": "Attention-map probes across GPT-2, Transformer-XL, Llama2, BLOOM, and gpt-oss-20b",
+      "metric": "Qualitative first-token sink pattern under natural versus repeated-token inputs",
+      "result": "RoPE/ALiBi models lose the ordinary sink under repetition, GPT-2 retains it, Transformer-XL emphasizes special tokens, and gpt-oss retains a bias-induced virtual sink.",
+      "baseline": "Natural-text attention maps for the same pretrained models."
+    },
+    {
+      "setting": "Qwen3-4B and BLOOM natural-text versus repeated-token diagnostic",
+      "metric": "Per-position Q/K/V and hidden-state norms and variances",
+      "result": "The natural first token has much lower hidden/V variance than later lexical tokens, while repeated-token statistics are nearly constant at the low first-token level across positions.",
+      "baseline": "Later positions in the natural phrase; the comparison is not token- or context-matched."
+    }
+  ],
+  "limitations": [
+    "Author-evident negative result: at 340M, removing Elastic-Softmax improves average accuracy from 48.01 to 48.39 and improves both reported perplexities; the full mechanism is justified as a quality-sparsity tradeoff, not a quality winner.",
+    "Author-evident: the proposed Elastic-Softmax implementation takes two passes and remains O(n^2); efficient kernel implementation is left to future work.",
+    "Reviewer inference: '59.58% sparsity' is calculated from missing attention mass, not the fraction of entries equal to zero, so the headline support-sparsity claim is unmeasured.",
+    "Reviewer inference: sink ratio and density measure where mass goes, not whether surviving tokens are semantically relevant or whether exact zeros can be exploited for computation.",
+    "Reviewer inference: no end-to-end latency, throughput, kernel, or memory benchmark supports 'minimal overhead' or practical FlashAttention compatibility.",
+    "Reviewer inference: no direct representational-collapse outcome is measured for Lazy Attention; length extrapolation perplexity is a proxy confounded by positional encoding and generalization.",
+    "Reviewer inference: the no-Positional ablation uses plain RoPE while the full method combines a larger RoPE base and learned biases, so the contribution of each positional change is not cleanly isolated.",
+    "Reviewer inference: the repeated-token statistics compare different token identities and causal contexts, leaving lexical identity, first-position context, and position confounded.",
+    "Reviewer inference: training-seed counts, uncertainty intervals, and the sampling unit behind the Table 1 t-test are not reported; statistical significance does not address pretraining-run variance.",
+    "Reviewer inference: Table 1 labels the larger block 760M, while Appendix C.2 says cited Titans numbers are 730M and says they come from original papers; the table does not visibly mark reported rows, weakening comparison provenance.",
+    "Reviewer inference: the abstract's nine-benchmark wording counts ARC-Easy and ARC-Challenge separately, while Appendix C.4 lists eight datasets with ARC combined; this is a reporting ambiguity rather than extra coverage.",
+    "Reviewer inference: the evaluation covers sub-billion-parameter pretraining on one corpus and mostly short commonsense tasks, not retrieval-heavy long-context workloads where low-probability distant keys may matter."
+  ],
+  "failure_modes": [
+    "At initialization, a uniform causal row is entirely zeroed because every 1/i weight receives a -1/i offset; early queries can therefore have zero attention output and zero ReLU gradient for suppressed entries.",
+    "An overly negative learned tau can erase many weak but jointly useful retrieval keys, especially in aggregation, copying, or multi-hop tasks requiring diffuse evidence.",
+    "An offset initialized at zero can let the model establish a sink early and fail to unlearn it, as the ablation discussion reports.",
+    "Because surviving weights are not renormalized, attention-output scale varies with row sharpness and sequence position; residual and normalization layers may compensate in a recipe-specific way that fails under transfer or finetuning.",
+    "The method creates zeros only after computing dense softmax statistics, so without a specialized sparse second pass it can cost more than native FlashAttention while saving no asymptotic compute.",
+    "A fixed W=512 learned bias window may overfit training distances or miss task-specific long-range positional structure outside the window.",
+    "Learned distance biases can conflate useful locality with semantic relevance, suppressing distant but decisive tokens.",
+    "Eliminating first-token mass need not improve quality; a sink can be a harmless key-bias outlet, and full Lazy Attention underperforms its no-Elastic ablation at 340M.",
+    "The overload/underload framing may fail when representation collapse arises from bottleneck dimension, optimization, or layer dynamics rather than attention allocation."
+  ],
+  "reusable_insights": [
+    "A learnable per-head distance table can relax ALiBi's fixed monotone slope while retaining an explicit locality prior.",
+    "Subtracting the uniform-row average after softmax is a simple way to let an attention row express 'none of the above' without adding a physical sink token.",
+    "Variable-total-mass attention should be evaluated separately for prediction quality, first-token mass, exact support size, output scale, and realized hardware speed.",
+    "Repeated-token probes are useful for separating content variation from score-level positional mechanisms, but they require token- and context-matched controls before causal interpretation.",
+    "Attention-sink removal, sparse support, and efficient sparse execution are three distinct claims and need distinct metrics.",
+    "Length extrapolation is not itself a measurement of representational collapse; direct feature-similarity or information-retention diagnostics should accompany perplexity curves.",
+    "Internal ablations can be stronger competitors than external baselines: here the no-Elastic model is the correct quality comparator for the thresholding component."
+  ],
+  "open_questions": [
+    "What fraction of attention entries is exactly zero under Elastic-Softmax at each layer, head, sequence length, and task, and how does it relate to the reported missing mass?",
+    "Can a fused two-pass or block-sparse kernel turn the zeros into measured end-to-end speed or memory gains over FlashAttention2?",
+    "Do the quality-sink tradeoffs replicate across pretraining seeds and at multi-billion-parameter scale under matched data and compute?",
+    "Does Elastic-Softmax preserve low-probability but causally important retrieval evidence on long-context needle, aggregation, and multi-hop benchmarks?",
+    "Would renormalizing surviving weights, adding an explicit null value, or learning a query-dependent threshold improve calibration and output-scale stability?",
+    "Can attention overload be validated with direct representation-collapse or information-squashing metrics while independently manipulating positional bias?",
+    "Which part of positional discrimination matters: the larger RoPE base, learned local bias, head specificity, or their interaction?",
+    "Do same-token, same-context position transplants reproduce the claimed low-variance sink footprint after controlling for lexical identity and causal prefix length?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2409.04431",
+      "title": "Theory, Analysis, and Best Practices for Sigmoid Self-Attention",
+      "url": "https://arxiv.org/abs/2409.04431v2",
+      "relationship": "prior direct normalization competitor",
+      "difference": "Sigmoid attention removes the sum-to-one constraint directly and reports theoretical regularity plus a one-pass FlashSigmoid kernel with measured speed. Elastic-Softmax preserves softmax statistics, thresholds afterward, and needs two passes; its advantage is adaptive exact zeros, but it lacks runtime evidence.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2410.10781",
+      "title": "When Attention Sink Emerges in Language Models: An Empirical View",
+      "url": "https://arxiv.org/abs/2410.10781v2",
+      "relationship": "prior direct sink analysis",
+      "difference": "This work already links sink emergence partly to softmax normalization and shows sigmoid attention avoids sinks up to 1B parameters. Lazy Attention builds a post-softmax threshold and combines sink removal with positional-bias treatment of a separate overload hypothesis.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2309.17453",
+      "title": "Efficient Streaming Language Models with Attention Sinks",
+      "url": "https://arxiv.org/abs/2309.17453v4",
+      "relationship": "prior sink-adaptation competitor",
+      "difference": "StreamingLLM exploits and preserves initial sink tokens for bounded-cache streaming without retraining. Lazy Attention instead changes pretraining attention to suppress the sink, targeting focused allocation rather than cache compatibility with existing models.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4"
+    },
+    {
+      "canonical_id": "arxiv:1602.02068",
+      "title": "From Softmax to Sparsemax: A Sparse Model of Attention and Multi-Label Classification",
+      "url": "https://arxiv.org/abs/1602.02068v2",
+      "relationship": "prior sparse-normalization competitor",
+      "difference": "Sparsemax projects scores to a normalized sparse probability simplex and provides exact sparse attention. Elastic-Softmax is a cheaper-looking post-softmax ReLU offset with variable total mass, but the paper's table assigns sparsemax O(n^2 log n) and two passes and does not measure actual support sparsity for either method.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:1905.05702",
+      "title": "Sparse Sequence-to-Sequence Models",
+      "url": "https://arxiv.org/abs/1905.05702v2",
+      "relationship": "prior sparse-normalization competitor",
+      "difference": "Alpha-entmax supplies a tunable family between softmax and sparsemax while preserving normalized sparse distributions. Elastic-Softmax instead learns a per-head threshold after softmax, avoids sorting in its stated O(n^2) formulation, and intentionally permits sub-unit mass.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2108.12409",
+      "title": "Train Short, Test Long: Attention with Linear Biases Enables Input Length Extrapolation",
+      "url": "https://arxiv.org/abs/2108.12409v2",
+      "relationship": "prior positional-bias competitor",
+      "difference": "ALiBi uses fixed head-dependent linear distance penalties and demonstrates length extrapolation efficiently. Lazy Attention learns non-monotone distance tables inside a window and combines them with RoPE, gaining flexibility but adding parameters and leaving the larger-base-versus-learned-bias contribution entangled.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2410.10819",
+      "title": "DuoAttention: Efficient Long-Context LLM Inference with Retrieval and Streaming Heads",
+      "url": "https://arxiv.org/abs/2410.10819v1",
+      "relationship": "prior head-allocation competitor",
+      "difference": "DuoAttention separates retrieval and streaming heads and keeps sinks inside a memory-efficient inference policy, with measured latency and cache savings. Lazy Attention learns head-wise score biases and thresholds during pretraining but does not specialize cache policy or demonstrate runtime savings.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2508.10925",
+      "title": "gpt-oss-120b & gpt-oss-20b Model Card",
+      "url": "https://arxiv.org/abs/2508.10925v1",
+      "relationship": "prior virtual-sink design",
+      "difference": "gpt-oss adds a learned softmax-denominator bias that behaves like a virtual sink, giving unneeded mass a stable outlet without a physical token. Elastic-Softmax instead removes below-threshold mass entirely, which eliminates the sink but changes attention-output scale and requires a second pass.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim a unified allocation perspective connecting attention overload and underload, and a new Lazy Attention mechanism that jointly uses head/dimension positional discrimination and Elastic-Softmax to improve long-context focus, eliminate sinks, and create up to 59.58% sparse attention.",
+    "evidence": "Equations 4-5 define the combination; Figures 3-7 and Tables 1-2 provide attention-pattern, length, quality, mass, and sink diagnostics; Appendices C-G give setup, metrics, learned biases, a two-pass algorithm, and Q/K/V statistics. Exact-version primary records show that normalized sparse attention (1602.02068v2, 1905.05702v2), non-normalized sink-free sigmoid attention (2409.04431v2, 2410.10781v2), positional score bias (2108.12409v2), sink preservation or head partitioning (2309.17453v4, 2410.10819v1), and virtual sink bias (2508.10925v1) are prior.",
+    "reviewer_inference": "The defensible novelty is the specific joint framing and implementation: combine RoPE with learned head-distance tables and apply a learned uniform-row-relative ReLU threshold after softmax without renormalization. Neither component family is new, and the paper does not causally establish that overload and underload share one root. The strongest empirical result is sink-mass removal with competitive point estimates; the no-Elastic ablation is better on 340M quality, collapse is not measured directly, runtime is absent, and 59.58% is missing probability mass rather than measured zero-weight sparsity. The contribution is therefore a promising allocation tradeoff and diagnostic synthesis, not yet a demonstrated sparse-efficiency or unified-cause result."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Primary full-text review of all 21 pages of the locally pinned arXiv v2 PDF, including equations, figures, all seven appendix statistic tables, dataset/optimizer details, learned-bias plots, and the two-pass FlashAttention discussion. Equation audit: Eq. 5 and Appendix F are consistent with an unnormalized post-softmax ReLU threshold; the selected initialization zeros a uniform row, and the method retains O(n^2) time. Claim audit found two material overstatements. First, 59.58 equals 100-(40.24 density+0.18 sink), while density is defined as non-first attention mass, so it is not a zero-entry sparsity rate. Second, two-pass layout compatibility is not evidence of minimal overhead without a kernel or timing. Negative evidence is preserved: the 340M no-Elastic ablation beats full Lazy on both perplexities and average accuracy, Titans edges Lazy at the larger scale, and no direct representation-collapse metric is reported. Additional confounds include unmatched repeated-token controls, unclear t-test units, a larger-RoPE-base/learned-bias ablation mixture, cited-versus-trained baseline provenance, and the 730M/760M label inconsistency. Exact-version competitor records were checked against official arXiv submission histories on 2026-08-23. This is a first-pass full_text reading, not an independent secondary verification."
+}

@@ -1,0 +1,211 @@
+{
+  "stable_id": "arxiv:2205.13624",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2205.13624",
+    "pdf_sha256": "907f556c4c3946c3989b789289349e5be332a6484091c5d1c9851cc65f9db560",
+    "text_sha256": "a5079fb84effe1d18fd1f419256fa0e489921a79181fd8aba2776606229d25f6",
+    "page_count": 22,
+    "extracted_at": "2026-08-23T21:00:47.934470+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a graph neural-network parameterization turn inexpensive first-order optimization on a sparse graph into an effective Hessian-aware method without explicitly forming a dense inverse Hessian?",
+  "key_findings": [
+    {
+      "claim": "Optimizing neural-network parameters changes the induced update in the original variables by a Jacobian Gram preconditioner, so architecture is itself an optimization design choice.",
+      "evidence": "For w(theta), gradient flow in theta induces dw/dt = -J^T epsilon_hat J grad_w L. Proposition 3.1 observes that a linear map with J proportional to G_t^(-1/4) exactly realizes the full-matrix AdaGrad rate G_t^(-1/2), although computing that map directly is as impractical as the matrix preconditioner it replaces.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "3.1 Proposed Approach"},
+        {"page": 4, "section": "Proposition 3.1"}
+      ]
+    },
+    {
+      "claim": "For the paper's near-origin random initialization, the gradient second-moment matrix is approximated by the squared Hessian, motivating a graph-Hessian rather than a generic learned parameterization.",
+      "evidence": "A moment expansion gives G_ij(0) = [H^2]_ij/n plus terms of order n^-2 when variables are Gaussian-normalized and higher derivatives do not scale with n. For graph energies whose leading term is w^T L w, the initial Hessian is proportional to the sparse graph Laplacian.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "3.2 Efficient Implementation for Graph Problems"},
+        {"page": 5, "section": "Structure of Graph Optimization Problems"},
+        {"page": 14, "section": "A.1 Estimating G_t at t to 0"}
+      ]
+    },
+    {
+      "claim": "A shallow residual GCN can apply a low-order polynomial approximation to the inverse square-root of a normalized sparse Hessian with graph-local message passing.",
+      "evidence": "The construction normalizes a Laplacian-like Hessian as I-A_s and interprets a truncated inverse-square-root series as repeated propagation by A_s. One- or two-layer trainable GCNs retain sparse matrix-vector costs and can adapt their weights as the true Hessian begins to change; the claimed per-step overhead is a constant factor when graph degree, depth, and hidden width remain small.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "Exploiting Sparsity and GCN Implementation"},
+        {"page": 6, "section": "Per-step Time Complexity"},
+        {"page": 14, "section": "A.2 Computationally efficient implementation"}
+      ]
+    },
+    {
+      "claim": "The acceleration is deliberately transient: the method switches from GNN coordinates back to direct coordinates once the fixed initial-Hessian structure stops helping.",
+      "evidence": "The authors state that the approximation degrades as the Hessian moves away from its initial value. Their two-stage procedure therefore runs neural reparameterization only in the early phase and then initializes ordinary optimization at its output; for Kuramoto experiments the switch is fixed at 100 iterations, while other settings use plateau-like behavior or separately tuned choices.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "3 Neural Reparametrization"},
+        {"page": 5, "section": "Two-stage optimization"},
+        {"page": 7, "section": "4.2 Synchronization"},
+        {"page": 18, "section": "B.3 MNIST image classification"}
+      ]
+    },
+    {
+      "claim": "The experiments show substantial wall-clock gains on several graph energies, but they do not establish a convergence guarantee or a controlled comparison with strong sparse numerical preconditioners.",
+      "evidence": "Heat diffusion, Kuramoto/Hopf-Kuramoto synchronization, and persistent-homology point-cloud optimization show best-case reported speedups from roughly 4x to two orders of magnitude. Yet different tasks use different switching rules and GCN variants; some GNN and direct runs reach different local minima; and the baselines are chiefly direct Adam/RMSProp/SGD rather than conjugate-gradient, algebraic multigrid, incomplete-factorization, or modern quasi-Newton solvers matched to each problem.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "4 Experiments and Figure 2"},
+        {"page": 8, "section": "Results for the Hopf-Kuramoto Model"},
+        {"page": 9, "section": "Results for Persistent Homology"},
+        {"page": 20, "section": "Detailed Runtime Comparison"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Represent graph-node optimization variables as the output of a shallow GCN whose propagation matrix is derived from the initial graph Hessian, optimize in the GCN coordinates for an accelerated early phase, and then continue in the original coordinates.",
+    "mechanism": "The GCN Jacobian supplies the preconditioner J^T J seen by the original variables. A normalized sparse Laplacian and a short polynomial inverse-square-root expansion approximate a quasi-Newton geometry without materializing a dense inverse. Trainable propagation weights adapt locally, while a hand-chosen switch prevents the stale initial-Hessian approximation and GCN overhead from dominating late optimization.",
+    "assumptions": [
+      "The objective is defined over a sparse graph and its leading near-initialization term is a Laplacian-like quadratic energy.",
+      "Node degrees are sufficiently concentrated that degree normalization provides a useful stable Hessian scaling.",
+      "The initialization is small and approximately isotropic, and objective derivatives do not grow with graph size in the moment expansion.",
+      "A very low-order local polynomial is an adequate proxy for the inverse square-root Hessian during the early optimization phase.",
+      "GCN depth and hidden width remain small enough that message-passing overhead does not erase the iteration reduction.",
+      "A task-specific transition point can be selected before the initial-Hessian parameterization becomes counterproductive."
+    ]
+  },
+  "techniques": [
+    {"id": "jacobian-gram-preconditioning", "role": "Interprets neural reparameterization as a state-dependent full-matrix learning rate in the original coordinates."},
+    {"id": "initial-gradient-moment-hessian-link", "role": "Relates the early gradient covariance to a squared Hessian under normalized random initialization."},
+    {"id": "laplacian-inverse-square-root-series", "role": "Turns an inverse-Hessian approximation into a short polynomial of a sparse normalized adjacency."},
+    {"id": "trainable-residual-gcn-parameterization", "role": "Implements local polynomial propagation while allowing modest adaptation away from the fixed analytical coefficients."},
+    {"id": "two-stage-coordinate-switch", "role": "Uses neural coordinates only while their early curvature approximation provides net wall-clock benefit."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Steady-state heat diffusion with hot/cold boundary nodes on the Stanford bunny, stochastic block models, 2D/3D lattices, and random geometric graphs.",
+      "metric": "Wall-clock time to the converged energy and qualitative final temperature distribution.",
+      "result": "The paper reports more than order-of-magnitude gains across these graph families, contributing some of the largest speedups in its overall 4x-80x summary.",
+      "baseline": "Direct optimization of node temperatures with the same first-order optimizer."
+    },
+    {
+      "setting": "Kuramoto synchronization on a 25-by-25 lattice, circle, and tree, with GNN coordinates for the first 100 steps.",
+      "metric": "Runtime speedup, loss, and global synchronization order parameter.",
+      "result": "One-layer GCN variants report about 3.6 plus/minus 0.5, 6.1 plus/minus 0.1, and 2.7 plus/minus 0.3 speedup on lattice, circle, and tree respectively; deeper GCN overhead reduces the benefit.",
+      "baseline": "Direct node-phase optimization, plus deeper GCN/RGCN parameterizations."
+    },
+    {
+      "setting": "Hopf-Kuramoto optimization on a 50-by-50 lattice across ordered and disordered phase regimes.",
+      "metric": "Final-loss difference, runtime speedup, and qualitative phase pattern.",
+      "result": "An A-squared propagation rule performs best where the Hessian contains second-hop terms, with the largest speedups in disordered regimes, but a few reparameterized and direct runs converge to different minima.",
+      "baseline": "Direct optimization and GCNs using propagation rules that do not match the Hessian interaction order."
+    },
+    {
+      "setting": "Persistent-homology point-cloud optimization for 100-300 points over several spatial ranges.",
+      "metric": "Training and total wall-clock speedup, converged topological loss, and prefit cost.",
+      "result": "The GCN reduces the expensive optimization phase by roughly fourfold in favorable density regimes, but fitting the GCN to reproduce the initial point cloud can halve the total gain and eventually dominate at large range or size.",
+      "baseline": "Direct coordinate optimization following prior topology-layer work."
+    },
+    {
+      "setting": "MNIST classification using an image-covariance propagation matrix and a GCN-to-linear switch near step 50.",
+      "metric": "Loss trajectory and final accuracy.",
+      "result": "The appendix reports 92.71% versus 92.68% final accuracy, primarily as an illustration of early convergence acceleration rather than a competitive classification result.",
+      "baseline": "A direct linear softmax model."
+    }
+  ],
+  "limitations": [
+    "Author-stated: choosing when to switch from neural to original coordinates is ad hoc and needs a better account of the learning dynamics.",
+    "Author-stated: the fixed initial Hessian becomes less informative as optimization proceeds, so the method is intended mainly for the early phase.",
+    "Reviewer inference: Proposition 3.1 is an existence identity for a linear Jacobian, not a convergence theorem for the nonlinear trainable GCN actually used.",
+    "Reviewer inference: the Hessian-to-gradient-covariance approximation depends on small isotropic initialization and graph-size-independent higher derivatives.",
+    "Reviewer inference: concentrated degrees, Laplacian-dominated energy, and a useful low-order inverse series exclude many heterogeneous, directed, signed, or strongly nonlocal graph objectives.",
+    "Reviewer inference: experiments use task-specific architectures and switches and do not compare against mature sparse numerical preconditioners or report end-to-end memory/scaling studies.",
+    "Reviewer inference: different final minima in nonconvex synchronization tasks make speed-to-loss comparisons sensitive to solution quality and initialization."
+  ],
+  "failure_modes": [
+    "A rapidly changing or indefinite Hessian makes the initialization-derived propagation matrix stale or destabilizing.",
+    "Heavy-tailed degrees and poorly normalized signed/directed edges invalidate the simple normalized-Laplacian spectral picture.",
+    "Long-range inverse-Hessian structure cannot be captured by one or two message-passing layers without severe approximation error.",
+    "GCN evaluation, initial-output prefitting, or hyperparameter search costs can exceed the saved direct-optimization time.",
+    "A fixed iteration switch can be too early on slow-mixing graphs or too late after the preconditioner has degraded.",
+    "Reparameterization changes the accessible optimization path and can favor a faster but worse local minimum.",
+    "Dense graphs remove the sparse complexity advantage that motivates the construction."
+  ],
+  "reusable_insights": [
+    "Treat a decoder or parameterization Jacobian as an explicit preconditioner and inspect its induced metric before attributing gains to generic neural expressivity.",
+    "Exploit graph locality by approximating matrix functions with short message-passing polynomials rather than forming dense inverses.",
+    "Separate early curvature correction from late local refinement when a useful preconditioner is inherently time-limited.",
+    "Include prefit, construction, and switching costs in end-to-end solver comparisons, not only iteration counts.",
+    "Match message-passing radius to the interaction order visible in the objective Hessian.",
+    "Validate both time-to-tolerance and final-solution equivalence when a parameterization can redirect nonconvex trajectories."
+  ],
+  "open_questions": [
+    "Can an online spectral or loss-based criterion choose the coordinate switch with a provable bound on regret relative to the best switch time?",
+    "Can trainable graph preconditioners preserve positive definiteness and convergence guarantees as the Hessian changes?",
+    "How does the method compare end-to-end with algebraic multigrid, incomplete Cholesky/LU, L-BFGS, and Krylov solvers on matched sparse problems?",
+    "Which graph and Hessian spectra admit a sufficiently accurate constant-depth inverse-square-root polynomial?",
+    "Can the analytical construction extend to directed, signed, heterogeneous, or time-varying graphs?",
+    "Does amortizing one learned parameterization across a distribution of related objectives outperform per-instance optimization after training cost is counted?",
+    "Can solution-quality preservation be guaranteed for nonconvex graph energies where reparameterization changes the basin reached?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1909.04240",
+      "title": "Neural reparameterization improves structural optimization",
+      "url": "https://arxiv.org/abs/1909.04240",
+      "relationship": "direct neural-reparameterization predecessor",
+      "difference": "Hoyer and colleagues use convolutional-network implicit bias to improve final structural designs over 116 tasks. The reviewed work instead derives a Jacobian-preconditioning interpretation, builds the parameterization from a sparse graph Hessian, and targets time-to-solution rather than mainly design quality.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2"
+    },
+    {
+      "canonical_id": "arxiv:2305.16432",
+      "title": "Learning Preconditioner for Conjugate Gradient PDE Solvers",
+      "url": "https://arxiv.org/abs/2305.16432",
+      "relationship": "learned PDE-preconditioner competitor",
+      "difference": "This method trains a GNN across systems to predict an approximate matrix decomposition used inside preconditioned conjugate gradient for linear second-order PDEs. The reviewed method is per-instance and unsupervised, changes solution coordinates, and also addresses nonlinear graph energies, but lacks the structure and stopping guarantees of PCG.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2"
+    },
+    {
+      "canonical_id": "arxiv:2406.00809",
+      "title": "Graph Neural Preconditioners for Iterative Solutions of Sparse Linear Systems",
+      "url": "https://arxiv.org/abs/2406.00809",
+      "relationship": "post-publication general sparse-solver competitor",
+      "difference": "Graph Neural Preconditioners train a nonlinear GNN preconditioner and evaluate it across more than 800 sparse matrices against ILU, AMG, and Krylov alternatives. That is a broader and more solver-centered validation than the reviewed paper, whose analytical GCN is tied to an initial Laplacian-like Hessian but does not require an offline training corpus.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3 / ICLR 2025"
+    },
+    {
+      "canonical_id": "pmlr:v265:hausner25a",
+      "title": "Learning incomplete factorization preconditioners for GMRES",
+      "url": "https://proceedings.mlr.press/v265/hausner25a.html",
+      "relationship": "post-publication sparse-factorization alternative",
+      "difference": "This work makes a GNN output a sparse invertible approximate LU factorization and optimizes explicit spectral/iteration objectives for GMRES. It supplies an algebraically constrained preconditioner, whereas neural reparameterization uses an unconstrained trainable coordinate map and relies on switching when its initial-Hessian proxy degrades.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NLDL 2025 proceedings"
+    },
+    {
+      "canonical_id": "pmlr:v331:doerks26a",
+      "title": "Learning to accelerate distributed ADMM using graph neural networks",
+      "url": "https://proceedings.mlr.press/v331/doerks26a.html",
+      "relationship": "post-publication graph-optimizer alternative",
+      "difference": "The 2026 approach unrolls graph-structured ADMM and learns adaptive step sizes and communication weights while preserving the base algorithm's convergence properties. The reviewed work obtains a quasi-Newton-like metric through coordinates and applies more broadly to graph energies, but offers no comparable learned-iteration convergence preservation.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "L4DC 2026 proceedings"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims that a Hessian-informed GNN parameterization is a computationally efficient quasi-Newton method for sparse graph optimization and can be composed with ordinary first-order optimizers for large empirical speedups.",
+    "evidence": "The Jacobian metric identity, the early gradient-moment/Hessian approximation, the sparse polynomial GCN construction, and experiments over three scientific graph-energy families support the mechanism and show practical promise.",
+    "reviewer_inference": "The architecture-as-preconditioner synthesis is distinctive and more mechanistic than earlier neural structural reparameterization. Its strongest claims remain empirical: the nonlinear method has no convergence/rate theorem, the switch is tuned, and later learned sparse preconditioners provide stronger algebraic constraints and conventional-solver comparisons."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Read all 22 extracted pages, including the Jacobian derivation, Proposition 3.1, Hessian moment expansion, sparse GCN construction, all main experiments, appendices on normalization and synchronization, MNIST side experiment, persistent-homology setup, hyperparameter plots, and full runtime decomposition. Five primary arXiv/PMLR records covering the direct neural-reparameterization predecessor and 2023-2026 learned graph preconditioners/optimizers were checked on 2026-08-23."
+}

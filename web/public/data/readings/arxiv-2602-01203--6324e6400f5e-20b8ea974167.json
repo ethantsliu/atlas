@@ -1,0 +1,466 @@
+{
+  "stable_id": "arxiv:2602.01203",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2602.01203",
+    "pdf_sha256": "561d864fa5b03615c287b5bb2f60d52d7864acfd825ae6d0669795f0e4a85274",
+    "text_sha256": "c5edb3b075c0309a4a302adb957fe35b2af622e3e7540721888fa71308e7f200",
+    "page_count": 18,
+    "extracted_at": "2026-08-23T13:27:12.753263+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can the attention mass left after assigning probability to a null-valued sink be interpreted as a head-wise gate that makes multi-head attention a native mixture of experts, does imbalance in that gate explain head collapse, and does a coefficient-of-variation load-balancing loss improve from-scratch and LoRA fine-tuning across vanilla, synthetic-sink, and explicitly gated attention?",
+  "key_findings": [
+    {
+      "claim": "With a zero-valued sink, an attention head factorizes into a normalized mixture over non-sink tokens multiplied by the complement of sink attention, 1 minus A_sink; this is exact for the denominator-only synthetic sink and approximate for vanilla attention because it assumes the first-token value is negligible.",
+      "evidence": "Equations 3-4 give the factorization in the main text. Appendix B derives the vanilla approximation in Equations 10-16 from v_0 approximately equal to zero and the synthetic-sink identity exactly in Equations 17-23.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "3.1 Implicit Gating Mechanism in Attention Variants"
+        },
+        {
+          "page": 14,
+          "section": "B.2 Vanilla Attention: First Token as Attention Sink and Implicit Gating Factor"
+        },
+        {
+          "page": 16,
+          "section": "B.3-B.4 Sink Attention and Connection to the Main Text"
+        }
+      ]
+    },
+    {
+      "claim": "The complement gate has a sigmoid representation: sigmoid(LSE over real tokens minus the synthetic-sink logit), or sigmoid(LSE excluding token zero minus the query-key logit for token zero) in vanilla attention.",
+      "evidence": "The denominator algebra in Equations 15-16 and 22-23 converts the complement of a softmax component into a sigmoid of two log-sum-exp terms, enabling recovery from FlashAttention LSE outputs without materializing the full attention matrix.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "3.1 Implicit Gating Mechanism in Attention Variants"
+        },
+        {
+          "page": 6,
+          "section": "4.2 Efficient Implementation with Flash Attention"
+        },
+        {
+          "page": 15,
+          "section": "B.2-B.3 Sigmoid Forms"
+        }
+      ]
+    },
+    {
+      "claim": "Calling the factorized multi-head layer a native mixture of experts is an analogy, not a demonstrated equivalence to sparse MoE routing.",
+      "evidence": "The paper identifies heads as experts and independent scalar gates as routers, but it neither imposes competition or a capacity constraint across heads nor shows conditional parameter selection: every head is still computed and its output is combined by the ordinary output projection. The algebra establishes multiplicative gating, not the stronger MoE properties used to motivate expert-collapse remedies.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "3.1 Attention Sink Forges Native MoE"
+        },
+        {
+          "page": 5,
+          "section": "4.1 Quantifying Head Importance"
+        }
+      ]
+    },
+    {
+      "claim": "The appendix's statement that zeroing the first-token value in all heads has only negligible impact is contradicted by its own Qwen3-8B results; only the high-sink selective intervention is consistently benign in the displayed averages.",
+      "evidence": "Table 3 reports Qwen3-8B average accuracy 70.36 with no intervention, 64.10 when zeroing all heads, and 70.38 when zeroing only heads with sink ratio above 0.75. The all-head setting drops HellaSwag from 74.97 to 61.02, MMLU from 75.42 to 50.27, and BoolQ from 86.73 to 76.48. Qwen3-14B also drops from 66.91 to 65.90 under all-head zeroing, while selective zeroing reaches 67.09.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 13,
+          "section": "Appendix A, Table 3"
+        }
+      ]
+    },
+    {
+      "claim": "Mean gate activation varies strongly across heads in the inspected pretrained LLaMA, GPT-OSS, and Qwen models, but the paper does not show that this gate-only score equals causal head contribution.",
+      "evidence": "Figures 4, 10, and 11 visualize heterogeneous mean gates; Appendix C says importance was aggregated over all tokens from 500 GSM8K samples. No output-norm intervention validates the ranking, and the metric omits value magnitude and the head-specific output projection.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "4.1 Quantifying Head Importance, Figure 4"
+        },
+        {
+          "page": 16,
+          "section": "Appendix C Additional Results on Head Collapse"
+        },
+        {
+          "page": 17,
+          "section": "Appendix C, Figures 10-11"
+        }
+      ]
+    },
+    {
+      "claim": "For all nine attention-mechanism and model-size combinations trained from scratch, adding the auxiliary loss improves the unweighted ten-task average, but the improvement ranges from only 0.15 to 1.40 points and individual tasks often regress.",
+      "evidence": "Table 1 reports average gains of 1.28, 0.80, and 0.92 at 0.6B; 0.76, 0.48, and 1.29 at 1B; and 1.37, 0.15, and 1.40 at 2B for vanilla, sink, and gated attention respectively. For example, 2B sink attention loses OpenBookQA 59.80 to 57.40 and PIQA 75.24 to 74.65 despite its 0.15-point average gain.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "5.2 Training from Scratch, Table 1"
+        }
+      ]
+    },
+    {
+      "claim": "Sink and gated attention outperform base-loss vanilla attention in average score at every tested size, but the broader prose that they consistently outperform vanilla under all configurations has a counterexample after load balancing.",
+      "evidence": "Without the auxiliary loss, averages are 39.54/40.31/40.43 at 0.6B, 42.59/43.27/42.69 at 1B, and 45.46/46.35/46.30 at 2B for vanilla/sink/gated. With the auxiliary loss at 2B, sink attention averages 46.50, below vanilla's 46.83, while gated reaches 47.70.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "5.2 Training from Scratch, Table 1"
+        }
+      ]
+    },
+    {
+      "claim": "The refined auxiliary loss improves category averages in all three LoRA fine-tuning experiments, with larger absolute gains on Qwen3-8B and LLaMA3.1-8B, but it does not improve every dataset.",
+      "evidence": "Table 2 gives reasoning averages 74.73 to 75.24 for Qwen3-4B, 74.31 to 76.01 for Qwen3-8B, and 56.50 to 58.97 for LLaMA3.1-8B; LongBench averages move 51.46 to 52.75, 50.67 to 55.38, and 40.51 to 43.98. Regressions include Qwen3-4B HotpotQA 60.81 to 58.61 and Qwen3-8B Qasper 42.34 to 40.21. Visual inspection confirms Qwen3-8B TriviaQA rises from 75.79 to 84.40; the extraction's column flow can otherwise be misread. The reliable boundary is therefore category-average rather than task-uniform improvement.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "5.3 Fine-Tuning Existing LLMs, Table 2"
+        }
+      ]
+    },
+    {
+      "claim": "A coefficient-of-variation loss visibly flattens mean gate activations and lowers the reported imbalance trajectories, but the paper provides no numerical CV table, random-seed variation, or causal ablation separating load balance from generic regularization.",
+      "evidence": "Figures 5-8 compare with- and without-loss curves and heatmaps. The loss is lambda times N_h times squared within-layer CV, so the treatment changes both balance pressure and the training objective; only downstream outcomes and visual trajectories are reported.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "4.1-4.2, Equations 6-7"
+        },
+        {
+          "page": 6,
+          "section": "4.2 Adaptation to Fine-Tuning Existing Models"
+        },
+        {
+          "page": 8,
+          "section": "5.2, Figures 7-8"
+        }
+      ]
+    },
+    {
+      "claim": "The claimed query-key expressiveness advantage of sink-free attention is supported only by attention maps and two-dimensional PCA projections, not by a quantitative geometric or retrieval intervention.",
+      "evidence": "Figure 3 uses 2,000 LongBench tokens to show visually polarized vanilla query-key clouds and more dispersed sink/gated clouds. No high-dimensional angular statistic, explained PCA variance, matched-checkpoint sink intervention, or retrieval-error measurement connects that appearance causally to long-context accuracy.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "3.2 Advantages of Eliminating Attention Sink, Figure 3"
+        }
+      ]
+    },
+    {
+      "claim": "The sequence value drain to attention sink to implicit gating to head collapse is presented as a mechanistic hypothesis, and the plotted temporal association does not establish the claimed prerequisite or direction of causation.",
+      "evidence": "Figure 9 tracks value-norm ratio, mean sink attention, and head-load CV during training. The authors explicitly say stages can co-evolve, and there is no intervention that creates or removes a gate while holding optimization and architecture fixed.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "6.1 A Mechanistic Hypothesis for Head Collapse"
+        },
+        {
+          "page": 9,
+          "section": "6.1, Figure 9"
+        }
+      ]
+    },
+    {
+      "claim": "The authors explicitly concede that a single first-token or synthetic-sink gate can be incomplete because local sinks, residual first-token sinks, and implicit sinks inside gated attention may jointly control head activation.",
+      "evidence": "Section 6.2 generalizes the gate to one minus the sum of attention over a sink set, notes semantically useful punctuation cannot automatically be treated as a null sink, cites DeepSeek-V4 as retaining first-token mass alongside a synthetic sink, and leaves multi-gate interaction open.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "6.2 Limits of Single Sink Based Head Activation"
+        }
+      ]
+    },
+    {
+      "claim": "Naively balancing all heads during fine-tuning produces head pinning: already dominant gates remain high and dormant gates rise toward them, so the paper exempts the top-m heads and balances only the remainder.",
+      "evidence": "Equation 8 defines the routed-head-only CV loss, and Figure 12 contrasts the pretrained pattern, one epoch under all-head balancing, and one epoch under routed-only balancing. The selected value of m is never disclosed in the experimental setup.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.2 Adaptation to Fine-Tuning Existing Models, Equation 8"
+        },
+        {
+          "page": 17,
+          "section": "Appendix D Head Pinning Effect"
+        },
+        {
+          "page": 18,
+          "section": "Appendix D, Figure 12"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Treat the complement of attention assigned to a null-valued sink as a per-token, per-head activation gate; average that gate over a batch to define head importance, then penalize within-layer coefficient of variation so attention heads are used more evenly.",
+    "mechanism": "For vanilla attention, remove the first-token term, renormalize the remaining softmax, and multiply by 1 minus first-token attention; for synthetic sink attention, perform the same exact factorization around the denominator-only sink. Recover the gate from FlashAttention log-sum-exp values. During pretraining, add lambda times the sum over layers of N_h times squared CV of mean gates. During fine-tuning, rank heads, hold the top-m shared heads outside the loss, and balance only routed heads. Evaluate vanilla, sink, and explicit sigmoid-gated attention at 0.6B, 1B, and 2B from scratch and three pretrained LLMs through LoRA.",
+    "assumptions": [
+      "The synthetic sink has exactly zero value contribution, and the first token in vanilla attention has a sufficiently small value for the same factorization to be accurate.",
+      "A single sink component captures nearly all redundant attention mass; Section 6.2 acknowledges this can fail.",
+      "Mean scalar gate activation is a valid proxy for causal head contribution even without value-output norms or output-projection scaling.",
+      "Independent scalar gates plus independently parameterized heads are enough to call the layer a mixture of experts despite no cross-head competition, capacity limit, or conditional compute.",
+      "Lower within-layer gate CV represents better capacity use rather than suppressing useful specialization or activating functionally redundant heads.",
+      "The coefficient-of-variation denominator remains numerically well behaved when mean gates are small.",
+      "A fixed top-m importance ranking identifies the heads that must remain shared throughout fine-tuning, although m and the selection calibration are not reported.",
+      "The fixed lambda values are comparable across models even though Equation 7 multiplies by both head count and the number of summed layers.",
+      "The visual and average-score comparisons are representative despite no reported independent seeds, confidence intervals, or significance tests."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "null-sink-attention-factorization",
+      "role": "Rewrites a softmax head with a zero-valued sink as a normalized non-sink attention mixture times a scalar complement gate."
+    },
+    {
+      "id": "lse-derived-sigmoid-gate",
+      "role": "Computes the implicit gate from log-sum-exp values and the sink logit without exposing the full attention matrix."
+    },
+    {
+      "id": "mean-gate-head-importance",
+      "role": "Averages per-token gates to rank heads and compute within-layer utilization imbalance."
+    },
+    {
+      "id": "coefficient-of-variation-load-balancing",
+      "role": "Penalizes squared CV of head importance to flatten utilization during from-scratch training."
+    },
+    {
+      "id": "shared-routed-head-finetuning",
+      "role": "Exempts dominant pretrained heads from balancing and regularizes only the remaining routed heads to avoid head pinning."
+    },
+    {
+      "id": "flashattention-lse-integration",
+      "role": "Retains fused attention kernels and reports less than 2 percent extra training latency."
+    },
+    {
+      "id": "training-trajectory-triangulation",
+      "role": "Tracks value drain, sink mass, and gate CV together to motivate a temporal mechanism for collapse."
+    },
+    {
+      "id": "query-key-pca-audit",
+      "role": "Uses two-dimensional PCA scatterplots as qualitative evidence for geometric constraints induced by a first-token sink."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "From-scratch FineWeb-Edu training (page 6, Section 5.1): 0.6B/20 layers/10 heads/d_model 1280, 1B/26/13/1664, and 2B/32/16/2048; token budgets are 20 times parameter count; AdamW learning rate 0.02 decays linearly over the last 20 percent; lambda is 1e-4. Ten benchmarks span MMLU, GSM8K, HumanEval, ARC-E/C, HellaSwag, PIQA, OpenBookQA, BoolQ, and WinoGrande.",
+      "metric": "Validation bits per byte and the unweighted average of ten reported task scores; higher average and lower BPB are better.",
+      "result": "Auxiliary-loss average gains are +1.28/+0.80/+0.92 at 0.6B, +0.76/+0.48/+1.29 at 1B, and +1.37/+0.15/+1.40 at 2B for vanilla/sink/gated attention. No run-to-run uncertainty is reported.",
+      "baseline": "The identical attention mechanism trained with base language-modeling loss only."
+    },
+    {
+      "setting": "Same nine from-scratch configurations in Table 1 (page 7).",
+      "metric": "Validation BPB.",
+      "result": "BPB changes are 0.8152 to 0.8123, 0.8123 to 0.8116, and 0.8176 to 0.8121 at 0.6B; 0.7591 to 0.7562, 0.7583 to 0.7567, and 0.7572 to 0.7547 at 1B; and 0.7243 to 0.7198, 0.7226 to 0.7202, and 0.7232 to 0.7197 at 2B for vanilla/sink/gated.",
+      "baseline": "Base-loss validation BPB for each architecture."
+    },
+    {
+      "setting": "Architecture comparison in Table 1 (page 7), holding nominal size and training recipe fixed.",
+      "metric": "Ten-task average.",
+      "result": "Base-loss vanilla/sink/gated averages are 39.54/40.31/40.43 at 0.6B, 42.59/43.27/42.69 at 1B, and 45.46/46.35/46.30 at 2B. With auxiliary loss they are 40.82/41.11/41.35, 43.35/43.75/43.98, and 46.83/46.50/47.70; thus 2B sink plus auxiliary loss is an exception to the claim that sink attention always beats vanilla.",
+      "baseline": "Vanilla softmax attention at matched nominal scale and loss condition."
+    },
+    {
+      "setting": "LoRA rank-16 fine-tuning of Qwen3-4B, Qwen3-8B, and LLaMA3.1-8B on AceReason-Nemotron with lambda 1e-2 and routed-head balancing (page 7, Section 5.1); six reasoning datasets.",
+      "metric": "Unweighted average accuracy across ARC, MuSR, GSM8K, MATH-500, Competition-Math, and ProcessBench.",
+      "result": "Averages improve 74.73 to 75.24, 74.31 to 76.01, and 56.50 to 58.97 for Qwen3-4B, Qwen3-8B, and LLaMA3.1-8B. Some individual scores decline, including Qwen3-4B GSM8K 92.34 to 91.81.",
+      "baseline": "The same LoRA fine-tuning with base loss only."
+    },
+    {
+      "setting": "The same fine-tuned models on six LongBench tasks: HotpotQA, Qasper, TriviaQA, NarrativeQA, 2WikiMultiHopQA, and MultiFieldQA (page 8, Table 2).",
+      "metric": "Unweighted task average using the paper's reported task scores.",
+      "result": "Averages improve 51.46 to 52.75 for Qwen3-4B, 50.67 to 55.38 for Qwen3-8B, and 40.51 to 43.98 for LLaMA3.1-8B. Qwen3-4B HotpotQA declines 60.81 to 58.61, so improvement is not task-uniform.",
+      "baseline": "Base-loss LoRA fine-tuning."
+    },
+    {
+      "setting": "Post-KV-cache first-token value intervention on Qwen3-8B and Qwen3-14B vanilla-attention models (Appendix A, page 13), either all heads or only heads with mean sink ratio above 0.75.",
+      "metric": "Average across ARC, HellaSwag, MMLU, GSM8K, BBH, BoolQ, ToxiGen, TruthfulQA, and HumanEval.",
+      "result": "Qwen3-8B is 70.36 none, 64.10 all, and 70.38 selective; Qwen3-14B is 66.91, 65.90, and 67.09. The selective result supports near-null values in high-sink heads, while the all-head result directly rejects a universal near-zero assumption.",
+      "baseline": "No value intervention."
+    },
+    {
+      "setting": "Head-importance survey across GPT-OSS, LLaMA-2/3, and Qwen2.5/3 families using 500 GSM8K samples (Appendix C, pages 16-17).",
+      "metric": "Per-head mean implicit or explicit gate and qualitative heatmap imbalance.",
+      "result": "The figures show concentrated activation and visually stronger imbalance at larger scales, but no numeric inactive fraction, uncertainty, matched-scale regression, or causal intervention is reported.",
+      "baseline": "Cross-family visual comparison rather than a prespecified quantitative baseline."
+    },
+    {
+      "setting": "Fused-kernel implementation for sink-aware training (page 6, Sections 4.2 and 5.1).",
+      "metric": "Training latency overhead.",
+      "result": "The paper reports less than 2 percent additional training latency, without a hardware-specific timing table or variance.",
+      "baseline": "Standard FlashAttention training without the auxiliary gate computation."
+    }
+  ],
+  "limitations": [
+    "Author-stated (page 9, Section 6.2): first-token or synthetic-sink mass can miss other low-semantic sink components, so a single-sink activation score is incomplete.",
+    "Author-stated (page 9, Section 6.2): punctuation and other high-attention tokens may aggregate useful context and cannot be classified as null sinks from attention mass alone.",
+    "Author-stated (pages 6 and 17-18): balancing all pretrained heads produces head pinning, requiring an ad hoc shared/routed split.",
+    "Reviewer-inferred: the central importance score ignores value/output norms and output-projection scaling; arXiv:2504.03889v4 directly reports that first-token-attention scores miss more than 7 percent of inactive heads on average relative to output-norm scores.",
+    "Reviewer-inferred: the native-MoE label overstates the algebra. Gates are independent, all heads are evaluated, and there is no router competition, capacity constraint, or demonstrated conditional compute saving.",
+    "Reviewer-inferred: Appendix Table 3 contradicts the prose that all-head first-token value zeroing is negligible; the Qwen3-8B average loses 6.26 points and MMLU loses 25.15 points.",
+    "Reviewer-inferred: the value-drain intervention supports functional dispensability only in thresholded high-sink heads; it cannot establish that training intentionally or deliberately created value drain.",
+    "Reviewer-inferred: Figure 9 is correlational, so the proposed causal order from drain to sink to gate to collapse is not identified.",
+    "Reviewer-inferred: the query-key expressiveness argument rests on two-dimensional PCA and attention-map inspection, with no high-dimensional geometric statistic or matched intervention.",
+    "Reviewer-inferred: no independent seeds, confidence intervals, or significance tests accompany average gains as small as 0.15 points; several individual tasks regress.",
+    "Reviewer-inferred: fine-tuning omits the value of m, batch size, number of steps or epochs, LoRA target modules, evaluation shot protocol, and selection calibration needed to reproduce the routed-head loss.",
+    "Reviewer-inferred: Equation 7 scales the regularizer by head count and sums over layers while lambda is fixed, confounding model-scale comparisons of the auxiliary effect.",
+    "Reviewer-inferred: the fine-tuning evidence covers one reasoning corpus, three base models, and LoRA only; it does not establish full-parameter adaptation or broad data-domain robustness.",
+    "Reviewer-inferred: the paper motivates collapsed heads as wasted computation but never prunes or skips them; the proposed training still computes every head and may increase effective activity.",
+    "Reviewer-inferred: the vanilla factorization has no approximation-error bound and fails at heads where the first-token value is materially nonzero, as the all-head intervention demonstrates.",
+    "Reviewer-inferred: exact source search found arXiv:2601.22966v1, submitted two days earlier, already framing attention sinks as normalization-coupled rescaling factors and replacing them with explicit gated rescaling; this narrows the unification claim."
+  ],
+  "failure_modes": [
+    "A model with multiple global or local sinks will have its activation underestimated by 1 minus a single sink weight, producing false dormant-head labels.",
+    "A head can have a high mean gate but near-zero value/output norm, or a low gate but a large output projection; gate balancing can then optimize the proxy without balancing functional contribution.",
+    "Forcing uniformly high gates can activate redundant heads rather than induce useful specialization, increasing interference while leaving inference cost unchanged.",
+    "If mean gates approach zero, coefficient of variation becomes ill-conditioned and can generate large or noisy gradients.",
+    "The fixed top-m shared-head selection can pin spurious calibration-specific heads or fail under a domain shift that changes which heads are essential.",
+    "Reducing activation of genuinely specialized dominant heads can damage rare capabilities; the all-head fine-tuning failure and per-task regressions are early evidence of this risk.",
+    "Tasks for which a softmax sink is functionally necessary as a default or no-op state may be harmed by sink elimination or aggressive balancing; arXiv:2603.11487v5 proves such a case for trigger-conditional tasks.",
+    "Short sequences, semantically meaningful beginning-of-sequence tokens, bidirectional attention, or noncausal architectures violate the assumption that token zero is a harmless value drain.",
+    "Grouped-query, multi-query, linear, or heterogeneous attention can couple heads or expose gates with different dimensions, making the per-head expert analogy and CV normalization noncomparable.",
+    "A synthetic sink plus a residual first-token sink double-counts null mass if only one component is measured.",
+    "A two-dimensional PCA display can suggest polarization even when high-dimensional retrieval margins do not change, leading to a false expressiveness explanation.",
+    "Because every head remains dense, successful load balancing need not yield any wall-clock or memory benefit and can work against later pruning."
+  ],
+  "reusable_insights": [
+    "Any normalized mixture with an explicit zero-output slot factorizes into a conditional mixture over real components times the probability of not selecting the null slot; this exposes an otherwise hidden amplitude gate.",
+    "Log-sum-exp values from fused attention kernels can support gate diagnostics and auxiliary objectives without materializing quadratic attention matrices.",
+    "Ablations should separate universally applied interventions from interventions restricted to elements that satisfy the mechanism's premise; the two have opposite conclusions in Appendix Table 3.",
+    "Pretrained utilization imbalances may require a shared/routed adaptation rule rather than uniform balancing, but the shared set should be validated under domain shift.",
+    "Head-activity metrics should combine gate mass with output magnitude and causal interventions rather than treating attention weights as contribution.",
+    "Architecture-level gates can form early while implicit gates require learned null channels, offering a testable distinction in collapse timing if controlled interventions are added."
+  ],
+  "open_questions": [
+    "Does output-norm- or intervention-based head importance predict causal ablation and downstream improvement better than mean sink-complement gates?",
+    "Is head-gate imbalance a cause of performance loss, a benign consequence of specialization, or both? A randomized gate-balancing intervention with matched generic regularization is needed.",
+    "What is the correct scale-normalized regularizer when layer and head counts change, and is uniform utilization actually optimal?",
+    "How should sink sets be discovered when null components are input-, position-, head-, and task-dependent?",
+    "What value of m was used in fine-tuning, how sensitive are results to it, and does the selected shared set transfer across datasets?",
+    "Can balanced training support actual head skipping or pruning at matched accuracy and wall-clock cost, rather than only changing a proxy heatmap?",
+    "Can a controlled intervention establish whether value drain precedes and enables collapse rather than merely co-evolving with it?",
+    "Why does all-head value zeroing devastate Qwen3-8B despite the appendix calling the effect negligible, and which heads carry the lost MMLU/HellaSwag information?",
+    "Which tasks require softmax sinks for default-state computation, and can load balancing preserve those functional sinks while preventing harmful collapse?",
+    "Does eliminating the first-token sink improve high-dimensional retrieval margins after controlling for model initialization, training compute, and attention architecture?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2306.12929",
+      "title": "Quantizable Transformers: Removing Outliers by Helping Attention Heads Do Nothing",
+      "url": "https://arxiv.org/abs/2306.12929v2",
+      "relationship": "foundational no-op gate predecessor",
+      "difference": "Bondarenko et al. identify softmax heads' need for zero or partial residual updates and introduce clipped softmax and gated attention to provide a no-op while reducing quantization outliers. The target paper reinterprets sink complement as the same kind of gate and adds cross-head CV balancing, but does not evaluate quantization.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2306.12929v2, revised 2023-11-09"
+    },
+    {
+      "canonical_id": "arxiv:2309.17453",
+      "title": "Efficient Streaming Language Models with Attention Sinks",
+      "url": "https://arxiv.org/abs/2309.17453v4",
+      "relationship": "attention-sink discovery and utilization predecessor",
+      "difference": "StreamingLLM demonstrates that preserving initial sink KVs stabilizes streaming through millions of tokens and proposes a dedicated sink token. It exploits sinks for KV-cache continuity rather than interpreting their complement as head routing or balancing head use.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2309.17453v4, revised 2024-04-07"
+    },
+    {
+      "canonical_id": "arxiv:2410.10781",
+      "title": "When Attention Sink Emerges in Language Models: An Empirical View",
+      "url": "https://arxiv.org/abs/2410.10781v2",
+      "relationship": "direct emergence and normalization antecedent",
+      "difference": "Gu et al. track sink emergence through pretraining, characterize the sink as a noninformative key bias, and remove it with unnormalized sigmoid attention up to 1B parameters. The target paper adds a complement-gate/MoE interpretation and head-balancing loss across three attention variants.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2410.10781v2, revised 2025-03-02"
+    },
+    {
+      "canonical_id": "arxiv:2410.13835",
+      "title": "Active-Dormant Attention Heads: Mechanistically Demystifying Extreme-Token Phenomena in LLMs",
+      "url": "https://arxiv.org/abs/2410.13835v2",
+      "relationship": "closest mechanistic active-dormant predecessor",
+      "difference": "Guo et al. jointly explain sink, value-drain, and residual-peak dynamics with an input-dependent active-dormant mechanism, theory on a Bigram-Backcopy task, and pretrained-model observations. The target paper supplies the algebraic complement gate and a balancing intervention, but its single mean gate loses that work's domain dependence.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2410.13835v2, revised 2024-11-07"
+    },
+    {
+      "canonical_id": "arxiv:2504.02732",
+      "title": "Why do LLMs attend to the first token?",
+      "url": "https://arxiv.org/abs/2504.02732v4",
+      "relationship": "functional sink explanation antecedent",
+      "difference": "Barbero et al. argue sinks prevent over-mixing and study effects of depth, context length, and packing. That functional account warns that sinks need not be waste; the target instead treats complement mass as routing and emphasizes balanced head activation without testing over-mixing preservation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2504.02732v4, revised 2025-08-05"
+    },
+    {
+      "canonical_id": "arxiv:2504.03889",
+      "title": "Identifying and Evaluating Inactive Heads in Pretrained LLMs",
+      "url": "https://arxiv.org/abs/2504.03889v4",
+      "relationship": "direct inactive-head metric and intervention competitor",
+      "difference": "Sandoval-Segura et al. compare 12 scores with output-ablation tests across three model families and find output-norm scores detect inactive heads missed by first-token attention; the latter underestimates inactivity by more than 7 percent on average. This is direct negative evidence against the target's gate-only importance proxy, although the target uniquely trains with a balancing loss.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2504.03889v4, revised 2026-03-01"
+    },
+    {
+      "canonical_id": "arxiv:2504.20966",
+      "title": "Softpick: No Attention Sink, No Massive Activations with Rectified Softmax",
+      "url": "https://arxiv.org/abs/2504.20966v4",
+      "relationship": "sink-free attention alternative",
+      "difference": "Softpick replaces sum-to-one softmax with rectified non-normalized attention, reports zero sink rate at 340M and 1.8B, sparse maps, and better low-bit quantization. The target retains softmax or explicit gating and balances head amplitudes; it does not compare against Softpick under the same pretraining recipe.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2504.20966v4, revised 2026-04-17"
+    },
+    {
+      "canonical_id": "arxiv:2505.06708",
+      "title": "Gated Attention for Large Language Models: Non-linearity, Sparsity, and Attention-Sink-Free",
+      "url": "https://arxiv.org/abs/2505.06708v1",
+      "relationship": "closest explicit-gate architecture baseline",
+      "difference": "Qiu et al. evaluate 30 gate variants on 15B MoE and 1.7B dense models trained on 3.5T tokens and attribute gains to post-SDPA nonlinear, query-dependent sparse gating. The target uses that gate as one arm, proposes equivalence with sink complements, and adds balancing, but trains its controlled models on far smaller budgets.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2505.06708v1, submitted 2025-05-10"
+    },
+    {
+      "canonical_id": "arxiv:2601.22966",
+      "title": "A Unified View of Attention and Residual Sinks: Outlier-Driven Rescaling is Essential for Transformer Training",
+      "url": "https://arxiv.org/abs/2601.22966v1",
+      "relationship": "near-simultaneous rescaling unification antecedent",
+      "difference": "Submitted two days before the target, Qiu et al. already frame attention and residual sinks as normalization-coupled rescaling factors and show that explicit gated rescaling can absorb them. The target's remaining distinction is the per-head MoE analogy and CV load-balancing treatment of collapse, not the basic claim that a sink implements rescaling.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2601.22966v1, submitted 2026-01-30"
+    },
+    {
+      "canonical_id": "arxiv:2603.11487",
+      "title": "Attention Sinks Are Provably Necessary in Softmax Transformers: Evidence from Trigger-Conditional Tasks",
+      "url": "https://arxiv.org/abs/2603.11487v5",
+      "relationship": "later theoretical boundary and negative evidence",
+      "difference": "Ran-Milo proves that a softmax Transformer must form a sink for a trigger-conditional default-state task and shows ReLU attention avoids it. This later result limits any general reading of sink elimination or balance as universally desirable; the target has broader LLM experiments but no task-level necessity test.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2603.11487v5, revised 2026-04-17"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim the first unified analysis in which vanilla first-token sink mass, a synthetic denominator sink, and an explicit sigmoid gate are three realizations of head routing; on that basis they call attention a native MoE, explain head collapse as expert collapse, and introduce one sink-aware balancing objective for all three variants.",
+    "evidence": "The exact null-slot factorization and sigmoid form appear in Section 3.1 and Appendix B; Equations 7-8 define the from-scratch and routed-only objectives; Tables 1-2 cover nine controlled pretraining configurations and three LoRA fine-tuning models.",
+    "reviewer_inference": "The reusable novelty is the explicit sink-complement factorization joined to a FlashAttention-compatible CV balancing loss and a shared/routed fine-tuning workaround. The stronger novelty language should be narrowed: Quantizable Transformers already supplied no-op gates, active-dormant work already connected sinks, value drain, and head inactivity, and arXiv:2601.22966v1 described sinks as rescaling factors two days earlier. The native-MoE claim remains interpretive, and arXiv:2504.03889v4 supplies direct negative evidence against the chosen head-importance proxy. The cross-variant training study is still a concrete differentiator, but its causal and universal claims exceed the evidence."
+  },
+  "confidence": 0.93,
+  "reviewer_notes": "Read the pinned 18-page extraction end to end, including all references and Appendices A-D, and visually checked the pinned PDF on pages 7, 8, and 13 for Tables 1-3 and on pages 14-16 for the gate derivations. The indexed PDF hash 561d864fa5b03615c287b5bb2f60d52d7864acfd825ae6d0669795f0e4a85274 is byte-identical to the exact official https://arxiv.org/pdf/2602.01203v3 endpoint; arXiv records v3 as revised 2026-05-27. This is a primary full_text pass, not an independent second-review verification, and no experiment was rerun. Exact-source searches on 2026-08-23 covered three required families: mechanism plus task (sink complement, no-op gates, native MoE, head collapse), closest evaluation and baseline (inactive-head interventions, gated and rectified attention, long-context sinks), and novelty/predecessor language (unified sink rescaling, active-dormant dynamics, sink necessity). Current official arXiv versions checked were 2306.12929v2, 2309.17453v4, 2410.10781v2, 2410.13835v2, 2504.02732v4, 2504.03889v4, 2504.20966v4, 2505.06708v1, 2601.22966v1, and 2603.11487v5. Visual inspection resolves the Appendix A contradiction: the all-head Qwen3-8B intervention is materially destructive despite the prose calling it negligible. Table 2 was also visually checked to avoid column-flow errors from extraction; Qwen3-8B TriviaQA is 84.40 with auxiliary loss, not 54.40. Confidence is high for equations, displayed results, provenance, and competitor versions; it is lower for causal head-collapse interpretation and generalization beyond the reported single-run settings."
+}

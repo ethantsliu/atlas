@@ -1,0 +1,167 @@
+{
+  "stable_id": "arxiv:2507.01559",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2507.01559",
+    "pdf_sha256": "b8335e111acff12eb15e9544bfc5d45bd23f873ecc3b2109c0149754c868423b",
+    "text_sha256": "8dd8b3abd6956dbf88ba6514ab63ec95daa34e60c3e1f262fb15b00380e40dcd",
+    "page_count": 20,
+    "extracted_at": "2026-08-23T16:22:36.515184+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Why does repeatedly resampling a classifier layer during pretraining improve few-shot transfer, and how do SGD and Adam create different per-task learning, interference, and forgetting trajectories?",
+  "key_findings": [
+    {
+      "claim": "Repeated last-layer resampling improves five-epoch transfer on the natural-image few-shot benchmark across all three tested pretraining procedures.",
+      "evidence": "On Omni-image, transfer accuracy changes from 16.3±1.2 to 27.3±0.8 for IID, 19.1±0.9 to 24.8±0.9 for ASB, and 18.0±0.9 to 30.5±1.1 for Meta-ASB when zapping is added. Zapped IID is close to the more expensive Meta-ASB result, although the paper does not provide a matched end-to-end compute table.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "3.1, Figure 1 and Table 1"},
+        {"page": 20, "section": "Appendix Figure 14"}
+      ]
+    },
+    {
+      "claim": "The zap-divergence diagnostic suggests pre-exposed networks recover classifier alignment faster and perturb lower layers less after a fresh classifier reset.",
+      "evidence": "The authors clone an Omniglot model, reset the treatment clone's final layer, train both on identical minibatches, and track whole-layer cosine. Previously zapped models show higher FC re-alignment and smaller convolutional drift, with strong learning-rate dependence and no condition exceeding 0.8 final FC alignment in the displayed sweep.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "2.2, zap-divergence protocol"},
+        {"page": 5, "section": "3.2, Figure 2"},
+        {"page": 6, "section": "Figure 3 learning-rate sweep"}
+      ]
+    },
+    {
+      "claim": "Cosine re-alignment does not demonstrate that zapping finds wider basins or more transferable features.",
+      "evidence": "Whole-layer parameter cosine is not invariant to neuron permutations, rescalings, or functionally equivalent weights, and the study does not measure Hessian width, mode connectivity, functional distance, or feature transfer in this diagnostic. The wider-basin and early-lock-in stories are explicitly hypotheses.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "2.2, parameter cosine definition"},
+        {"page": 6, "section": "Wider-basin hypothesis"},
+        {"page": 9, "section": "4.2, escape early lock-in discussion"}
+      ]
+    },
+    {
+      "claim": "In the paper's class-sequential Omniglot setup, Adam learns slowly at first but later exceeds SGD and produces extended loss changes after a class is no longer sampled.",
+      "evidence": "Per-class loss traces show SGD's expected learn-then-forget pattern, whereas low-rate Adam can keep reducing prior-task losses. With full-model tuning, epoch-one accuracy is 65.5% SGD versus 28.0% Adam, but after two more epochs Adam is 85.8% versus 76.7% SGD. Adam also shows substantial untrained-task interference and order-linked spikes.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "3.3, continual linear probing"},
+        {"page": 7, "section": "Figures 4-5 and full-model tuning"},
+        {"page": 14, "section": "Appendix Tables 2-3"}
+      ]
+    },
+    {
+      "claim": "The proposed explanation through Adam's squared-gradient memory and empirical-Fisher geometry remains speculative.",
+      "evidence": "Momentum-matched SGD does not reproduce the long tail, motivating a second-moment hypothesis, but there is no ablation of beta2, epsilon, bias correction, coordinate normalization, optimizer-state resets, or controlled Fisher/natural-gradient comparator. The discussion also acknowledges that Adam's square-root empirical-Fisher transform is not the Fisher inverse.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 7, "section": "Figure 4 optimizer comparison"},
+        {"page": 9, "section": "4.3, Adam and Fisher discussion"},
+        {"page": 10, "section": "Empirical-Fisher qualification and conclusion"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Use repeated output-layer resets during pretraining as transfer-shock rehearsal, then expose its effects through counterfactual parameter trajectories and per-class continual-loss traces under different optimizers.",
+    "mechanism": "IID models reset the whole classifier each epoch; ASB resets a selected class row and alternates sequential and batch updates; Meta-ASB differentiates through that sequence. At transfer, models learn unseen 15-shot classes. Zap-divergence compares reset and untouched clones on identical batches. Per-task losses across 100 sequential Omniglot classes reveal how SGD momentum and Adam state carry updates across task boundaries.",
+    "assumptions": [
+      "Classifier resetting during pretraining is an informative surrogate for future transfer shocks.",
+      "Whole-layer weight cosine tracks meaningful trajectory recovery.",
+      "Omniglot and Omni-image few-shot class streams represent broader continual-learning conditions.",
+      "Fixed task order and selected learning rates permit a fair optimizer interpretation.",
+      "Post-task loss decreases under Adam reflect useful stored gradient information rather than delayed interference or schedule artifacts."
+    ]
+  },
+  "techniques": [
+    {"id": "last-layer-zapping", "role": "Repeatedly resamples classifier weights to rehearse rapid relearning."},
+    {"id": "zap-divergence", "role": "Tracks layerwise cosine between reset and control training trajectories."},
+    {"id": "per-task-loss-tracing", "role": "Separates learning, backward transfer, and interference across a sequential class stream."},
+    {"id": "optimizer-state-comparison", "role": "Contrasts SGD momentum with Adam first- and second-moment memory."}
+  ],
+  "evaluations": [
+    {"setting": "Omni-image few-shot transfer", "metric": "Five-epoch held-out accuracy", "result": "Zapping improves IID, ASB, and Meta-ASB; best is Meta-ASB+zap at 30.5±1.1%.", "baseline": "Corresponding non-zapped pretraining methods."},
+    {"setting": "Omniglot cloned-trajectory reset", "metric": "Layerwise parameter cosine over shared minibatches", "result": "Prior zapping increases FC recovery and reduces convolutional divergence.", "baseline": "A model receiving its first classifier reset."},
+    {"setting": "100-class sequential Omniglot full-model tuning", "metric": "Meta-test accuracy and per-class loss trajectories", "result": "SGD leads after epoch one; Adam reaches 85.8% versus SGD's 76.7% after two additional epochs.", "baseline": "SGD versus Adam at swept learning rates."}
+  ],
+  "limitations": [
+    "The main optimizer dynamics use one small ConvNet and Omniglot; natural-image evidence covers standard transfer, not the same continual analysis.",
+    "Optimizer comparisons are sensitive to learning rate, epochs, and state initialization and are not compute-to-target matched.",
+    "Parameter cosine can report distance between functionally equivalent networks or similarity between functionally different ones.",
+    "No Hessian or functional metric tests the claimed wider-basin mechanism.",
+    "The Adam explanation lacks component-wise optimizer ablations.",
+    "Zapping is inherited from the authors' prior paper; this work's novelty is primarily dynamics analysis.",
+    "The study does not compare replay, regularization, expansion, selective resets, or modern continual-learning baselines on the same protocol."
+  ],
+  "failure_modes": [
+    "Frequent full-classifier resets can waste learned label structure when classes recur or the head is expensive.",
+    "A reset distribution unlike downstream initialization can train robustness to the wrong perturbation.",
+    "Adam's long optimizer memory can create cross-task interference, order effects, or stale updates when tasks are dissimilar.",
+    "Apparent backward transfer can vanish after equalizing wall-clock compute or optimizer hyperparameter search.",
+    "Low learning rates that enable delayed Adam improvement can be unacceptable under a short adaptation budget.",
+    "Layerwise cosine can misdiagnose recovery after neuron permutation or scale-invariant reparameterization."
+  ],
+  "reusable_insights": [
+    "Plot every task's loss through time; aggregate accuracy hides delayed improvement and structured interference.",
+    "Treat optimizer state as part of the continual learner, and audit it across task boundaries.",
+    "Pretraining against the exact perturbation expected at deployment can be a cheap robustness curriculum.",
+    "Distinguish parameter-path, representation, function, and curvature explanations with metrics at each level.",
+    "Report both fixed-epoch and time/compute-to-target comparisons when optimizers have different learning-speed profiles."
+  ],
+  "open_questions": [
+    "Which Adam component produces post-task improvement: beta1, beta2, normalization, epsilon, or bias correction?",
+    "Do function-space distance and Hessian geometry corroborate zap-divergence?",
+    "Does zapping help transformers, large pretrained models, regression, and non-class-incremental streams?",
+    "When do task dissimilarity and optimizer memory turn delayed improvement into harmful interference?",
+    "Can selective or soft resets preserve head knowledge while retaining transfer-shock robustness?",
+    "Does Adam still win under matched compute, tuned schedules, multiple orders, and modern continual-learning baselines?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2310.07996",
+      "title": "Reset It and Forget It: Relearning Last-Layer Weights Improves Continual and Transfer Learning",
+      "url": "https://arxiv.org/abs/2310.07996",
+      "relationship": "Direct predecessor introducing and broadly evaluating the same zapping mechanism.",
+      "difference": "The predecessor establishes transfer/continual gains and the cheap alternative-to-meta-learning claim. The reviewed paper adds Omni-image separation, cloned-trajectory analysis, and fine-grained SGD/Adam task-loss dynamics rather than a new reset algorithm.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2310.07996"
+    },
+    {
+      "canonical_id": "neurips:2024-978cc34c539fd26f0e8afb7e3905f34a",
+      "title": "Non-Stationary Learning of Neural Networks with Automatic Soft Parameter Reset",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2024/file/978cc34c539fd26f0e8afb7e3905f34a-Paper-Conference.pdf",
+      "relationship": "Direct adaptive soft-reset competitor for nonstationary learning.",
+      "difference": "Automatic Soft Reset continuously learns parameter drift toward initialization and evaluates supervised and off-policy RL streams, avoiding fixed hard-reset schedules. Zapping is simpler and targeted to the classifier but may discard useful head knowledge and is evaluated on narrower class-transfer settings.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2024"
+    },
+    {
+      "canonical_id": "neurips:2024-c04d37be05ba74419d2d5705972a9d64",
+      "title": "Normalization and effective learning rates in reinforcement learning",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2024/hash/c04d37be05ba74419d2d5705972a9d64-Abstract-Conference.html",
+      "relationship": "Alternative plasticity mechanism centered on effective learning-rate control.",
+      "difference": "Normalize-and-Project attributes plasticity loss partly to parameter-norm-induced effective-rate decay and preserves rates without forgetting parameters. The reviewed work attributes benefits to reset rehearsal and optimizer memory; direct comparison could separate these mechanisms.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2024"
+    },
+    {
+      "canonical_id": "arxiv:2508.00212",
+      "title": "Reinitializing weights vs units for maintaining plasticity in neural networks",
+      "url": "https://arxiv.org/abs/2508.00212",
+      "relationship": "Current selective weight-reset competitor and granularity study.",
+      "difference": "Selective weight reinitialization targets low-utility weights and compares weight versus unit resets across width and normalization regimes. Zapping resets an entire output layer on a predetermined schedule, so it lacks utility targeting but directly rehearses classifier replacement.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2508.00212"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim mechanistic evidence that zapping creates transfer-shock resilience and that Adam's gradient memory produces unexpected synergy and less eventual forgetting in sequential learning.",
+    "evidence": "The paper adds a natural-image few-shot comparison, counterfactual weight-cosine trajectories, learning-rate sweeps, and 100 per-task loss traces. Primary sources show zapping itself and multiple reset/plasticity mechanisms predate the study.",
+    "reviewer_inference": "The credible novelty is the zap-divergence diagnostic and unusually detailed optimizer-conditioned task-loss visualization. Wider-basin, feature-robustness, and empirical-Fisher explanations remain hypotheses, and the optimizer conclusion is too protocol-specific to support a general Adam-over-SGD recommendation."
+  },
+  "confidence": 0.92,
+  "reviewer_notes": "Primary full-text pass over all 20 pages, including hyperparameter tables and supplementary trajectory plots. Numerical results are author-reported; cosine/function mismatch, compute fairness, and Adam-mechanism scope are reviewer audits. Four primary arXiv/NeurIPS records were checked on 2026-08-23. No independent rerun or secondary verification is claimed."
+}

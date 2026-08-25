@@ -1,0 +1,608 @@
+{
+  "stable_id": "arxiv:2502.00803",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2502.00803",
+    "pdf_sha256": "9684d0ef82312c0ef2baf25a8c69fa9f72ae4390da10d93910b0c226d7cbe5a3",
+    "text_sha256": "892be0d1c2c789099712b706c49d5c4574c1bcae6f25c9b95cb5e58fe5c1a44e",
+    "page_count": 27,
+    "extracted_at": "2026-08-23T17:23:49.612304+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Does ProPINN identify a causally valid and optimizer-relevant propagation failure mechanism, and does its multiscale local coordinate mixing offer an accurate, scalable, and reproducible remedy beyond existing PINN diagnostics, sampling methods, architectures, and optimizers?",
+  "key_findings": [
+    {
+      "claim": "ProPINN is a concrete local coordinate-augmentation architecture with multiscale pooling, not an interaction layer between separately sampled collocation examples.",
+      "evidence": "For each query x, the method evaluates fixed-size neighborhoods around that same coordinate, projects every perturbed coordinate through a lightweight MLP P, averages each region, mixes the original and pooled representations through M, and maps the result through H. Shared parameters couple all queries, but the forward call never exchanges messages between distinct training examples. The most accurate description is a local coordinate feature-smoothing inductive bias with gradient flow through its stencil.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "Section 3.2, Equation 6 and Figure 3"},
+        {"page": 7, "section": "Section 3.2, Equation 7"}
+      ]
+    },
+    {
+      "claim": "The proposed propagation criterion is an output-Jacobian kernel closely related to the neural tangent kernel, and Theorem 3.6 is largely an identity induced by the paper's own definition.",
+      "evidence": "Definition 3.4 defines propagation failure through the infinitesimal output change caused by an artificial step in the output-gradient direction at x. Taylor expansion then makes that quantity exactly the norm of the inner product between output Jacobians at x and x'. This converts the definition to a kernel quantity, but it does not independently prove that low kernel values cause the already observed state of low PDE residual and high solution error, or that the criterion is necessary or sufficient for that state.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Definition 3.4 and Theorem 3.6"},
+        {"page": 18, "section": "Appendix B.2, Equation 15"}
+      ]
+    },
+    {
+      "claim": "The criterion omits the actual residual-loss gradient that drives interior PINN training.",
+      "evidence": "Interior updates minimize squared PDE residuals involving F(u), so their parameter direction contains the residual value and the Jacobian of F(u), including spatial or temporal derivative operators. Definition 3.4 instead steps directly along the output Jacobian at x. The influence relevant to training is therefore a residual-to-output or loss-gradient kernel, not merely the output-output product J_u(x')J_u(x)^T; the paper does not derive equivalence between them.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Section 2, Equations 1-2"},
+        {"page": 5, "section": "Definition 3.4, artificial standard gradient step"}
+      ]
+    },
+    {
+      "claim": "Definition 3.4 is dimensionally incomplete for the multi-output PDEs explicitly included in the paper.",
+      "evidence": "The preliminaries define u from R^(d+1) to R^m, making the output Jacobian an m-by-|theta| object. The written update theta minus lambda times partial u over partial theta is therefore not a parameter vector unless m=1 or an output cotangent or scalarization is specified. Karman Vortex and Fluid Dynamics have multiple physical outputs, so the theorem as written does not directly cover two of the headline tasks.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Section 2, multi-output definition of u"},
+        {"page": 5, "section": "Definition 3.4 and Equation 5"},
+        {"page": 21, "section": "Appendix C.1, multi-output Navier-Stokes systems"}
+      ]
+    },
+    {
+      "claim": "The optimizer-agnostic interpretation is unsupported because adaptive and second-order updates change the relevant parameter-space metric.",
+      "evidence": "Remark 3.7 says Adam and L-BFGS remain gradient-induced, but Adam applies an adaptive diagonal transformation and L-BFGS applies an approximate inverse-Hessian transformation. Their local cross-point influence has the form J(x') P J(x)^T, whose magnitude, sign, and ordering need not match the raw Euclidean inner product G. No invariance or bound relating these quantities is proved.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Remark 3.7"},
+        {"page": 8, "section": "Section 4, L-BFGS and Adam implementations"},
+        {"page": 22, "section": "Appendix C.2, optimizer details"}
+      ]
+    },
+    {
+      "claim": "Calling G a correlation obscures its lack of normalization and parameterization invariance.",
+      "evidence": "Equation 5 takes the norm of a raw Jacobian inner product rather than cosine similarity or a normalized kernel. Its scale can change under function-preserving neural-network reparameterizations and with Jacobian norms, while the empirical threshold epsilon is never specified. The plotted maps use a visually bounded scale, but the paper does not document normalization, neighbor construction, or threshold selection, making cross-model diagnostic comparisons ambiguous.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Figure 1, gradient-correlation visualization"},
+        {"page": 5, "section": "Definition 3.4 and Equation 5"},
+        {"page": 16, "section": "Appendix A, Figure 10"}
+      ]
+    },
+    {
+      "claim": "Large local output-Jacobian inner products are not sufficient for accurate PDE propagation and can conflict with expressivity.",
+      "evidence": "A collapsed or nearly constant network can have identical, strongly aligned output Jacobians at nearby coordinates while being unable to represent a nonconstant solution. Conversely, weakly aligned local features can support high-frequency variation. The paper proves only an inequality for its chosen kernel under a positivity assumption; it never proves that increasing G decreases solution error or excludes oversmoothing and low-rank collapse.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "Theorem 3.6 and root-cause claim"},
+        {"page": 7, "section": "Theorem 3.10"},
+        {"page": 12, "section": "Conclusion, causal wording"}
+      ]
+    },
+    {
+      "claim": "The high-dimensional orthogonality argument does not justify the claim that larger PINNs necessarily propagate worse.",
+      "evidence": "The paper invokes concentration in high dimension for raw structured neural Jacobians, but orthogonality concentration concerns normalized random directions under distributional assumptions. Network gradients across neighboring coordinates are neither independent nor isotropic, and simply appending or rescaling parameters need not reduce their raw inner product. The later layer-addition experiment is useful empirical evidence for those configurations but is not a general scaling law.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Section 3.1, high-dimensional orthogonality argument"},
+        {"page": 11, "section": "Section 4.3, model-scalability discussion"},
+        {"page": 24, "section": "Appendix E, Table 5"}
+      ]
+    },
+    {
+      "claim": "The FEM comparison is illustrative rather than a general theorem about active propagation in numerical PDE solvers.",
+      "evidence": "The appendix uses a one-coordinate integration-by-parts expression, introduces an antiderivative F' for an otherwise generic differential operator, expands D linearly in basis coefficients, and applies Jacobi iteration to an assembled linear system. Those steps require a narrower linear variational problem than the paper's general nonlinear and time-dependent PDE setup. FEM locality is a helpful analogy, but the proof does not cover arbitrary FEMs or establish a structural defect unique to PINNs.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Theorem 3.1 and Figure 2"},
+        {"page": 16, "section": "Appendix B.1, Equation 8"},
+        {"page": 17, "section": "Appendix B.1, Equations 10-14"}
+      ]
+    },
+    {
+      "claim": "Theorem 3.10 does not prove the claimed guarantee for the implemented ProPINN architecture.",
+      "evidence": "The theorem analyzes an idealized full-output function u_region(x)=u(x)+(1/k)sum_i u(x+delta_i). Actual ProPINN averages only lightweight projected features and sends them through learned nonlinear mixing and output networks. Arbitrary learned weights and nonlinearities do not preserve the theorem's additive Jacobian inequality. Remark 3.11 acknowledges the efficiency approximation, but the later claim that ProPINN is theoretically guaranteed is stronger than the result.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Section 3.2, implemented projection and mixing"},
+        {"page": 7, "section": "Theorem 3.10 and Remark 3.11"},
+        {"page": 18, "section": "Appendix B.3, idealized additive model"},
+        {"page": 25, "section": "Appendix E, theoretically guaranteed wording"}
+      ]
+    },
+    {
+      "claim": "Theorem 3.10 depends on a strong uniform nonnegative-kernel assumption that the finite empirical check cannot establish.",
+      "evidence": "Assumption 3.9 requires every nearby Jacobian inner product throughout the domain to be nonnegative. The local Taylor justification additionally needs nonzero gradients, smooth bounded mixed derivatives, and a uniform positive radius. Table 4 checks 10000 points at an approximately 0.01 distance and reports 100% positive ratios, but a finite sample cannot certify the continuum condition, other radii, later parameters, or multi-output scalarization.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Assumption 3.9 and Theorem 3.10"},
+        {"page": 19, "section": "Appendix B.4 and Table 4"}
+      ]
+    },
+    {
+      "claim": "The perturbation specification and accessible implementation disagree in ways that matter at domain boundaries.",
+      "evidence": "The paper calls delta random perturbations within each region, while the inspected official PyTorch implementation constructs deterministic Cartesian offsets using linearly spaced coordinates. The theorem requires perturbed points to remain in the domain, but neither the written method nor the code specifies clipping, wrapping, reflection, or geometry-aware sampling. Coordinates near nonperiodic boundaries can therefore be evaluated outside the PDE domain.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Equation 6, random differential perturbation"},
+        {"page": 7, "section": "Theorem 3.10, domain membership condition"},
+        {"page": 20, "section": "Appendix C.1, benchmark domains and boundaries"}
+      ]
+    },
+    {
+      "claim": "The pooled-feature claim is not generally justified for nonlinear PDEs.",
+      "evidence": "The paper states that pooled multiscale representations remain under the same PDE with different coefficients, but hidden representations are not themselves PDE solutions, and solution sets of nonlinear PDEs are not generally closed under averaging. No operator-level derivation connects the pooled latent vectors to modified coefficients for the six tested equations.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Section 3.2, pooled-representation PDE claim"},
+        {"page": 20, "section": "Appendix C.1, nonlinear benchmark equations"},
+        {"page": 21, "section": "Appendix C.1, Navier-Stokes equations"}
+      ]
+    },
+    {
+      "claim": "The perturbation count grows exponentially with input dimension and becomes impractical far below the millions-dimensional regime named in the limitation section.",
+      "evidence": "The fixed rule uses 3^(d+1)+5^(d+1)+7^(d+1) augmented points per query. At input dimension 7 this is already 134105 projected points, and at input dimension 11 it exceeds 292 million, before collocation batching or derivative computation. All reported tasks have only 1D+time or 2D+time inputs, so the paper supplies no evidence that parallelism overcomes this scaling.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Section 3.2, efficiency analysis"},
+        {"page": 8, "section": "Section 4, perturbation-count rule"},
+        {"page": 27, "section": "Appendix H, high-dimensional limitation"}
+      ]
+    },
+    {
+      "claim": "The standard-benchmark gains are large and consistent across all four reported PDEs.",
+      "evidence": "Table 2 reports ProPINN rMAE/rRMSE of 0.018/0.020 on Convection, 0.010/0.020 on 1D-Reaction, 0.036/0.087 on Allen-Cahn, and 0.016/0.016 on 1D-Wave. Relative to each second-best entry, the reported improvements range from 22% to 71%, with a stated mean 46% rMAE reduction. These results are a substantive empirical strength even though they do not validate the causal theory.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "Table 2 and Section 4.1"},
+        {"page": 9, "section": "Figure 4, qualitative solutions"}
+      ]
+    },
+    {
+      "claim": "ProPINN also leads on the two complex fluid tasks, while some JAX baseline ports become numerically unstable.",
+      "evidence": "Table 3 reports 0.161 rMAE and 0.124 rRMSE on Karman Vortex versus SetPINN at 0.287/0.209, and 0.1834/0.2172 on Fluid Dynamics versus FLS at 0.2362/0.2765. PINNsFormer and SetPINN are marked NaN on Fluid Dynamics after JAX reimplementation. The gains are meaningful, but port-specific instability is not a controlled architectural comparison.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 10, "section": "Table 3 and Figures 6-7"},
+        {"page": 22, "section": "Appendix C.2-C.3, JAX training and baseline ports"},
+        {"page": 26, "section": "Figure 14, Karman Vortex visualization"}
+      ]
+    },
+    {
+      "claim": "The method trades roughly double vanilla-PINN time and higher memory for its accuracy, while remaining cheaper than explicit attention architectures in the tested setting.",
+      "evidence": "On Convection, Table 5 reports ProPINN at 1.72 GB and 37.76 seconds per 1000 outer iterations versus vanilla PINN at 1.06 GB and 18.62 seconds. Figure 5 places the attention-based methods substantially higher in time and memory. The paper therefore supports a favorable tested trade-off, not negligible overhead or asymptotic scalability.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 9, "section": "Figure 5, efficiency comparison"},
+        {"page": 24, "section": "Appendix E, Table 5"}
+      ]
+    },
+    {
+      "claim": "The ablations show that gradient flow through the augmented branch matters, but they do not uniquely identify output-Jacobian correlation as the mechanism.",
+      "evidence": "Figure 7 degrades the model with one region or detached perturbation gradients and shows improvements when combining with sampling, reweighting, and RoPINN. Hyperparameter analysis also favors multiple regions and more perturbations. These interventions simultaneously change receptive field, feature averaging, parameter use, regularization, and the architecture's WaveAct implementation, so they cannot isolate G from ordinary local smoothing or capacity effects.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 10, "section": "Figure 7, model analysis"},
+        {"page": 11, "section": "Section 4.3, ablations and integrations"},
+        {"page": 23, "section": "Appendix D, Figure 12"},
+        {"page": 24, "section": "Appendix D, hyperparameter interpretation"}
+      ]
+    },
+    {
+      "claim": "The boundary-localization diagnostic is retrospective and insufficiently calibrated for deployment as a failure signal.",
+      "evidence": "Table 8 defines ground-truth failure boundaries from the top 10% of the true error map, then compares average distance from top-10% diagnostic regions. Low G improves average distance over residual loss, but the analysis requires a known solution, fixes arbitrary quantiles, reports no uncertainty, precision, recall, or calibration, and is not an online predictor of eventual failure. Direct G computation is also reported to take about 60 seconds for 10000 points on one A100 per step and would require second derivatives if optimized as a loss.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 24, "section": "Appendix E, gradient-correlation regularization cost"},
+        {"page": 25, "section": "Appendix E, Table 7 and diagnostic protocol"},
+        {"page": 26, "section": "Table 8"}
+      ]
+    },
+    {
+      "claim": "The statistical and scaling evidence is too narrow for the paper's strongest confidence and model-size claims.",
+      "evidence": "Experiments use three repeats. Table 9 lists standard deviations graphically and p-values but does not identify the statistical test, pairing, sidedness, multiple-comparison correction, or exact value behind 0.000. Scaling adds only a few layers on four low-dimensional PDEs; there is no width, coordinate-dimension, resolution, geometry, Reynolds-number, or parameter-count scaling curve.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 11, "section": "Section 4.3, model scalability"},
+        {"page": 22, "section": "Appendix C.2, three-repeat protocol"},
+        {"page": 27, "section": "Appendix G, Table 9"}
+      ]
+    },
+    {
+      "claim": "The accessible artifact and evaluation protocol leave important reproducibility and generalization gaps.",
+      "evidence": "The inspected official repository at commit 4e908dfe9d7eaa8836aa15b302c56cdb11e16fdb has 26 tracked files, no tests or CI, and only four standard PyTorch ProPINN scripts and checkpoints. It omits the two fluid tasks, baseline ports, G diagnostics, ablation harnesses, p-values, and three-repeat runner; scripts hard-code seed zero. The standard-task code evaluates on the same 101-by-101 coordinate grid used for residual collocation, withholding outputs but not coordinates, and the PDF does not clearly distinguish this from unseen-coordinate generalization.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 22, "section": "Appendix C.2, 101-by-101 collocation protocol"},
+        {"page": 23, "section": "Appendix C.3-C.4, reproduction and evaluation claims"},
+        {"page": 27, "section": "Appendix G, repeat claims"}
+      ]
+    },
+    {
+      "claim": "Prior and later primary work substantially narrows the root-cause and state-of-the-art positioning while leaving the local mixing recipe distinct.",
+      "evidence": "PINN NTK work predating ProPINN already derives output, boundary, and residual kernel dynamics; gradient-pathology, failure-mode, R3, loss-landscape, dual-cone, gradient-alignment, K-FAC, consistency, and per-loss-adapter studies analyze mechanisms closer to the actual training loss. PINNsFormer, SetPINNs, PirateNets, RoPINN, PINNMamba, NeuSA, and PINN Balls provide architectural or regional alternatives, while PINNacle supplies a broader benchmark. ProPINN's differentiable multiscale stencil plus lightweight mixer remains a recognizable contribution, but not the first kernel diagnosis or a decisive general root-cause proof.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 2, "section": "Introduction, root-cause and novelty positioning"},
+        {"page": 8, "section": "Section 4, baseline positioning"},
+        {"page": 12, "section": "Conclusion"},
+        {"page": 13, "section": "References"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Diagnose weak local output coupling through nearby-point output-Jacobian inner products, then raise that coupling by augmenting every coordinate with differentiable multiscale perturbation stencils whose projected features are pooled and mixed before predicting the PDE solution.",
+    "mechanism": "For each coordinate, ProPINN forms three local Cartesian-scale point sets, applies a shared two-layer projector P to the original and perturbed coordinates, average-pools each region, and applies a small region mixer M plus output network H. Because the perturbation branch remains in the computation graph, parameter gradients at one query contain contributions from nearby coordinates. The paper motivates this with an idealized additive-output theorem under nonnegative local Jacobian inner products, while the implemented network aggregates only at the projected-feature level.",
+    "assumptions": [
+      "Output-Jacobian coupling is an adequate proxy for the influence of residual-loss optimization on solution values.",
+      "For every relevant local pair, output-Jacobian inner products are nonnegative over a uniform radius.",
+      "The scalar-output derivation extends to multi-output PDEs despite no cotangent or scalarization being specified.",
+      "Adam and L-BFGS preconditioning preserve the diagnostic content of the raw Euclidean Jacobian product.",
+      "Increasing the unnormalized local kernel improves propagation without causing oversmoothing, rank collapse, or loss of high-frequency expressivity.",
+      "The idealized full-output averaging inequality transfers to learned projected-feature pooling and nonlinear mixing.",
+      "Perturbed coordinates remain physically valid near boundaries and irregular geometries.",
+      "Fixed absolute radii 0.01, 0.05, and 0.09 are meaningful across coordinate units and PDE scales.",
+      "The exponential stencil count remains tractable for the intended input dimension and derivative order.",
+      "Baseline ports, model capacities, optimizer settings, and evaluation coordinates provide a fair comparison across all tasks."
+    ]
+  },
+  "techniques": [
+    {"id": "jac-kernel", "role": "Measures nearby-point coupling through the norm of an output-Jacobian inner product."},
+    {"id": "diff-aug", "role": "Adds local coordinate perturbations while preserving gradient flow through every augmented point."},
+    {"id": "multi-region", "role": "Uses three neighborhood radii to expose the model to multiple physical scales."},
+    {"id": "grid-stencil", "role": "Instantiates each region as a Cartesian perturbation stencil in the accessible implementation."},
+    {"id": "shared-proj", "role": "Encodes original and perturbed coordinates with one lightweight shared MLP."},
+    {"id": "region-pool", "role": "Average-pools projected features inside each region."},
+    {"id": "region-mix", "role": "Learns a small mixer over the original point and pooled region representations."},
+    {"id": "wave-act", "role": "Uses a learned sine-cosine activation in the accessible implementation."},
+    {"id": "pde-loss", "role": "Trains the resulting network with residual, initial-condition, and boundary-condition objectives."},
+    {"id": "time-window", "role": "Uses sequential temporal windows for the long-horizon Fluid Dynamics benchmark."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Four standard 1D+time PDE benchmarks: Convection, 1D-Reaction, Allen-Cahn, and 1D-Wave, trained primarily with 1000 L-BFGS outer iterations.",
+      "metric": "Relative L1 error (rMAE) and relative RMSE.",
+      "result": "ProPINN is best on all eight metric-task cells, with reported relative reductions of 22%-71% against each second-best value and a mean 46% rMAE reduction.",
+      "baseline": "Vanilla PINN, QRes, FLS, KAN, PirateNet, PINNsFormer, and SetPINN."
+    },
+    {
+      "setting": "Convection benchmark with coefficient beta=50.",
+      "metric": "rMAE/rRMSE and qualitative solution/error maps.",
+      "result": "ProPINN reports 0.018/0.020 versus PINNsFormer at 0.023/0.027 and vanilla PINN at 0.778/0.840.",
+      "baseline": "Seven architecture baselines in Table 2 and Figure 4."
+    },
+    {
+      "setting": "1D-Reaction, Allen-Cahn, and second-order 1D-Wave benchmarks.",
+      "metric": "rMAE/rRMSE.",
+      "result": "Reported ProPINN results are 0.010/0.020, 0.036/0.087, and 0.016/0.016 respectively; its largest relative improvements are on Allen-Cahn and 1D-Wave.",
+      "baseline": "Second-best PirateNet or PINNsFormer plus all Table 2 architectures."
+    },
+    {
+      "setting": "Karman Vortex 2D+time Navier-Stokes task with 2500 sampled points and velocity supervision.",
+      "metric": "rMAE/rRMSE.",
+      "result": "ProPINN reports 0.161/0.124 versus SetPINN at 0.287/0.209, a 44%/41% relative reduction.",
+      "baseline": "Vanilla PINN, QRes, FLS, KAN, PirateNet, PINNsFormer, and SetPINN."
+    },
+    {
+      "setting": "Fluid Dynamics 2D+time Navier-Stokes task in JAX-PI, split into ten sequential windows with 150000 Adam steps per window.",
+      "metric": "rMAE/rRMSE.",
+      "result": "ProPINN reports 0.1834/0.2172 versus FLS at 0.2362/0.2765; PINNsFormer and SetPINN JAX ports are NaN and KAN is not tested.",
+      "baseline": "Available JAX implementations of vanilla PINN, QRes, FLS, PirateNet, PINNsFormer, and SetPINN."
+    },
+    {
+      "setting": "Convection efficiency comparison on a single A100 40GB GPU.",
+      "metric": "Peak GPU memory and seconds per 1000 outer iterations.",
+      "result": "ProPINN uses 1.72 GB and 37.76 seconds versus vanilla PINN at 1.06 GB and 18.62 seconds; it is reported faster than attention-based PINNsFormer and SetPINN.",
+      "baseline": "All architecture baselines shown in Figure 5 and aligned-efficiency vanilla variants in Table 5."
+    },
+    {
+      "setting": "Aligned-iteration and layer-depth test on Convection.",
+      "metric": "rMAE at 1000, 2000, and 4000 iterations plus memory/time.",
+      "result": "Vanilla PINN stays at 0.778, a two-layer-deeper vanilla model stays at 0.825, and ProPINN improves from 0.018 to 0.008 by 2000 iterations.",
+      "baseline": "Vanilla PINN and vanilla PINN plus two layers."
+    },
+    {
+      "setting": "Adam for 100 iterations followed by L-BFGS for 1000 iterations on the four standard tasks.",
+      "metric": "rRMSE.",
+      "result": "ProPINN remains best on all four tasks at 0.020, 0.020, 0.087, and 0.016.",
+      "baseline": "The same seven architectures under the combined optimizer protocol."
+    },
+    {
+      "setting": "Gradient-correlation loss ablation on Convection.",
+      "metric": "rMAE, GPU memory, and runtime per 1000 iterations.",
+      "result": "Vanilla plus simplified GCL reaches 0.528 rMAE at 2.31 GB/65.17 seconds, versus ProPINN at 0.018 and 1.72 GB/37.76 seconds.",
+      "baseline": "Vanilla PINN at 0.778 and the simplified direct-correlation regularizer."
+    },
+    {
+      "setting": "Ablations over one versus multiple regions, detached versus differentiable perturbations, region size/count, and integration with R3, loss reweighting, and RoPINN.",
+      "metric": "Standard-task relative errors.",
+      "result": "Multiple regions and differentiable augmented gradients perform better, and complementary training strategies often improve ProPINN further; exact values are primarily presented graphically.",
+      "baseline": "Ablated ProPINN variants and integrated training-strategy variants."
+    },
+    {
+      "setting": "Boundary localization over the four standard benchmarks.",
+      "metric": "Average distance from each top-10% diagnostic region to the boundary of the top-10% true-error region.",
+      "result": "For vanilla PINN, residual and low-G distances are 0.5047 and 0.3702; for ProPINN they are 0.3413 and 0.2600.",
+      "baseline": "Residual loss as the alternative diagnostic."
+    },
+    {
+      "setting": "Three repeated runs across six tasks.",
+      "metric": "Reported standard deviations and p-values against the second-best model.",
+      "result": "P-values are listed as 0.015, 0.015, 0.000, 0.001, 0.026, and 0.003, but the test design and multiplicity treatment are not specified.",
+      "baseline": "The second-best architecture for each task."
+    }
+  ],
+  "limitations": [
+    "The diagnostic is an unnormalized output-Jacobian kernel rather than the residual-loss influence kernel used in PINN optimization.",
+    "The scalar-style parameter update in Definition 3.4 is not well-defined for the paper's declared multi-output function.",
+    "The optimizer-agnostic claim ignores Adam and L-BFGS parameter-space preconditioning.",
+    "Theorem 3.10 proves an idealized additive-output model, not the implemented projected-feature mixer.",
+    "The uniform nonnegative local-kernel assumption is strong and only checked at finitely many points and one approximate distance.",
+    "Fixed Cartesian perturbations can leave the physical domain and do not naturally handle irregular geometry or boundary semantics.",
+    "The exponential perturbation count is tested only for input dimensions two and three.",
+    "Absolute radii depend on coordinate units and are selected with reference to benchmark behavior rather than a held-out protocol.",
+    "Ablations do not isolate output-Jacobian correlation from local feature smoothing, activation choice, parameter count, or receptive field.",
+    "The diagnostic evaluation uses ground-truth errors retrospectively and lacks calibration, uncertainty, and online predictive tests.",
+    "Only three repeats are used, with an unspecified hypothesis test and no multiple-comparison correction.",
+    "The accessible artifact omits two headline tasks, baselines, diagnostics, ablation runners, and repeat/statistics code.",
+    "Standard-task evaluation appears to reuse collocation coordinates, so unseen-coordinate generalization is not clearly measured.",
+    "No parameter-matched, coordinate-dimension, resolution, geometry, or hard-regime scaling study is reported."
+  ],
+  "failure_modes": [
+    "Outside-domain stencil points impose uncontrolled extrapolation near nonperiodic or irregular boundaries.",
+    "Large fixed radii can smooth across shocks, interfaces, discontinuities, or unrelated physical regimes.",
+    "Small fixed radii can fail to connect distant supervision across stiff or anisotropic dynamics.",
+    "Exponential stencil growth exhausts memory and derivative-computation budgets as coordinate dimension increases.",
+    "Strong local gradient alignment can collapse feature rank or erase high-frequency solution components.",
+    "A raw Jacobian kernel can appear large solely because gradient norms or parameter scaling increase.",
+    "Adam or L-BFGS preconditioning can reverse conclusions drawn from the raw Euclidean kernel.",
+    "Multi-output Jacobians require an arbitrary scalarization whose choice can hide failure in one physical field.",
+    "Sequential time-window training can accumulate upstream solution errors into later Fluid Dynamics windows.",
+    "JAX baseline-port instability can make the proposed architecture appear stronger for implementation-specific reasons.",
+    "Ground-truth-derived diagnostic thresholds cannot detect a novel deployment failure where the reference solution is unavailable."
+  ],
+  "reusable_insights": [
+    "A propagation diagnostic should be derived from the actual optimizer update, including PDE residual Jacobians and the optimizer's preconditioning metric.",
+    "Kernel diagnostics should report both normalized alignment and gradient norms, plus sensitivity to function-preserving parameter reparameterizations.",
+    "For vector-valued physics, define an explicit output cotangent, fieldwise kernel, or operator-valued kernel rather than silently applying a scalar theorem.",
+    "Architecture theorems should analyze the implemented feature mixer or constrain it so the proved inequality is actually preserved.",
+    "Local coordinate augmentation should be geometry-aware, boundary-aware, anisotropic, and expressed in nondimensional physical units.",
+    "Stencil methods need sparse, sampled, low-discrepancy, or amortized alternatives before being called dimension scalable.",
+    "A causal mechanism study should intervene on the proposed signal while matching receptive field, parameter count, activation, and smoothing strength.",
+    "Failure diagnostics should be evaluated prospectively: can an early signal predict final error across seeds, PDEs, optimizers, and model scales without ground truth?",
+    "PINN evaluations should separate residual-grid interpolation, unseen-coordinate interpolation, temporal extrapolation, and parameter-family generalization.",
+    "Strong empirical gains can be valuable even when the motivating theorem overreaches; architecture evidence and causal evidence should be scored separately."
+  ],
+  "open_questions": [
+    "What residual-to-output influence kernel exactly governs a PINN update under Adam, L-BFGS, K-FAC, or natural gradient?",
+    "Can fieldwise or operator-valued propagation metrics predict which component of a multi-physics solution will fail?",
+    "Does low normalized local alignment predict future solution error after controlling for residual magnitude, gradient norm, conditioning, and spectral bias?",
+    "Can a controlled intervention increase the proposed propagation signal without changing receptive field or function class and thereby causally reduce error?",
+    "When does local alignment help versus oversmooth shocks, interfaces, turbulence, or high-frequency wave solutions?",
+    "Can learned anisotropic stencils or mesh-aware neighborhoods respect boundaries and discover task-specific propagation directions?",
+    "Can sparse Monte Carlo, quasi-Monte Carlo, low-rank, or amortized neighborhoods replace exponential Cartesian grids with error guarantees?",
+    "How should region radii be selected from nondimensional PDE scales without consulting the target solution or test benchmark?",
+    "Does ProPINN retain its advantage on PINNacle-scale suites, higher-dimensional operators, complex geometry, inverse problems, and high-Reynolds-number flow?",
+    "What portion of the gain comes from WaveAct, gradient flow through extra evaluations, feature averaging, larger compute, and the particular mixer?",
+    "Can early propagation diagnostics choose architectures or environments without training every candidate to completion?",
+    "Do the reported improvements persist with parameter-, FLOP-, wall-time-, and tuning-budget-matched modern PINN optimizers and domain-decomposition methods?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2007.14527",
+      "title": "When and why PINNs fail to train: A neural tangent kernel perspective",
+      "url": "https://arxiv.org/abs/2007.14527",
+      "relationship": "Closest direct prior for an output/residual Jacobian-kernel account of PINN training failure.",
+      "difference": "Wang, Yu, and Perdikaris derive the PINN NTK blocks governing boundary and PDE-residual dynamics and diagnose convergence-rate imbalance; ProPINN uses an unnormalized output-output Jacobian product and does not cite this direct conceptual predecessor.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv current version checked"
+    },
+    {
+      "canonical_id": "neurips:2018:5a4be1fa34e62bb8a6ec6b91d2462f5a",
+      "title": "Neural Tangent Kernel: Convergence and Generalization in Neural Networks",
+      "url": "https://proceedings.neurips.cc/paper/2018/hash/5a4be1fa34e62bb8a6ec6b91d2462f5a-Abstract.html",
+      "relationship": "Foundational prior for treating parameter-gradient inner products as kernels controlling function evolution.",
+      "difference": "Jacot, Gabriel, and Hongler establish the NTK framing and its training dynamics; ProPINN renames a normed output-Jacobian product as gradient correlation and specializes it to nearby PDE coordinates.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2018 proceedings"
+    },
+    {
+      "canonical_id": "arxiv:2001.04536",
+      "title": "Understanding and mitigating gradient pathologies in physics-informed neural networks",
+      "url": "https://arxiv.org/abs/2001.04536",
+      "relationship": "Earlier gradient-based failure diagnosis and adaptive training remedy for PINNs.",
+      "difference": "This work studies numerical stiffness and imbalance among composite loss gradients and proposes adaptive loss balancing and an architecture; ProPINN instead studies cross-coordinate output Jacobians and modifies coordinate features.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv current version checked; SIAM Journal on Scientific Computing 2021"
+    },
+    {
+      "canonical_id": "neurips:2021:df438e5206f31600e6ae4af72f2725f1",
+      "title": "Characterizing possible failure modes in physics-informed neural networks",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2021/hash/df438e5206f31600e6ae4af72f2725f1-Abstract.html",
+      "relationship": "Foundational benchmark and optimization analysis for PINN failure modes.",
+      "difference": "Krishnapriyan et al. study optimization difficulty, stiffness, and curriculum strategies across PDE coefficients; ProPINN reuses several tasks and attributes failure specifically to local output-Jacobian alignment.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2021 proceedings"
+    },
+    {
+      "canonical_id": "pmlr:v202-daw23a",
+      "title": "Mitigating Propagation Failures in Physics-informed Neural Networks using Retain-Resample-Release (R3) Sampling",
+      "url": "https://proceedings.mlr.press/v202/daw23a.html",
+      "relationship": "Direct predecessor that names propagation failure and supplies a sampling-based remedy.",
+      "difference": "R3 dynamically retains high-residual points to keep the training frontier moving and motivates causal temporal training; ProPINN proposes a formal output-Jacobian diagnostic and an architectural local-stencil remedy that can be combined with R3.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2023, PMLR 202"
+    },
+    {
+      "canonical_id": "openreview:DO2WFXU1Be",
+      "title": "PINNsFormer: A Transformer-Based Framework For Physics-Informed Neural Networks",
+      "url": "https://openreview.net/forum?id=DO2WFXU1Be",
+      "relationship": "Direct multi-point architectural baseline and standard-task source.",
+      "difference": "PINNsFormer models pseudo-sequences with attention and a wavelet activation; ProPINN replaces attention with local multiscale projected pooling, reports lower compute, and leaves gradients attached through its augmentations.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2024 conference paper"
+    },
+    {
+      "canonical_id": "arxiv:2409.20206",
+      "title": "SetPINNs: Set-based Physics-informed Neural Networks",
+      "url": "https://arxiv.org/abs/2409.20206",
+      "relationship": "Direct set-aggregation architecture for interacting collocation points.",
+      "difference": "SetPINNs uses set-based attention over grouped points; ProPINN uses a per-query local stencil and lightweight pooling, but its theoretical guarantee does not apply directly to the implemented mixer.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv current version checked"
+    },
+    {
+      "canonical_id": "arxiv:2402.00326",
+      "title": "PirateNets: Physics-informed Deep Learning with Residual Adaptive Networks",
+      "url": "https://arxiv.org/abs/2402.00326",
+      "relationship": "Strong residual-network architecture baseline for difficult PDE optimization.",
+      "difference": "PirateNets uses adaptive residual blocks and random Fourier features to improve trainability and scaling; ProPINN adds local multiscale coordinate neighborhoods and wins the reviewed benchmark panel but is not parameter or compute matched.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv current version checked"
+    },
+    {
+      "canonical_id": "neurips:2024:c745bfa5b50544882938ff4f89ff26ac",
+      "title": "RoPINN: Region Optimized Physics-Informed Neural Networks",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2024/hash/c745bfa5b50544882938ff4f89ff26ac-Abstract-Conference.html",
+      "relationship": "Same-group regional optimization predecessor and complementary method.",
+      "difference": "RoPINN optimizes over trust regions around collocation points with generalization analysis; ProPINN changes the network architecture to aggregate differentiable region features and reports additive gains when the two are combined.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2024 proceedings"
+    },
+    {
+      "canonical_id": "neurips:2024:b2b781badeeb49896c4b324c466ec442",
+      "title": "A Dual Cone Gradient Descent Method for Physics-Informed Neural Networks",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2024/hash/b2b781badeeb49896c4b324c466ec442-Abstract-Conference.html",
+      "relationship": "Optimizer-side alternative grounded in conflicts among the actual PINN loss gradients.",
+      "difference": "Dual-cone descent constructs directions that reduce multiple physics-loss components and gives nonconvex convergence analysis; ProPINN changes the architecture and analyzes cross-coordinate output gradients instead of competing objective gradients.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2024 proceedings"
+    },
+    {
+      "canonical_id": "arxiv:2402.01868",
+      "title": "Challenges in Training PINNs: A Loss Landscape Perspective",
+      "url": "https://arxiv.org/abs/2402.01868",
+      "relationship": "Direct optimization and conditioning account of PINN training difficulty.",
+      "difference": "Rathore et al. connect PINN differential operators to ill-conditioned loss landscapes and test second-order remedies such as NysNewton-CG; ProPINN attributes failure to local output-Jacobian coupling and uses an architectural remedy.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv current version checked"
+    },
+    {
+      "canonical_id": "neurips:2024:3d27d607586984908900eaa8ce19c96c",
+      "title": "Kronecker-Factored Approximate Curvature for Physics-Informed Neural Networks",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2024/hash/3d27d607586984908900eaa8ce19c96c-Abstract-Conference.html",
+      "relationship": "Curvature-aware optimizer competitor that directly challenges optimizer-agnostic kernel claims.",
+      "difference": "KFAC changes the parameter-space metric to address PINN conditioning, making raw Euclidean output-gradient alignment insufficient to predict the update; ProPINN does not analyze its G quantity under this preconditioner.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2024 proceedings"
+    },
+    {
+      "canonical_id": "neurips:2024:49f07f600ca532a89ef4fa0618bb78c1",
+      "title": "On the Limitations of the Neural Tangent Kernel for Understanding Generalization in Physics-Informed Neural Networks",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2024/hash/49f07f600ca532a89ef4fa0618bb78c1-Abstract-Conference.html",
+      "relationship": "Direct warning about extrapolating PINN behavior from linearized kernel dynamics.",
+      "difference": "This work studies when nonlinear PINN training departs from NTK predictions; ProPINN treats an instantaneous output-Jacobian product as a root-cause diagnostic without testing nonlinear-regime validity.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2024 proceedings"
+    },
+    {
+      "canonical_id": "neurips:2024:8c63299fb2820ef41cb05e2ff11836f5",
+      "title": "PINNacle: A Comprehensive Benchmark of Physics-Informed Neural Networks for Solving PDEs",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2024/hash/8c63299fb2820ef41cb05e2ff11836f5-Abstract-Datasets_and_Benchmarks_Track.html",
+      "relationship": "Broader benchmark defining the empirical bar for general PINN claims.",
+      "difference": "PINNacle evaluates many methods over more than twenty PDEs with varied domains and properties; ProPINN reports six tasks, four of them closely related standard 1D+time failure cases.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2024 Datasets and Benchmarks proceedings"
+    },
+    {
+      "canonical_id": "openreview:V7VnjJxBlg",
+      "title": "PINNMamba: A sequence modeling framework for Physics-Informed Neural Networks",
+      "url": "https://openreview.net/forum?id=V7VnjJxBlg",
+      "relationship": "Current direct propagation-oriented architecture with a different causal account.",
+      "difference": "PINNMamba attributes difficulty to simplicity bias and discrete-continuity mismatch and uses selective state-space sequence modeling; ProPINN uses local coordinate stencils and output-gradient alignment. The later method reports broad reductions and raises the architecture baseline.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2025 conference paper"
+    },
+    {
+      "canonical_id": "neurips:2025:f655706547885b8e32ef46f1c067ece2",
+      "title": "Gradient Alignment in Physics-informed Neural Networks: A Second-Order Optimization Perspective",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2025/hash/f655706547885b8e32ef46f1c067ece2-Abstract-Conference.html",
+      "relationship": "Later diagnostic and optimizer work centered on actual loss-gradient conflict.",
+      "difference": "Gradient Alignment studies directions among physics-loss gradients and uses a second-order optimizer across ten PDEs including harder flow regimes; ProPINN studies output Jacobians across coordinates and does not include the residual values or optimizer metric in G.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2025 proceedings"
+    },
+    {
+      "canonical_id": "neurips:2025:ec2833cda146c277cdaa39066764f25c",
+      "title": "On the Consistency of Physics-Informed Neural Networks",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2025/hash/ec2833cda146c277cdaa39066764f25c-Abstract-Conference.html",
+      "relationship": "Later theory giving a stronger criterion for whether small PINN loss identifies the physical solution.",
+      "difference": "The consistency work states necessary and sufficient conditions and constructs pathological cases; ProPINN's local kernel criterion is neither shown necessary nor sufficient for convergence from residual loss to the correct solution.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2025 proceedings"
+    },
+    {
+      "canonical_id": "neurips:2025:05dbca96b388e7dc4138b73bd1515cdf",
+      "title": "PINN Balls: A Local Mixture of Experts for Physics-Informed Neural Networks",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2025/hash/05dbca96b388e7dc4138b73bd1515cdf-Abstract-Conference.html",
+      "relationship": "Later local-region architecture and domain-decomposition competitor.",
+      "difference": "PINN Balls uses local experts, adaptive sampling, and second-order optimization to allocate capacity spatially; ProPINN keeps one global network and augments each coordinate with a dense local stencil.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2025 proceedings"
+    },
+    {
+      "canonical_id": "openreview:Aj3wL41C7p",
+      "title": "NeuSA: Neural Spectral Architectures for Physics-Informed Learning",
+      "url": "https://openreview.net/forum?id=Aj3wL41C7p",
+      "relationship": "Later architecture addressing spectral and causal training limitations.",
+      "difference": "NeuSA builds spectral structure and causality into the representation and releases a broader artifact; ProPINN uses spatial stencil pooling without an explicit spectral treatment of high-frequency solutions.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2025 conference paper"
+    },
+    {
+      "canonical_id": "arxiv:2505.21404",
+      "title": "Dual Natural Gradient Descent for Scalable Physics-Informed Neural Networks",
+      "url": "https://arxiv.org/abs/2505.21404",
+      "relationship": "Current scalable residual-space natural-gradient alternative.",
+      "difference": "Dual natural gradient works in residual space with Gauss-Newton structure and scales to models reported up to 12.8 million parameters; ProPINN reports low-dimensional coordinate tasks and its dense stencil count grows exponentially with input dimension.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv current version checked"
+    },
+    {
+      "canonical_id": "arxiv:2605.10136",
+      "title": "Per-Loss Adapters for Gradient Conflict in Physics-Informed Neural Networks",
+      "url": "https://arxiv.org/abs/2605.10136",
+      "relationship": "Current diagnostic-first work testing when loss-gradient conflict actually occurs.",
+      "difference": "Per-Loss Adapters evaluates gradient conflict across sixty PDE configurations up to fifty dimensions and finds the mechanism is not universal; ProPINN makes a broad root-cause claim from a local output-kernel diagnostic on six low-dimensional tasks.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv current version checked"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The first formal definition and root-cause proof for PINN propagation failure, a precise gradient-correlation diagnostic, and a theoretically guaranteed multiregion architecture that improves propagation, accuracy, efficiency, and scalability.",
+    "evidence": "The paper supplies an explicit infinitesimal influence definition, an output-Jacobian identity, an idealized local-averaging inequality, and a practical differentiable multiscale pooling architecture. Across six reported PDEs, ProPINN consistently achieves the best relative errors and a favorable tested compute-accuracy trade-off.",
+    "reviewer_inference": "Novelty is moderate for the specific differentiable multiscale stencil and lightweight region mixer, and low for the broad kernel/root-cause framing. The diagnostic is an NTK-like output kernel, omits residual-loss and optimizer geometry, is dimensionally incomplete for vector outputs, and is neither necessary nor sufficient for correct PDE learning. The theorem does not cover the implemented nonlinear feature mixer. The defensible contribution is therefore an empirically promising local coordinate architecture plus a useful but incompletely validated diagnostic hypothesis, not a general proof of why PINNs fail."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Primary full-text review of all 27 pages in the hash-pinned cached arXiv v3 PDF, published in TMLR 07/2026 and revised on arXiv 2026-08-09. I read the 12-page main paper, all three reference pages, and every appendix page, and visually audited every page through an all-page contact sheet plus original-resolution checks of pages 2, 8-12, 16, 25, and 27. The audit covered all 14 numbered figures and all 9 tables, including solution/error maps, gradient-correlation maps, efficiency plots, ablations, hyperparameter plots, boundary localization, and standard-deviation annotations. Exact-source mathematical checking covered Definitions 3.4, Theorems 3.1/3.6/3.10, Assumption 3.9, and their complete appendix proofs. Current primary-source competitor checking covered arXiv, OpenReview, NeurIPS, and PMLR through 2026, emphasizing prior PINN NTK theory, actual loss-gradient diagnostics, regional and sequence architectures, curvature-aware optimization, consistency theory, and broad benchmarks. I also inspected the attributable official repository https://github.com/thuml/ProPINN at commit 4e908dfe9d7eaa8836aa15b302c56cdb11e16fdb: 26 tracked files, no tests or CI, four standard PyTorch tasks and checkpoints, hard-coded seed zero, deterministic Cartesian perturbations despite the PDF's random wording, and a learned sine-cosine WaveAct not stated in the PDF implementation section. The repository lacks the fluid tasks, baseline implementations, G/diagnostic pipeline, ablation and statistics harnesses, and three-repeat automation. Values reported here are transcribed from tables unless explicitly characterized as graphical."
+}

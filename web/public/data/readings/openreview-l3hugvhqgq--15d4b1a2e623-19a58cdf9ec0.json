@@ -1,0 +1,185 @@
+{
+  "stable_id": "openreview:l3HUgVHqGQ",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2305.16380",
+    "pdf_sha256": "2b52dce2d2bef66dbe44ce320af71e5c0f624b7d48b6f78e4228e614b0b89a70",
+    "text_sha256": "caea843e3e12607ae34de09645e83c227d59bb942ceb62c9403e6f2f1c72daf1",
+    "page_count": 37,
+    "extracted_at": "2026-08-24T00:39:37.032677+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Under a tractable next-token data model, how do gradient updates change a one-layer Transformer's attention toward frequent class-specific contextual tokens, and why can that change appear to freeze?",
+  "key_findings": [
+    {
+      "claim": "The analysis recasts a simplified attention-plus-decoder model as two token-pair logit matrices and derives their batch-one gradient-flow equations under cross-entropy.",
+      "evidence": "Y represents decoder token-pair scores and Z represents query-key token-pair scores; the attended token histogram is L2-normalized before decoding. The exact differential shows decoder error flowing through the tangent projection of this normalization into softmax attention logits.",
+      "anchors": [{"page": 3, "section": "Problem Setting"}, {"page": 4, "section": "Reparameterization"}, {"page": 17, "section": "Proof of Section 3"}]
+    },
+    {
+      "claim": "For the paper's class-conditional sequence model, a contextual token exclusive to one next-token class receives a positive attention-logit update, whereas suppression of common tokens is rigorously much narrower than the prose suggests.",
+      "evidence": "Theorem 2 proves positive growth for globally distinct tokens but proves negative growth for a common token only when exactly one common token exists. Appendix Corollary 2 extends suppression to multiple common tokens only with one shared query, symmetric class-specific distributions, identical common-token probabilities across classes, and zero initialization.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 7, "section": "Fates of contextual tokens"}, {"page": 30, "section": "Proof of Theorem 2"}, {"page": 30, "section": "Multiple CTs, symmetric case"}]
+    },
+    {
+      "claim": "Among distinct tokens, the derived dynamics amplify an initially dominant, more frequent token and progressively separate it from lower-frequency alternatives.",
+      "evidence": "Theorem 3 gives a closed-form relative-gain relation in which the initial squared conditional-probability ratio is multiplied by an exponential of the dominant token's logit growth. Monotone dominance additionally assumes one token starts above every distinct rival and all associated common logits shrink; ties can instead be broken by initialization.",
+      "anchors": [{"page": 7, "section": "Growth of distinct tokens"}, {"page": 31, "section": "Proof of Theorem 3"}]
+    },
+    {
+      "claim": "The advertised snap is a finite-time deceleration, not convergence to a fixed attention composition or prevention of eventual winner-take-all.",
+      "evidence": "Under an extra single-common-token approximation, the dominant-token growth factor changes from sublinear growth before a decoder-rate-controlled crossover to O(log t) afterward. The paper explicitly obtains B(t)=O(log log t) with B(t) still diverging, so attention continues changing and the dominant token wins asymptotically; it only appears frozen on finite training horizons.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 7, "section": "The Moment of Snapping"}, {"page": 8, "section": "Phase Transition in Training"}, {"page": 33, "section": "Estimation in Sec. 6"}]
+    },
+    {
+      "claim": "The clean decoder solution and back-propagated gradient theorem depend on dynamics that are not the ordinary end-to-end Transformer gradient in general.",
+      "evidence": "Lemma 3 says independent row updates in the reparameterized W coordinates can be achieved by modifying the Y gradient with a correction term. Theorem 5 solves that modified equation, and Theorem 1 then invokes Theorem 5; the appendix recovers a simpler effective-rate statement for the original dynamics only when all off-diagonal class correlations are identical.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 6, "section": "Dynamics of Y"}, {"page": 19, "section": "Proof of Lemma 3"}, {"page": 20, "section": "Original-dynamics remark"}, {"page": 26, "section": "Theorem 5"}, {"page": 28, "section": "Proof of Theorem 1"}]
+    },
+    {
+      "claim": "The theoretical sequence distribution is a discriminative bag-of-tokens construction rather than a realistic autoregressive language process.",
+      "evidence": "Context tokens are conditionally iid given both the query and future next-token label, the next token deterministically selects its query token, contexts become exact class frequencies as length tends to infinity, classes are sampled uniformly, and the main analysis removes positions. Global distinctness means appearing with only one next-token class, a property likely to be unstable in a finite natural-language corpus.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 4, "section": "Data Generation"}, {"page": 5, "section": "Assumptions"}, {"page": 24, "section": "Uniformly sampled sequence classes"}]
+    },
+    {
+      "claim": "Synthetic experiments support learning-rate-dependent sparsification, while the WikiText experiment verifies only coarse attention entropy and apparent freezing—not the discriminative scan law or its transition formula.",
+      "evidence": "Syn-Small uses two deliberately constructed classes, 30 tokens, length 128, batch 128, and SGD with momentum; Syn-Medium varies layer-rate ratios. WikiText2/103 instead uses the ordinary factorized parameterization and one unified learning rate, for which the authors say separate eta_Y and eta_Z are unclear. Reported real-data plots show entropy/sparsity over five seeds and a first-layer trace, without identifying common/distinct tokens, testing frequency order, fitting transition time, or reporting predictive quality.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 9, "section": "Experiments"}, {"page": 10, "section": "Real-world Dataset"}, {"page": 34, "section": "Experiments"}, {"page": 35, "section": "WikiText attention entropy"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Analyze an idealized one-head, one-layer next-token predictor in token-pair coordinates, exploiting a fast-decoder/slow-attention timescale separation to obtain closed-form attention-logit trends.",
+    "mechanism": "Replace factorized embeddings and projections by independent M-by-M decoder and query-key score matrices; let an infinite iid context collapse to a class-conditional frequency vector; solve or approximate decoder gradient flow; substitute its upstream gradient into attention dynamics; classify tokens by support across next-token classes; and derive relative-gain and late-time growth laws.",
+    "assumptions": [
+      "There is no positional encoding and contextual order is irrelevant.",
+      "Context length tends to infinity so empirical token frequencies equal their conditional probabilities.",
+      "The decoder learns much faster than attention, permitting timescale separation.",
+      "The future next-token class determines one query token and sequence classes are uniformly sampled.",
+      "Normalized class-frequency vectors obey strict weak-correlation and spectral nondegeneracy conditions.",
+      "Y and Z can be treated as independently trainable full token-pair matrices initialized exactly at zero.",
+      "For the snap estimate, there is one common token, a shared query, nearly constant normalization, and already-small common-token mass."
+    ]
+  },
+  "techniques": [
+    {"id": "token-pair-reparameterization", "role": "Replaces embedding/query/key/value factors with direct decoder and attention-logit matrices for analyzable dynamics."},
+    {"id": "timescale-separated-gradient-flow", "role": "Treats attention output as quasi-static while solving the faster decoder layer."},
+    {"id": "class-conditional-token-support", "role": "Partitions contextual tokens into globally distinct and common supports across next-token classes."},
+    {"id": "relative-attention-gain-ode", "role": "Integrates ratios between distinct-token attention components to characterize frequency amplification."},
+    {"id": "late-time-asymptotic-crossover", "role": "Approximates decoder-gradient decay to derive a scan-to-slow-growth transition time."},
+    {"id": "attention-entropy-probe", "role": "Measures sparsification in synthetic and WikiText validation examples under varying learning rates."}
+  ],
+  "evaluations": [
+    {"setting": "Syn-Small: two classes, 30-token vocabulary, length 128", "metric": "class-conditional attention maps over training", "result": "Constructed common tokens lose weight and high-frequency distinct tokens dominate; increasing decoder rate speeds training and leaves denser finite-time attention.", "baseline": "Qualitative comparison to the derived SGD trends, using momentum and batch 128 rather than theorem's batch-one flow."},
+    {"setting": "Syn-Medium over ten random seeds", "metric": "entropy on distinct-token attention and threshold-recall curves", "result": "Larger attention learning rate yields sparser maps, while above a rate-ratio threshold a larger decoder-to-attention rate yields denser maps.", "baseline": "Learning-rate sweeps; no competing theoretical predictor fitted to trajectories."},
+    {"setting": "WikiText2 and WikiText103 with ordinary factorized one-layer Transformers", "metric": "validation attention entropy after training", "result": "Higher unified learning rates correlate with lower entropy over five seeds.", "baseline": "Across-rate comparison without a matched perplexity or optimization-quality control."},
+    {"setting": "WikiText2 with one- and three-layer Transformers", "metric": "selected first-layer attention traces", "result": "Attention becomes sparse and visually changes slowly later in training.", "baseline": "Qualitative trace; no estimated snap time, token-class audit, causal ablation, or downstream metric."}
+  ],
+  "limitations": [
+    "The full-matrix Y/Z gradient flow is not generally equivalent to training shared, low-rank embeddings and query/key/value projections.",
+    "The main decoder theorem uses a modified gradient; the ordinary dynamics are only addressed in a special equal-correlation case.",
+    "No positions, residual stream, feed-forward block, causal multi-position loss, multiple interacting heads, or ordinary LayerNorm dynamics are jointly covered.",
+    "The infinite iid context and future-label-conditioned class model erase syntax, recency, burstiness, finite-sample errors, and most language ambiguity.",
+    "General suppression is proved for one common token; the many-common-token result needs strong symmetry that natural corpora do not satisfy.",
+    "The snap theorem is conditional on an approximate scalar ODE and predicts continued logarithmic change rather than a true stationary point.",
+    "WikiText experiments omit sufficient model, preprocessing, loss/perplexity, and token-category diagnostics to test the distinctive theoretical claims.",
+    "Attention sparsity alone does not show that attended tokens causally determine representations or predictions."
+  ],
+  "failure_modes": [
+    "A token appears exclusive to a label only because the corpus is small, so scanning amplifies a sampling artifact or spurious correlation.",
+    "Multiple common tokens interact asymmetrically and some gain rather than lose attention, invalidating the single-common-token narrative.",
+    "Factor sharing through embeddings and Q/K/V matrices rotates or couples updates in a way the independent logit model cannot represent.",
+    "Positional cues dominate token identity, reversing which context is useful for next-token prediction.",
+    "Learning-rate changes alter loss, logit scale, or optimization stability, making lower attention entropy look like the predicted inductive bias.",
+    "An apparent finite-budget snap resumes under longer training and converges toward one-token selection.",
+    "Sparse attention weights remain epiphenomenal because values, residual paths, or later layers carry the actual predictive signal."
+  ],
+  "reusable_insights": [
+    "Optimization timescales can determine which intermediate features appear frozen at a practical training horizon.",
+    "Support overlap and frequency are useful axes for probing whether attention favors discriminative versus ubiquitous context.",
+    "When a theorem uses reparameterized or modified gradients, validate its vector field against the deployed factorized model before transferring conclusions.",
+    "Distinguish a genuine fixed point from logarithmically slow motion by extending the time axis and fitting competing growth laws.",
+    "Pair attention-weight observations with value-aware causal interventions and predictive-loss measurements.",
+    "Stress-test token-selection theories under finite contexts, asymmetric overlaps, positions, residuals, multiple heads, and adaptive optimizers."
+  ],
+  "open_questions": [
+    "Which parts of the scan law survive ordinary factorized Q/K/V and embedding dynamics without gradient modification?",
+    "Can finite-context concentration bounds quantify when an apparently distinct token is a reliable population feature?",
+    "What replaces global common/distinct support in realistic heavy-tailed language where nearly every token overlaps multiple next tokens?",
+    "Do residual streams, value vectors, and multi-head competition preserve, diversify, or cancel frequency amplification?",
+    "Can a controlled natural-language experiment causally verify scanning order and the predicted decoder-rate dependence of transition time?",
+    "Does Adam produce a stable and predictable token-selection bias, rather than the qualitatively different subsets shown here?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2303.04245",
+      "title": "How Do Transformers Learn Topic Structure: Towards a Mechanistic Understanding",
+      "url": "https://arxiv.org/abs/2303.04245",
+      "relationship": "concurrent-topic-dynamics",
+      "difference": "Li et al. analyze how embeddings and attention encode topic co-occurrence under squared loss and a constrained topic model, with Wikipedia and LDA experiments. Scan and Snap uses cross-entropy and overlapping class supports but obtains its clean result through different full-matrix and timescale assumptions.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2306.13596",
+      "title": "Max-Margin Token Selection in Attention Mechanism",
+      "url": "https://arxiv.org/abs/2306.13596",
+      "relationship": "direct-token-selection-theory",
+      "difference": "Tarzanagh et al. characterize softmax attention's directional convergence to max-margin token separation for general token geometry. That asymptotic selection perspective complements—and highlights the eventual winner-take-all behind—the reviewed paper's finite-time snap.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2306.00802",
+      "title": "Birth of a Transformer: A Memory Viewpoint",
+      "url": "https://arxiv.org/abs/2306.00802",
+      "relationship": "empirical-training-dynamics-competitor",
+      "difference": "Bietti et al. study a two-layer transformer's training on global and in-context bigrams, observing fast memorization followed by slower induction-head formation. It covers a different but more compositional multi-layer mechanism and treats parameter matrices as associative memories.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2209.11895",
+      "title": "In-context Learning and Induction Heads",
+      "url": "https://arxiv.org/abs/2209.11895",
+      "relationship": "mechanistic-phase-change-evidence",
+      "difference": "Olsson et al. connect the emergence of induction heads to a sharp in-context-learning change, with causal evidence in small two-layer attention-only models and correlational evidence at larger scale. Scan and Snap instead derives token-frequency sparsification in one layer but does not tie its visual snap to a behavioral capability.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2410.09605",
+      "title": "Training Dynamics of Transformers to Recognize Word Co-occurrence via Gradient Flow Analysis",
+      "url": "https://arxiv.org/abs/2410.09605",
+      "relationship": "later-coupled-dynamics-theory",
+      "difference": "Yang et al. explicitly avoid common reparameterization, attention-linearization, special-initialization, and lazy-regime shortcuts by jointly analyzing three attention matrices and a linear MLP from random initialization. Its coupled two-phase result directly addresses the reviewed analysis's largest transfer gap.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2409.17625",
+      "title": "Benign Overfitting in Token Selection of Attention Mechanism",
+      "url": "https://arxiv.org/abs/2409.17625",
+      "relationship": "later-generalization-analysis",
+      "difference": "Sakamoto and Sato analyze token-selection dynamics with label noise and identify signal-to-noise conditions for delayed benign generalization. That moves beyond Scan and Snap's attention-shape description toward whether selected tokens generalize despite spurious training labels.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2511.01033",
+      "title": "On the Emergence of Induction Heads for In-Context Learning",
+      "url": "https://arxiv.org/abs/2511.01033",
+      "relationship": "current-emergence-dynamics",
+      "difference": "Musat et al. constrain a minimal two-layer induction-head system to a low-dimensional dynamical subspace and derive a context-length-dependent emergence time. It offers a more behavior-linked notion of emergence than attention entropy and a distinct scaling law for a multi-layer circuit.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": "Reviewer inference after all 37 pages and current primary-source comparison: the paper contributes an elegant token-support lens and useful closed-form intuition for how frequency, overlap, initialization, and layer timescales can shape attention in a deliberately simplified model. The headline should not be read as a general rigorous account of Transformer SGD: key decoder algebra uses modified/full-matrix dynamics, common-token suppression is narrowly conditioned, and snapping is logarithmically slow continued motion. The real-data evidence verifies sparsity, not the distinctive scan-and-snap mechanism.",
+  "confidence": 0.99,
+  "reviewer_notes": "Reviewed the 10-page main text and all 27 appendix pages, including reparameterized gradients, modified-decoder proof chain, common-token special cases, asymptotic snap derivation, and WikiText appendix. Seven direct primary arXiv competitors from concurrent through 2025 work were checked on 2026-08-23."
+}

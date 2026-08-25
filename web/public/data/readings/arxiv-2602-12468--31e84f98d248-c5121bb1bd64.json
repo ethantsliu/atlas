@@ -1,0 +1,401 @@
+{
+  "stable_id": "arxiv:2602.12468",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2602.12468",
+    "pdf_sha256": "103f3e8eee387ea55891e4ded50fafba0fc70c6f2f80a0ec0b2cabd2900320a9",
+    "text_sha256": "1cffd4b8d58785df8a8f3113068c6a354696dab52381fb8f7b91d15773052c2a",
+    "page_count": 16,
+    "extracted_at": "2026-08-23T12:56:46.434040+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a continuous diffusion language model be steered at inference time to satisfy tokenizer-aligned regular-language constraints while preserving the base model's conditional distribution and generation quality?",
+  "key_findings": [
+    {
+      "claim": "DIFFINITY computes an exact finite-automaton acceptance probability for the position-factorized categorical distribution emitted by PLAID's decoder.",
+      "evidence": "After aligning a character-level DFA to the model vocabulary, the method builds one weighted transition matrix per sequence position and multiplies an initial-state vector through those matrices; accepting-state mass equals the probability that independently sampled position tokens form a length-l string in the regular language. The appendix proves the alignment and dynamic-programming identities under this decoder model.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "2.2-2.3 Denoising to Satisfy Regular Constraints / Computing the Expected Probability"},
+        {"page": 4, "section": "Example 2.1-2.2 and 3.1 Tokenizer-Automaton Alignment"},
+        {"page": 5, "section": "3.2 Algorithm 1 and Theorem 3.1"},
+        {"page": 13, "section": "Appendix D-E Algorithm 2 and proofs"}
+      ]
+    },
+    {
+      "claim": "The guidance mechanism differentiates the log DFA-acceptance score through PLAID's denoiser and adds the resulting force to every reverse-diffusion step without training a constraint-specific classifier.",
+      "evidence": "Equation 2 modifies the DDPM update by gamma times sigma_t squared times the gradient with respect to x_t of log E_{s~Dec(x_t)}[s in L]. A learned scale gamma controls strength, while the base-model mean and stochastic noise term remain in the update. The implementation backpropagates through PLAID's 1.3B decoder into its 32-dimensional word2vec latent.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "2.2 Equation 2"},
+        {"page": 5, "section": "3.3 Connection to Classifier Guidance and 4 Evaluation implementation"}
+      ]
+    },
+    {
+      "claim": "The paper's claim that this score is precisely the classifier-guidance likelihood Pr(L|x_t), and therefore inherits conditional-sampling convergence, is not established.",
+      "evidence": "Standard classifier guidance requires integrating Pr(L|x_0) against the full posterior Pr(x_0|x_t). DIFFINITY instead evaluates acceptance under a single decoder-produced, position-independent unigram distribution associated with a predicted clean latent. Equation 4 identifies these quantities without proving that the decoder distribution equals that posterior integral; no approximation error or sampler convergence bound is given.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "2.1 decoder-induced unigram interpretation"},
+        {"page": 5, "section": "3.3 Equations 3-4 and convergence claim"}
+      ]
+    },
+    {
+      "claim": "A second objective/decoder mismatch weakens the claimed exact conditioning interpretation: the analytic score assumes categorical sampling, but the evaluated system decodes by per-position argmax only once at the end.",
+      "evidence": "Algorithm 1 scores the probability of independently sampled token sequences, whereas the implementation description states that PLAID and DIFFINITY produce the concrete sentence using argmax from the final unigram distribution. Increasing sampled acceptance mass need not condition the deterministic argmax output on validity, so empirical satisfaction can improve without the final sampler targeting the stated conditional distribution.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "2.1 categorical decoding model"},
+        {"page": 5, "section": "4 Evaluation implementation and final argmax decoding"}
+      ]
+    },
+    {
+      "claim": "On natural-language regex templates, DIFFINITY strongly improves finite-budget validity over autoregressive Guidance baselines while retaining much better quality than DINGO-constrained LLaDA.",
+      "evidence": "At gamma=2.5, satisfaction across the six categories is 85.5-96.8% and averages 92.9%, versus an average 20.5% for GPT2-Large with Guidance. LLaDA+DINGO is near 95.5-100% valid but has per-category perplexity 170.1-253.7 and fluency 3.4-4.0, whereas DIFFINITY has perplexity 57.4-66.5 and fluency 32.2-43.3.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "Table 2 and 4.2 Natural Language Benchmarks"},
+        {"page": 7, "section": "4.2 quality comparison"}
+      ]
+    },
+    {
+      "claim": "The broad assertion that DIFFINITY outperforms autoregressive constrained decoding in constraint satisfaction is contradicted by the JSON results.",
+      "evidence": "On the 70 JSON regexes, DIFFINITY reaches 68.4% satisfaction and 91.4% pass@10. GPT2-Medium and GPT2-Large with Guidance reach 75.3/97.1 and 77.0/98.6 respectively; Appendix Table 4 reports GPT2-Small at 79.3/98.0. DIFFINITY only exceeds LLaDA+DINGO's 63.3% per-sample satisfaction, while LLaDA has 100% pass@10.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract performance claim"},
+        {"page": 6, "section": "Table 1 and 4.1 JSON Schema Benchmarks"},
+        {"page": 15, "section": "Appendix H Table 4"}
+      ]
+    },
+    {
+      "claim": "The autoregressive comparison measures failure under a fixed token budget rather than failure of grammar-constrained decoding to guarantee validity when allowed to finish.",
+      "evidence": "The authors attribute low natural-language validity to GPT-2 entering an 'infinite repetition trap' until max_tokens is exhausted. DIFFINITY instead always denoises an entire fixed 64-position sequence jointly. Thus the result is meaningful for the chosen finite budget, but it does not show that an autoregressive grammar engine accepts invalid strings or cannot satisfy the regex with a different stopping/completion policy.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "4 Evaluation sequence length and metrics"},
+        {"page": 6, "section": "4.1 fixed-length fairness discussion"},
+        {"page": 7, "section": "4.2 infinite repetition trap"}
+      ]
+    },
+    {
+      "claim": "JSON validity is highly sensitive to a padding rule that is more permissive for the diffusion systems than for GPT-2.",
+      "evidence": "DIFFINITY and LLaDA+DINGO are evaluated against .*<json>.*, allowing arbitrary surrounding text, while GPT models use the unpadded schema regex. Under stricter EOS-aware diffusion constraints, DIFFINITY falls from 68.4% satisfaction/91.4% pass@10 to 56.8/86.5 for <json><EOS>.* and 33.6/68.8 for <json><EOS>+. Only 5.1% of unconstrained PLAID samples contain EOS, exposing a base-model mismatch rather than a constraint-independent result.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "4.1 JSON padding protocol"},
+        {"page": 15, "section": "Appendix H Table 3 and padding analysis"}
+      ]
+    },
+    {
+      "claim": "The reported benchmark excludes constraints that are non-regular or computationally difficult for the implementation.",
+      "evidence": "From 100 sampled JSONSchemaBench schemas, 10 are removed because nested objects or unbounded lists are not regular and 20 more are removed because aligned automata exceed 230 states or 7.5 million transitions, leaving 70. The 110 natural-language regexes are synthetic instantiations of six templates using the 100 most frequent English words; each uses one or two sampled words and small integer ranges.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "4 Evaluation benchmarks"},
+        {"page": 14, "section": "Appendix G Detailed Benchmark Description"},
+        {"page": 15, "section": "Appendix G sampling counts"}
+      ]
+    },
+    {
+      "claim": "A favorably trained classifier-guidance control fails almost completely despite learning a moderately predictive proxy score.",
+      "evidence": "Three classifiers with 10.22M, 2.12M, and 4.44M trainable parameters are trained on about 240,000 balanced noisy examples from exactly the evaluation regexes and length 64. Their AUCs are 0.81, 0.74, and 0.79, yet all obtain 0% JSON satisfaction and at most 2.27% natural-language satisfaction; the best classifier's mean score rises from 0.4 to 0.6 under guidance without translating into binary validity.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "4.3 Comparison with Classifier Guidance"},
+        {"page": 14, "section": "Appendix F Classifier Training Specifics"}
+      ]
+    },
+    {
+      "claim": "Increasing guidance strength improves validity and external-LM perplexity, but it still reduces judged fluency and the selected scale is tuned on the reported benchmark.",
+      "evidence": "For JSON, satisfaction rises from 30.4% at gamma=1.0 to 68.4% at gamma=2.5. Across natural-language tasks, perplexity falls from 73.6 to 60.0 while Claude-rated fluency falls from 39.4 to 35.8. The paper says gamma=2.5 was most effective and reports it throughout, but provides no held-out constraint split for choosing this hyperparameter.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "4 Evaluation guidance-scale selection"},
+        {"page": 7, "section": "4.4 guidance-scale results"},
+        {"page": 8, "section": "Figure 2a"}
+      ]
+    },
+    {
+      "claim": "Perplexity is nearly preserved at the chosen scale, but the claimed small overall quality cost hides a sizable fluency decrease.",
+      "evidence": "Unconditioned PLAID has perplexity 61.6 and Claude fluency 46.0 at length 64 and 1,024 steps; all DIFFINITY natural-language samples at gamma=2.5 have perplexity 60.0 but fluency 35.8. The former improves 1.6 points while the latter drops 10.2 points (about 22% of the base score). Metrics rely on Llama-3.1-8B and Claude Sonnet 4.5-20250929 rather than human judgments.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "4 Evaluation metrics"},
+        {"page": 7, "section": "4.2 base-model quality comparison"},
+        {"page": 12, "section": "Appendix B-C model pins and fluency prompt"}
+      ]
+    },
+    {
+      "claim": "DIFFINITY adds substantial automaton-dependent latency and memory cost.",
+      "evidence": "The smallest cited aligned automaton already has 71,735 transitions and takes 73.6 seconds per sample at batch size 1, versus 33.3 seconds for unconstrained PLAID. Overall latency is about 2-3x the base sampler. For automata above three million transitions, dense transition structures can consume more memory than the base diffusion model itself.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "4.5 Computational overhead and Figure 2c"},
+        {"page": 9, "section": "4.5 memory overhead"}
+      ]
+    },
+    {
+      "claim": "The probability-preservation appendix shows the desired ordering trend but does not validate exact conditional sampling.",
+      "evidence": "For three two-branch regexes, Llama-estimated The:It ratios are 10.10, 0.11, and 1.26e-6; among matching DIFFINITY samples the observed ratios are 5.63, 0.03, and 0 from 200 draws, whereas GPT2-Small-GCD remains around 1.2-1.7. These sparse ratios show adaptation to prefix likelihood, but they are not close estimates with uncertainty, use another model as the reference distribution, and do not test PLAID's true constrained law.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 16, "section": "Appendix I probability-distribution experiment"}
+      ]
+    },
+    {
+      "claim": "Matching and non-matching samples do not exhibit a consistent quality separation.",
+      "evidence": "Appendix Table 5 reports no clear direction in perplexity or fluency between regex-matching and non-matching samples. The word-length non-match subset is an outlier with perplexity 19.6 and fluency 1.0, caused by only 10 degenerate phrase-repeating failures. This is useful negative evidence against explaining validity gains solely as selection of generally higher-quality text.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 15, "section": "Appendix H Table 5"},
+        {"page": 16, "section": "Appendix H matching/non-matching analysis"}
+      ]
+    },
+    {
+      "claim": "The empirical scope is one comparatively weak continuous diffusion LM, fixed length 64, regular constraints, and a single-GPU setup; it does not establish hard validity guarantees or semantic correctness.",
+      "evidence": "All primary experiments use PLAID, 256 denoising steps for JSON and 1,024 for natural language, on one RTX A6000. Satisfaction remains 68.4% on the filtered JSON set rather than guaranteed. The authors explicitly leave discrete-diffusion adaptation, more efficient automata, and bounded context-free support to future work; no semantic task accuracy, code execution, or schema-value correctness is evaluated.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 2, "section": "Results and model-scope footnote"},
+        {"page": 5, "section": "4 Evaluation setup"},
+        {"page": 9, "section": "5 Related Work and 6 Conclusion"},
+        {"page": 12, "section": "Appendix A Hardware and Software"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Replace a learned noisy-latent constraint classifier with a differentiable dynamic program that measures finite-automaton acceptance under the continuous diffusion model's decoder-induced token marginals, then use its log-gradient as classifier-style guidance.",
+    "mechanism": "A regex is compiled to a DFA and expanded so every tokenizer token that spells a valid character path is represented. At every denoising step, decoder token marginals weight position-specific DFA transition matrices; forward multiplication yields accepting-state mass. Backpropagation of the log mass through PLAID shifts the DDPM mean by gamma sigma_t squared times that gradient before noise is added.",
+    "assumptions": [
+      "The base continuous diffusion model exposes differentiable per-position categorical marginals for a predicted clean sequence.",
+      "Tokens are conditionally independent across positions under the decoder score used by the dynamic program.",
+      "The tokenizer has a well-defined character decomposition shared with the regex alphabet, including whitespace, special-token, byte, and Unicode semantics.",
+      "The vocabulary-aligned DFA and all position transition matrices fit in available memory and remain numerically differentiable.",
+      "Acceptance under the decoder unigram proxy adequately approximates Pr(L|x_t) for classifier-guidance conditioning.",
+      "Optimizing sampled acceptance mass also steers the final per-position argmax decoding used in evaluation.",
+      "A fixed length of 64 can express the target strings and padding/EOS semantics are comparable across model families.",
+      "Regular-language syntax is an adequate proxy for the structured-output requirement; semantic validity is outside scope."
+    ]
+  },
+  "techniques": [
+    {"id": "vocabulary-aligned-dfa", "role": "Adds tokenizer-token transitions for every valid character path so alternate tokenizations contribute acceptance mass."},
+    {"id": "weighted-automaton-forward-dp", "role": "Computes exact regular-language acceptance under position-factorized token marginals."},
+    {"id": "analytic-classifier-guidance", "role": "Backpropagates the log acceptance score into the continuous latent without training a classifier."},
+    {"id": "variance-scaled-ddpm-steering", "role": "Scales the constraint gradient by sigma_t squared and a tunable guidance strength."},
+    {"id": "regex-template-benchmarking", "role": "Evaluates JSON-derived and synthetic natural-language regular constraints."},
+    {"id": "external-quality-judges", "role": "Uses Llama-3.1-8B perplexity and Claude Sonnet 4.5 fluency for matching outputs."},
+    {"id": "padding-and-guidance-ablations", "role": "Tests sensitivity to EOS/padding semantics and guidance scale."},
+    {"id": "classifier-guidance-control", "role": "Compares the analytic score with three learned noisy-latent classifiers trained on the benchmark regexes."}
+  ],
+  "evaluations": [
+    {
+      "setting": "70 filtered JSONSchemaBench-derived regular constraints, 10 samples each, length 64, 256 denoising steps, gamma=2.5",
+      "metric": "constraint satisfaction / pass@10",
+      "result": "DIFFINITY 68.4% / 91.4%.",
+      "baseline": "GPT2-Medium+Guidance 75.3% / 97.1%; GPT2-Large+Guidance 77.0% / 98.6%; LLaDA-8B+DINGO 63.3% / 100.0%."
+    },
+    {
+      "setting": "110 synthetic natural-language regexes across prefix, suffix, appearance, bounded/unbounded between, and word-length templates; 20 samples each; 1,024 steps",
+      "metric": "mean satisfaction and finite-budget pass@10",
+      "result": "DIFFINITY averages 92.9% satisfaction; category satisfaction ranges 85.5-96.8% and pass@10 ranges 95-100%.",
+      "baseline": "GPT2-Large+Guidance averages 20.5% satisfaction; LLaDA+DINGO is approximately 95.5-100% satisfied by category."
+    },
+    {
+      "setting": "Natural-language satisfying samples",
+      "metric": "Llama-3.1-8B perplexity and Claude Sonnet 4.5 fluency (1-100)",
+      "result": "DIFFINITY category perplexity 57.4-66.5 and fluency 32.2-43.3.",
+      "baseline": "LLaDA+DINGO perplexity 170.1-253.7 and fluency 3.4-4.0; GPT2-Large+Guidance perplexity 68.1-401.7 and fluency 30.9-47.1 where it produces matches."
+    },
+    {
+      "setting": "All natural-language samples at gamma=2.5, length 64, 1,024 steps",
+      "metric": "aggregate perplexity / fluency",
+      "result": "DIFFINITY 60.0 / 35.8.",
+      "baseline": "Unconditioned PLAID 61.6 / 46.0, showing little perplexity cost but a 10.2-point fluency drop."
+    },
+    {
+      "setting": "Guidance-scale sweep",
+      "metric": "JSON satisfaction, natural-language perplexity, and fluency",
+      "result": "From gamma=1.0 to 2.5, JSON satisfaction rises 30.4% to 68.4%, perplexity falls 73.6 to 60.0, and fluency falls 39.4 to 35.8.",
+      "baseline": "Weaker analytic guidance at gamma=1.0."
+    },
+    {
+      "setting": "JSON padding/EOS ablation at gamma=2.5",
+      "metric": "satisfaction / pass@10",
+      "result": ".*<json>.*: 68.4% / 91.4%; <json><EOS>.*: 56.8% / 86.5%; <json><EOS>+: 33.6% / 68.8%.",
+      "baseline": "The permissive wildcard-padding protocol used in the main table; unconstrained PLAID emits any EOS in only 5.1% of samples."
+    },
+    {
+      "setting": "Three learned classifier-guidance variants trained on about 240,000 benchmark-specific length-64 pairs",
+      "metric": "AUC and downstream satisfaction / pass@10",
+      "result": "AUC 0.81/0.74/0.79, but all have 0% JSON satisfaction and the best natural-language result is 2.27% satisfaction / 10% pass@10.",
+      "baseline": "DIFFINITY's analytic automaton score reaches 68.4% JSON and 92.9% mean natural-language satisfaction."
+    },
+    {
+      "setting": "Native PLAID token-level guidance on the common prefix/suffix/appearance subset, both at scale 2.5",
+      "metric": "average satisfaction and minimum-sample perplexity",
+      "result": "DIFFINITY reaches 92.9% satisfaction and average minimum perplexity 10.4.",
+      "baseline": "PLAID native guidance reaches 59.4% satisfaction and average minimum perplexity 25.7."
+    },
+    {
+      "setting": "20 representative regexes on one RTX A6000",
+      "metric": "per-sample latency versus aligned-automaton transitions",
+      "result": "A 71,735-transition regex takes 73.6 seconds at batch size 1; overall overhead is about 2-3x and grows roughly linearly with transitions.",
+      "baseline": "Unconstrained PLAID takes 33.3 seconds per sample in the cited batch-1 setting."
+    },
+    {
+      "setting": "Three two-branch regexes, 200 samples each",
+      "metric": "observed The-prefix to It-prefix ratio among matching samples",
+      "result": "DIFFINITY ratios 5.63, 0.03, and 0 as the The prefix becomes less probable.",
+      "baseline": "Llama-3.1-8B proxy ratios 10.10, 0.11, and 1.26e-6; GPT2-Small-GCD ratios stay 1.2, 1.7, and 1.27."
+    },
+    {
+      "setting": "Matching versus non-matching DIFFINITY outputs at gamma=2.5",
+      "metric": "perplexity and fluency",
+      "result": "No consistent quality ordering; word-length failures are a 10-sample degenerate outlier with perplexity 19.6 and fluency 1.0.",
+      "baseline": "Regex-matching subsets and all generated samples in Appendix Table 5."
+    }
+  ],
+  "limitations": [
+    "Author-stated: DIFFINITY currently supports regular constraints only; efficient bounded context-free guidance and application to discrete diffusion models are left to future work.",
+    "Author-stated: aligned automata and dense transition matrices impose about 2-3x latency and can exceed the base model's memory for automata with more than three million transitions.",
+    "Author-stated: JSON schemas that are non-regular or yield over 230 states or 7.5 million transitions are excluded, so the final 70 cases are a tractable subset of 100 sampled schemas.",
+    "Author-stated negative result: learned classifier guidance scores the latent more highly but achieves 0% JSON and at most 2.27% natural-language satisfaction.",
+    "Reviewer-identified proof gap: exact DFA acceptance under Dec(x_t) is not shown equal to the posterior constraint likelihood required by classifier-guidance convergence, and no approximation error bound is supplied.",
+    "Reviewer-identified decoder mismatch: the proof scores independent categorical samples while evaluation decodes the final marginals with argmax.",
+    "Reviewer-identified comparison asymmetry: diffusion JSON evaluation allows arbitrary wildcard padding while GPT uses the exact unpadded regex; stricter EOS semantics sharply lower DIFFINITY validity.",
+    "Reviewer-identified negative result: DIFFINITY is less valid than every GPT-2+Guidance model on JSON and never guarantees validity, despite broader abstract language about outperforming autoregressive constrained decoding.",
+    "Reviewer-identified quality limitation: near-constant external perplexity coexists with a 10.2-point Claude fluency loss; no human evaluation or judge-robustness study is provided.",
+    "Reviewer-identified scope: one PLAID checkpoint, fixed length 64, synthetic natural-language templates, one GPU type, and no semantic or functional-correctness metrics limit extrapolation to modern structured-output systems.",
+    "Reviewer-identified tuning risk: gamma=2.5 is selected as most effective on the reported constraints without a held-out constraint-validation protocol."
+  ],
+  "failure_modes": [
+    "A latent can have high sampled DFA acceptance mass while its per-position argmax still produces an invalid string.",
+    "Posterior multimodality or cross-position dependence breaks the unigram proxy's interpretation as the true likelihood of eventual validity.",
+    "Wildcard-heavy regexes induce millions of tokenizer-aligned transitions and exhaust memory or make repeated gradient computation impractical.",
+    "Non-regular schemas such as unbounded nesting or lists cannot be represented by the current DFA method.",
+    "EOS-poor base models fail strict completion semantics even when a substring somewhere in the fixed-length output is valid.",
+    "Finite-budget autoregressive baselines can stall in low-probability grammar prefixes; changing completion or token-budget policy changes the comparison.",
+    "Regex validity can coexist with semantically wrong JSON values, incoherent natural language, repeated phrases, or task failure.",
+    "Very small acceptance probabilities can cause unstable log gradients or numerical underflow through long matrix products.",
+    "Tokenizer character/byte/Unicode mismatches can omit valid tokenizations or admit unintended strings if CHARIFY semantics are incomplete."
+  ],
+  "reusable_insights": [
+    "A differentiable weighted-automaton forward algorithm is a general training-free control signal whenever a generator exposes position-wise categorical marginals.",
+    "Tokenizer-language alignment must include every tokenization of each accepted string; character-level automata alone systematically discard probability mass.",
+    "Constraint satisfaction, pass@k, distribution fidelity, semantic quality, and wall-clock cost should be reported separately rather than collapsed into 'structured generation.'",
+    "Padding and EOS semantics are part of the constraint and must be identical across competing model families.",
+    "A classifier with useful AUC can still provide a poor gradient for crossing a discrete validity boundary; optimize the executable property when it can be computed exactly.",
+    "Audit whether the distribution used by a differentiable surrogate matches the system's actual final decoder, especially sampling versus argmax.",
+    "Report automaton states, transitions, and memory alongside regex syntax because apparent regex complexity is a poor predictor of tokenizer-aligned cost."
+  ],
+  "open_questions": [
+    "Can one derive a calibrated bound between DFA acceptance under a denoiser's unigram prediction and the true posterior probability of final validity?",
+    "Can exact or controlled-approximate guidance be designed for the actual argmax decoder, or should evaluation sample from the categorical law used by the proof?",
+    "How can symbolic/sparse automata and custom semiring kernels eliminate dense transition matrices without losing differentiability?",
+    "Can the method support bounded CFGs, semantic predicates, numeric range constraints, and cross-field JSON dependencies at practical cost?",
+    "Do the results persist on stronger continuous diffusion LMs, longer outputs, realistic function calling, code execution, and held-out user schemas?",
+    "What is the validity-quality Pareto frontier under equal wall-clock, memory, and completion budgets against current autoregressive and discrete-diffusion constrained samplers?",
+    "Can guidance-scale selection be calibrated from automaton/model statistics rather than tuned on test constraints?",
+    "How robust are fluency and distribution-preservation conclusions across human raters and multiple independent judge/reference models?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2607.07026",
+      "title": "Constrained Decoding for Diffusion Language Models via Efficient Inference over Finite Automata",
+      "url": "https://arxiv.org/abs/2607.07026v1",
+      "relationship": "Closest post-publication finite-automaton competitor for diffusion language models.",
+      "difference": "It performs exact inference and sampling from a finite-automaton-constrained mean-field posterior for discrete diffusion models, guarantees validity, supports block/remasking schedules, and reports under 5% overhead; DIFFINITY instead differentiates an acceptance proxy to steer a continuous latent PLAID sampler, has 68-96% empirical validity, and costs about 2-3x.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2607.07026v1, submitted 8 Jul 2026; current primary record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2505.23061",
+      "title": "DINGO: Constrained Inference for Diffusion LLMs",
+      "url": "https://arxiv.org/abs/2505.23061v1",
+      "relationship": "Direct regular-constraint method for diffusion LMs and an evaluated baseline.",
+      "difference": "DINGO uses dynamic programming during discrete masking-diffusion decoding to strictly satisfy regexes while preserving the model-predicted distribution; DIFFINITY targets continuous diffusion through latent gradients and applies beyond unmasking transitions, but does not guarantee final validity.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2505.23061v1, submitted 29 May 2025; current primary record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2508.10111",
+      "title": "Constrained Decoding of Diffusion LLMs with Context-Free Grammars",
+      "url": "https://arxiv.org/abs/2508.10111v1",
+      "relationship": "Direct formal-language constraint system for diffusion LMs.",
+      "difference": "It reduces additive infilling to CFG/regular-language intersection emptiness and reports near-perfect syntax for discrete diffusion, including C++ and JSON; DIFFINITY handles only regular languages but operates through differentiable guidance in a continuous latent model.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2508.10111v1, submitted 13 Aug 2025; current primary record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2405.21047",
+      "title": "Grammar-Aligned Decoding",
+      "url": "https://arxiv.org/abs/2405.21047v3",
+      "relationship": "Distribution-aligned constrained-generation predecessor for autoregressive LMs.",
+      "difference": "ASAp guarantees grammar membership and adaptively approaches the autoregressive LM's true constrained distribution using expected-future bounds from prior samples; DIFFINITY claims one-pass conditional guidance for continuous diffusion but only proves acceptance under a decoder unigram proxy.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2405.21047v3, revised 12 Dec 2025; NeurIPS 2024 work, current primary record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2510.01902",
+      "title": "Constrained Adaptive Rejection Sampling",
+      "url": "https://arxiv.org/abs/2510.01902v2",
+      "relationship": "Exact constrained-distribution sampling competitor.",
+      "difference": "CARS adaptively records invalid autoregressive continuations in a trie, monotonically improves rejection-sampling efficiency, and exactly preserves the constrained distribution; DIFFINITY avoids repeated rejection through a differentiable automaton score but lacks an exactness guarantee for the continuous posterior and final argmax decoder.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2510.01902v2, revised 2 Jun 2026; current primary record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2506.05754",
+      "title": "Constrained Sampling for Language Models Should Be Easy: An MCMC Perspective",
+      "url": "https://arxiv.org/abs/2506.05754v1",
+      "relationship": "Conditional-distribution-preserving constrained sampler.",
+      "difference": "It uses valid-output proposals and Metropolis-Hastings correction to monotonically converge to an autoregressive LM's true conditional distribution; DIFFINITY is a gradient-guided diffusion heuristic whose dynamic program is exact only for its position-factorized score.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2506.05754v1, submitted 6 Jun 2025; current primary record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2502.05111",
+      "title": "Flexible and Efficient Grammar-Constrained Decoding",
+      "url": "https://arxiv.org/abs/2502.05111v2",
+      "relationship": "Tokenizer-aligned grammar-decoding systems competitor.",
+      "difference": "It guarantees CFG-compliant autoregressive output and focuses on compact tokenizer alignment and fast masks, including 17.71x faster preprocessing; DIFFINITY independently constructs tokenizer-aligned automata but uses dense differentiable matrices whose memory can exceed the base model.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2502.05111v2, revised 15 Jul 2025; current primary record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2305.13971",
+      "title": "Grammar-Constrained Decoding for Structured NLP Tasks without Finetuning",
+      "url": "https://arxiv.org/abs/2305.13971v6",
+      "relationship": "Foundational autoregressive grammar-constrained decoding baseline.",
+      "difference": "It masks next-token choices using input-dependent grammars to guarantee structure across NLP tasks; DIFFINITY cannot mask a continuous latent prefix and instead steers the whole sequence with a DFA acceptance gradient, trading guarantees for non-causal global revision.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2305.13971v6, revised 18 Jan 2024; EMNLP 2023 work, current primary record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2305.18619",
+      "title": "Likelihood-Based Diffusion Language Models",
+      "url": "https://arxiv.org/abs/2305.18619v1",
+      "relationship": "Base continuous diffusion LM and native-guidance predecessor.",
+      "difference": "PLAID provides the 32-dimensional continuous latent, 1B-scale denoiser, and simple token-level zero-shot controls used here; DIFFINITY adds tokenizer-aligned global regular-language scoring and gradients without retraining the base model.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2305.18619v1, submitted 30 May 2023; current primary record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "DIFFINITY is the first training-free method that steers a continuous diffusion language model to regular-expression syntax by analytically computing the probability of validity and using its gradient as principled classifier guidance, yielding 68-96% satisfaction with little quality loss and outperforming autoregressive constrained decoding.",
+    "evidence": "The paper gives a vocabulary-alignment construction and proofs for exact DFA acceptance under position-wise decoder marginals, integrates the differentiable score into PLAID, and evaluates 180 constraints. Strong evidence includes 92.9% mean natural-language satisfaction versus 20.5% for GPT2-Large+Guidance, much better quality than LLaDA+DINGO, and near-unchanged Llama perplexity; ablations cover guidance scale, native PLAID control, padding, classifier guidance, latency, and a small prefix-ratio test.",
+    "reviewer_inference": "The defensible novelty is the differentiable tokenizer-aligned weighted-automaton score as a useful training-free control signal for a continuous text-diffusion latent. The stronger conditional-distribution claim conflates exact acceptance under a unigram decoder proxy with the full posterior likelihood and conflicts with final argmax decoding. The empirical advantage is task- and protocol-specific: JSON validity trails GPT-2 baselines, permissive padding matters greatly, fluency drops, hard schemas are filtered, costs are 2-3x, and no method-level validity guarantee or semantic-correctness evidence is provided. A July 2026 finite-automaton method now offers exact constrained mean-field inference for discrete diffusion with guaranteed validity and much lower reported overhead, sharpening DIFFINITY's niche to continuous-latent gradient guidance."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Atomic end-to-end review of all 16 pages of current arXiv:2602.12468v2, including the main theory, Tables 1-2, Figure 2, all references, hardware/model pins, classifier details, benchmark construction, padding and quality tables, and the distribution-preservation appendix. Provenance exactly matches the 2026-08-23 fulltext index and was hash-checked locally. The audit separates exact weighted-automaton algebra from unproved posterior-conditioning language; checks sampled-score versus argmax-decoder semantics, finite-token comparisons, padding asymmetry, benchmark exclusions, guidance tuning, external-judge quality, computational scaling, and negative results. Nine direct competitors were inspected at version-pinned primary arXiv records, including the post-publication July 2026 exact finite-automaton diffusion decoder; all landscape checks are dated 2026-08-23."
+}

@@ -1,0 +1,389 @@
+{
+  "stable_id": "arxiv:2602.20296",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2602.20296",
+    "pdf_sha256": "b99d69fa24bd1b182cc38a6504790c9a69381dd6f093d314ab0b817bac03e76c",
+    "text_sha256": "98d078b87e7f90c3adaf0a4907d81ececa049a5cc2efcfcab3e2fadb2a0d98fa",
+    "page_count": 21,
+    "extracted_at": "2026-08-23T12:48:33.168928+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a strong reasoning teacher recursively turn worked solutions into verified easier subproblems, infer a dataset-level prerequisite graph and difficulty score from concept tags, and use that score for an easy-to-hard curriculum that improves small language models on MATH, AIME, and out-of-distribution code generation beyond ordinary SFT, direct distillation, and existing augmentation?",
+  "key_findings": [
+    {
+      "claim": "DECOMP recursively converts each worked solution into a tree of tagged subproblems, but its guarantee that every child is simpler is an inductive assumption rather than a verified property.",
+      "evidence": "A teacher segments a chain of thought into at most k conceptual steps, tags each step, generates a question grounded in the original problem/step/tag, solves the new question, and recurses to depth D. The introduction says every sub-step is 'by definition simpler,' yet the algorithm measures neither human difficulty nor student success before accepting a child. A generated question may preserve the hard operation, omit necessary context, or introduce new requirements; later difficulty scores are themselves derived from this generated tree.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Introduction / recursive decomposition rationale"},
+        {"page": 3, "section": "Figure 1 and Section 3.1"},
+        {"page": 4, "section": "Recursive expansion and Algorithm 1"},
+        {"page": 10, "section": "Table 4 / low-, medium-, and high-score examples"}
+      ]
+    },
+    {
+      "claim": "The acceptance check is teacher self-consistency plus final-answer equivalence, not an independent proof that the generated problem and reasoning trace are correct.",
+      "evidence": "The teacher first produces answer a_i with access to the original context and then solves q_i again without that context to obtain hat a_i; a symbolic verifier accepts when the numerical answers agree, with retries otherwise. The same model can repeat a shared mistake, final-answer agreement does not validate intermediate reasoning or tag correctness, and the paper gives no acceptance rate, retry distribution, manual precision audit, false-accept rate, or equivalent executable validation protocol for generated code examples.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "Section 3.1 / Verification"},
+        {"page": 4, "section": "Algorithm 1 / auto-solver and consistency check"},
+        {"page": 10, "section": "Limitations and broader impacts"}
+      ]
+    },
+    {
+      "claim": "The concept-graph edge definition conflicts with the claimed prerequisite direction, and the algorithm does not establish that the merged graph is acyclic.",
+      "evidence": "Section 3.2 declares edge (u,v) to mean that v depends on prerequisite u and indegree-zero nodes to be foundational, but then inserts (t_parent,t_child) when a complex parent is decomposed into a simpler child. Under the paper's own decomposition semantics the parent depends on the child, so the edge should run child-to-parent. Appendix B instead says atomic Addition has edges to more advanced operations, agreeing with child-to-parent and contradicting the construction prose. Aggregating repeated tags across examples and then clustering/rewiring them can also create directed cycles; no cycle detection, edge deletion, or condensation step is given, yet the depth recurrence requires a DAG.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Introduction / graph of tag relationships"},
+        {"page": 5, "section": "Section 3.2 / edge semantics and depth recurrence"},
+        {"page": 17, "section": "Appendix B and Figure 3 / Addition linked to advanced operations"}
+      ]
+    },
+    {
+      "claim": "Concept clustering and difficulty scoring are under-specified and visibly merge non-equivalent skills, making the learned ordering difficult to reproduce or interpret.",
+      "evidence": "Tags are greedily clustered by embeddings above threshold delta, but the embedding model, threshold, tag ordering, representative-selection rule for ties, and sensitivity analysis are absent. Appendix clusters include Addition with Multiplication, Arithmetic Sequence with Modular Arithmetic, Absolute Value with complex/vector magnitude, and Cauchy-Schwarz with generic linear inequalities. Difficulty is l(s)=alpha_1 times direct child count plus alpha_2 times graph depth, yet neither coefficient is reported. Branch count is capped and teacher-dependent, while graph depth inherits edge and clustering errors.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Section 3.2.1 / embedding clustering"},
+        {"page": 6, "section": "Equation for structural complexity, conceptual depth, and difficulty"},
+        {"page": 19, "section": "Table 7 / MATH cluster tags"},
+        {"page": 20, "section": "Table 8 / frequent AIME cluster tags"},
+        {"page": 21, "section": "Table 9 / rare AIME cluster tags"}
+      ]
+    },
+    {
+      "claim": "The staged curriculum is described as compute-matched, but the PDF omits the schedule details needed to verify that claim or distinguish ordering from token exposure and forgetting.",
+      "evidence": "Examples are partitioned by score quantiles and trained in disjoint easy-to-hard stages with early stopping, while the training budget is said to be split across the curriculum. Elsewhere all models are said to train for five epochs. The paper does not report K in the main method, stage token budgets, early-stopping validation sets/patience, whether hard stages replay easy examples, batch counts, sequence-length totals, or the matched number of optimizer updates. The curriculum comparison holds the 4,500 or 385 examples fixed, but not enough implementation detail is present to reproduce exposure exactly.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "Section 3.3 / quantile curriculum and compute-match claim"},
+        {"page": 7, "section": "Training Details"},
+        {"page": 9, "section": "Curriculum learning is beneficial"},
+        {"page": 18, "section": "Appendix C / five difficulty bins"}
+      ]
+    },
+    {
+      "claim": "On MATH-500, DECOMP's largest defensible controlled effect is small: decomposition improves over 360-example SFT, while curriculum ordering adds only 0.8 percentage point and all nearby results have overlapping reported uncertainty.",
+      "evidence": "For Qwen2.5-1.5B, Table 1 reports base 47.2+/-2.2, full-7,500-example SFT 47.6+/-2.2, 360-example SFT 48.4+/-2.2, direct distillation 49.6+/-2.2, MetaMath augmentation 37.2+/-6.8, MuggleMath 50.4+/-2.2, DECOMP 50.8+/-2.2, and DECOMP plus curriculum 51.6+/-2.2. Thus decomposition is +2.4 over 360-example SFT but uses 4,500 examples, is +1.2 over direct distillation, and is only +0.4 over MuggleMath; ordering itself is +0.8. No paired significance test or confidence interval for these differences is supplied.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Table 1 / MATH-500"},
+        {"page": 8, "section": "Section 4.2 / headline improvement claims"},
+        {"page": 9, "section": "Curriculum effect statement"}
+      ]
+    },
+    {
+      "claim": "The MATH sampling appendix contains a direct count contradiction: all displayed subject and difficulty rows sum to 360, while its total says 300/7,500.",
+      "evidence": "The domain counts 84+36+43+63+41+58+35 equal 360, and the level counts 26+65+77+81+111 also equal 360. Table 1 uses 360 for SFT and direct distillation. Table 5 nevertheless prints '#Sampled/#Total 300/7500,' so the exact source subset is not unambiguously documented.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Table 1 / 360-example controls"},
+        {"page": 17, "section": "Table 5 / MATH subset counts"}
+      ]
+    },
+    {
+      "claim": "AIME-2025 results are directionally favorable to DECOMP but too small and confounded to support the paper's claim of significant superiority or robust generalization.",
+      "evidence": "Training Qwen3-4B-Base on only AIME-2024, Table 2 reports base 10.0+/-5.6, 30-example SFT 3.3+/-3.3, direct distillation 6.7+/-4.6, 114-example MetaMath 4.4+/-4.2, 385-example DECOMP 13.3+/-6.3, and curriculum 16.7+/-6.9. The 3.4-point curriculum increment is approximately one question on the 30-problem test, all uncertainty ranges overlap broadly, and DECOMP has 12.8 times as many examples as SFT and 3.4 times as many as MetaMath. Comparing 16.7 with Qwen2.5-72B-Instruct's 15.0 also changes the model, training data, and evaluation provenance.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Datasets / 30 AIME problems per year"},
+        {"page": 8, "section": "Table 2 and Section 4.2"},
+        {"page": 9, "section": "Curriculum relative-improvement claim"}
+      ]
+    },
+    {
+      "claim": "The additional DeepSeek-R1-Distill math result does not isolate DECOMP from ordinary post-training.",
+      "evidence": "On MATH, DeepSeek-R1-Distill-Qwen-1.5B is reported at 23.33+/-7.85 before training and 30.00+/-8.51 after SFT-DECOMP on 4,500 examples. There is no same-model SFT on the original 360 or 7,500 MATH examples, no direct-distillation control, and no curriculum row, so the 6.67-point difference could reflect generic supervised adaptation, additional tokens, or DECOMP.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 8, "section": "Table 2 / DeepSeek-R1-Distill-Qwen-1.5B on MATH"}
+      ]
+    },
+    {
+      "claim": "Code transfer improves after DECOMP, especially for the distilled checkpoint, but the table omits the promised data counts and lacks controls needed to attribute the gain to recursive decomposition.",
+      "evidence": "CodeForces C++ reasoning traces are transformed by o4-mini and evaluated on Python HumanEval. Qwen2.5-1.5B-Instruct scores 34.15+/-3.71 as base, 35.37+/-3.74 after ordinary SFT, and 42.68+/-3.87 after DECOMP. DeepSeek-R1-Distill-Qwen-1.5B scores 36.01+/-1.85 before and 57.90+/-0.98 after DECOMP, but has no ordinary-SFT row. Although the caption says '# data refers to the number of examples,' Table 3 has no data-count column; it also has no direct-distillation, alternative augmentation, or curriculum comparison.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "CodeForces-CoTs to HumanEval setup"},
+        {"page": 9, "section": "Table 3 / HumanEval"}
+      ]
+    },
+    {
+      "claim": "The proposed difficulty score correlates monotonically with zero-shot Qwen3-4B accuracy, but the quantile table is mathematically inconsistent with the stated partition rule.",
+      "evidence": "Figure 4 reports 72.29%, 68.67%, 65.06%, 64.69%, and 26.93% accuracy from Q1 to Q5. Table 6 calls the bins equal-sized but assigns ranges 2.0-4.0, 4.0-4.0, 4.0-6.0, 6.0-10.0, and 10.0-20.0. Under Section 3.3's q_{j-1} <= l < q_j definition, the 4.0-4.0 interval is empty; if tied score-4 examples were split by index, the printed interval and formal partition are wrong. The figure gives no sample counts, uncertainty, rank coefficient, held-out human difficulty labels, or comparison with solution length, source difficulty, teacher confidence, or student loss.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Section 3.3 / formal quantile partition"},
+        {"page": 17, "section": "Appendix C / equal-sized-bin claim"},
+        {"page": 18, "section": "Table 6 and Figure 4 / zero-shot accuracy"}
+      ]
+    },
+    {
+      "claim": "The benchmark table reports the same Qwen2.5-1.5B checkpoint at two incompatible MATH-500 levels, underscoring evaluation-harness sensitivity.",
+      "evidence": "The open-weights block lists Qwen2.5-1.5B at 35.0, while the experiment block lists Base at 47.2+/-2.2 and footnotes that it evaluates the released Qwen/Qwen2.5-1.5B checkpoint with LightEval. A 12.2-point gap for the nominally same model is not explained by prompt, checkpoint variant, extraction, or answer-grading differences, so cross-row comparisons to externally reported models are not controlled.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Table 1 / open-weights and Base rows plus footnote"}
+      ]
+    },
+    {
+      "claim": "The paper does not report the ablations needed to locate the active ingredient among more synthetic examples, recursive depth, teacher reasoning, verification, tag graphs, the two score terms, clustering, and staged ordering.",
+      "evidence": "The only clean same-data comparison is shuffled DECOMP versus DECOMP plus curriculum: +0.8 on MATH and +3.4 on AIME. There is no depth-0/1/D curve; no unverified versus verified generation; no flat step extraction; no random, reversed, source-difficulty, length, teacher-score, or student-loss curriculum; no SC-only/CD-only coefficient sweep; no uncluttered tag oracle; and no fixed-example/token matched direct augmentation. The paper therefore supports the whole recipe as a candidate, not the proposed causal story that recursive elemental skills and the graph score drive gains.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "Difficulty equation and curriculum method"},
+        {"page": 7, "section": "Baselines and Table 1"},
+        {"page": 9, "section": "Curriculum learning is beneficial"},
+        {"page": 17, "section": "Appendix B-C"}
+      ]
+    },
+    {
+      "claim": "Exact reproduction is blocked by missing generator and training provenance even though generation quality and cost are central to the method.",
+      "evidence": "The PDF names GPT-4o for math and o4-mini for code but not dated model snapshots, prompts beyond the high-level algorithm, temperature, seed, maximum depth D, maximum steps k, retry budget R, acceptance rates, generation token/cost totals, embedding model, delta, alpha_1/alpha_2, graph-cycle handling, curriculum K in the main experiment, or early-stopping details. It reports three training seeds but does not define what the plus/minus values represent or provide per-seed outcomes and significance tests.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Section 3.1 / teacher assumption"},
+        {"page": 4, "section": "Algorithm 1 / unspecified D, k, and retries"},
+        {"page": 5, "section": "Section 3.2.1 / unspecified embedding and delta"},
+        {"page": 6, "section": "Difficulty coefficients and teacher model names"},
+        {"page": 7, "section": "Training Details / three seeds"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Use a strong step-by-step teacher to reverse-engineer simpler training tasks from the intermediate steps of hard examples, infer a global skill graph from teacher-generated concept tags, and stage student SFT from low to high graph-derived difficulty.",
+    "mechanism": "For each problem-solution trace, split reasoning into tagged steps, generate and self-verify a question/solution for every step, recurse on accepted children, merge synonymous tags by embedding similarity, connect parent-child tags across the corpus, score each sample by direct child count plus graph depth, partition scores into quantiles, and train Qwen students sequentially over easy-to-hard bins under a nominally split budget.",
+    "assumptions": [
+      "A teacher's solution trace decomposes into constituent steps that can be converted into meaningfully simpler and independently answerable problems.",
+      "Agreement between two answers from the same teacher plus a symbolic final-answer check is a sufficiently precise correctness filter.",
+      "Teacher-generated short concept tags correspond to stable skills, and embedding similarity clusters synonyms without merging distinct prerequisites.",
+      "The aggregated tag graph is acyclic and its documented edge direction matches prerequisite order.",
+      "Direct child count measures structural complexity and longest graph depth measures conceptual difficulty across heterogeneous tasks.",
+      "Unreported positive coefficients alpha_1 and alpha_2 and tied quantile handling define a stable difficulty ordering.",
+      "Sequential disjoint-bin SFT does not catastrophically forget early skills and is compute/token matched to shuffled training.",
+      "More generated examples, teacher knowledge, verification, graph scoring, and curriculum order can be separated by the reported baselines despite unequal data counts."
+    ]
+  },
+  "techniques": [
+    {"id": "recursive-problem-decomposition", "role": "Expands each worked example into a tree of teacher-generated subproblems grounded in reasoning steps."},
+    {"id": "teacher-student-distillation", "role": "Uses GPT-4o or o4-mini to synthesize supervised traces for smaller Qwen students."},
+    {"id": "self-consistency-verification", "role": "Keeps generated questions when contextual and context-free teacher answers agree under a symbolic verifier."},
+    {"id": "concept-dependency-graph", "role": "Aggregates parent-child concept tags across examples to estimate prerequisite depth."},
+    {"id": "embedding-tag-clustering", "role": "Greedily merges semantically similar teacher tags before graph scoring."},
+    {"id": "difficulty-scored-curriculum", "role": "Combines branching and graph depth, then trains on increasing score quantiles."},
+    {"id": "synthetic-data-augmentation", "role": "Raises example count from a small seed set and tests the augmented corpus under shuffled and staged SFT."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Qwen2.5-1.5B on MATH-500 after MATH SFT",
+      "metric": "Greedy pass@1 accuracy, reported mean plus/minus an undefined dispersion over three training seeds",
+      "result": "Base 47.2+/-2.2; 360-example SFT 48.4+/-2.2; direct distillation 49.6+/-2.2; DECOMP 50.8+/-2.2; DECOMP plus curriculum 51.6+/-2.2.",
+      "baseline": "Full-7,500-example SFT 47.6, MetaMath augmentation 37.2, and MuggleMath 50.4"
+    },
+    {
+      "setting": "Qwen3-4B-Base trained on 30 AIME-2024 questions and evaluated on the 30 AIME-2025 questions",
+      "metric": "Greedy pass@1 accuracy",
+      "result": "Base 10.0+/-5.6; SFT 3.3+/-3.3; direct distillation 6.7+/-4.6; DECOMP on 385 examples 13.3+/-6.3; curriculum 16.7+/-6.9.",
+      "baseline": "MetaMath augmentation on 114 examples 4.4+/-4.2, Qwen2.5-72B-Instruct 15.0, and s1-32B without budget forcing 13.3"
+    },
+    {
+      "setting": "DeepSeek-R1-Distill-Qwen-1.5B on MATH",
+      "metric": "Accuracy",
+      "result": "23.33+/-7.85 before training and 30.00+/-8.51 after 4,500-example SFT-DECOMP.",
+      "baseline": "Base checkpoint only; no matched ordinary-SFT or direct-distillation control"
+    },
+    {
+      "setting": "Qwen2.5-1.5B-Instruct trained from CodeForces C++ traces and tested on Python HumanEval",
+      "metric": "Greedy pass@1",
+      "result": "Base 34.15+/-3.71, ordinary SFT 35.37+/-3.74, and SFT-DECOMP 42.68+/-3.87.",
+      "baseline": "Same checkpoint with ordinary CodeForces-CoTs SFT"
+    },
+    {
+      "setting": "DeepSeek-R1-Distill-Qwen-1.5B trained from CodeForces traces and tested on HumanEval",
+      "metric": "Greedy pass@1",
+      "result": "Base 36.01+/-1.85 and SFT-DECOMP 57.90+/-0.98.",
+      "baseline": "Base checkpoint only; no ordinary-SFT row and no data count"
+    },
+    {
+      "setting": "Same DECOMP examples shuffled versus ordered by proposed score",
+      "metric": "Absolute accuracy increment",
+      "result": "+0.8 point on MATH-500 and +3.4 points on AIME-2025.",
+      "baseline": "Randomly shuffled DECOMP dataset"
+    },
+    {
+      "setting": "Zero-shot Qwen3-4B-Base on five AIME-2024 DECOMP score groups",
+      "metric": "Accuracy by claimed equal-sized quintile",
+      "result": "72.29%, 68.67%, 65.06%, 64.69%, and 26.93% from easiest to hardest.",
+      "baseline": "Monotonic score ordering; no source-difficulty, length, student-loss, or human-label baseline"
+    },
+    {
+      "setting": "Concept-tag clustering and prerequisite graph",
+      "metric": "Qualitative graph and cluster tables",
+      "result": "Dense graph and hundreds of clusters are shown, but no cycle count, clustering precision/recall, edge audit, score stability, or human prerequisite agreement is measured.",
+      "baseline": "No unclustered graph, human taxonomy, or alternative embedding baseline"
+    }
+  ],
+  "limitations": [
+    "Author-identified: DECOMP assumes a sufficiently capable teacher, tasks outside divisible math/code reasoning may not yield meaningful subtasks, teacher hallucinations can corrupt reasoning and curricula, and the method is not ready for high-risk domains.",
+    "Reviewer-identified: the teacher self-verifies its own outputs and only final-answer agreement is checked; generation acceptance precision, intermediate-step validity, and code verification are not audited.",
+    "Reviewer-identified: parent-child edge orientation contradicts the stated prerequisite semantics and Appendix B, while no acyclicity enforcement makes the longest-path depth potentially undefined.",
+    "Reviewer-identified: the embedding model, clustering threshold/order, graph repair, alpha coefficients, recursion depth, step cap, retry cap, prompts, and dated teacher snapshots are missing.",
+    "Reviewer-identified: displayed clusters merge distinct concepts and contain overlapping taxonomies, undermining graph depth as a clean conceptual variable.",
+    "Reviewer-identified: DECOMP usually receives far more examples than SFT/direct-distillation/MetaMath controls; token counts, teacher compute, generation cost, and optimizer updates are not matched.",
+    "Reviewer-identified: central accuracy differences are small relative to the reported plus/minus terms, whose definition is absent; no per-seed results, paired tests, confidence intervals for differences, or multiple-testing correction are given.",
+    "Reviewer-identified: AIME-2025 contains only 30 items, so the curriculum increment is roughly one question and cannot support a robust broad-generalization claim.",
+    "Reviewer-identified: the code table omits its promised number-of-examples column and lacks matched SFT for the strongest DeepSeek gain.",
+    "Reviewer-identified: the MATH appendix total conflicts with row sums, the difficulty quantiles contain an empty 4.0-4.0 interval under the paper's formula, and the same Qwen checkpoint is listed at 35.0 and 47.2.",
+    "Reviewer-identified: no factorial ablation separates additional synthetic data, teacher quality, recursive depth, verification, clustering, graph direction, structural score, conceptual score, and curriculum order.",
+    "Reviewer-identified: MATH-500, AIME, CodeForces, and HumanEval form a narrow benchmark suite with possible contamination and harness sensitivity; no held-out generator, teacher, language, or non-STEM domain is tested."
+  ],
+  "failure_modes": [
+    "A teacher can generate a child problem that is equally hard, harder, underspecified, or unrelated while still producing the same final answer twice.",
+    "Self-consistency can preserve a shared hallucination, invalid derivation, leaked context, or mislabeled concept.",
+    "Reversed prerequisite edges can assign foundational concepts high depth and complex parent concepts low depth, inverting the intended curriculum.",
+    "Cross-example tag aggregation or cluster contraction can create cycles, making recursive maximum depth undefined or implementation dependent.",
+    "Greedy embedding clustering can merge Addition with Multiplication or other distinct skills, while synonyms remain split into competing nodes.",
+    "Branch count can measure teacher verbosity or the cap k rather than intrinsic structural complexity.",
+    "Unreported alpha coefficients and tied quantile rules can substantially reorder the same generated dataset.",
+    "Sequential disjoint-stage training can catastrophically forget early skills or gain merely from a changed learning-rate/token-length trajectory.",
+    "A larger synthetic set can beat a much smaller SFT control because of exposure volume rather than decomposition structure.",
+    "Tiny AIME changes can reverse with one test item or training seed and be overstated as significant generalization.",
+    "C++-to-Python HumanEval gains can reflect generic reasoning distillation, instruction formatting, or more data rather than recursive code decomposition.",
+    "Changing closed teacher aliases over time can silently change the generated tree, verification rate, tag graph, and final curriculum.",
+    "A nominally strong external baseline can underperform because prompts, answer extraction, or checkpoint variants differ, as the duplicate Qwen MATH rows illustrate."
+  ],
+  "reusable_insights": [
+    "Reasoning traces provide a practical scaffold for synthesizing subproblem supervision, but child difficulty should be validated against student success or human judgments rather than assumed.",
+    "Use independent generators/verifiers or formal execution and audit intermediate reasoning, not only agreement between two calls to the same teacher.",
+    "Define prerequisite edges from simpler child to complex parent, condense strongly connected components, and publish cycle/edge audits before using graph depth.",
+    "Report tag-clustering precision, representative stability, threshold sweeps, and examples of false merges; a human skill taxonomy is a useful oracle baseline.",
+    "Match examples, tokens, optimizer steps, and teacher-generation budget separately to distinguish data volume, distillation quality, and ordering effects.",
+    "Compare shuffled, easy-to-hard, hard-to-easy, random-score, length, source difficulty, teacher confidence, and student-loss curricula on the identical examples.",
+    "For small benchmarks such as AIME, publish per-item and per-seed outcomes and use exact paired uncertainty rather than headline percentages.",
+    "A dataset cartography graph is valuable only when coverage and dependency edges are validated independently of the model that generated them."
+  ],
+  "open_questions": [
+    "What fraction of generated subproblems are independently correct, self-contained, genuinely simpler, and tagged with the right prerequisite under human or formal audit?",
+    "How do depth D, step cap k, retry cap R, teacher snapshot, and verifier independence change quality, cost, and downstream accuracy?",
+    "Does the concept graph remain acyclic after aggregation and clustering, and which edge orientation was actually used in the reported scores?",
+    "What embedding model, delta, alpha_1, alpha_2, tie-breaking rule, K, and stage budget reproduce Tables 1-3?",
+    "Do gains survive exact example-, token-, update-, and generation-compute matching against direct distillation and modern augmentation methods?",
+    "Does an SC-only or CD-only score beat response length, source difficulty, teacher confidence, student loss, or a random order?",
+    "Can a larger AIME-style evaluation with fresh contamination-resistant problems confirm the one-question curriculum gain?",
+    "Does DECOMP help the same student and benchmark when the teacher, seed dataset, programming language, or domain changes?",
+    "Can replay or mixed-stage curricula avoid forgetting and outperform the paper's disjoint sequential bins?",
+    "Which component is necessary: recursive generation, contextual grounding, consistency verification, concept tags, graph depth, or ordering?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2309.12284",
+      "title": "MetaMath: Bootstrap Your Own Mathematical Questions for Large Language Models",
+      "url": "https://arxiv.org/abs/2309.12284",
+      "relationship": "Direct math-data augmentation baseline that rewrites seed questions from multiple perspectives and trains on MetaMathQA.",
+      "difference": "MetaMath broadens questions by rephrasing and backward/self-verification transformations without a recursive prerequisite graph; DECOMP instead derives subproblems from solution steps and orders them by a learned graph score, but does not data/token-match MetaMath in its tables.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v4, ICLR 2024 spotlight version (2024-05-03)"
+    },
+    {
+      "canonical_id": "acl:2024.acl-long.551",
+      "title": "MuggleMath: Assessing the Impact of Query and Response Augmentation on Math Reasoning",
+      "url": "https://aclanthology.org/2024.acl-long.551/",
+      "relationship": "Direct query-evolution and multiple-reasoning-path augmentation competitor with scaling and cross-domain analyses.",
+      "difference": "MuggleMath studies augmentation amount and reports weak AugGSM8K-to-MATH and AugMATH-to-GSM8K transfer; DECOMP uses far fewer examples in its table and adds recursive skill ordering, but exceeds MuggleMath by only 0.4 MATH point within reported uncertainty.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ACL 2024 proceedings, Anthology 2024.acl-long.551, pages 10230-10258"
+    },
+    {
+      "canonical_id": "acl:2024.acl-long.151",
+      "title": "MathGenie: Generating Synthetic Data with Question Back-translation for Enhancing Mathematical Reasoning of LLMs",
+      "url": "https://aclanthology.org/2024.acl-long.151/",
+      "relationship": "Direct generator-verifier competitor that transforms seed solutions, back-translates them into questions, and filters code-integrated solutions.",
+      "difference": "MathGenie uses solution-grounded back-translation and rationale verification for diverse high-fidelity problems; DECOMP recursively targets intermediate steps and adds a curriculum graph, but its same-teacher agreement check is weaker than an independent correctness audit.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ACL 2024 proceedings, Anthology 2024.acl-long.151, pages 2732-2747"
+    },
+    {
+      "canonical_id": "acl:2024.findings-naacl.185",
+      "title": "MuMath: Multi-perspective Data Augmentation for Mathematical Reasoning in Large Language Models",
+      "url": "https://aclanthology.org/2024.findings-naacl.185/",
+      "relationship": "Direct multi-perspective math augmentation competitor using reformulation, backward creation, question alteration, and nested multitask construction.",
+      "difference": "MuMath systematically varies augmentation perspectives and ablates them; DECOMP's distinctive addition is recursive step-based simplification and graph ordering, but it lacks an equally granular component ablation.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "Findings of NAACL 2024, Anthology 2024.findings-naacl.185, pages 2932-2958"
+    },
+    {
+      "canonical_id": "acl:2024.emnlp-main.274",
+      "title": "MuMath-Code: Combining Tool-Use Large Language Models with Multi-perspective Data Augmentation for Mathematical Reasoning",
+      "url": "https://aclanthology.org/2024.emnlp-main.274/",
+      "relationship": "Direct augmentation and staged-training competitor that combines code-nested solutions with external Python execution.",
+      "difference": "MuMath-Code relies on executable tools and a two-stage CoT/code curriculum; DECOMP remains tool-free at student inference, recursively generates prerequisite-like questions, and tests code transfer, but does not compare against executable verification or MuMath-Code under matched models.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "EMNLP 2024 proceedings, Anthology 2024.emnlp-main.274, pages 4770-4785"
+    },
+    {
+      "canonical_id": "acl:2024.acl-srw.44",
+      "title": "Curriculum Learning for Small Code Language Models",
+      "url": "https://aclanthology.org/2024.acl-srw.44/",
+      "relationship": "Direct code-curriculum competitor using cyclomatic and Halstead difficulty and multiple schedules for small decoder-only models.",
+      "difference": "Nair et al. use deterministic software-complexity metrics and find stronger effects on execution than completion; DECOMP learns teacher/tag-based difficulty and reports HumanEval decomposition gains but no code-curriculum row or comparison to software metrics.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ACL 2024 Student Research Workshop, Anthology 2024.acl-srw.44, pages 390-401"
+    },
+    {
+      "canonical_id": "arxiv:2410.01504",
+      "title": "PersonaMath: Boosting Mathematical Reasoning via Persona-Driven Data Augmentation",
+      "url": "https://arxiv.org/abs/2410.01504",
+      "relationship": "Direct teacher-generated math-data competitor combining persona diversification with reflection on challenging questions.",
+      "difference": "PersonaMath targets contextual diversity and reflective quality with 128.9K examples; DECOMP targets prerequisite granularity and small seed sets, but its paper cites an older title/version and does not compare with the current Qwen2.5-based PersonaMath result.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2 (2025-02-21)"
+    },
+    {
+      "canonical_id": "arxiv:2407.00900",
+      "title": "From Next-Token to Mathematics: The Learning Dynamics of Mathematical Reasoning in Language Models",
+      "url": "https://arxiv.org/abs/2407.00900",
+      "relationship": "Current MathCAMPS work grounding synthetic problems in 44 human curricular skills and studying when those skills emerge in model training.",
+      "difference": "MathCAMPS uses a human standards taxonomy and symbolic generation to validate skill-specific difficulty; DECOMP induces tags and prerequisites from a teacher's traces, offering seed-specific decomposition but inheriting clustering and graph-direction uncertainty.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, COLM 2025 version (2025-10-14)"
+    },
+    {
+      "canonical_id": "arxiv:2510.26143",
+      "title": "Reasoning Curriculum: Bootstrapping Broad LLM Reasoning from Math",
+      "url": "https://arxiv.org/abs/2510.26143",
+      "relationship": "Current curriculum competitor using a math-first cold start and RL before mixed-domain consolidation.",
+      "difference": "Reasoning Curriculum orders domains and learning objectives with verifiable RL and reports two-stage ablations; DECOMP orders synthetic subproblems within SFT using an induced skill score and does not test RL or broad multi-domain consolidation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 (2025-10-30)"
+    },
+    {
+      "canonical_id": "openreview:sHn5rq6L0O",
+      "title": "On the Limits of Curriculum Learning for Post-Training Large Language Models",
+      "url": "https://openreview.net/forum?id=sHn5rq6L0O",
+      "relationship": "Current exact negative competitor finding no significant SFT or RL curriculum benefit across controlled synthetic reasoning tasks and medium-sized models.",
+      "difference": "Mordig et al. control difficulty and find random sampling competitive, with schedule optima varying by model/task; this directly cautions against attributing DECOMP's small MATH/AIME ordering increments to a general curriculum effect without more seeds, schedules, and matched controls.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2026 OpenReview submission, forum revision modified 2026-02-11"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim a novel reverse-curriculum framework that recursively decomposes worked examples into verified easier problems, introduces a difficulty score combining structural branching and concept-graph depth, and uses the induced hierarchy to improve small language models on math and code.",
+    "evidence": "The paper supplies an explicit recursive algorithm, concept-tag graph and score equations, shuffled-versus-curriculum comparisons, three benchmark tables, a worked case study, a zero-shot score trend, and tag inventories. Prior official work already covers query/response augmentation, back-translation, multi-perspective/nested-task generation, code curricula, human curricular skill graphs, and staged reasoning training; DECOMP's most distinctive element is integrating recursive solution-step subproblem generation with an induced cross-example tag graph and easy-to-hard SFT.",
+    "reviewer_inference": "The integration is plausibly novel, but the evidence does not isolate it. Unequal example counts confound decomposition with data volume, the only clean ordering gains are 0.8 MATH point and roughly one AIME item, a current controlled negative study finds curriculum schedules often indistinguishable from random sampling, and missing hyperparameters plus graph/count contradictions block reproduction. Novelty should therefore be stated as a promising combined recipe and dataset-cartography proposal, not as demonstrated significant superiority, validated prerequisite discovery, or broad self-improvement."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Primary full-text pass over every page of the pinned 21-page PDF, including all equations, Algorithms 1, Tables 1-9, all references, appendices, the concept graph, the zero-shot quintile plot, and the complete tag lists. Result tables on pages 7-10 and appendix pages 17-18 were visually inspected. The official arXiv record was checked on 2026-08-23 and identifies the pinned paper as current arXiv v1 submitted 2026-02-23; the PDF/text identities are fixed by the hashes above. Ten direct competitors, including a current negative curriculum result, were checked against exact current arXiv, ACL Anthology, or OpenReview records. This is not an independent secondary passage check, so the reading remains full_text / primary-full-text-v1."
+}

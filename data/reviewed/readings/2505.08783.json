@@ -1,0 +1,174 @@
+{
+  "stable_id": "arxiv:2505.08783",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2505.08783",
+    "pdf_sha256": "13f1eb3b15be99d789f16683c6a839f9abf52d5d572651582ec691b5d206a977",
+    "text_sha256": "98bccfeb3dce264339b183883a0c6fa57410342f8180dcb3532798dbe6b523b2",
+    "page_count": 46,
+    "extracted_at": "2026-08-23T16:54:57.345718+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a general-purpose LLM synthesize executable, accurate, efficient, and convergent PDE solver code when runtime repair, metric feedback, refinement, and repeated sampling are composed into an inference workflow?",
+  "key_findings": [
+    {
+      "claim": "CodePDE operationalizes solver synthesis as a five-stage executable loop rather than asking the model to predict a PDE solution directly.",
+      "evidence": "Natural-language equations, domain, initial/boundary conditions, and a Python signature prompt generation; runtime errors trigger up to four debugging rounds; executable code is scored by normalized RMSE, resolution convergence, and runtime; the score and code then prompt refinement. Best-of-n selection supplies test-time scaling.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "3, task specification and code generation"},
+        {"page": 5, "section": "Debugging, evaluation, refinement"},
+        {"page": 6, "section": "4, evaluation setup"}
+      ]
+    },
+    {
+      "claim": "Runtime feedback nearly doubles average executability, but a clean first attempt remains unreliable and the hardest equation retains substantial failure.",
+      "evidence": "Across 16 models and five PDE families with 32 samples per cell, average bug-free rate rises from 41% in the initial attempt to 84% after at most four repair rounds. Compressible Navier-Stokes begins at 16.6%; failed-after-four programs are excluded from the appendix's average-iteration analysis.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "5.2, debugging success"},
+        {"page": 8, "section": "Figure 2"},
+        {"page": 18, "section": "A.2, sampling and exclusion protocol"},
+        {"page": 21, "section": "Tables 5-6 and Figure 7"}
+      ]
+    },
+    {
+      "claim": "With extensive selection and refinement, the best generated programs beat the chosen handcrafted reference on four of five benchmark families, but the result is not a compute- or information-matched 'superhuman' comparison.",
+      "evidence": "The main table selects the best of 32 reasoning+debugging candidates, then the five most accurate seeds, generates 12 refinements per seed, and reports the best nRMSE. Selection directly uses benchmark solution error. Reference solvers are fixed implementations rather than receiving an equal search/tuning budget; prompts also name fixed coefficient values to optimize for.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Task/evaluation specification"},
+        {"page": 6, "section": "5.1, reference comparison"},
+        {"page": 7, "section": "Table 1 and refinement selection protocol"},
+        {"page": 28, "section": "PDE prompt templates with fixed benchmark parameters"}
+      ]
+    },
+    {
+      "claim": "Generation and refinement appear separable: reasoning models lead initial synthesis but do not consistently lead feedback-driven editing.",
+      "evidence": "The paper reports o3 and DeepSeek-R1 as strong initial generators, while GPT-4o and DeepSeek-V3 can be competitive or stronger refiners. Increasing candidate count generally lowers best error, with problem/model-specific saturation, supporting diversity plus executable selection rather than a single universal best model.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "5.3-5.4, refinement and test-time scaling; Figure 3"},
+        {"page": 23, "section": "Appendix Figure 12, per-model scaling"}
+      ]
+    },
+    {
+      "claim": "Convergence checks and source inspection reveal a reliability-sophistication trade-off and one systematic reasoning blind spot.",
+      "evidence": "Models that emit simple methods fail fewer empirical convergence tests, while advanced methods sometimes achieve higher order but fail more. Every evaluated agent struggles on reaction-diffusion because generated finite differences miss an analytic reaction subsolution exploited by the reference; readable code makes this diagnosable, though code readability is not proof that the model's hidden reasoning is faithful.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 9, "section": "5.5, Figure 4 convergence distribution"},
+        {"page": 10, "section": "5.7, reaction-diffusion failure"},
+        {"page": 11, "section": "Transparency interpretation"},
+        {"page": 41, "section": "Appendix D, generated/reference code comparison"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Use LLMs as numerical-software synthesizers whose candidate programs can be executed, repaired, quantitatively selected, and refined, thereby retaining established algorithms and human-readable artifacts without training a neural surrogate.",
+    "mechanism": "Sixteen API/open models receive one of five PDE specifications and a solver skeleton. Each produces 32 diverse candidates with reasoning; exception traces are looped back up to four times. Reference trajectories calculate nRMSE and grid refinements estimate convergence. The best five candidates seed 12 score-conditioned revisions each, and the best program is compared with handcrafted, library, neural-operator, and foundation-model baselines.",
+    "assumptions": [
+      "Reference trajectories and nRMSE are available cheaply enough to select and refine candidates.",
+      "Performance on fixed coefficients, grids, and initial-condition distributions generalizes to a useful solver family.",
+      "Empirical resolution tests detect the numerical instabilities that matter at deployment.",
+      "Repeated-sampling cost is acceptable relative to expert implementation and downstream simulation cost.",
+      "Readable generated code enables meaningful audit even when latent chain-of-thought is not faithful.",
+      "Benchmark and solver implementations were not memorized by evaluated models."
+    ]
+  },
+  "techniques": [
+    {"id": "executable-solver-synthesis", "role": "Generates complete Python numerical methods from PDE specifications."},
+    {"id": "runtime-trace-self-debugging", "role": "Feeds execution errors back for up to four autonomous repairs."},
+    {"id": "metric-conditioned-refinement", "role": "Uses measured nRMSE to revise promising solver code."},
+    {"id": "best-of-n-code-search", "role": "Scales inference by sampling and executing multiple solver candidates."},
+    {"id": "empirical-convergence-test", "role": "Checks error behavior across grid resolutions in addition to one-grid accuracy."}
+  ],
+  "evaluations": [
+    {"setting": "Advection, Burgers, reaction-diffusion, compressible Navier-Stokes, and Darcy flow", "metric": "nRMSE of selected executable solver", "result": "Best refined LLM result beats the fixed handcrafted reference on four of five families.", "baseline": "Handcrafted/library solvers, PINN/neural operators, and PDE foundation models."},
+    {"setting": "16 models × five PDEs × 32 candidates", "metric": "Bug-free execution rate", "result": "41% initial average and 84% after up to four self-debugging rounds.", "baseline": "Single-shot code generation."},
+    {"setting": "Resolution sweeps and code execution", "metric": "Empirical convergence order, failure rate, and runtime", "result": "Models trade reliability against higher-order scheme diversity; efficiency varies widely.", "baseline": "Reference solver behavior and cross-model distributions."}
+  ],
+  "limitations": [
+    "Only five PDE families, mostly canonical low-dimensional benchmarks with fixed coefficient regimes, are studied.",
+    "Best-of-32 plus best-seed best-of-12 refinement uses much more search and ground-truth feedback than reference baselines.",
+    "The system presumes a trustworthy evaluator; real PDEs may lack reference trajectories or cheap error signals.",
+    "Empirical convergence on tested grids is not a stability, consistency, conservation, or error-bound proof.",
+    "Provider models, pricing, and hidden training data make contamination and reproducibility hard to audit.",
+    "Execution safety is not analyzed despite running untrusted generated Python.",
+    "Runtime plots do not fully charge LLM inference, failed candidates, debugging, selection, or evaluator generation.",
+    "Human-readable code exposes operations but not necessarily faithful model reasoning."
+  ],
+  "failure_modes": [
+    "The evaluator can select code that overfits fixed grids, coefficients, initial conditions, or reference discretization artifacts.",
+    "Generated code may execute and achieve low average RMSE while violating conservation, positivity, causality, or stability outside the test set.",
+    "Rare boundary conditions and stiff/multiscale regimes can escape the five-family benchmark.",
+    "Self-debugging may patch symptoms, silently suppress exceptions, or hard-code benchmark constants.",
+    "Repeated code execution creates sandbox, resource-exhaustion, and supply-chain risks.",
+    "Best-of-n performance collapses when no reliable ground truth or proxy evaluator is available."
+  ],
+  "reusable_insights": [
+    "Scientific-code evaluation should separate executability, numerical accuracy, convergence, invariants, runtime, and generalization.",
+    "Generation and refinement can be routed to different models rather than assuming one model dominates every workflow stage.",
+    "Test-time scaling is most useful when candidates are diverse and the evaluator is hard to game.",
+    "Always compare automated search with an equal-budget expert or auto-tuned numerical baseline.",
+    "Readable programs enable targeted failure taxonomies, but require sandboxing and independent verification before trust.",
+    "Hold out coefficients, geometries, boundary conditions, and entire equation families to test solver synthesis rather than benchmark tuning."
+  ],
+  "open_questions": [
+    "Can solver candidates be verified against symbolic stability, conservation, and dimensional-consistency constraints before execution?",
+    "How does CodePDE perform on held-out PDE families, irregular meshes, 3D turbulence, and multiphysics coupling?",
+    "What is the compute/energy frontier against expert auto-tuning and classical program synthesis?",
+    "Can weak evaluators provide safe refinement when no reference solution exists?",
+    "How much of performance survives contamination-resistant newly generated equations and hidden tests?",
+    "Can secure sandboxes and proof-carrying code make autonomous solver search deployable?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2502.00963",
+      "title": "PDE-Controller: LLMs for Autoformalization and Reasoning of PDEs",
+      "url": "https://arxiv.org/abs/2502.00963",
+      "relationship": "Closest contemporaneous LLM-PDE framework with program synthesis, but focused on control and formalization.",
+      "difference": "PDE-Controller trains on human and two-million synthetic cases to translate informal control goals into formal specifications and plans. CodePDE is tuning-free and synthesizes numerical solution code with execution/refinement, addressing a different workflow stage and relying more heavily on test-time search.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2502.00963"
+    },
+    {
+      "canonical_id": "arxiv:2509.25194",
+      "title": "Automated Code Development for PDE Solvers Using Large Language Models",
+      "url": "https://arxiv.org/abs/2509.25194",
+      "relationship": "Subsequent multi-agent PDE-library development competitor.",
+      "difference": "LLM-PDEveloper builds or modifies reusable library modules, boundary conditions, and equation terms and reports syntactic/semantic failure mechanisms. CodePDE optimizes standalone benchmark solver functions more extensively for numerical error; library integration and maintainability are less tested.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2509.25194"
+    },
+    {
+      "canonical_id": "openreview:kCHuEo7OfH",
+      "title": "SciML Agents: Write the Solver, Not the Solution",
+      "url": "https://openreview.net/forum?id=kCHuEo7OfH",
+      "relationship": "Independent solver-code paradigm tested on stiff and non-stiff ODEs.",
+      "difference": "SciML Agents emphasizes domain-guided prompting and fine-tuning, with diagnostic problems whose apparent stiffness is misleading. It tests mathematical method selection more directly; CodePDE covers PDE families, richer execution loops, and test-time scaling but can select heavily against reference data.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "OpenReview MATH-AI 2025 submission kCHuEo7OfH"
+    },
+    {
+      "canonical_id": "arxiv:2608.03600",
+      "title": "Large language models for partial differential equation workflows",
+      "url": "https://arxiv.org/abs/2608.03600",
+      "relationship": "Current synthesis spanning PDE discovery, solver generation, control, and real-world workflow gaps.",
+      "difference": "The review situates solver code inside formulation, diagnostics, decisions, and simulation-to-reality limitations. CodePDE provides deeper controlled evidence for one solver-generation stage but does not validate an end-to-end scientific or engineering workflow.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2608.03600"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim the first general inference framework and comprehensive evaluation for LLM-generated PDE solvers, with debugging, refinement, and test-time scaling producing superhuman solver accuracy.",
+    "evidence": "The paper evaluates 16 models, five PDE families, execution repair, nRMSE feedback, best-of-n curves, convergence, runtime, and method diversity. Primary sources show adjacent PDE control and subsequent solver-generation workflows but support CodePDE's early, unusually systematic solver-code study.",
+    "reviewer_inference": "The credible novelty is the modular executable benchmark and empirical decomposition of generation, debugging, refinement, scaling, and convergence. 'Superhuman' is not justified by a best-of-many, ground-truth-selected comparison against fixed reference implementations; robust scientific use still requires hidden-distribution, invariant, security, and equal-budget tests."
+  },
+  "confidence": 0.93,
+  "reviewer_notes": "Primary full-text pass over all 46 pages, including prompts, complete result tables, cost plots, generated/reference code comparisons, and OpenReview-published revision. Numerical values are author-reported; selection-budget, overfitting, evaluator, safety, and reasoning-transparency qualifications are reviewer audits. Four primary arXiv/OpenReview records were checked on 2026-08-23. No solver execution or secondary verification is claimed."
+}

@@ -1,0 +1,210 @@
+{
+  "stable_id": "arxiv:2608.18419",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://arxiv.org/pdf/2608.18419",
+    "pdf_sha256": "42ff141e383599933cb106769cae79422369f24901312872c4c6159c92a82d76",
+    "text_sha256": "b63bd6bf899eb00d5b3ff2717fba3fc06e439a8feed83e05bc3b72794cfd334e",
+    "page_count": 11,
+    "extracted_at": "2026-08-23T08:53:42.540537+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Does LLaMA 3.1-8B solve a synthetic numerical extrapolation task by representing first differences, retrieving the phase-appropriate difference through an induction-like mechanism, and adding it to the final observed number?",
+  "key_findings": [
+    {
+      "claim": "LLaMA 3.1-8B predicts the continuation of irregular sequences whose repeated structure appears only after first differencing.",
+      "evidence": "On 10,000 sequences, each asking for the 30th number from the first 29, the model achieved mean absolute error 4.2748 and R-squared 0.9958. Values were restricted to 0-999 and tokenized as one token each; the first 17 deltas were unique before the sequence reused them.",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "3.1-3.4"
+        },
+        {
+          "page": 3,
+          "section": "3.4.2"
+        }
+      ]
+    },
+    {
+      "claim": "First differences and the final number are linearly decodable at their local token positions, but they have different depth profiles.",
+      "evidence": "Ordinary least-squares probes trained on 4,500 examples and tested on 500 show the target delta becomes accessible after layer 7 and remains above R-squared 0.8 through roughly the first 16 layers. Final-number decodability declines after layer 8. Cross-position control probes have negative or otherwise poor R-squared values.",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "4.1"
+        },
+        {
+          "page": 4,
+          "section": "4.2"
+        }
+      ]
+    },
+    {
+      "claim": "Counterfactual patching supports a localized retrieval-and-addition pathway centered on the stored delta at token 27.",
+      "evidence": "Across 100 sequences selected for zero prediction error, patching the clean final-token query and one clean token state into an otherwise flat corrupt sequence produced a sharp counterfactual-probability effect at token 27 beginning at layer 14; the authors interpret the interaction from layer 15 onward as retrieving the needed delta and adding it to the corrupt final value.",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "5.1"
+        },
+        {
+          "page": 6,
+          "section": "5.2-5.3"
+        }
+      ]
+    },
+    {
+      "claim": "The model's causally weighted attention concentrates on tokens needed to detect cycle onset, align the last delta, retrieve the next delta, and preserve the current value.",
+      "evidence": "On 100 zero-error sequences, the top five token-importance positions were 57, 33, 27, 55, and 25: respectively the final number, repeating-pattern onset, delta to add, number needed for the last delta, and an alignment token that matches the last delta and precedes the retrieved one.",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "6.1"
+        },
+        {
+          "page": 7,
+          "section": "6.2"
+        }
+      ]
+    },
+    {
+      "claim": "Position and phase cues influence retrieval, but the stored delta content is not overridden by positional redirection alone.",
+      "evidence": "Swapping keys at positions 25 and 27 over 100 zero-error instances increased confidence in the counterfactual continuation and reduced confidence in the ground truth, yet the ground-truth token remained more probable after intervention. Values were preserved from the original run to retain delta content.",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "7"
+        },
+        {
+          "page": 8,
+          "section": "7.2-7.4"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Construct a sequence task that defeats direct token copying, then combine behavioral evaluation, location-specific linear probes, and causal activation interventions to test a first-difference induction algorithm.",
+    "mechanism": "Each example is a random walk with unique values and deltas until the delta sequence repeats. The proposed model algorithm computes local first differences, recognizes the repeated delta cycle, uses the last delta as an induction key to retrieve the following delta from an earlier position, and adds that retrieved delta to the final number. Probes test where operands are encoded. Hidden-state and final-query patching test retrieval plus addition. Head-output attribution produces token importance, and RoPE key swaps separate positional alignment from delta content.",
+    "assumptions": [
+      "Because values and early deltas are unique, accurate continuation requires using the repeated first-difference structure rather than copying a previously seen number token.",
+      "Linear decodability at a token position is evidence that the quantity is represented there, although it does not by itself show use.",
+      "Patching a clean final-token query into the corrupt run preserves the retrieval request without introducing an alternative decisive computation.",
+      "The 100 zero-error examples used for causal analysis are representative of the mechanism used across the broader 10,000-example evaluation set.",
+      "Changing model confidence under patching identifies components on the natural computation path rather than merely an artificial repair path."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "structural-negative-control-task",
+      "role": "Uses unique numbers and initially unique deltas so the solution requires recognizing a repeated latent difference pattern rather than surface token repetition."
+    },
+    {
+      "id": "position-specific-linear-probing",
+      "role": "Decodes the required delta and final number layer by layer, with cross-position controls to test whether encoding is local rather than globally distributed."
+    },
+    {
+      "id": "clean-to-corrupt-activation-patching",
+      "role": "Transplants clean hidden states and a clean final-token query into a flat sequence to test whether a stored delta can causally drive a counterfactual sum."
+    },
+    {
+      "id": "causal-value-weighted-attention",
+      "role": "Weights each head's attention-value contribution by the counterfactual probability change from patching that head, yielding token-level functional importance."
+    },
+    {
+      "id": "rope-key-swap",
+      "role": "Redirects position-sensitive keys while preserving original value vectors to separate phase alignment from the numerical content stored in the values."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "LLaMA 3.1-8B predicts the 30th integer for 10,000 comma-separated synthetic sequences; integers are 0-999 single tokens and nonzero deltas are in -9 to 9.",
+      "metric": "Mean absolute error and coefficient of determination.",
+      "result": "MAE 4.2748 and R-squared 0.9958.",
+      "baseline": "The paper defines a naive mean predictor through R-squared but does not report its MAE or compare another model."
+    },
+    {
+      "setting": "Layerwise ordinary least-squares probes on hidden width 4,096, trained with 4,500 sequences and tested with 500.",
+      "metric": "Held-out MAE and R-squared for the required delta at token 27 and final number at token 57.",
+      "result": "Delta R-squared rises above 0.8 after layer 7 and remains relatively stable through about layer 16; final-number decodability declines after layer 8.",
+      "baseline": "Cross-position controls, token 57 for delta and token 27 for final number, perform poorly and delta controls have negative R-squared."
+    },
+    {
+      "setting": "Clean-to-flat-corrupt patching on 100 examples for which the unmodified model has zero MAE.",
+      "metric": "Increase in probability of the counterfactual label 100 plus the clean sequence's target delta.",
+      "result": "The strongest localized effect occurs at token 27 beginning at layer 14, with the authors locating the final-query interaction from layer 15 onward.",
+      "baseline": "Unpatched flat corrupt sequence of repeated 100 values."
+    },
+    {
+      "setting": "RoPE key swap between positions 25 and 27 on 100 zero-error sequences while preserving their original values.",
+      "metric": "Changes and absolute probabilities for ground-truth and counterfactual next-number tokens.",
+      "result": "Confidence shifts toward the counterfactual and away from ground truth, but ground truth remains the more probable token.",
+      "baseline": "Clean unmodified run and corrupt-reference probabilities."
+    }
+  ],
+  "limitations": [
+    "Reviewer-identified: only one model, LLaMA 3.1-8B, is tested, so the mechanism is not shown to be architecture-, scale-, or checkpoint-general.",
+    "Reviewer-identified: the dataset is synthetic, noiseless, bounded to 0-999 single-token integers, and uses small nonzero deltas; this is far narrower than real time-series forecasting.",
+    "Reviewer-identified: causal experiments are restricted to 100 examples with zero MAE, which conditions on successful behavior and cannot explain failures.",
+    "Reviewer-identified: patching the clean final-token query across downstream layers supplies the corrupt run with the clean retrieval directive, so the intervention does not show that the corrupt context could independently form the query.",
+    "Reviewer-identified: probes use more training samples than held-out samples and no regularization or alternative nonlinear probe controls are reported; decodability estimates may be sensitive to the high 4,096-dimensional feature space.",
+    "Author-stated scope: future work is needed to test whether the mechanism extends to other reasoning tasks involving latent structure."
+  ],
+  "failure_modes": [
+    "Multi-token or out-of-range numbers may split arithmetic operands across positions and break the localized single-token circuit.",
+    "Repeated values or deltas remove unique retrieval anchors and may cause the induction-like lookup to select the wrong phase.",
+    "Noisy, drifting, or only approximately periodic deltas may not produce the sharp structural recurrence used by the task.",
+    "Prompts with a different separator or token layout may move or entangle the position-specific representations identified here.",
+    "The inferred circuit may describe only already-correct predictions; errors may arise from a different heuristic or a failed version of the same pathway."
+  ],
+  "reusable_insights": [
+    "To test abstract pattern reasoning, make surface tokens unique while repeating only a derived latent relation.",
+    "Pair probes with causal interventions: probes locate candidate operands, while patching tests whether the model uses them.",
+    "Use a flat corrupt input to separate retrieval and arithmetic repair from continuation cues already present in the context.",
+    "Key-value interventions can separate where an attention head looks from what information it transports.",
+    "Conditioned success-set analyses should always be paired with an error-set analysis before claiming a universal algorithm."
+  ],
+  "open_questions": [
+    "Does the same first-difference circuit operate on multi-token, negative, decimal, or much larger numbers?",
+    "Which specific attention heads and MLPs implement delta construction, retrieval, and addition, and are they necessary under ablation rather than repair patching?",
+    "Do incorrect predictions reflect retrieval-phase errors, arithmetic errors, or reliance on a different heuristic?",
+    "Can the mechanism extrapolate approximate or noisy periodic structure rather than an exact repeated delta sequence?",
+    "Does fine-tuning for time-series forecasting preserve, strengthen, or replace this pretrained circuit?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2307.04721",
+      "title": "Large Language Models as General Pattern Machines",
+      "url": "https://arxiv.org/abs/2307.04721",
+      "relationship": "prior",
+      "difference": "Mirchandani et al. behaviorally demonstrate broad zero-shot sequence completion, including numerical trajectories; this paper narrows to a first-difference task and uses probing and causal patching to propose an internal retrieval-and-addition mechanism."
+    },
+    {
+      "canonical_id": "arxiv:2209.11895",
+      "title": "In-context Learning and Induction Heads",
+      "url": "https://arxiv.org/abs/2209.11895",
+      "relationship": "prior",
+      "difference": "Olsson et al. study heads that copy a token following a repeated token pattern such as A-B ... A; this paper tests induction over a derived numerical relation that is not itself present as a repeated input token, followed by arithmetic composition."
+    },
+    {
+      "canonical_id": "arxiv:2502.00873",
+      "title": "Language Models Use Trigonometry to Do Addition",
+      "url": "https://arxiv.org/abs/2502.00873",
+      "relationship": "prior",
+      "difference": "Kantamneni and Tegmark reverse engineer addition as helix manipulation across several mid-sized models; this paper focuses on how one LLaMA checkpoint derives and retrieves the correct offset from sequence context before performing addition."
+    },
+    {
+      "canonical_id": "arxiv:2410.21272",
+      "title": "Arithmetic Without Algorithms: Language Models Solve Math With a Bag of Heuristics",
+      "url": "https://arxiv.org/abs/2410.21272",
+      "relationship": "prior",
+      "difference": "Nikankin et al. argue that basic arithmetic accuracy arises from an unordered collection of sparse heuristics rather than a robust algorithm; this paper reports a task-specific, staged first-difference retrieval and addition pathway but does not test enough task variation to rule out a specialized heuristic."
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims one of the first mechanistic accounts of concept induction over a latent numerical relation, followed by composition with a current value, rather than ordinary induction over repeated surface tokens.",
+    "evidence": "The target task hides its recurrence in first differences; local probes, clean-to-corrupt patching, token-importance analysis, and key swaps converge on the delta at position 27 and the final value at position 57. Prior primary papers separately establish broad pattern completion, token induction heads, and arithmetic representations or heuristics.",
+    "reviewer_inference": "The novelty claim is plausible but narrower than 'the model learned an abstract algorithm.' The zero-error selection and clean-query patch mean the evidence supports one successful computational route, not a complete natural circuit or robust structure understanding."
+  },
+  "confidence": 0.87,
+  "reviewer_notes": "Author claim: the model performs concept induction over first differences and then addition. Reviewer inference: the evidence is consistent with that mechanism but the intervention partly supplies the clean retrieval query and only analyzes successful examples. All reported counts, metrics, layers, and token positions were checked against pages 2-8. Competitive-landscape metadata was checked against primary arXiv abstract pages."
+}

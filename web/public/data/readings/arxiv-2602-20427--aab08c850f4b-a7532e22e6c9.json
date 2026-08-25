@@ -1,0 +1,409 @@
+{
+  "stable_id": "arxiv:2602.20427",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2602.20427",
+    "pdf_sha256": "8d010ac54903d84f10bf12cb4e522f9afce8f62912a804bcb46df16bf064967c",
+    "text_sha256": "ad77832dac11d0b666f478b90c908ac233e4d17827240cc79455336ea941feba",
+    "page_count": 31,
+    "extracted_at": "2026-08-23T12:48:46.352991+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can representing each operator's start time with a two-parameter continuous distribution provide a more scalable and effective differentiable relaxation for regular and modulo scheduling than a categorical distribution over every possible time step?",
+  "key_findings": [
+    {
+      "claim": "GauS replaces a D-way categorical placement for every operator with an independent Gaussian over continuous time, reducing optimized variables from D|V| to 2|V| and introducing an ordinal-time prior.",
+      "evidence": "Each operator start Xi is parameterized by mean mu_i and standard deviation sigma_i. Integrating the CDF over unit intervals yields the probability of a rounded discrete step, so moving mu transports mass smoothly between adjacent time steps rather than across an unordered one-hot simplex. The appendix later shows logistic, Laplace, and Cauchy CDFs can instantiate the same framework.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "1, Contributions"},
+        {"page": 4, "section": "3.1, Gaussian Reparameterization"},
+        {"page": 5, "section": "3.1-3.2, temporal proximity and discretized probability"},
+        {"page": 18, "section": "E, Distribution-Family Ablation"}
+      ]
+    },
+    {
+      "claim": "The framework expresses dependency, resource, memory, recurrence, and modulo objectives as differentiable functions of per-step probabilities and uses an augmented Lagrangian plus post-rounding legalization.",
+      "evidence": "The main text derives expected dependency violations and expected per-step memory load, then applies LogSumExp to peak objectives. Appendix B supplies communication, resource, wrapped modulo resource/memory, and recurrence formulas. Adam updates mu and sigma while Lagrange multipliers increase with violations; the rounded mean is legalized and may restart optimization.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "3.2, Objectives and Constraints"},
+        {"page": 6, "section": "3.3, Overall Algorithm"},
+        {"page": 14, "section": "A, Legalization and B, Derivations"},
+        {"page": 15, "section": "B.1-B.2, communication and resources"},
+        {"page": 16, "section": "B.3, Modulo Metrics"}
+      ]
+    },
+    {
+      "claim": "On the paper's regular resource-plus-communication formulation, GauS reports substantially better shared-instance quality and scalability than GS-Schedule under a 15-minute limit.",
+      "evidence": "Figure 3 reports a 71.8% geometric-mean advantage over GS-Schedule on shared feasible instances, with GS-Schedule between about 30% and 3x worse and out of memory on several large EPFL graphs. Commercial solvers are competitive on small cases but often time out, fail to find a feasible schedule, or exceed the plot's 4x cutoff as graph size grows.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "Figure 3 and Formulation A"},
+        {"page": 8, "section": "4.2, Formulation A Quality Comparison"}
+      ]
+    },
+    {
+      "claim": "For memory-minimizing regular and synthetic modulo formulations, GauS usually matches or beats the tested heuristics on the reported benchmark plots, but the new modulo claim lacks a differentiable baseline.",
+      "evidence": "The authors report that List Scheduling and Force-Directed Scheduling often use 20-60% more memory, while exact solvers lose scalability. GS-Schedule is evaluated only on Formulation A because the authors say it is not straightforward to extend; Formulation C instead uses recurrence-augmented synthetic EPFL/RW graphs, and EPFL dec has no feasible solution.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "4.1.1-4.1.2, Formulations and Benchmarks"},
+        {"page": 8, "section": "4.1.3-4.2, Baselines and Figures 5-6"},
+        {"page": 9, "section": "4.2, Formulations B and C"},
+        {"page": 25, "section": "Figure 15, no feasible dec solution"}
+      ]
+    },
+    {
+      "claim": "The paper's formulas do not generally compute the claimed expectations of global objectives or constraint violations.",
+      "evidence": "Equation 10 replaces E[max_d Reg(d)] with LogSumExp of E[Reg(d)], but expectation and maximum do not commute. Equation 19 uses ReLU(E[Res(d)]-R), which can be zero even when sampled schedules exceed R; it is not E[ReLU(Res(d)-R)]. The same substitutions are reused for modulo peaks and violations. Equation 16 also truncates communication pairs to d_j>=d_i, so during infeasible optimization it is not the expectation of the defined signed sum over all placements. These are smooth surrogates, not the exact expected discrete costs asserted in Section 3.2.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "3.2, claimed expected objectives and Equation 9"},
+        {"page": 6, "section": "Equation 10"},
+        {"page": 15, "section": "B.1-B.2, Equations 16-19"},
+        {"page": 16, "section": "B.3, modulo peak and violation reuse"}
+      ]
+    },
+    {
+      "claim": "Optimization of a stochastic rounded variable is not shown to be consistent with the final rounded-mean schedule.",
+      "evidence": "All probability objectives concern round(Xi) for Xi sampled from the learned distribution, but Algorithm 1 outputs round(mu_i), not a sample. The text says sigma usually converges to a small value, yet gives no terminal-sigma statistics, annealing rule, or bound transferring expected cost to round(mu). Legalization and reinitialization further decouple the reported discrete incumbent from the relaxed objective.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "3.1-3.2, sigma hardening and Equation 7"},
+        {"page": 6, "section": "3.3, Sampling and Algorithm 1"},
+        {"page": 14, "section": "A.3, empirical legalization behavior"}
+      ]
+    },
+    {
+      "claim": "The stated initialization is undefined for zero-slack operators unless an undocumented special case is implemented.",
+      "evidence": "Algorithm 1 sets sigma_i=kappa(ALAP_i-ASAP_i). Any critical operator with ASAP_i=ALAP_i therefore receives sigma_i=0, contradicting sigma in R+ and causing division by zero in Equation 7's Gaussian CDF arguments. The 3-sigma justification in Appendix D repeats the same formula but supplies no epsilon floor, point-mass branch, or constrained positive parameterization during Adam updates.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "3.1, positive sigma definition"},
+        {"page": 5, "section": "Equation 7"},
+        {"page": 6, "section": "Algorithm 1 initialization"},
+        {"page": 17, "section": "D, 3-sigma initialization rationale"}
+      ]
+    },
+    {
+      "claim": "The modulo legalization routine does not guarantee every hard constraint in Formulation C despite the paper's valid-output language.",
+      "evidence": "Algorithm 3 only shifts times upward to address forward and recurrence dependencies. It stops after at most |V| passes and returns s_new without checking convergence, the maximum depth D, or the modulo resource cap C_Res; indeed the appendix says the limit may signal recurrence violation or depth overflow. Thus a rounded schedule can remain infeasible for latency, recurrence, or resource constraints unless an unreported final verifier/rejection step is used.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "3.3, claim that legalization ensures valid output"},
+        {"page": 7, "section": "Formulation C hard constraints"},
+        {"page": 14, "section": "A.2, Modulo Scheduling Legalization"},
+        {"page": 15, "section": "Algorithm 3"}
+      ]
+    },
+    {
+      "claim": "The O(|V|) statement applies to optimized parameters, not to the full objective-evaluation complexity.",
+      "evidence": "Although there are only two learned scalars per operator, Equations 7-9 and 16-23 construct or sum per-operator probabilities across D steps, implying O(D|V|) probability work and potentially storage unless specialized kernels avoid materialization. Edge-pair sums add graph-dependent cost. The GPU results demonstrate favorable practical memory on tested instances but do not establish an O(|V|) end-to-end time or memory algorithm.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 2, "section": "1, parameter-space claim"},
+        {"page": 5, "section": "Equations 7-9"},
+        {"page": 9, "section": "4.3 and Conclusion, scalability claim"},
+        {"page": 15, "section": "B.1-B.2, sums over D"},
+        {"page": 16, "section": "B.3, modulo sums"},
+        {"page": 19, "section": "G, GPU Efficiency"}
+      ]
+    },
+    {
+      "claim": "The distribution-family ablation narrows novelty from Gaussian scheduling to a generic two-parameter smooth unimodal temporal relaxation.",
+      "evidence": "Across 15 comparable EPFL cases, Gaussian and Cauchy each win six rows; Laplace has geometric-mean cost 1.002 relative to Gaussian, logistic 1.075, and Cauchy 1.066. The authors explicitly say no derivation requires Gaussianity and any smooth symmetric unimodal CDF performs comparably. Gaussian is therefore a reasonable instantiation, not the empirically unique source of the method's benefit.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "3.1, note that framework is not Gaussian-specific"},
+        {"page": 18, "section": "E, Table 2 Distribution-Family Ablation"}
+      ]
+    },
+    {
+      "claim": "The shuffled-time ablation does not isolate only ordinal proximity and contains an internal benchmark-count inconsistency.",
+      "evidence": "Each operator receives a different fixed permutation of its time columns, so resource sums cease to combine operators occupying the same real step and cumulative probabilities no longer mean Pr(Xi<=d). This destroys objective semantics, not just neighborhood order, making the reported 35% degradation an expected consequence of optimizing a meaningless surrogate. The text also says 'remaining 19 graphs' and immediately 'worse on all 15,' while Table 1 lists 15 EPFL graphs and the ablation names priority, which is absent from that table.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "3.1, 35% temporal-proximity claim"},
+        {"page": 17, "section": "Table 1 benchmark inventory"},
+        {"page": 18, "section": "F, Temporal-Proximity Ablation setup"},
+        {"page": 19, "section": "F, benchmark count and results"}
+      ]
+    },
+    {
+      "claim": "The rationale for single-run reporting conflicts with seeded appendix experiments.",
+      "evidence": "Section 4.1 says GauS is deterministic for fixed initialization, has no run variance, and therefore is evaluated once per problem. Appendix D nevertheless uses three seeds per cell for five benchmarks, and Appendix E uses three seeds for five benchmarks, without stating what varies or reporting dispersion. If seeds change initialization or implementation outcomes, main single runs understate uncertainty; if not, replicates are redundant and their means need explanation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "4.1, single-run determinism claim"},
+        {"page": 17, "section": "D, three-seed hyperparameter sweep"},
+        {"page": 18, "section": "E, mixed seed counts in Table 2"},
+        {"page": 28, "section": "Checklist item 7, variance justification"}
+      ]
+    },
+    {
+      "claim": "Equal wall-clock limits do not isolate algorithmic efficiency from heterogeneous hardware and implementation quality.",
+      "evidence": "All methods receive 15 minutes, but GauS and GS-Schedule use A100 GPUs while CPLEX/Gurobi use CPU solver paths on the same heterogeneous server. The GPU appendix itself attributes GS-Schedule's below-40% utilization partly to its 'poor GPU implementation.' These results support practical performance of the evaluated implementations, not a hardware-normalized intrinsic advantage of the relaxation.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "4.1, 15-minute comparison"},
+        {"page": 8, "section": "4.1.3, Baselines"},
+        {"page": 16, "section": "C.1, hardware/software environment"},
+        {"page": 19, "section": "G, GPU utilization interpretation"}
+      ]
+    },
+    {
+      "claim": "The blanket Pareto-optimal and 71.8%-improvement language is more categorical than the evidence.",
+      "evidence": "Section 4.3 says RW_5 eventually finishes slightly worse, Appendix H says GauS is on the Pareto frontier for 'most' workloads, and light crosses conflate no feasible solution with any objective above 4x GauS. Moreover, if a baseline/GauS ratio is 1.718, that is 71.8% higher baseline cost but only a 41.8% reduction from baseline to GauS; the paper does not define which percentage convention its '71.8% improvement' uses.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Figure 3 caption"},
+        {"page": 8, "section": "4.2, reported 71.8%"},
+        {"page": 9, "section": "4.3, RW_5 exception and Pareto claim"},
+        {"page": 20, "section": "H, 'most' workload qualification"},
+        {"page": 21, "section": "Figure 11 full Formulation A tradeoffs"}
+      ]
+    },
+    {
+      "claim": "The new modulo evidence is difficult to reproduce or generalize from the PDF because instance-generation and artifact details are incomplete.",
+      "evidence": "Formulation C adds recurrence and resource constraints to EPFL/RW graphs with only the statement that recurrence count is proportional to graph size; the paper does not specify II selection, resource caps, back-edge sampling, distance distributions, feasibility construction, or instance files. The checklist says code/data were submitted, but the PDF supplies no accessible artifact URL. Table 1, the distribution ablation, and temporal ablation also imply inconsistent EPFL inventories.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 7, "section": "4.1.2, synthetic modulo benchmarks"},
+        {"page": 16, "section": "C.2, Dataset Details"},
+        {"page": 17, "section": "Table 1"},
+        {"page": 18, "section": "Table 2 and F"},
+        {"page": 27, "section": "Checklist item 5, code/data submission statement"},
+        {"page": 30, "section": "Checklist item 12, synthetic data statement"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Encode every operator's ordinal start time with the mean and spread of a continuous unimodal distribution, compute differentiable surrogates of discrete scheduling costs from CDF bin masses, and optimize them on a GPU before rounding and legalization.",
+    "mechanism": "For each node, GauS integrates a Gaussian CDF over integer-centered bins to obtain placement probabilities. Independence makes dependency, memory-lifetime, resource, recurrence, and modulo-wrap terms tractable. LogSumExp smooths peak loads, an augmented Lagrangian raises penalties for constraint violations, Adam updates means and spreads, and ASAP/ALAP or list schedules initialize the search. The mean schedule is rounded, greedily legalized, optionally used to reinitialize optimization, and the best feasible incumbent is compared with differentiable, exact-solver, and heuristic baselines under 15-minute limits.",
+    "assumptions": [
+      "Independent per-operator distributions are an adequate relaxation despite edge correlations and shared resource constraints.",
+      "LogSumExp of expected per-step load is a useful proxy for expected discrete peak load.",
+      "Violations computed after applying ReLU to an expected load adequately enforce sample- or rounded-schedule feasibility.",
+      "Learned spreads approach zero sufficiently that costs under round(X) transfer to the final round(mu) schedule.",
+      "Zero-slack nodes receive a numerically valid special treatment even though sigma=kappa(ALAP-ASAP) gives zero.",
+      "A fixed augmented-Lagrangian rho and multiplier update converge adequately across all formulations and graph scales.",
+      "Regular and modulo legalization preserve enough objective quality and return a fully feasible incumbent.",
+      "Fifteen minutes on heterogeneous CPU/GPU implementations is a fair practical efficiency comparison.",
+      "Synthetic recurrence augmentation represents real modulo scheduling structure and difficulty.",
+      "The chosen EPFL/RW instances, objective weights, depth bounds, resource caps, and II values support broad scheduling claims.",
+      "The 2|V| learned-parameter count is the dominant scalability factor despite D-dependent probability computations."
+    ]
+  },
+  "techniques": [
+    {"id": "ordinal-unimodal-time-relaxation", "role": "Represents each operator with a mean and scale over continuous schedule time."},
+    {"id": "cdf-bin-discretization", "role": "Maps a continuous distribution to differentiable probabilities of rounded integer start steps."},
+    {"id": "independent-expectation-surrogates", "role": "Builds smooth dependency, lifetime, resource, and recurrence terms from independent node probabilities."},
+    {"id": "logsumexp-peak-surrogate", "role": "Approximates maximum expected resource or memory pressure across time steps."},
+    {"id": "augmented-lagrangian-scheduling", "role": "Adapts constraint multipliers while optimizing objectives with Adam."},
+    {"id": "asap-alap-distribution-initialization", "role": "Centers means in feasible timing windows and scales initial spread to node slack."},
+    {"id": "round-legalize-restart", "role": "Converts learned means to integer schedules, repairs selected violations, and restarts from legalized incumbents."},
+    {"id": "modulo-probability-wrapping", "role": "Aggregates time-step probabilities by residue class to model pipelined resource and memory pressure."},
+    {"id": "distribution-family-ablation", "role": "Tests whether Gaussianity matters relative to logistic, Laplace, and Cauchy CDFs."},
+    {"id": "per-node-time-axis-shuffle", "role": "Destroys temporal indexing to probe the value of ordinal structure, while also disrupting objective semantics."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Formulation A on EPFL and random DAGs, comparing GauS, GS-Schedule, CPLEX, Gurobi, List Scheduling, and FDS under 15 minutes (pp. 7-8).",
+      "metric": "Resource-plus-communication objective relative to GauS, feasibility, OOM status, and time-to-incumbent.",
+      "result": "The paper reports GS-Schedule costs about 30% to 3x worse with a stated 71.8% geometric-mean advantage for GauS, plus GS-Schedule OOMs on several large EPFL graphs; the exact percentage convention is unclear (pp. 7-8).",
+      "baseline": "Categorical differentiable scheduling, commercial exact solvers, and two classic heuristics."
+    },
+    {
+      "setting": "Formulation B regular memory scheduling and Formulation C synthetic recurrence-constrained modulo memory scheduling under 15 minutes (pp. 7-9).",
+      "metric": "Peak memory footprint, feasibility, and scalability across EPFL/RW graphs.",
+      "result": "GauS usually matches or beats tested heuristics, which are reported 20-60% worse on many cases; exact solvers degrade with scale, but GS-Schedule is omitted and EPFL dec has no feasible Formulation C solution (pp. 8-9; p. 25).",
+      "baseline": "CPLEX, Gurobi, List Scheduling, and FDS; no differentiable modulo baseline."
+    },
+    {
+      "setting": "Anytime quality-versus-runtime curves for a representative panel (p. 9) and the full Formulation A/B/C benchmark panels (pp. 20-25).",
+      "metric": "Pareto frontier and time to reach comparable objective quality.",
+      "result": "GauS often reaches comparable quality one to two orders of magnitude faster, but RW_5 eventually ends slightly worse and Appendix H qualifies frontier membership as applying to most workloads (p. 9; pp. 20-25).",
+      "baseline": "Solver curves and horizontal final-quality lines for fast heuristics."
+    },
+    {
+      "setting": "One-at-a-time sweeps of kappa, LogSumExp temperature, and Adam learning rate on five EPFL graphs, three seeds per cell (pp. 17-18).",
+      "metric": "Consensus-normalized cost and feasibility over 255 cells.",
+      "result": "254/255 runs are feasible; default kappa is best and default temperature/learning rate are within 1.04x of their sweep best, but hyperparameter interactions and the meaning of seeds for a claimed deterministic method are unresolved (pp. 17-18).",
+      "baseline": "Other values of one hyperparameter while holding the other two fixed."
+    },
+    {
+      "setting": "Gaussian, logistic, Laplace, and Cauchy CDF relaxations on 15 common EPFL Formulation A cases (p. 18).",
+      "metric": "Per-instance cost relative to Gaussian, wins, geometric mean, and mean rank.",
+      "result": "Gaussian and Cauchy each win six cases; Laplace is 1.002x, Cauchy 1.066x, and logistic 1.075x Gaussian in geometric mean, showing the framework is not Gaussian-specific (p. 18).",
+      "baseline": "Gaussian CDF with identical untuned hyperparameters across families."
+    },
+    {
+      "setting": "Per-node fixed permutation of each probability vector's time axis on EPFL Formulation A (pp. 18-19).",
+      "metric": "Final discrete cost degradation versus unshuffled GauS.",
+      "result": "The paper reports shuffling worsens all stated 15 cases by 35% on average, with 10.87x on adder and 5.98x on priority; because the shuffle also destroys cross-node step semantics, it is not a clean proximity-only control (p. 19).",
+      "baseline": "Normal ordinal time indexing with equal learned-parameter count."
+    },
+    {
+      "setting": "A100 GPU profiling of GauS and GS-Schedule over EPFL graphs (p. 19).",
+      "metric": "Peak GPU memory and average GPU utilization.",
+      "result": "GauS maintains comparatively low memory and near-100% reported utilization, while GS-Schedule falls below 40% and OOMs on square, multiplier, and div; the paper partly attributes this to GS-Schedule's implementation (p. 19).",
+      "baseline": "Published categorical GS-Schedule implementation on the same GPU."
+    }
+  ],
+  "limitations": [
+    "Peak-of-expectation and ReLU-of-expectation surrogates are labeled as expected peak costs and expected violations although those operations do not commute with expectation.",
+    "The optimized random rounded schedule and final rounded-mean incumbent need not agree unless sigma is near zero; terminal spreads are not reported.",
+    "Zero ASAP/ALAP slack implies sigma=0 and undefined CDF divisions without an undocumented numerical branch.",
+    "Modulo legalization does not explicitly enforce depth, modulo resource limits, or convergence before returning a schedule.",
+    "Only learned-variable count is O(|V|); objective computation still traverses D step probabilities and graph edges.",
+    "Main results are single runs despite seeded appendix experiments, and no dispersion or confidence intervals are reported.",
+    "The new modulo benchmarks are synthetic augmentations with incomplete recurrence, II, resource-cap, and feasibility-generation details.",
+    "GS-Schedule is omitted on Formulations B/C, leaving the first differentiable modulo claim without a differentiable empirical comparator.",
+    "Equal wall time mixes A100 GPU methods with CPU commercial solvers and implementation-specific utilization.",
+    "Light crosses combine infeasibility with objective values above 4x, obscuring why each baseline fails.",
+    "Distribution and shuffled-time appendices expose inconsistent benchmark inventories and counts.",
+    "The PDF states code/data were submitted but provides no accessible artifact URL or exact generated instances."
+  ],
+  "failure_modes": [
+    "A distribution can have a low smooth surrogate while round(mu) has a poor or infeasible discrete objective.",
+    "ReLU of mean resource load can miss high-probability resource-cap violations hidden by averaging.",
+    "Legalization can shift many nodes, erase the relaxed optimum, exceed modulo depth, or leave resource conflicts.",
+    "Critical-path zero-slack nodes can produce NaNs if sigma=0 is passed through Equation 7.",
+    "Independent node marginals cannot represent coordinated multimodal schedule choices or edge correlations.",
+    "LogSumExp temperature can optimize a flat average rather than the true bottleneck at large tau, or create sharp gradients at small tau.",
+    "Synthetic back edges can overconstrain large graphs, shrinking the search space and masking optimization differences.",
+    "GPU implementation advantages may disappear on different D/|V| regimes, hardware, sparse layouts, or stronger categorical kernels.",
+    "A fixed 15-minute cap can favor rapid heuristics on some cases and hide eventual exact-solver optimality gaps on others."
+  ],
+  "reusable_insights": [
+    "Ordinal discrete decisions can often be parameterized compactly by a location and scale rather than an unstructured categorical vector.",
+    "CDF bin masses provide a simple differentiable bridge between continuous variables and nearest-integer discrete decisions.",
+    "Separating the number of learned parameters from objective-evaluation complexity prevents overstating scalability.",
+    "Every stochastic-relaxation paper should test whether expected surrogate quality transfers to the exact deterministic extraction rule it uses.",
+    "Feasibility repair should be treated as part of the algorithm and audited for every hard constraint, not merely described as a safety net.",
+    "Distribution-family ablations can reveal whether a named distribution is essential or merely one convenient member of a broader relaxation family.",
+    "Wall-clock system comparisons should report hardware-normalized work and distinguish algorithmic from implementation effects."
+  ],
+  "open_questions": [
+    "What special case ensures valid probabilities and gradients for nodes with ASAP=ALAP, and how is positivity of sigma maintained during Adam updates?",
+    "What are terminal sigma distributions, and how well do expected objective, sampled round(X), round(mu), legalized, and final incumbent costs correlate?",
+    "Can peak resource/memory and violation terms be estimated as E[max] and E[ReLU] rather than max/ReLU of expectations without losing scalability?",
+    "Does Algorithm 3 always return a schedule satisfying dependency, recurrence, latency, and modulo resource constraints, or is a missing verifier/rejection loop required?",
+    "What are the actual time and peak-memory complexities when D-step probability tensors and edge terms are included?",
+    "What randomness do appendix seeds control if the algorithm is deterministic, and how variable are objectives across those seeds?",
+    "Will GauS retain its advantage against an optimized sparse/vectorized GS-Schedule implementation on identical hardware?",
+    "How are Formulation C back edges, distances, II values, resource caps, depth bounds, and feasible reference schedules generated?",
+    "Can the method be evaluated on real loop/modulo suites such as those used by SDC or exact modulo schedulers, not only recurrence-augmented combinational graphs?",
+    "Would correlated low-rank or structured distributions improve edge coordination without O(|V|^2) storage?",
+    "Can an ordinal-preserving but neighborhood-scrambled control isolate proximity without destroying the physical meaning of shared time columns?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "pmlr:v235/liu24al",
+      "title": "Differentiable Combinatorial Scheduling at Scale",
+      "url": "https://proceedings.mlr.press/v235/liu24al.html",
+      "relationship": "The direct categorical differentiable scheduler that GauS is designed to replace and its only differentiable empirical baseline.",
+      "difference": "Liu et al. use D-way Gumbel-Softmax variables and a constrained Gumbel trick for scalable scheduling; GauS's contribution is a two-parameter ordinal relaxation with lower learned-state storage and extensions to memory and modulo objectives, though it does not compare those extensions against GS-Schedule.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "PMLR volume 235 proceedings version, ICML 2024, pages 31464-31476 (2024-07-21)"
+    },
+    {
+      "canonical_id": "doi:10.1145/3669940.3707262",
+      "title": "SmoothE: Differentiable E-Graph Extraction",
+      "url": "https://dl.acm.org/doi/10.1145/3669940.3707262",
+      "relationship": "Very close probabilistic differentiable compiler optimization from overlapping authors, using smooth expected costs and GPU acceleration.",
+      "difference": "SmoothE relaxes e-graph extraction rather than start-time scheduling and already demonstrates flexible differentiable objectives; GauS specializes the paradigm to ordinal time, compact per-node CDFs, dependency/lifetime formulas, and modulo wrapping.",
+      "source_kind": "publisher",
+      "checked_at": "2026-08-23",
+      "source_version": "ACM ASPLOS 2025 version of record, pages 1020-1034, DOI 10.1145/3669940.3707262 (2025-03-30)"
+    },
+    {
+      "canonical_id": "arxiv:1611.01144",
+      "title": "Categorical Reparameterization with Gumbel-Softmax",
+      "url": "https://arxiv.org/abs/1611.01144v5",
+      "relationship": "Foundational continuous relaxation used by GauS's categorical scheduling predecessor.",
+      "difference": "Jang et al. provide a reparameterizable categorical estimator that can anneal to discrete one-hot choices; GauS trades arbitrary categorical expressivity for an ordinal unimodal location-scale family and two variables per operator.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v5 (2017-08-05)"
+    },
+    {
+      "canonical_id": "doi:10.1145/1146909.1147025",
+      "title": "An Efficient and Versatile Scheduling Algorithm Based on SDC Formulation",
+      "url": "https://dl.acm.org/doi/10.1145/1146909.1147025",
+      "relationship": "The core scalable exact/LP scheduling formulation used for GauS's commercial-solver baselines.",
+      "difference": "Cong and Zhang encode rich timing constraints as a system of difference constraints with polynomial consistency checks and global optimization; GauS offers GPU gradient search for nonlinear peak objectives but does not retain exactness or feasibility guarantees.",
+      "source_kind": "publisher",
+      "checked_at": "2026-08-23",
+      "source_version": "ACM DAC 2006 proceedings version, pages 433-438, DOI 10.1145/1146909.1147025 (2006)"
+    },
+    {
+      "canonical_id": "doi:10.1109/ICCAD.2013.6691121",
+      "title": "SDC-Based Modulo Scheduling for Pipeline Synthesis",
+      "url": "https://dl.acm.org/doi/10.1109/ICCAD.2013.6691121",
+      "relationship": "Direct prior pipelined scheduling framework supporting hardware-specific constraints and global register minimization.",
+      "difference": "Zhang and Liu extend SDC to modulo scheduling with structured constraint handling; GauS claims the first differentiable modulo formulation and targets much larger synthetic graphs, but its legalization and synthetic evaluation are less exact and less completely specified.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "IEEE/ACM ICCAD 2013 proceedings version, pages 211-218, DOI 10.1109/ICCAD.2013.6691121 (2013-11)"
+    },
+    {
+      "canonical_id": "doi:10.1145/3317670",
+      "title": "Exact and Practical Modulo Scheduling for High-Level Synthesis",
+      "url": "https://dl.acm.org/doi/10.1145/3317670",
+      "relationship": "Strong exact modulo-scheduling comparator that jointly emphasizes optimality, realistic loop benchmarks, and practical time limits.",
+      "difference": "Oppermann et al. integrate initiation-interval optimization in an exact ILP and evaluate 188 real benchmark loops against heuristic and tuned exact formulations; GauS fixes II, optimizes memory on synthetic recurrence-augmented graphs, and prioritizes scale over proof of optimality.",
+      "source_kind": "publisher",
+      "checked_at": "2026-08-23",
+      "source_version": "ACM TRETS version of record, volume 12 issue 2 article 8, DOI 10.1145/3317670 (2019)"
+    },
+    {
+      "canonical_id": "doi:10.1145/37888.37918",
+      "title": "Force-Directed Scheduling in Automatic Data Path Synthesis",
+      "url": "https://dl.acm.org/doi/10.1145/37888.37918",
+      "relationship": "Classic global-distribution heuristic and one of GauS's fast scheduling baselines.",
+      "difference": "Paulin and Knight use force distributions to balance resource usage without differentiable stochastic optimization; GauS supports richer smooth objectives and GPU search but pays repeated gradient iterations and requires post-rounding repair.",
+      "source_kind": "publisher",
+      "checked_at": "2026-08-23",
+      "source_version": "ACM DAC 1987 proceedings version, pages 195-202, DOI 10.1145/37888.37918 (1987)"
+    },
+    {
+      "canonical_id": "arxiv:2512.18134",
+      "title": "Optimal Software Pipelining and Warp Specialization for Tensor Core GPUs",
+      "url": "https://arxiv.org/abs/2512.18134v1",
+      "relationship": "Current exact scheduling system for software pipelines with rich modern GPU constraints.",
+      "difference": "Twill uses off-the-shelf constraint solvers to derive and prove optimal SWP/warp-specialization schedules for a narrower program class, including expert FlashAttention schedules; GauS handles much larger abstract DAGs and smooth objectives but supplies no optimality guarantee or real tensor-core validation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 (2025-12-19)"
+    },
+    {
+      "canonical_id": "arxiv:2607.17422",
+      "title": "LATTICE: Constraint-Directed Scheduling, Memory Planning, and Pipeline Refinement for NPUs",
+      "url": "https://arxiv.org/abs/2607.17422v3",
+      "relationship": "Post-submission current alternative for memory-pressure-aware operator scheduling on realistic NPU command DAGs.",
+      "difference": "LATTICE jointly materializes schedule, memory placement, spills, and pipeline refinement and independently verifies every accepted schedule on six trace-derived workloads; GauS searches a more abstract and scalable start-time space but does not model physical layout or document an equivalent final verifier.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3 (2026-08-04)"
+    },
+    {
+      "canonical_id": "arxiv:2607.25498",
+      "title": "Beyond Prefill-Decode Disaggregation: Dissecting LLM Inference for Heterogeneous Platforms via Dynamic Operator Scheduling",
+      "url": "https://arxiv.org/abs/2607.25498v1",
+      "relationship": "Post-submission adjacent operator scheduler for heterogeneous NPU/PIM execution with real layout and contention concerns.",
+      "difference": "DOPS performs closed-loop operator-to-device placement and weight-layout selection for LLM inference, while GauS assigns abstract start times under HLS-style constraints; DOPS highlights system effects absent from the EPFL/RW objectives but does not offer GauS's generic differentiable relaxation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 (2026-07-28), to appear at MICRO 2026"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim the first Gaussian reparameterization for operator scheduling, a reduction from O(D|V|) to O(|V|) optimized parameters with ordinal-time awareness, and the first differentiable formulation of pipelined/modulo scheduling, yielding Pareto-optimal quality-speed tradeoffs.",
+    "reviewer_inference": "The credible novelty is a compact two-parameter, smooth unimodal CDF relaxation of operator start times plus differentiable lifetime/modulo formulas and a practical GPU implementation. GS-Schedule already established differentiable scheduling, SmoothE already established related probabilistic differentiable compiler optimization, and exact/SDC systems already support rich regular and modulo constraints. Appendix E shows Gaussianity is not essential. The stronger claims about exact expected discrete objectives, guaranteed valid extraction, end-to-end O(|V|) scalability, and universal Pareto optimality are not supported as written."
+  },
+  "confidence": 0.95,
+  "reviewer_notes": "Read all 31 extracted pages of the 2026-06-15 arXiv v2, including Appendices A-H, derivations, algorithms, hyperparameter and distribution ablations, temporal shuffle, GPU profiling, all tradeoff figures, and the NeurIPS checklist. Fifteen findings include explicit negative evidence and equation/algorithm contradiction audits. Ten primary competitors were checked and pinned to immutable PMLR/ACM records or exact arXiv revisions current on 2026-08-23, including two relevant post-submission systems. Numerical tradeoff curves could not be independently recomputed because the PDF has no accessible artifact URL or raw tables for the main figures. Source provenance is copied exactly from fulltext_index; status remains full_text rather than verified."
+}

@@ -1,0 +1,197 @@
+{
+  "stable_id": "arxiv:2507.14172",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2507.14172",
+    "pdf_sha256": "4ab830cba97e6f696d3bfa95594e6d3c07cece79753f1d74a146b8aa90ff2ae6",
+    "text_sha256": "209b6c6df54d3dca4cbc8661d16a7b15a8b70cd89f1cebce1abe312f251235b8",
+    "page_count": 32,
+    "extracted_at": "2026-08-23T16:16:28.831100+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can an LLM-guided program search improve its own sampling and refinement operators from execution traces and hindsight relabeling, rather than only spending more inference compute with a fixed model?",
+  "key_findings": [
+    {
+      "claim": "SOAR closes a search–learning loop around two learned operators: unconstrained Python sampling and execution-feedback-conditioned refinement.",
+      "evidence": "For each ARC task, the search samples 3,000 programs, executes them, then allocates 3,000 refinements with a REX Thompson-sampling/exploration policy. Programs are grouped by predicted test grid and weighted by demonstration accuracy for two-output voting. After search, LoRA/QLoRA fine-tuning improves the same model's sampling and refinement behavior for the next iteration.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "3.2 Program synthesis as evolutionary search"},
+        {"page": 5, "section": "3.3–3.4 Learning and closing the loop"},
+        {"page": 20, "section": "Algorithm 3"}
+      ]
+    },
+    {
+      "claim": "Hindsight relabeling converts every executable failed candidate into supervised data, but its validity is synthetic-task validity rather than progress on the original task.",
+      "evidence": "A sampled program f is relabeled as correct for the new mapping x -> f(x), producing 2.4 million potential rows across 400 training tasks before subsampling at most 50 per task. The greedy-diverse policy mixes 25 high-scoring and 25 low-scoring programs. This solves sparse feedback and expands data, but can train arbitrary or trivial transformations; program length preferences and filtering of hard-coded transduction are extra safeguards rather than guarantees of semantic usefulness.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "3.3 Finetuning sampling capabilities"},
+        {"page": 5, "section": "Data selection and objectives"},
+        {"page": 21, "section": "F Program synthesis using a mix of induction and transduction"}
+      ]
+    },
+    {
+      "claim": "Ablations support learning both generation and repair rather than merely replaying more samples.",
+      "evidence": "On ARC-train with Qwen-2.5-Coder-14B, greedy-diverse sampling fine-tuning reaches 36.46% solved versus 29.67% without fine-tuning. Diverse refinement training raises Sample&Refine from 34.83% to 42.88%. Jointly fine-tuning both roles yields 39.79% sampling and 44.42% search, exceeding the separate-role configurations. A FLOP-matched 12,600-attempt fixed-model baseline remains below one learned generation in Appendix B.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "Tables 2–4"},
+        {"page": 15, "section": "B Scaling laws"},
+        {"page": 21, "section": "E Learning to generate and refine jointly / Table 7"}
+      ]
+    },
+    {
+      "claim": "The 52% headline is a high-compute cross-model ensemble on the public ARC-AGI-1 evaluation set, not a single self-improved model score.",
+      "evidence": "Individual SOAR scores after train- and test-time iterations range from 36.25% for Qwen-Coder-7B to 45.50% for Mistral-Large-2. The 52.00% result combines five model sizes with weighted majority voting at 6,000 attempts each; the oracle over generated outputs is 57.25%. The paper reports 30,000 attempts per task for the ensemble and four training plus two test-time learning iterations, so comparisons with one-shot closed models or lower-budget systems are capability/context comparisons, not compute-equivalent leaderboards.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Table 1"},
+        {"page": 8, "section": "Figure 3, Table 5, and 4.4"},
+        {"page": 14, "section": "Table 6"}
+      ]
+    },
+    {
+      "claim": "The loop improves on this benchmark but shows early symptoms of self-generated-data collapse rather than evidence of open-ended improvement.",
+      "evidence": "Solution embedding diversity steadily decreases on solved tasks and falls then plateaus on unsolved tasks; performance gains diminish across iterations. The authors explicitly identify low diversity, 6,000 attempts per task per iteration, and ARC-only evaluation as limits, and propose quality-diversity or new-problem generation. No prospective scaling law, held-out ARC-AGI-2 result, or cross-domain transfer test demonstrates that further iterations continue to add capability.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "4.5 Solution diversity and Figure 6"},
+        {"page": 10, "section": "5 Discussion"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Internalize successful and failed evolutionary-search experience into the LLM so that later search uses better proposal and mutation/refinement operators.",
+    "mechanism": "Execute 3,000 sampled Python programs and 3,000 bandit-allocated refinements per task; construct supervised sampling examples by hindsight relabeling and refinement examples from successful repairs; repeatedly fine-tune a base model on selected archive data; optionally adapt sampling on unlabeled test tasks using demonstration accuracy and weighted-output groups.",
+    "assumptions": [
+      "Execution on a sandboxed ARC interpreter supplies a trustworthy and sufficiently dense evaluator.",
+      "Relabeled mappings preserve transferable program structure rather than mostly teaching arbitrary self-generated tasks.",
+      "Training-pair accuracy and output-frequency voting correlate with correctness on the hidden test grid.",
+      "The public ARC evaluation tasks and base-model pretraining do not introduce material contamination or benchmark-specific overfitting.",
+      "Compute comparisons can be normalized adequately with approximate forward/backward FLOP accounting."
+    ]
+  },
+  "techniques": [
+    {"id": "llm-evolutionary-search", "role": "Uses an LLM as both initial program generator and semantics-aware mutation/refinement operator."},
+    {"id": "prioritized-hindsight-relabeling", "role": "Turns failed candidates into valid synthetic task–program supervision."},
+    {"id": "rex-bandit-refinement", "role": "Allocates a fixed refinement budget between promising lineages and exploration."},
+    {"id": "iterative-lora-distillation", "role": "Retrains search operators from the accumulated program archive."},
+    {"id": "weighted-output-voting", "role": "Selects two predicted grids from many programs without test labels."}
+  ],
+  "evaluations": [
+    {
+      "setting": "ARC-train operator-learning ablations with Qwen-2.5-Coder-14B",
+      "metric": "percent of 400 tasks solved",
+      "result": "sampling rises from 29.67% to 36.46%; refinement-trained search rises from 34.83% to 42.88%; joint training reaches 44.42% search",
+      "baseline": "same 3k/6k search budgets with the non-fine-tuned or separately fine-tuned model"
+    },
+    {
+      "setting": "ARC public evaluation set across 7B–123B open models",
+      "metric": "pass@2 / percent tasks solved",
+      "result": "individual final SOAR models score 36.25%–45.50%; five-model weighted ensemble scores 52.00%, oracle 57.25%",
+      "baseline": "fixed Sample&Refine-6k scores 14.25%–26.25% and one-shot scores 1.00%–2.50% for the same open-model families"
+    },
+    {
+      "setting": "Two unlabeled test-time training iterations after four ARC-train iterations",
+      "metric": "ARC-test accuracy gain",
+      "result": "approximately +5 points overall; Qwen-Coder-7B moves from initial 14.25% fixed search to 36.25% final SOAR",
+      "baseline": "train-time-improved model before target-task adaptation"
+    },
+    {
+      "setting": "FLOP-matched search scaling for the 7B model",
+      "metric": "ARC-test solved versus approximate compute",
+      "result": "one learned SOAR generation outperforms 12,600 fixed-model attempts at the estimated same FLOPs",
+      "baseline": "Sample&Refine with the base model and extra samples"
+    }
+  ],
+  "limitations": [
+    "Only ARC-AGI-1 is evaluated; domain-agnostic or ARC-AGI-2 transfer is not demonstrated.",
+    "The 52% headline pools five models and roughly 30,000 attempts per task, obscuring the single-model/compute frontier.",
+    "Evaluation uses the public test set, making contamination and repeated design-selection concerns harder to exclude than on a private holdout.",
+    "Self-generated solution diversity declines and gains diminish across iterations.",
+    "Hindsight tasks are correct by construction but may be uninformative, degenerate, or reward easy-to-copy transformations.",
+    "The paper reports approximate FLOPs but not total wall-clock, energy, or repeated-seed variability for the full system."
+  ],
+  "failure_modes": [
+    "Majority voting can amplify a common brittle or hard-coded program family even when a rare candidate is correct.",
+    "Fine-tuning on self-generated mappings can narrow the mutation distribution and trap search in structural attractors.",
+    "Execution-based fitness over a few demonstrations permits overfitting and accidental test-grid errors.",
+    "Unsafe generated Python can escape or exhaust an insufficiently isolated evaluator.",
+    "Test-time self-training can reinforce pseudo-label errors because hidden outputs provide no correction signal."
+  ],
+  "reusable_insights": [
+    "Compare learning-to-search against FLOP-matched extra search, not only against equal candidate counts.",
+    "Separate generation-bound, refinement-bound, and selection-bound errors with oracle candidate analysis.",
+    "Failed programs become useful data when goals can be relabeled exactly by execution, but synthetic-task quality must still be measured.",
+    "Track behavioral and structural diversity prospectively across self-improvement generations.",
+    "Use cross-model archives when they add complementary solutions, but report ensemble and single-model frontiers separately."
+  ],
+  "open_questions": [
+    "Does SOAR improve on ARC-AGI-2 or unseen program-synthesis domains without benchmark-specific redesign?",
+    "Which hindsight-generated tasks predict improvement on original held-out tasks, and can low-value relabels be filtered prospectively?",
+    "Can quality-diversity archives prevent mutation collapse while retaining the sample-efficiency gains of fine-tuning?",
+    "How many self-improvement generations remain beneficial under a fixed total compute budget?",
+    "Can a calibrated verifier close the 5.25-point ensemble-to-oracle gap without test-label leakage?",
+    "What sandbox and resource controls are sufficient when transferring the loop from grids to general software?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2402.04858",
+      "title": "CodeIt: Self-Improving Language Models with Prioritized Hindsight Replay",
+      "url": "https://arxiv.org/abs/2402.04858",
+      "relationship": "Direct ARC self-improvement precursor",
+      "difference": "CodeIt already alternates ARC program sampling, hindsight relabeling, and prioritized replay in a hand-designed DSL; SOAR moves to general Python, adds explicit execution-guided iterative refinement, joint operator training, larger code models, and test-time adaptation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record and ICML 2024 proceedings checked 2026-08-23"
+    },
+    {
+      "canonical_id": "doi:10.1038/s41586-023-06924-6",
+      "title": "Mathematical Discoveries from Program Search with Large Language Models",
+      "url": "https://www.nature.com/articles/s41586-023-06924-6",
+      "relationship": "LLM-guided evolutionary program-search baseline",
+      "difference": "FunSearch evolves scored program components with a fixed LLM and island archive for mathematical/algorithmic objectives; SOAR fine-tunes its proposal/refinement model from traces and targets few-example ARC transformations.",
+      "source_kind": "publisher",
+      "checked_at": "2026-08-23",
+      "source_version": "Nature version of record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2506.13131",
+      "title": "AlphaEvolve: A Coding Agent for Scientific and Algorithmic Discovery",
+      "url": "https://arxiv.org/abs/2506.13131",
+      "relationship": "Contemporary evolutionary coding system",
+      "difference": "AlphaEvolve orchestrates strong fixed LLMs, evaluators, and an evolutionary database across scientific and infrastructure problems; SOAR's differentiator is weight adaptation of both sampling and refinement operators from hindsight traces.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2206.08896",
+      "title": "Evolution through Large Models",
+      "url": "https://arxiv.org/abs/2206.08896",
+      "relationship": "Learned-mutation and quality-diversity precursor",
+      "difference": "ELM couples LLM mutation with MAP-Elites and then trains a conditional generator from evolved artifacts; SOAR repeatedly trains the search operators themselves, but lacks ELM's explicit quality-diversity archive.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2606.05408",
+      "title": "Mutation Without Variation: Convergence Dynamics in LLM-Driven Program Evolution",
+      "url": "https://arxiv.org/abs/2606.05408",
+      "relationship": "Later falsification-oriented diversity study",
+      "difference": "Gurkan et al. isolate LLM mutation without selection and find strong structural attractors and revisitation; it sharpens SOAR's observed diversity decline into a concrete risk that learned semantic mutation can collapse unless variation is explicitly protected.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "SOAR is a self-improving evolutionary program-synthesis framework that learns both sampling and refinement from its own traces and reaches 52% on the ARC-AGI public test set.",
+    "evidence": "The paper provides operator-learning ablations, four train-time and two test-time iterations over several model scales, FLOP-matched extra-search comparisons, archive aggregation, and diversity measurements.",
+    "reviewer_inference": "The joint refinement/sampling training and unlabeled test-time continuation are meaningful extensions of CodeIt and fixed-model evolutionary search. The result is strong evidence for learning-to-search on ARC, but not yet for open-ended self-improvement: the headline is an expensive public-set ensemble, diversity narrows, and no new domain or private benchmark tests scaling."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Read the full 32-page ICML paper including algorithms, compute-matched appendix, data-selection details, and transduction safeguards. The competitive panel was updated through 2026-08-23 using primary arXiv, PMLR, and Nature records, including a later study of LLM mutation collapse."
+}

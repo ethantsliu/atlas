@@ -1,0 +1,154 @@
+{
+  "stable_id": "arxiv:2504.13612",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2504.13612",
+    "pdf_sha256": "7c266d8f963ba205b56af1c60ebace7dcfabf45a0da25922fbbe36c5d76983fb",
+    "text_sha256": "2564f587900319b163f4ce3c0bb8dce45593d8113701db51cae163e2e8da93a5",
+    "page_count": 31,
+    "extracted_at": "2026-08-23T17:03:09.020258+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can diffusion sampling time be reparameterized by conditional information loss so that uniform solver steps spend equal resolution on data-relevant denoising stages?",
+  "key_findings": [
+    {
+      "claim": "Conditional entropy defines a data-dependent time coordinate invariant to the original parameterization of an equivalent diffusion SDE.",
+      "evidence": "The paper uses H[x0|xt], whose derivative is determined by score norms, and proves it is a proper monotone time change. Equivalent SDEs mapped into entropic time have the identity as their remaining time transformation.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 5, "section": "5 Entropic time"}, {"page": 7, "section": "Theorems 5.1-5.2"}]
+    },
+    {
+      "claim": "The entropy-rate curve can be estimated with a pretrained denoiser's standard squared error, but that estimate is an upper bound on the true rate.",
+      "evidence": "I-MMSE connects conditional-entropy production to denoising MMSE. Replacing the optimal score with the learned network introduces a nonnegative score-error gap, so model error mixes irreducible data uncertainty with denoiser imperfection.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 6, "section": "5.2 Equations 13-17"}]
+    },
+    {
+      "claim": "Rescaling the entropy rate is essential for continuous image data; raw entropic time often fails visually.",
+      "evidence": "Differential conditional entropy diverges toward negative infinity as t approaches zero. The proposed integral of sigma times the entropy rate matches the analytic isotropic-Gaussian optimum and produces usable schedules, whereas raw entropic schedules yield unrecognizable image samples and are omitted from the main image tables.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 7, "section": "5.3 Rescaled entropic time"}, {"page": 9, "section": "6.2 Image experiments"}]
+    },
+    {
+      "claim": "On first-order DDIM sampling, rescaled-entropy grids substantially improve low-step image metrics over the pretrained models' EDM grids.",
+      "evidence": "For FFHQ stochastic DDIM at 16/32/64 evaluations, FID changes from 40.48/21.63/10.62 to 30.81/14.89/7.60; the spectral variant reaches 30.61/14.60/7.33. ImageNet-512 EDM2-XXL stochastic FID changes from 30.39/8.80/3.81 to 13.38/3.83/2.60.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 9, "section": "Table 1"}, {"page": 10, "section": "Table 2"}]
+    },
+    {
+      "claim": "The schedule is solver-dependent despite being presented as a canonical information time.",
+      "evidence": "Second-order EDM and DPM-style solvers perform worse with the proposed grid. The authors attribute this to lookahead altering the relevant information-transfer definition, leaving the method validated only for first-order deterministic and stochastic DDIM in the tested regime.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 9, "section": "6.3 Limitations"}, {"page": 10, "section": "7 Conclusions"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Estimate how quickly a noisy state loses information about its clean source and place uniform numerical-solver steps in that information coordinate rather than in hand-designed noise time.",
+    "mechanism": "The conditional-entropy derivative is derived from the SDE score and converted to denoising squared error via I-MMSE. A pretrained denoiser estimates error on clean/noised samples over 128 time points; numerical integration produces entropy, sigma-rescaled entropy, or a Fourier-frequency-balanced spectral curve. Uniform points on the normalized curve are interpolated back to the original noise schedule and supplied to DDIM without retraining.",
+    "assumptions": [
+      "Equal increments of conditional entropy allocate first-order discretization error efficiently.",
+      "The pretrained denoiser's squared error is close enough to optimal MMSE to recover a useful data-information curve.",
+      "The isotropic-Gaussian-derived sigma rescaling transfers to multimodal natural images.",
+      "FID/FD-DINO changes reflect schedule quality rather than metric-specific or brightness artifacts."
+    ]
+  },
+  "techniques": [
+    {"id": "conditional-entropy-time-change", "role": "Defines a canonical data-dependent diffusion clock."},
+    {"id": "i-mmse-rate-estimation", "role": "Estimates information loss from denoising squared error."},
+    {"id": "sigma-rescaled-entropy", "role": "Regularizes continuous-data behavior and recovers the Gaussian-optimal coordinate."},
+    {"id": "spectral-entropy-balancing", "role": "Reweights Fourier directions so different image frequencies influence the grid."},
+    {"id": "training-free-grid-remapping", "role": "Uses the estimated curve with existing pretrained models and solvers."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Analytic discrete points and Gaussian mixtures sampled with stochastic DDIM.",
+      "metric": "KL divergence versus number of generation steps.",
+      "result": "Raw entropic time is strongest for discrete/well-separated modes, while rescaled entropy is strongest once Gaussian components overlap.",
+      "baseline": "Uniform original time and the alternate entropy parameterizations."
+    },
+    {
+      "setting": "Pretrained EDM on CIFAR-10/FFHQ and EDM2 on ImageNet-64/512 with deterministic and stochastic first-order DDIM, 16-64 evaluations.",
+      "metric": "FID and FD-DINOv2 over 50,000 generated images.",
+      "result": "Rescaled schedules usually improve low-NFE quality; FFHQ stochastic FID at 32 steps improves 21.63 to 14.89 and ImageNet-512 XXL stochastic FID 8.80 to 3.83.",
+      "baseline": "The pretrained EDM/EDM2 sampling schedule at the same model, solver, and NFE."
+    },
+    {
+      "setting": "Second-order diffusion solvers using the same entropic grids.",
+      "metric": "Generation quality relative to the standard EDM grid.",
+      "result": "The entropic schedules are worse, motivating a solver-aware information coordinate.",
+      "baseline": "Standard schedule with the same second-order solver."
+    }
+  ],
+  "limitations": [
+    "The optimality theorem covers Gaussian data and deterministic DDIM, not natural images or the proposed rescaled heuristic generally.",
+    "Learned denoiser error biases the entropy-rate estimate upward in a time-dependent way.",
+    "Raw entropic time fails on continuous images and main tables retain only the successful rescaled variant.",
+    "Second-order solvers degrade, so the coordinate is not universal across numerical integration methods.",
+    "Schedule estimation requires dataset samples and extra denoiser evaluations, though it is amortized and training-free.",
+    "No matched comparison against learned timestep optimizers or modern solver-specific schedule tuning is reported across all datasets."
+  ],
+  "failure_modes": [
+    "A weak denoiser can concentrate steps where its own error is large rather than where the true reverse process is difficult.",
+    "Differential-entropy divergence near clean data destabilizes raw entropic grids.",
+    "Frequency balancing can overweight low-amplitude or metric-irrelevant image modes.",
+    "A schedule optimized for one checkpoint, guidance strength, or solver may not transfer to another.",
+    "Brightness shifts can improve or worsen FID independently of semantic fidelity."
+  ],
+  "reusable_insights": [
+    "Treat a timestep grid as a coordinate choice before optimizing individual points separately for every step count.",
+    "Use analytic Gaussian cases to identify candidate invariant coordinates and sanity-check samplers.",
+    "Decompose estimated information rate into irreducible uncertainty and model approximation error.",
+    "Report raw and regularized versions when differential-information quantities diverge at endpoints.",
+    "Design schedules jointly with solver order because lookahead changes which local error matters."
+  ],
+  "open_questions": [
+    "Is there an entropy-like coordinate with a provable global error bound for nonlinear data distributions?",
+    "How should conditional information be defined for multistep and higher-order solvers?",
+    "Can the rate be estimated independently of model error using multiple denoisers or held-out score diagnostics?",
+    "Does entropic training-time sampling improve training efficiency as well as inference grids?",
+    "How does classifier-free guidance change the relevant conditional-entropy curve?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2404.14507",
+      "title": "Align Your Steps: Optimizing Sampling Schedules in Diffusion Models",
+      "url": "https://arxiv.org/abs/2404.14507",
+      "relationship": "prior",
+      "difference": "Align Your Steps directly optimizes discrete sampling times and supplies the Gaussian schedule that motivates this work. Entropic time replaces per-NFE optimization with one data-dependent coordinate estimated from denoising error, but loses direct objective optimality on real data.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2407.12173",
+      "title": "Beta Sampling Is All You Need: Efficient Image Generation Strategy for Diffusion Models Using Stepwise Spectral Analysis",
+      "url": "https://arxiv.org/abs/2407.12173",
+      "relationship": "prior",
+      "difference": "Beta Sampling uses stepwise spectral behavior to prioritize image-generation times. The target derives a global information coordinate and adds a spectral entropy variant, offering stronger information-theoretic motivation but not a comprehensive head-to-head comparison.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2302.03792",
+      "title": "Information-Theoretic Diffusion",
+      "url": "https://arxiv.org/abs/2302.03792",
+      "relationship": "prior",
+      "difference": "Kong et al. characterize diffusion through information-theoretic identities and objectives. This paper specializes conditional entropy into a practical inference-time time reparameterization derived from the existing denoising loss.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2405.17403",
+      "title": "A Closer Look at Time Steps Is Worthy of Triple Speed-Up for Diffusion Model Training",
+      "url": "https://arxiv.org/abs/2405.17403",
+      "relationship": "prior",
+      "difference": "This work adapts timestep allocation to unequal learning importance for faster diffusion training. Entropic scheduling targets pretrained-model sampling and uses conditional information loss rather than empirical training progress, though its conclusion proposes extending the coordinate to training."
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim conditional entropy and its rescaled/spectral variants provide canonical diffusion time coordinates that allocate equal information loss and improve few-step sampling without retraining.",
+    "evidence": "Sections 4-5 derive invariance and estimation; Section 6 reports toy and EDM/EDM2 schedule comparisons.",
+    "reviewer_inference": "The useful novelty is the training-loss-estimable global information coordinate and its strong first-order DDIM results. Optimized time grids, information-theoretic diffusion, spectral schedules, and adaptive timestep allocation are established. Raw entropy is not practically sufficient, rescaling is Gaussian-motivated, and solver dependence prevents treating the result as a universal canonical schedule."
+  },
+  "confidence": 0.92,
+  "reviewer_notes": "Read all 31 pages of the pinned PDF, including time-change proofs, I-MMSE derivation, Gaussian optimum, solver limitations, complete CIFAR/FFHQ/ImageNet tables, reviewer-response material, and appendices. Primary arXiv records for optimized schedules, spectral allocation, information-theoretic diffusion, and timestep adaptation were checked on 2026-08-23. Raw-entropic failures and second-order negative results are retained rather than hidden behind the rescaled headline."
+}

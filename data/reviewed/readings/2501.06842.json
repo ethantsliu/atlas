@@ -1,0 +1,392 @@
+{
+  "stable_id": "arxiv:2501.06842",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2501.06842",
+    "pdf_sha256": "3c8f92b0b4481d6629f8762e645d4cd8002ca1d87b9ff53358e3d2f1aa2ae009",
+    "text_sha256": "e8daa673525c4e459f7bf9b4f527f82cbeda889aac3d7b55ed467b96ac2feba4",
+    "page_count": 21,
+    "extracted_at": "2026-08-23T17:30:22.958939+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can periodic Adam-state resets plus coordinate-wise clipping against the running second moment suppress harmful gradient spikes, improve language-model perplexity, and enable sparse optimizer state without losing full-parameter learning quality?",
+  "key_findings": [
+    {
+      "claim": "The retrospective analysis finds many extreme coordinate-level gradients alongside small loss bumps across the tested small LLaMA and Pythia runs.",
+      "evidence": "During the first 1,000 steps, the authors compute a Gradient Spike Score and flag values above 50 for LLaMA models from 60M to 1B and Pythia-70M on C4 or SlimPajama. Figures 2-4 and Tables 5-6 report spikes across embeddings, attention, FFN, LayerNorm, and LM-head parameters, with cleaner SlimPajama reducing but not eliminating them.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "2.1 / Definition 2.1 and study scope"},
+        {"page": 4, "section": "Figures 2-4"},
+        {"page": 15, "section": "Appendix A-B / Tables 5-6"}
+      ]
+    },
+    {
+      "claim": "The paper studies frequent small bumps rather than demonstrating prevention of the catastrophic large-scale failures emphasized in its motivation.",
+      "evidence": "The authors explicitly state that their runs do not exhibit severe loss spikes leading to catastrophic divergence. Diagnosis is limited to the first 1,000 steps of models no larger than 1B, whereas cited prior work examined manual restart and instability in far larger training runs.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "1 / Motivation"},
+        {"page": 3, "section": "2.1 / Observation 1"}
+      ]
+    },
+    {
+      "claim": "The offline Gradient Spike Score is noncausal and differs materially from the detector used by SPAM during training.",
+      "evidence": "Definition 2.1 divides a gradient magnitude at step i by the average over steps 0 through T, including future values. Section 3 acknowledges that this requires knowing and storing all gradients and instead trains with g_i squared divided by Adam's running v_i. The two statistics use different histories and scales, so the descriptive 50-threshold counts do not directly validate the deployed 5,000-threshold detector.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "2 / Definition 2.1"},
+        {"page": 7, "section": "3 / Spike-aware clipping detector"}
+      ]
+    },
+    {
+      "claim": "Zeroing flagged gradients supports an intervention effect on one 60M run, but does not isolate naturally harmful samples or establish that spikes cause later loss bumps.",
+      "evidence": "Figure 5-left reports lower final perplexity after nullifying coordinates flagged under several retrospective thresholds, and Table 6 shows detected spikes often preceding bumps. The paper does not specify a leakage-free online procedure for that nullification test, compare data-matched random coordinate removal, replay identical batches and optimizer states, or intervene on the suspected source before the spike occurs.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "2.2 / Figure 5-left"},
+        {"page": 15, "section": "Appendix B / Table 6"}
+      ]
+    },
+    {
+      "claim": "SPAM combines two substantive optimizer changes with a repeated learning-rate restart.",
+      "evidence": "Every Delta-T steps it zeros first and second moments, resamples the sparse mask, and runs a cosine warmup for N steps; between resets it clips coordinates satisfying g_i^2 greater than theta v_i to sign(g_i)sqrt(theta v_i). Sparse SPAM stores moments only for a randomly chosen fraction d and refreshes that subset on the reset schedule.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "3 / Momentum reset"},
+        {"page": 7, "section": "3 / Spike-aware clipping and sparse momentum"},
+        {"page": 16, "section": "Appendix C / Algorithm 1"}
+      ]
+    },
+    {
+      "claim": "Algorithm 1 is internally inconsistent at a reset and cannot literally produce the reported optimizer behavior.",
+      "evidence": "The pseudocode first zeros v, then tests g^2 > theta v, then clips flagged gradients to sign(g)sqrt(theta v), and only afterward updates v. Thus every nonzero selected gradient immediately after reset is clipped to zero, v remains zero, and the same coordinates remain frozen on later steps. Dense d=100% would never restart. The implementation must use a different ordering, initialization, or epsilon, but the reviewed paper does not state it.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 16, "section": "Appendix C / Algorithm 1"}
+      ]
+    },
+    {
+      "claim": "The online clipping ratio is an adaptive coordinate-wise trust rule, but its threshold is easy to misread.",
+      "evidence": "The deployed test g_i^2/v_i > theta is a squared standardized magnitude, so theta = 5,000 corresponds to |g_i|/sqrt(v_i) above about 70.7, not a 5,000-fold magnitude spike. The paper elsewhere describes clipping gradients above 50 times sqrt(v_i), which would correspond to theta = 2,500.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "3 / Detector and clipping equations"},
+        {"page": 8, "section": "4 / Default theta"}
+      ]
+    },
+    {
+      "claim": "Dense SPAM improves reported C4 validation perplexity over all listed optimizers from 60M through 1B.",
+      "evidence": "Table 1 reports SPAM at 30.46, 23.36, 17.42, and 14.66 perplexity for 60M, 130M, 350M, and 1B, versus Adam at 34.09, 24.91, 18.77, and 16.13 and Adafactor at 32.57, 23.98, 17.74, and 15.19. The gain over the strongest listed baseline narrows to 0.53 perplexity at 1B.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "Table 1"},
+        {"page": 8, "section": "4.1 / Pre-training"}
+      ]
+    },
+    {
+      "claim": "The dense pre-training comparison is reasonably tuned but lacks run-to-run uncertainty and a clean component attribution.",
+      "evidence": "Each optimizer receives a learning-rate sweep, but Table 1 has no number of seeds or standard deviations. Momentum reset always brings a post-reset warmup, and the main results do not include a full factorial comparison of clipping only, reset only, warmup-only cyclic scheduling, and their interactions. Figure 6 varies one setting at a time after choices have already been coupled.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "4 / Hyperparameter tuning"},
+        {"page": 9, "section": "5 / Figure 6 ablations"}
+      ]
+    },
+    {
+      "claim": "Sparse SPAM wins the paper's matched optimizer-state estimates, but those estimates are not end-to-end training-memory or throughput comparisons.",
+      "evidence": "Table 3 matches total parameter-plus-optimizer-state estimates to GaLore and reports better perplexity at 60M-1B. It assumes BF16 states and imports GaLore, LoRA, and ReLoRA results rather than rerunning them. Activations, gradients, allocator fragmentation, communication, and peak memory are excluded; Appendix L only times 60M and 130M on one H100 and finds SPAM about 4-6% slower per step than Adam.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Table 3 and memory-efficient pre-training"},
+        {"page": 21, "section": "Appendix L / Table 15"}
+      ]
+    },
+    {
+      "claim": "The fine-tuning results support the method on one 7B checkpoint and task suite, not a general optimizer ranking.",
+      "evidence": "On LLaMA2-7B fine-tuned with Commonsense170K, dense SPAM averages 66.7 across eight tasks versus 63.4 for full Adam, and 0.25%-density SPAM averages 64.4 versus 63.6 for GaLore at the reported 36 GB. Ten repeats are reported, but all tasks share one training dataset, model, rank choice, and evaluation family.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "4.2 / Fine-tuning setup"},
+        {"page": 9, "section": "Table 4"}
+      ]
+    },
+    {
+      "claim": "Several reporting inconsistencies complicate exact reproduction and resource comparison.",
+      "evidence": "The main text says pre-training learning rates were swept only from 1e-4 to 1e-3, yet Table 8 uses sparse-SPAM rates up to 4e-3. Tables 1 and 3 list 1.1B, 2.2B, and 6.4B training tokens, while Appendix D's batch-size-by-step configurations imply and explicitly list 1.3B, 2.6B, and 7.8B. The sparse-state update for unselected coordinates is also not dimensionally clear in Algorithm 1.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Table 1"},
+        {"page": 8, "section": "Learning-rate sweep and Table 3"},
+        {"page": 16, "section": "Appendix C-D / Algorithm 1 and Table 7"},
+        {"page": 17, "section": "Appendix D / Table 8"}
+      ]
+    },
+    {
+      "claim": "The auxiliary vision and time-series evidence shows transfer of the recipe, but effects are small or deliberately stress-induced.",
+      "evidence": "On ImageNet-1K, SPAM improves final ConvNeXt-T accuracy from 80.89 to 81.04 and ViT-Tiny from 69.71 to 69.98, without uncertainty. On Weather forecasting, the advantage grows as Gaussian anomalies are injected into 10% of inputs; this validates a constructed corruption regime rather than naturally occurring forecasting spikes.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 17, "section": "Appendix E / Table 10"},
+        {"page": 18, "section": "Appendix G / Time-series setup"},
+        {"page": 19, "section": "Figure 8"}
+      ]
+    },
+    {
+      "claim": "The regret discussion does not explain SPAM or nonconvex LLM training.",
+      "evidence": "Section 2.3 substitutes large gradients into an existing convex AMSGrad regret upper bound and observes that sums of squared gradients grow. The authors correctly disclaim theoretical novelty and note convexity, bounded-gradient, and potentially meaningless-constant limitations. It provides no convergence result for reset, clipping, sparse moments, or the coupled warmup schedule.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "2.3 / Regret-bound terms"},
+        {"page": 6, "section": "2.3 / Stated limitations"}
+      ]
+    },
+    {
+      "claim": "Subsequent same-team work confirms that SPAM does not fully solve gradient-norm or hyperparameter sensitivity.",
+      "evidence": "The current GradientStabilizer record, evolved from the earlier Stable-SPAM line, explicitly motivates a direction-preserving norm transform because clipping-based methods require threshold tuning and can remain unstable, and reports a wider stable learning-rate region across FP16 and FP4 training. This positions SPAM as an important intermediate optimizer rather than the settled spike-stability solution.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 9, "section": "5 / Sensitivity and warmup ablations"},
+        {"page": 10, "section": "7 / Conclusion"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Prevent rare coordinate gradients from contaminating Adam's long-memory state by periodically discarding both moments and clipping unusually large coordinates relative to their running second moment; store that state only for a periodically resampled random subset when memory is constrained.",
+    "mechanism": "Every Delta-T steps, reset m and v, optionally resample a density-d mask, and restart the learning rate with a short cosine warmup. Between resets, flag selected coordinates with g_i^2 > theta v_i, replace them by sign(g_i)sqrt(theta v_i), and apply bias-corrected Adam. Dense SPAM sets d=100%; sparse SPAM keeps moment state for a small random subset while retaining some update path for other parameters.",
+    "assumptions": [
+      "Very large coordinate gradients are usually harmful anomalies rather than essential learning signals.",
+      "Adam's pre-update second moment is a calibrated local scale for detecting those anomalies.",
+      "Clipping magnitude while retaining sign preserves useful directional information.",
+      "Periodic loss of accumulated moments costs less than retaining spike contamination.",
+      "A repeated warmup adequately stabilizes the discontinuity caused by state reset.",
+      "One reset interval and threshold largely transfer across model sizes and architectures.",
+      "Randomly rotating sparse moment support explores parameter space better than magnitude selection.",
+      "Unselected coordinates retain an effective full-parameter update despite lacking persistent Adam moments.",
+      "Perplexity gains on C4 at 60M-1B predict behavior in truly large and long-running pre-training.",
+      "Optimizer-state byte estimates are a useful proxy for real memory savings."
+    ]
+  },
+  "techniques": [
+    {"id": "offline-gradient-spike-score", "role": "Retrospectively normalizes each gradient magnitude by its full-run temporal average for descriptive spike counts."},
+    {"id": "second-moment-spike-detector", "role": "Flags online coordinates whose squared gradient greatly exceeds Adam's running squared-gradient scale."},
+    {"id": "direction-preserving-coordinate-clipping", "role": "Caps a flagged gradient at sqrt(theta v) while retaining its sign."},
+    {"id": "periodic-first-second-moment-reset", "role": "Deletes lingering spike influence from both Adam moments on a fixed schedule."},
+    {"id": "post-reset-cosine-warmup", "role": "Temporarily reduces the learning rate after each state discontinuity."},
+    {"id": "random-sparse-momentum", "role": "Stores optimizer moments for only a resampled random fraction of parameters."},
+    {"id": "mask-reset-synchronization", "role": "Aligns sparse-support refresh with moment reset so old state need not be migrated."},
+    {"id": "learning-rate-sweep-per-optimizer", "role": "Selects each pre-training optimizer's best validation perplexity over a learning-rate grid."}
+  ],
+  "evaluations": [
+    {
+      "setting": "LLaMA-style 60M, 130M, 350M, and 1B pre-training on C4.",
+      "metric": "Validation perplexity.",
+      "result": "Dense SPAM: 30.46/23.36/17.42/14.66 versus Adam: 34.09/24.91/18.77/16.13 and Adafactor: 32.57/23.98/17.74/15.19.",
+      "baseline": "Adam, Adam-mini, value clipping, norm clipping, and Adafactor."
+    },
+    {
+      "setting": "LLaMA-60M C4 spike-mitigation comparison.",
+      "metric": "Validation perplexity.",
+      "result": "SPAM 30.46 versus Adam 34.09, Embed LN 33.61, Embed Detach 34.48, Scaled Embed 33.87, and scaled initialization 34.29.",
+      "baseline": "Architectural and initialization stabilization methods."
+    },
+    {
+      "setting": "Memory-matched 60M-1B C4 pre-training.",
+      "metric": "Validation perplexity with parenthesized parameter-plus-optimizer-state estimate.",
+      "result": "Sparse SPAM reports 32.39/23.98/18.28/15.60 at 0.24/0.52/1.22/4.38 GB, improving over the listed GaLore results 34.88/25.36/18.95/15.64 at the same estimates.",
+      "baseline": "Adam, ReLoRA, LoRA, and imported GaLore results."
+    },
+    {
+      "setting": "LLaMA2-7B supervised fine-tuning on Commonsense170K and eight commonsense benchmarks.",
+      "metric": "Mean task accuracy and reported running GPU memory over 10 repeats.",
+      "result": "Dense SPAM 66.7 at 61 GB; 0.25%-density SPAM 64.4 at 36 GB; full Adam 63.4 at 61 GB; GaLore 63.6 at 36 GB.",
+      "baseline": "Full Adam, LoRA, and GaLore."
+    },
+    {
+      "setting": "LLaMA-130M C4 hyperparameter ablations.",
+      "metric": "Perplexity across reset interval, theta, and post-reset warmup duration.",
+      "result": "Best plotted region is about Delta-T=500, theta around 1,000-5,000, and N around 150; too-frequent reset, too-small theta, or no warmup degrades results.",
+      "baseline": "One-factor variations around the chosen SPAM recipe."
+    },
+    {
+      "setting": "LLaMA-60M C4 sparse-support ablations.",
+      "metric": "Validation perplexity.",
+      "result": "Random support selection beats maximum-weight and maximum-gradient selection, and resetting overlapping moments beats retaining them.",
+      "baseline": "Three selection strategies and moment-retention choices."
+    },
+    {
+      "setting": "Pythia-70M and OPT-125M plus LLaMA-60M C4 threshold sensitivity.",
+      "metric": "Validation perplexity for theta=500-10,000.",
+      "result": "SPAM beats the listed Adam value throughout; optima occur around theta=1,000-5,000.",
+      "baseline": "Adam on each architecture."
+    },
+    {
+      "setting": "ImageNet-1K training for ConvNeXt-T and ViT-Tiny over 120 epochs.",
+      "metric": "Top-1 test accuracy.",
+      "result": "SPAM 81.04 versus AdamW 80.89 for ConvNeXt-T; 69.98 versus 69.71 for ViT-Tiny.",
+      "baseline": "Official ConvNeXt AdamW recipe."
+    },
+    {
+      "setting": "PatchTST Weather forecasting with Gaussian anomalies added to 10% of inputs over 10 runs.",
+      "metric": "Test loss curves across corruption severity.",
+      "result": "SPAM's advantage over Adam grows with constructed anomaly severity; exact aggregate values are not tabulated.",
+      "baseline": "Adam under the same injected corruption."
+    },
+    {
+      "setting": "Single-H100 microbenchmark at 60M and 130M.",
+      "metric": "Mean seconds per iteration over 100 iterations.",
+      "result": "Dense SPAM 0.3814/0.6683 and 25%-density SPAM 0.3799/0.6658 versus Adam 0.3666/0.6397.",
+      "baseline": "Adam, Adam-mini, Adafactor, and rank-128 GaLore."
+    }
+  ],
+  "limitations": [
+    "The observed runs contain small bumps but no catastrophic divergence, so prevention of costly large-scale failures is not directly tested.",
+    "Spike prevalence is diagnosed only during the first 1,000 steps and at no more than 1B parameters.",
+    "The descriptive GSS uses future gradients and is not the deployed detector.",
+    "Algorithm 1's reset-and-clip ordering would freeze selected coordinates and cannot be the literal working implementation.",
+    "Pre-training tables lack run counts and uncertainty.",
+    "Momentum reset is confounded with repeated cosine warmup, and component interactions are incompletely ablated.",
+    "Dense comparisons tune learning rate but not an equally broad optimizer-specific hyperparameter budget for every baseline.",
+    "Reported token counts and sparse-SPAM learning-rate search ranges conflict across the main text and appendix.",
+    "Memory tables count parameters and BF16 optimizer states rather than measured end-to-end peak memory or throughput at useful scale.",
+    "Sparse baselines are partly imported from GaLore rather than rerun in one codebase.",
+    "Fine-tuning covers one 7B checkpoint, one instruction dataset, and one related benchmark family.",
+    "Vision gains are below 0.3 accuracy points without uncertainty; time-series anomalies are deliberately injected.",
+    "The theory is a qualitative reuse of a convex AMSGrad regret bound, not a guarantee for SPAM.",
+    "No data-quality, batch-composition, curvature, or update-direction experiment identifies the physical cause of a flagged gradient.",
+    "Subsequent same-team work replaces clipping with a norm stabilizer, indicating unresolved threshold and learning-rate sensitivity."
+  ],
+  "failure_modes": [
+    "A rare but correct gradient carrying new-domain or long-tail signal may be clipped as an anomaly.",
+    "After reset, a poorly initialized second moment can over-flag normal gradients or create division-scale pathologies.",
+    "Repeated warmups can waste a large fraction of short runs or interact badly with an outer cosine schedule.",
+    "A fixed interval can reset immediately before useful moment information would have stabilized a difficult phase.",
+    "Coordinate-wise clipping can distort relative direction even though each coordinate sign is preserved.",
+    "Random sparse support may leave sensitive parameter blocks without adaptive scaling for long intervals.",
+    "Threshold transfer can fail under new precision, batch size, sequence length, optimizer beta values, or gradient accumulation.",
+    "Suppressing visible gradients may mask a data, numerical, or curvature problem rather than fix its cause.",
+    "Optimizer-state savings may not reduce peak memory when activations or communication dominate.",
+    "Momentum reset can destroy beneficial long-horizon averaging under high-variance but non-spiky gradients."
+  ],
+  "reusable_insights": [
+    "Instrument per-coordinate gradient, preconditioner, update norm, and loss jointly; a loss-only dashboard misses long-lived optimizer-state contamination.",
+    "Treat spike definition, causal detector, and clipping threshold as separate objects and calibrate their mapping explicitly.",
+    "Any reset optimizer needs a cold-start rule for v and an executable pseudocode test that catches zero-state freezing.",
+    "Use a factorial ablation separating state reset, clipping, warmup restart, and sparse support refresh.",
+    "Replay identical batches from an identical checkpoint with real and randomized interventions to test whether flagged coordinates are causally harmful.",
+    "Report stability regions over learning rate, beta values, precision, batch size, and sequence length rather than only the best perplexity.",
+    "Measure optimizer states, gradients, activations, communication, peak memory, throughput, and total tokens-to-target jointly.",
+    "Sparse optimizer support can be rotated over time, but the unselected-coordinate update rule must be explicit and tested for bias.",
+    "Validate catastrophic-failure prevention on long multi-seed runs, not only average perplexity on runs that never diverge."
+  ],
+  "open_questions": [
+    "What fraction of flagged coordinates reflect bad data, finite-precision error, curvature instability, attention collapse, or useful rare-token learning?",
+    "Can a spike predictor based on preconditioned directional curvature outperform g^2/v while warning before the harmful update?",
+    "What is the correct initialization and update ordering for v immediately after a reset?",
+    "Does SPAM still improve tokens-to-target and failure probability at 7B-70B over trillions of tokens with controlled seeds?",
+    "How much of the gain comes from clipping, moment deletion, repeated warmup, or implicit regularization from sparse moment support?",
+    "Can reset times be event-triggered from optimizer-state health rather than fixed periodically?",
+    "Does coordinate-wise clipping harm long-tail factual acquisition or in-context learning despite lowering validation perplexity?",
+    "Can optimizer state be compressed without masking full-parameter updates or importing stale moments when support rotates?",
+    "How does direction-preserving whole-gradient norm stabilization compare with coordinate clipping under equal tuning and compute?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2312.16903",
+      "title": "Spike No More: Stabilizing the Pre-training of Large Language Models",
+      "url": "https://arxiv.org/abs/2312.16903",
+      "relationship": "Closest prior LLM spike-mitigation study.",
+      "difference": "Takase et al. analyze sublayer Jacobian spectral norms and prescribe small sublayers plus large shortcuts through embedding and initialization changes. SPAM instead intervenes in optimizer state and coordinates; the reviewed paper's own comparisons show the architectural methods reduce but do not eliminate its chosen spike count.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "COLM 2025 / arXiv v4"
+    },
+    {
+      "canonical_id": "arxiv:2304.09871",
+      "title": "A Theory on Adam Instability in Large-Scale Machine Learning",
+      "url": "https://arxiv.org/abs/2304.09871",
+      "relationship": "Prior optimizer-instability mechanism at actual large scale.",
+      "difference": "Molybog et al. study 7B-546B runs and attribute divergence to large Adam updates nearly uncorrelated with descent, especially at large batch and depth. SPAM focuses on extreme raw coordinates and moment contamination in much smaller runs and does not measure update-descent alignment.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2, revised 2023-04-25"
+    },
+    {
+      "canonical_id": "pmlr:v80-shazeer18a",
+      "title": "Adafactor: Adaptive Learning Rates with Sublinear Memory Cost",
+      "url": "https://proceedings.mlr.press/v80/shazeer18a.html",
+      "relationship": "Foundational update-clipping and memory-efficient optimizer predecessor.",
+      "difference": "Adafactor already identifies stale second-moment estimates causing oversized updates, uses update clipping and factored state, and trains a Transformer with sublinear auxiliary memory. SPAM clips raw coordinates against v, periodically resets both moments, and rotates sparse state, achieving better reported C4 perplexity in its setup.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2018 official proceedings"
+    },
+    {
+      "canonical_id": "arxiv:2406.16793",
+      "title": "Adam-mini: Use Fewer Learning Rates To Gain More",
+      "url": "https://arxiv.org/abs/2406.16793",
+      "relationship": "Direct memory-efficient adaptive-optimizer competitor.",
+      "difference": "Adam-mini replaces nearly all coordinate-wise v values with Hessian-informed block learning rates and validates models through 13B plus throughput. SPAM's random sparse moments win the paper's small C4 table, but its memory/scale evidence is much narrower and its unselected-coordinate semantics are less clear.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v7, revised 2025-02-24"
+    },
+    {
+      "canonical_id": "arxiv:2403.03507",
+      "title": "GaLore: Memory-Efficient LLM Training by Gradient Low-Rank Projection",
+      "url": "https://arxiv.org/abs/2403.03507",
+      "relationship": "Direct sparse-state pre-training baseline.",
+      "difference": "GaLore maintains optimizer dynamics in a periodically refreshed low-rank gradient subspace and validates 7B pre-training plus measured total-memory reductions. SPAM replaces structured projection with cheap random coordinate state and reports lower perplexity at matched byte estimates up to 1B, but imports GaLore results and lacks comparable system-scale evidence.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2024 oral / arXiv v2"
+    },
+    {
+      "canonical_id": "arxiv:2412.05270",
+      "title": "APOLLO: SGD-like Memory, AdamW-level Performance",
+      "url": "https://arxiv.org/abs/2412.05270",
+      "relationship": "Contemporary structured-state optimizer competitor.",
+      "difference": "APOLLO coarsens Adam scaling through random low-rank auxiliary state, reaches rank-one optimizer memory, and reports 7B/13B and system throughput results. It is a stronger current memory-efficiency comparison than the small imported baseline panel, though it does not target spikes directly.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "MLSys 2025 / arXiv v4"
+    },
+    {
+      "canonical_id": "arxiv:2506.04805",
+      "title": "Adaptive Preconditioners Trigger Loss Spikes in Adam",
+      "url": "https://arxiv.org/abs/2506.04805",
+      "relationship": "Subsequent mechanistic spike analysis.",
+      "difference": "Bai et al. attribute spikes to decoupling of v from current squared gradients, track preconditioned-Hessian stability, identify five stages, and propose a directional-curvature predictor. This offers a causal mechanism and pre-spike diagnostic missing from SPAM's retrospective coordinate-outlier account.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2026 / arXiv v2"
+    },
+    {
+      "canonical_id": "arxiv:2502.17055",
+      "title": "GradientStabilizer:Fix the Norm, Not the Gradient",
+      "url": "https://arxiv.org/abs/2502.17055",
+      "relationship": "Same-team direct successor to SPAM and Stable-SPAM.",
+      "difference": "GradientStabilizer preserves the instantaneous whole-gradient direction while replacing magnitude with a running statistically stabilized norm and proves spike-step boundedness. Across FP16, FP4, vision, RL, and forecasting it targets the threshold sensitivity and indiscriminate coordinate truncation left by SPAM.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2026 / arXiv v5"
+    },
+    {
+      "canonical_id": "pmlr:v337-pang26a",
+      "title": "The Convergence Behavior of Adam under Heavy-Tailed Noise",
+      "url": "https://proceedings.mlr.press/v337/pang26a.html",
+      "relationship": "Subsequent theoretical heavy-tail alternative.",
+      "difference": "Pang derives convergence guarantees for plain vector Adam under bounded p-th-moment heavy-tailed noise. It supplies a principled stochastic model for extreme gradients, whereas SPAM's reused bounded-gradient convex regret discussion neither models heavy tails nor proves its reset/clipping method.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "UAI 2026 official proceedings"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim the first optimizer-centered comprehensive treatment of LLM gradient spikes, combining periodic Adam moment reset, spike-aware coordinate clipping, and randomly sparse momentum to improve stability, perplexity, and memory efficiency.",
+    "evidence": "Momentum restart, clipping, factored or sparse adaptive state, and LLM spike stabilization all have prior art, which the paper partly acknowledges. The distinctive contribution is their specific integration and the broad ICLR evaluation showing consistent C4 and commonsense gains. However, the detector differs from the analysis statistic, the pseudocode is not executable as printed, catastrophic failures are not observed, and component/system-scale evidence is incomplete.",
+    "reviewer_inference": "SPAM is a meaningful empirical optimizer recipe and an important bridge between spike diagnosis and memory-efficient state rotation, but not a definitive causal theory or large-scale stability guarantee. Its strongest evidence is repeatable best perplexity across four small pre-training scales and one 7B fine-tuning suite. Current same-team GradientStabilizer and curvature-based spike analyses materially supersede its detector and mechanism; future use should compare against those methods and fix the reset cold-start specification."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Primary full-text pass only, not secondary verification. I read all 21 extracted pages end to end, including every table, appendix, pseudocode line, hyperparameter, auxiliary domain, and runtime result. I checked nine direct primary records on arXiv and official PMLR proceedings through 2026-08-23, including the renamed/current same-team GradientStabilizer successor and ICML 2026 mechanistic work. Metrics are author-reported. The noncausal-score distinction, zero-state pseudocode freeze, squared-threshold interpretation, causal-evidence limits, reset/warmup confound, token/LR inconsistencies, and system-memory qualifications are contradiction audits or reviewer inferences. I did not run the released code, reconcile it with Algorithm 1, or reproduce training."
+}

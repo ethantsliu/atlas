@@ -1,0 +1,346 @@
+{
+  "stable_id": "arxiv:2404.12406",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2404.12406",
+    "pdf_sha256": "88927058b7f7d229733aced18cbf6243fd406f535513a9bda41a79d4aed5efa2",
+    "text_sha256": "a3a04f36ea49f930d13f76a3b3c97019edd3ef06bc2a3f9e29f9cc9a715b34d8",
+    "page_count": 15,
+    "extracted_at": "2026-08-23T18:11:57.359260+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can PyTorch reduce activation memory in selective-differentiation workloads by saving tensors according to which operator inputs actually require gradients, without changing gradients or materially increasing runtime?",
+  "key_findings": [
+    {
+      "claim": "The core dependency observation is correct: for an operation such as z = W*x + b that is linear in each argument separately, the input x is needed for the weight gradient but not for the input gradient, so x need not be saved when W is frozen.",
+      "evidence": "The paper decomposes convolution backward dependencies: grad_x depends on W, grad_W depends on x, and grad_b depends on neither. PyTorch 2.2.1 nevertheless saved x for convolution, transposed convolution, and evaluation-mode batch normalization whenever x was differentiable; Linear had already been optimized. The same convolution behavior remains visible in PyTorch's open upstream issue 133566 and in an independent saved-tensor audit on PyTorch 2.12.0, so the underlying systems opportunity is real and not merely historical.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "Section 2.1, selective-differentiation example"},
+        {"page": 3, "section": "Section 2.2.1, convolution Jacobian dependencies"},
+        {"page": 9, "section": "Appendix B, layer probe summary"},
+        {"page": 15, "section": "Appendix C.3, evaluation-mode BatchNorm graph"}
+      ]
+    },
+    {
+      "claim": "A synthetic convolution stack cleanly exposes the unnecessary-retention effect and the proposed fix.",
+      "evidence": "Each hidden tensor in the toy CNN consumes 512 MiB. PyTorch uses the same increasing-memory profile when only the fourth layer is trainable as when every layer from the fourth onward is trainable, although only one parameter gradient needs the fourth layer's input. The custom primitive saves W for grad_x and x only for grad_W, producing the expected lower profile.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 1, "section": "Figure 1"},
+        {"page": 2, "section": "Section 2.1, deep-CNN setup"},
+        {"page": 3, "section": "Section 2.1 conclusion"}
+      ]
+    },
+    {
+      "claim": "The convolution optimization alone often saves nothing in real networks because neighboring operators retain the same storage; graph-level liveness, not isolated layer behavior, determines peak memory.",
+      "evidence": "Replacing only ResNet-101 convolutions leaves peak memory essentially unchanged because preceding ReLUs unconditionally retain their outputs, which are the convolution inputs. The authors therefore add a custom ReLU that stores a one-byte Boolean sign mask, reducing stored size fourfold relative to float32, and a dropout scheme intended to regenerate a mask from RNG state. These additions are different mechanisms from parameter-differentiability awareness.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "Section 2.2.2, interaction with other layers"},
+        {"page": 4, "section": "Section 3.1, layer-interaction result"}
+      ]
+    },
+    {
+      "claim": "CNN peak-memory savings are substantial in selective cases, but the method often increases memory when all parameters are trainable.",
+      "evidence": "Across DeepLabv3, EfficientNetV2-L, FCN, Faster R-CNN, MobileNetV3-L, ResNeXt-101, SSDLite, and VGG-16, selective Input/Norm cases commonly fall to about 62%-75% of the all-trainable default, while Surgical cases show smaller gains. With BatchNorm in evaluation mode, Table 5 reaches ratios as low as 0.16-0.19 for some Input cases. Conversely, the all-trainable MemSave variants increase peak memory by roughly 4%-11% for most listed CNNs because extra masks are retained even though no differentiability-based tensor can be removed.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Table 1, ResNet-101"},
+        {"page": 4, "section": "Table 3, CNN panel"},
+        {"page": 5, "section": "Section 3.2, CNN interpretation"},
+        {"page": 9, "section": "Table 5, evaluation-mode BatchNorm"}
+      ]
+    },
+    {
+      "claim": "The LLM memory reductions are generally modest and the reported timings directly contradict the blanket claim of no runtime effect.",
+      "evidence": "Table 4 reports peak-memory reductions of about 5%-21% depending on model and selective case. But all-trainable runtime rises from 1.39 to 1.61 seconds for LLaMA3-8B, 2.09 to 2.55 for Mistral-7B, 1.59 to 1.69 for Phi3-4B, 2.47 to 2.57 for the vanilla Transformer, and 1.70 to 1.95 for T5. T5 is also slower in every selective case, by about 8%-11%. No repetitions or uncertainty estimates justify labeling these systematic differences measurement noise.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Table 4 and Section 3.3"},
+        {"page": 6, "section": "Conclusion, no-runtime-effect claim"}
+      ]
+    },
+    {
+      "claim": "The experiments measure allocation and operator timing rather than demonstrating correct, convergent, end-to-end fine-tuning.",
+      "evidence": "Peak forward-pass allocation is used as a proxy for tape size, and one forward-plus-backward pass is timed in a separate Python process. No training curve, task score, gradient-equivalence table, maximum feasible batch size, optimizer state, distributed strategy, or throughput-at-fixed-memory result is reported. The conclusion explicitly lists real LoRA fine-tuning as future work.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Section 2, experimental procedure"},
+        {"page": 4, "section": "Section 3, real-world examples"},
+        {"page": 6, "section": "Conclusion and future work"}
+      ]
+    },
+    {
+      "claim": "The released dropout replacement is not gradient-correct or drop-in as implemented.",
+      "evidence": "The paper says dropout stores RNG state and regenerates its mask during backward. In the released 2024 implementation lineage, backward samples Bernoulli(0.5) regardless of the requested dropout probability p and snapshots/restores only the CPU RNG state. A deterministic audit matches native CPU gradients only at p=0.5 and gives about 50% nonzero gradients at p=0.2 or 0.8 instead of the required 80% or 20%; CUDA RNG is not restored. The current module wrapper additionally passes self.train, a method, instead of the Boolean self.training and raises TypeError. The repository's test cases explicitly leave dropout testing as a TODO.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Section 2.2.2, dropout-mask regeneration claim"},
+        {"page": 5, "section": "Section 3.3, Transformer use of dropout replacement"}
+      ]
+    },
+    {
+      "claim": "The branch used to support the LLM benchmarks contains an incorrect RMSNorm input-gradient formula, so its memory/runtime comparisons do not establish cost for an equivalent backward pass.",
+      "evidence": "The public llm branch at commit fef6003 (dated 2024-07-31) supplies a custom RMSNorm absent from the current main package. Its backward expression omits grad_output from the reduction term and instead multiplies it elementwise outside; an independent comparison against the branch's native RMSLayerNorm shows identical forward values and weight gradients but unequal input gradients both when input alone and input plus weight require gradients. LLaMA, Mistral, Phi3, and T5 all rely on RMS-style normalization in the reported panel, making correctness a prerequisite to interpreting their backward time and saved tensors.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Table 4 and Section 3.3, LLM benchmarks"},
+        {"page": 6, "section": "Conclusion, same-behavior implication"}
+      ]
+    },
+    {
+      "claim": "The artifact is not revision-pinned and the benchmark implementation is fragmented across stale branches, weakening reproducibility.",
+      "evidence": "The paper identifies PyTorch 2.2.1 but does not record a repository commit. The current main branch supports convolution, transposed convolution, BatchNorm2d, ReLU, MaxPool2d, and dropout, while the 2024 llm branch separately contains Linear, LayerNorm, and model-specific RMSNorm code needed to explain Table 4. There is no paper tag or packaged release, and the current project metadata still marks the library alpha. Reproducing the paper therefore requires reconstructing an unstated branch state and repairing correctness defects.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "Abstract and code footnote"},
+        {"page": 2, "section": "Experimental procedure, PyTorch 2.2.1"},
+        {"page": 3, "section": "Section 2.2, implementation details"},
+        {"page": 5, "section": "Table 4, LLM panel"}
+      ]
+    },
+    {
+      "claim": "The exact unnecessary-buffer observation and conditional-save solution had already appeared in PyTorch's public issue tracker, so the strongest novelty is the systematic layer survey and benchmark artifact rather than discovery of the principle.",
+      "evidence": "PyTorch issue 42371, opened in July 2020, reported that Linear and convolutions retained inputs when weights did not require gradients and showed a custom autograd Function using needs_input_grad to save conditionally. Upstream fixed Linear in October 2020 while maintainers noted the convolution code-generation case was harder; the present paper correctly finds Linear optimized and convolution still affected. It extends the prior report across transposed convolutions, evaluation-mode BatchNorm, neighboring-layer interactions, CNNs, and attention models.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Contributions and Section 2.1"},
+        {"page": 3, "section": "Section 2.1 and Appendix-B preview"},
+        {"page": 9, "section": "Appendix B, Linear-versus-convolution result"}
+      ]
+    },
+    {
+      "claim": "The approach is complementary to rematerialization and compression because it discards information that is mathematically unnecessary rather than approximating or recomputing it.",
+      "evidence": "For supported operator/gradient combinations, conditional saving can preserve exact first-order gradients with no recomputation. Checkpointing, CPU offload, randomized tape compression, and quantized activations instead trade compute, bandwidth, or gradient variance for broader memory reduction. The paper mentions these families but does not benchmark combinations or an accuracy/runtime/memory Pareto frontier.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "Introduction, memory-reduction alternatives"},
+        {"page": 3, "section": "Section 2.2, custom primitive mechanism"},
+        {"page": 6, "section": "Conclusion"}
+      ]
+    },
+    {
+      "claim": "The paper demonstrates only a limited operator, mode, and hardware surface, not a general automatic-differentiation optimization.",
+      "evidence": "Experiments use one RTX A6000 and focus on convolution families, evaluation-mode BatchNorm, ReLU, dropout, and selected Transformer layers. Training-mode BatchNorm genuinely needs input statistics, and unsupported fused kernels or functional calls bypass module conversion. Higher-order gradients, forward-mode AD, autocast details, noncontiguous formats, distributed/FSDP execution, optimizer references and hooks, torch.compile end-to-end behavior, dynamic requires_grad changes, and multiple GPU/backend types are not validated.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "Section 2.2, supported layers and interactions"},
+        {"page": 4, "section": "Section 3, A6000 setup"},
+        {"page": 5, "section": "Section 3.2-3.3"},
+        {"page": 9, "section": "Appendix B, probed operator set"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Replace selected PyTorch modules with custom autograd primitives that inspect needs_input_grad and save only the operands required by the requested vector-Jacobian products.",
+    "mechanism": "For convolution-like operators, save W only when grad_x is needed and save x only when grad_W is needed; bias gradients need neither. A converter swaps supported modules while reusing native ATen forward/backward operators. Because adjacent activations may keep the same storage alive, custom ReLU records a Boolean mask and dropout attempts RNG-based mask regeneration. Memory is evaluated under all-trainable, input-only, normalization-only, and first-quarter surgical differentiation patterns.",
+    "assumptions": [
+      "Each custom backward's tensor dependency mask exactly matches the native operator's mathematical and backend requirements.",
+      "The replacement produces numerically equivalent first-order gradients for every supported dtype, layout, mode, and parameter-differentiability pattern.",
+      "Neighboring layers can also be replaced or changed so that discarded tensors are not retained through aliases elsewhere in the graph.",
+      "Module replacement reaches the relevant operations rather than missing functional calls, fused kernels, or framework-specific subclasses.",
+      "A single RTX A6000 forward-allocation measurement and forward-plus-backward timing characterize practical training memory and runtime.",
+      "Boolean masks or regenerated dropout masks cost less than the original activation without introducing correctness or synchronization failures.",
+      "Custom autograd Functions preserve compilation, distributed training, higher-order differentiation, hooks, parameter sharing, and optimizer semantics needed by users.",
+      "Savings measured on synthetic random inputs transfer to real PEFT workloads with optimizer state, data loading, sequence padding, and task loss."
+    ]
+  },
+  "techniques": [
+    {"id": "needs-input-grad-tape-pruning", "role": "Conditions saved operands on which forward inputs require gradients."},
+    {"id": "native-aten-wrapper", "role": "Calls native ATen forward and backward operators from a custom autograd Function while controlling saved context."},
+    {"id": "module-conversion-pass", "role": "Recursively substitutes supported nn.Module instances with memory-saving equivalents."},
+    {"id": "boolean-relu-mask", "role": "Stores one-byte signs instead of a full-precision ReLU input or output to break neighboring-layer retention."},
+    {"id": "rng-regenerated-dropout", "role": "Attempts to save random-generator state and recreate a dropout mask during backward instead of retaining an activation-sized mask."},
+    {"id": "selective-differentiation-grid", "role": "Compares all, input-only, norm-only, and surgical trainability patterns."},
+    {"id": "saved-graph-probe", "role": "Uses peak CUDA allocation and torchviz graphs to identify tensors retained by native backward nodes."},
+    {"id": "training-versus-eval-batchnorm", "role": "Separates the case where batch statistics require inputs from evaluation mode where fixed statistics permit discarding them."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Depth-varying, size-preserving Conv2d stack with 512 MiB activations under several parameter-freezing patterns on PyTorch 2.2.1.",
+      "metric": "Peak forward CUDA allocation as a proxy for autograd-tape size.",
+      "result": "Native PyTorch retains the same sequence of inputs when one middle layer is trainable as when that layer and all following layers are trainable; conditional-saving convolution removes the unnecessary linear growth.",
+      "baseline": "Native PyTorch Conv2d with fully trainable, fully frozen, suffix-trainable, or one-layer-trainable parameters."
+    },
+    {
+      "setting": "ResNet-101 on random 64x3x224x224 inputs, with convolution-only replacement and then convolution plus custom ReLU replacement.",
+      "metric": "Peak GPU memory and forward-plus-backward wall time in four differentiability cases.",
+      "result": "Convolution replacement alone has almost no effect because ReLU retains the same activation; adding mask-based ReLU lowers Input/Norm memory from 7.83 to 5.24 GiB and Surgical to 6.86 GiB, while all-trainable memory rises to 8.56 GiB.",
+      "baseline": "Native torchvision ResNet-101."
+    },
+    {
+      "setting": "Eight CNN architectures including classification, segmentation, and detection models on one RTX A6000.",
+      "metric": "Peak GPU memory and one forward-plus-backward runtime.",
+      "result": "Selective cases commonly use about two-thirds to three-quarters of native memory; BatchNorm evaluation mode enables reductions as large as about 6x, while most all-trainable variants consume more memory.",
+      "baseline": "The same torchvision models with default PyTorch layers."
+    },
+    {
+      "setting": "Vanilla Transformer, T5, LLaMA3-8B, Mistral-7B, and Phi3-4B on synthetic embeddings, with large models in bfloat16 and reduced batch sizes.",
+      "metric": "Peak GPU memory and one forward-plus-backward runtime under four trainability patterns.",
+      "result": "Peak-memory ratios improve by roughly 5%-21%, but several timings worsen materially, including 16% for all-trainable LLaMA, 22% for all-trainable Mistral, and 8%-15% across T5 cases; the public benchmark branch's RMSNorm input gradient is incorrect.",
+      "baseline": "Default PyTorch/Hugging Face implementations at nominally matching shapes."
+    },
+    {
+      "setting": "Linear, Conv1d/2d/3d, transposed convolutions, and training/evaluation BatchNorm layer probes, with and without torch.compile.",
+      "metric": "Peak memory slopes and saved-tensor computation graphs.",
+      "result": "Linear is already differentiability-aware; convolution, transposed convolution, and evaluation-mode BatchNorm retain unnecessary inputs in the tested version, including under compilation.",
+      "baseline": "Native PyTorch operators across trainability patterns."
+    }
+  ],
+  "limitations": [
+    "Author-stated: interactions with neighboring layers can retain the same tensor and eliminate savings from an otherwise correct local optimization.",
+    "Author-stated: training-mode BatchNorm needs its inputs, whereas the extra differentiability optimization applies only in evaluation mode.",
+    "Author-stated: the study does not evaluate real parameter-efficient fine-tuning; LoRA experiments are left as future work.",
+    "Reviewer-identified: the released dropout primitive is incorrect for p other than 0.5, does not restore CUDA RNG, is untested, and the current wrapper passes a method where a Boolean training flag is required.",
+    "Reviewer-identified: the public LLM branch's RMSNorm backward produces incorrect input gradients, invalidating equivalence for a central benchmark path.",
+    "Reviewer-identified: the paper does not pin an artifact commit, and LLM support needed for Table 4 is absent from current main and stranded on a stale branch.",
+    "Reviewer-identified: no full training, accuracy, convergence, gradient-equivalence, maximum-batch-size, or throughput-at-fixed-memory experiment validates end-to-end utility.",
+    "Reviewer-identified: each reported value appears to be a single process-level measurement without warm-up protocol, repetitions, variance, or significance; claims of measurement noise are unsupported.",
+    "Reviewer-identified: runtime overhead reaches about 22% in the table despite the abstract and conclusion claiming no runtime effect.",
+    "Reviewer-identified: only one NVIDIA GPU, one PyTorch release, selected modules, and first-order reverse-mode use are tested.",
+    "Reviewer-identified: the exact unnecessary-buffer pattern and conditional-saving idea were publicly documented in PyTorch issue 42371 in 2020.",
+    "Reviewer-identified: replacing modules through deep copy may interact with optimizer references, tied parameters, hooks, parametrizations, distributed wrappers, and unsupported modules, none of which are audited.",
+    "Reviewer-identified: no matched comparison or composition study covers checkpointing, rematerialization, activation compression, offload, or PEFT-specific memory methods."
+  ],
+  "failure_modes": [
+    "A preceding or following operator retains an alias of the discarded tensor, producing no peak-memory reduction.",
+    "A custom backward omits or misplaces a term and reports lower memory/time only because it computes the wrong gradient.",
+    "Dropout mask regeneration uses the wrong probability, generator, device state, or random-number consumption pattern and silently corrupts training.",
+    "A converter misses functional or fused operators, so nominally converted models retain native saved tensors.",
+    "All-trainable workloads store extra Boolean masks but cannot discard any differentiability-dependent activations, increasing memory.",
+    "Custom autograd wrappers prevent kernel fusion or graph compilation and create the measured 10%-22% runtime regressions.",
+    "Changing requires_grad after compilation or conversion produces stale dependency assumptions or unsupported execution paths.",
+    "A copied/replaced module no longer shares the optimizer's Parameter objects, hooks, buffers, or tied weights as intended.",
+    "Higher-order gradients or forward-mode transforms require intermediates that the first-order dependency analysis discarded.",
+    "Savings in activation-heavy synthetic batches disappear when weights, optimizer states, gradients, KV buffers, or distributed communication dominate peak memory."
+  ],
+  "reusable_insights": [
+    "Saved-tensor selection should be generated from derivative formulas and requested gradient masks at the operator level, then verified automatically against native gradients.",
+    "Local tape pruning needs a graph-level alias/liveness analysis; deleting one save is irrelevant if another consumer retains the same storage.",
+    "Exact elimination, lossless/lossy compression, offload, and rematerialization are complementary stages and should be optimized jointly under a memory-time-error budget.",
+    "A systems benchmark must distinguish operator microcost, end-to-end step time, maximum feasible batch or sequence length, and throughput at a fixed memory cap.",
+    "Custom stochastic backward implementations require per-device generator snapshots and exact replay tests across probabilities, dtypes, devices, compilation, and distributed ranks.",
+    "Gradient-equivalence tests should cover every Cartesian combination of requested input gradients, random upstream cotangents, non-scalar losses, higher-order gradients, and layout/backend variants.",
+    "Framework-level integration is preferable to a deep-copy module converter because the autograd code generator has complete derivative dependency information and preserves model identity."
+  ],
+  "open_questions": [
+    "Can PyTorch's derivative code generator automatically derive conditional saved-tensor sets for every input-gradient mask without custom Python Functions?",
+    "What fraction of saved activation bytes in modern Transformer PEFT is mathematically unnecessary after accounting for fused attention, RMSNorm, adapters, and functional operators?",
+    "How much additional benefit remains after combining exact tape pruning with selective activation checkpointing, compression, and CPU/NVMe offload?",
+    "Can a graph-level optimizer choose between storing an input, storing an output or compact sufficient statistic, and recomputing based on aliasing and kernel cost?",
+    "Do corrected implementations improve maximum sequence length or tokens per second in LoRA, LISA, prompt tuning, adversarial-input optimization, and style transfer?",
+    "Which derivative tests and compiler contracts are necessary before conditional-saving rules can be safely upstreamed across CUDA, CPU, MPS, ROCm, and XLA backends?",
+    "Can stochastic masks be replayed exactly and cheaply across CUDA graphs, distributed ranks, activation checkpointing, and torch.compile?",
+    "How should a converter preserve parameter identity, tied weights, optimizers, hooks, parametrizations, and distributed wrappers while replacing operator behavior?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1910.02653",
+      "title": "Checkmate: Breaking the Memory Wall with Optimal Tensor Rematerialization",
+      "url": "https://arxiv.org/abs/1910.02653",
+      "relationship": "prior optimal-rematerialization system",
+      "difference": "Checkmate profiles a graph and solves a hardware-aware schedule that trades recomputation for memory across arbitrary tensors. MemSave instead removes operands that a requested derivative mathematically does not need, potentially with zero recomputation but only for correctly wrapped operators.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2006.09616",
+      "title": "Dynamic Tensor Rematerialization",
+      "url": "https://arxiv.org/abs/2006.09616",
+      "relationship": "prior online-rematerialization system",
+      "difference": "DTR evicts activations online and recomputes them on demand, supporting dynamic models through runtime interception. MemSave has no recomputation when its dependency rule applies, but does not provide DTR's graph-generic budget control.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4"
+    },
+    {
+      "canonical_id": "pmlr:chen21z",
+      "title": "ActNN: Reducing Training Memory Footprint via 2-Bit Activation Compressed Training",
+      "url": "https://proceedings.mlr.press/v139/chen21z.html",
+      "relationship": "prior drop-in activation-compression framework",
+      "difference": "ActNN substitutes layers and quantizes necessary activations to about two bits, trading gradient variance and compression work for broad savings and larger batches. MemSave seeks exact deletion of unnecessary operands and is therefore orthogonal but narrower.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "PMLR 139 (2021)"
+    },
+    {
+      "canonical_id": "pmlr:liu22v",
+      "title": "GACT: Activation Compressed Training for Generic Network Architectures",
+      "url": "https://proceedings.mlr.press/v162/liu22v.html",
+      "relationship": "prior generic activation-compression framework",
+      "difference": "GACT uses runtime sensitivity estimates to assign compression across generic architectures and reports up to 8.1x activation reduction with convergence analysis. MemSave avoids approximation for selected derivative masks but lacks a generic optimizer and end-to-end accuracy study.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "PMLR 162 (2022)"
+    },
+    {
+      "canonical_id": "pmlr:zhao23b",
+      "title": "Rockmate: an Efficient, Fast, Automatic and Generic Tool for Re-materialization in PyTorch",
+      "url": "https://proceedings.mlr.press/v202/zhao23b.html",
+      "relationship": "prior automatic PyTorch memory optimizer",
+      "difference": "Rockmate rewrites PyTorch models into blocks and controls activation memory with about 10%-20% recomputation overhead. It is broader and budget-aware; MemSave's local exact-elimination rules could reduce the graph Rockmate must schedule.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "PMLR 202 (2023)"
+    },
+    {
+      "canonical_id": "arxiv:2210.10246",
+      "title": "Tempo: Accelerating Transformer-Based Model Training through Memory Footprint Reduction",
+      "url": "https://arxiv.org/abs/2210.10246",
+      "relationship": "prior Transformer-specific drop-in layer system",
+      "difference": "Tempo supplies memory-aware GELU, LayerNorm, and attention replacements and evaluates training throughput plus accuracy on BERT, GPT-2, and RoBERTa. MemSave focuses on selective gradients and reports more architectures, but does not validate task training and its LLM replacements contain correctness defects.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2308.03303",
+      "title": "LoRA-FA: Efficient and Effective Low Rank Representation Fine-tuning",
+      "url": "https://arxiv.org/abs/2308.03303",
+      "relationship": "PEFT-specific activation-memory competitor",
+      "difference": "LoRA-FA freezes one LoRA factor so full-rank activations need not be retained for that factor's gradient and adds low-rank gradient corrections. It changes the adaptation parameterization, whereas MemSave aims to preserve a user's chosen training method while optimizing operator tape storage.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2306.00477",
+      "title": "Make Pre-trained Model Reversible: From Parameter to Memory Efficient Fine-Tuning",
+      "url": "https://arxiv.org/abs/2306.00477",
+      "relationship": "PEFT-specific reversible competitor",
+      "difference": "MEFT inserts reversible adapters so intermediate activations can be reconstructed and reports downstream task quality. It requires an architectural transformation and recomputation; MemSave seeks local exact deletion without changing the model's mathematical forward pass.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4"
+    },
+    {
+      "canonical_id": "arxiv:2403.17919",
+      "title": "LISA: Layerwise Importance Sampling for Memory-Efficient Large Language Model Fine-Tuning",
+      "url": "https://arxiv.org/abs/2403.17919",
+      "relationship": "selective-layer fine-tuning workload and competitor",
+      "difference": "LISA repeatedly trains sampled layers and freezes most others, directly creating the selective-differentiation pattern where MemSave should help, while also reducing optimizer state. LISA validates downstream quality up to 70B; the present paper cites it but does not benchmark their composition.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4"
+    },
+    {
+      "canonical_id": "arxiv:2509.23472",
+      "title": "Memory-Efficient Fine-Tuning via Low-Rank Activation Compression",
+      "url": "https://arxiv.org/abs/2509.23472",
+      "relationship": "subsequent activation-compression competitor",
+      "difference": "LoRAct compresses necessary activations online into low-rank factors and reports about 80% activation-memory reduction relative to LoRA across language and vision. It introduces approximation and decomposition cost; MemSave's exact dependency pruning should be evaluated before and in combination with it.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper presents the observation that PyTorch sometimes ignores parameter differentiability when deciding which tensors to save and introduces drop-in layer replacements that reduce selective-differentiation memory without runtime cost.",
+    "evidence": "Its useful contributions are a systematic survey of affected PyTorch 2.2.1 operators, a clear convolution dependency example, neighboring-layer liveness analysis, a module-conversion artifact, and broad allocation tables across CNN and Transformer architectures.",
+    "reviewer_inference": "The mathematical tape-pruning principle and even a needs_input_grad implementation had appeared in PyTorch issue 42371 four years earlier, so discovery novelty is limited. The paper usefully broadens and quantifies the issue, and the upstream convolution problem remains open, but the claimed exact drop-in/no-overhead artifact is not established: released dropout and LLM RMSNorm paths are gradient-incorrect, runtime regressions reach 22%, the implementation revision is not pinned, and no real training is run. The supportable contribution is therefore a valuable systems diagnosis and design direction, not a validated production-ready solution."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Read all 15 cached pages, including tables, layer probes, and computation-graph appendices. Current competing work was checked on primary arXiv/PMLR pages on 2026-08-23. The public artifact and its 2024 llm/dropout branches were also audited because the paper's central claim is implementation equivalence. Focused native-PyTorch tests reproduced current convolution over-saving on PyTorch 2.12.0, dropout gradient mismatch outside p=0.5, and RMSNorm input-gradient mismatch in commit fef6003; these are reviewer audits, not author-reported results. No repository projections were rebuilt."
+}

@@ -1,0 +1,197 @@
+{
+  "stable_id": "arxiv:2204.00523",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2204.00523",
+    "pdf_sha256": "37d8ab35b3e741787ca5c029e9eb91dc00a099221bf6f96d85872e476bdda15a",
+    "text_sha256": "25cc38162c51df8686e8e89c58ff43072344ec82ab589724c9e7609d19726c23",
+    "page_count": 13,
+    "extracted_at": "2026-08-23T21:13:27.702159+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a neural network recover the full Jacobian of an unknown multivariate function from scattered input-output samples alone, without derivative labels or repeated function queries?",
+  "key_findings": [
+    {
+      "claim": "The method learns a Jacobian field directly from normalized local first-order consistency rather than first fitting the function and differentiating a surrogate.",
+      "evidence": "For nearby sample pairs (a,b), the network is trained to make F(a)+J_hat(a)(b-a) match F(b), with squared residual divided by ||b-a||^2. Each point uses up to k_max nearest neighbors inside r_max; the default network has four hidden layers of widths 100, 100, 50, and 20 with swish activations.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "IV. The Algorithm / Equation 8 and Algorithm 1"},
+        {"page": 5, "section": "IV.C Notes on the algorithm"}
+      ]
+    },
+    {
+      "claim": "Synthetic smooth-function experiments show decreasing true-Jacobian error with denser samples, but do not establish comparative superiority.",
+      "evidence": "Across thirteen hand-specified functions of up to five input dimensions, the mean relative Jacobian error generally falls with N; for F0 it drops from 24.9% at 10^3 samples to 1.20% at 10^6. The paper reports no fitted-surrogate autodifferentiation, local polynomial, finite-difference, or least-squares Jacobian baseline under matched sample and compute budgets.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "V. Experiment Design / Table I"},
+        {"page": 8, "section": "V.B Error statistics / Table II"}
+      ]
+    },
+    {
+      "claim": "The proposed validation residual is not an independent test of recovery of the full Jacobian.",
+      "evidence": "E*_delta evaluates the same local linear prediction relationship used for training, on held-out nearby pairs, and probes J_hat only through products J_hat(a)(b-a). It can remain small when the matrix is wrong in poorly sampled directions; the paper's nonsmooth examples explicitly show low E* despite large true-Jacobian error near singularities.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "V.B Error statistics / Equation 11"},
+        {"page": 9, "section": "V.C Non-smooth functions / Table III"}
+      ]
+    },
+    {
+      "claim": "The convergence theorem is conditional on substantially stronger properties than the reported training procedure verifies.",
+      "evidence": "Theorem VI.3 assumes a bounded-Hessian target, a uniformly Lipschitz estimator, epsilon-dense samples with d near-orthogonal local neighbor directions, and a uniform normalized residual bound for every required pair. Algorithm 1 minimizes an average mini-batch loss; experiments do not check directional conditioning or the pointwise supremum condition, and the default max_w=0 applies no weight constraint that would establish the estimator's Lipschitz premise.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "VI.A Assumptions / Assumptions 1-4"},
+        {"page": 11, "section": "VI.B A proof of convergence / Theorem VI.3"},
+        {"page": 5, "section": "IV.C Notes on the algorithm"}
+      ]
+    },
+    {
+      "claim": "Noise, curvature, and nondifferentiability expose systematic failure regimes rather than calibrated uncertainty.",
+      "evidence": "With additive noise sigma=0.01, selected relative errors are 8.06%, 9.74%, and 10.5%. The estimator is biased toward smaller norms on convex regions and larger norms on concave regions because secant slopes differ from tangent slopes. Near an interior singularity of sqrt(x^2+y^2), the reported local true-Jacobian error is 23.6 while E* is only 0.3.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "V.B Noise experiment"},
+        {"page": 9, "section": "V.C-D Non-smooth functions and convexity"}
+      ]
+    },
+    {
+      "claim": "One benchmark definition is internally inconsistent and prevents exact reproduction without interpretation.",
+      "evidence": "Table I declares F10 as a map from R^4 to R^4, but its displayed formula contains only three output components. Consequently the stated output dimension and the function used to compute its Jacobian cannot both be correct as written.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Table I: test functions F0-F12"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Train a neural field whose output is the Jacobian matrix by enforcing Taylor consistency between nearby observed function values.",
+    "mechanism": "Build a nearest-neighbor table for the scattered samples. During training, choose a center a and local neighbors b, predict the c-by-d matrix J_hat(a), and minimize the distance-normalized discrepancy between the observed F(b) and the first-order extrapolation F(a)+J_hat(a)(b-a). At inference, evaluate the single trained network at arbitrary points to obtain Jacobian estimates without differentiating the unknown function.",
+    "assumptions": [
+      "The target is twice differentiable with uniformly bounded second derivative on the domain used by the theorem.",
+      "The learned Jacobian estimator is uniformly Lipschitz, although default unconstrained training does not certify this.",
+      "Samples are dense and local neighbor displacement vectors span every input direction with controlled conditioning.",
+      "Normalized local residuals are uniformly small, a stronger condition than low average training loss.",
+      "Nearest neighbors are sufficiently local that first-order truncation error is smaller than statistical and optimization error.",
+      "Observed function values have enough signal-to-noise relative to neighbor distances; division by distance can amplify noise."
+    ]
+  },
+  "techniques": [
+    {"id": "jacobian-output-mlp", "role": "Maps each input point directly to all entries of the unknown function's Jacobian."},
+    {"id": "nearest-neighbor-pairing", "role": "Creates local displacement directions from scattered samples without additional function queries."},
+    {"id": "normalized-taylor-residual", "role": "Supervises directional Jacobian products using only differences of observed function values."},
+    {"id": "held-out-local-residual", "role": "Provides a derivative-free validation proxy, though it is structurally coupled to the training objective."},
+    {"id": "conditional-uniform-error-bound", "role": "Relates directional residuals and local coverage to a supremum operator-norm Jacobian error."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Thirteen analytic scalar- and vector-valued test functions with input dimension up to five and sample counts from 10^3 to 10^6",
+      "metric": "Mean relative Frobenius-norm Jacobian error E_delta and derivative-free local prediction error E*_delta",
+      "result": "Most true-Jacobian errors fall toward low single digits as N grows; F0 decreases from 24.9% at 10^3 to 1.20% at 10^6, while its E* remains around 2.69% at the largest sample size.",
+      "baseline": "Smaller sample sets only; no competing estimator"
+    },
+    {
+      "setting": "Selected functions with additive output noise of standard deviation 0.01",
+      "metric": "Relative true-Jacobian error",
+      "result": "Reported errors are 8.06% for F1 at N=10^5, 9.74% for F4 at N=10^4, and 10.5% for F8 at N=10^5.",
+      "baseline": "Corresponding noiseless experiments"
+    },
+    {
+      "setting": "Three nonsmooth functions with boundary or interior singular sets",
+      "metric": "Local true-Jacobian error and local-prediction validation error",
+      "result": "For sqrt(x^2+y^2) near the interior singularity, E_0.1 is 23.6 while E*_0.1 is 0.3; the authors conclude the proxy cannot reveal singularities when the function is truly unknown.",
+      "baseline": "Errors away from the singular neighborhood"
+    },
+    {
+      "setting": "Default k_max=50 training on a 3 GHz Intel i7",
+      "metric": "Wall-clock seconds per epoch",
+      "result": "Approximately 0.6, 4, 40, and 250 seconds per epoch for N=10^3, 10^4, 10^5, and 10^6 respectively.",
+      "baseline": "Scaling across sample counts; no alternative implementation"
+    }
+  ],
+  "limitations": [
+    "All accuracy experiments use analytic synthetic functions with exact Jacobians available; no real unknown system is validated.",
+    "There is no matched comparison to local linear regression, local polynomial regression, fitted-surrogate autodifferentiation, or finite-difference estimators.",
+    "Input dimension reaches only five, so the local directional-coverage assumption and neighbor search are not tested in high dimension.",
+    "The validation proxy reuses the training relation and cannot certify individual matrix entries or reveal nonsmooth points.",
+    "The theorem's uniform residual, Lipschitz-network, density, and near-orthogonal-neighbor premises are not measured in experiments.",
+    "Hyperparameters are largely fixed without ablations of radius, neighbor count, architecture, distance normalization, or regularization.",
+    "Training cost reaches roughly 250 seconds per epoch at one million samples for a 50-epoch default.",
+    "The F10 output dimension conflicts with its displayed formula."
+  ],
+  "failure_modes": [
+    "Local displacement vectors lie in a low-rank cone, leaving some Jacobian columns unidentifiable despite low loss.",
+    "Very close noisy pairs dominate after division by squared distance and teach an unstable derivative field.",
+    "Curvature produces secant-to-tangent bias, especially with an overly large neighbor radius.",
+    "A nonsmooth or singular target yields a smooth compromise that looks valid under E* but is not a meaningful Jacobian.",
+    "Unconstrained network weights create high local Lipschitz constants, invalidating the theorem's estimator premise.",
+    "Average residual is small while rare regions have large errors, so a uniform-error conclusion is incorrectly inferred.",
+    "The curse of dimensionality prevents epsilon-dense, near-orthogonal local coverage at feasible sample sizes."
+  ],
+  "reusable_insights": [
+    "Directional Taylor consistency can turn unlabeled local sample pairs into supervision for an operator-valued neural field.",
+    "Derivative-free validation must measure directional conditioning as well as residual size; otherwise a low residual can hide an incorrect matrix.",
+    "Separate average empirical losses from the supremum conditions used in a convergence theorem and report how often those premises hold.",
+    "A trustworthy unknown-function derivative benchmark should include local-polynomial and surrogate-autodifferentiation baselines, noise-distance sweeps, and high-dimensional coverage stress tests.",
+    "Nonsmooth examples are useful negative controls for deciding whether an estimator can abstain rather than output a misleading smooth derivative."
+  ],
+  "open_questions": [
+    "Can uncertainty over Jacobian entries be calibrated from local directional coverage, noise, and optimization variability?",
+    "Would explicitly optimizing the minimum singular value of each neighborhood's displacement matrix prevent invisible directions?",
+    "How does direct Jacobian learning compare with fitting F and differentiating it under matched model capacity and query budgets?",
+    "Can robust pair weighting prevent noise amplification without introducing curvature bias?",
+    "What sample complexity is achievable when the Jacobian is sparse, low rank, conservative, or otherwise structured?",
+    "Can a held-out curl, path-integral, or multi-scale consistency test detect nonsmoothness and nonintegrable predicted Jacobian fields?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1902.06211",
+      "title": "Data-driven Estimation of the Power Flow Jacobian Matrix in High Dimensional Space",
+      "url": "https://arxiv.org/abs/1902.06211",
+      "relationship": "direct application-specific Jacobian estimator",
+      "difference": "He et al. estimate a high-dimensional power-flow Jacobian using least-squares and neural deviation models and validate against model-derived benchmark matrices. The target seeks a domain-general derivative-free Jacobian field and supplies a conditional convergence result, but evaluates only low-dimensional analytic functions.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1, 2019-02-17"
+    },
+    {
+      "canonical_id": "arxiv:1706.04859",
+      "title": "Sobolev Training for Neural Networks",
+      "url": "https://arxiv.org/abs/1706.04859",
+      "relationship": "derivative-aware function-learning antecedent",
+      "difference": "Sobolev Training improves a function approximator by supervising both values and available target derivatives. The target addresses the complementary setting where derivative labels are absent and learns the derivative field from neighboring value differences, but it does not jointly enforce accurate reconstruction of F.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3, 2017-07-26"
+    },
+    {
+      "canonical_id": "arxiv:2007.04443",
+      "title": "Minimax Efficient Finite-Difference Stochastic Gradient Estimators Using Black-Box Function Evaluations",
+      "url": "https://arxiv.org/abs/2007.04443",
+      "relationship": "zeroth-order derivative-estimation theory competitor",
+      "difference": "Lam et al. prove central finite differences are nearly minimax for noisy black-box scalar-gradient estimation under a specified smoothness class and risk. Their estimator assumes controlled function queries, whereas the target amortizes a full multivariate Jacobian from a fixed scattered dataset; the target does not provide a comparable statistical minimax or noise-dependent rate.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2, 2020-11-12"
+    },
+    {
+      "canonical_id": "arxiv:1901.03995",
+      "title": "Neural network gradient-based learning of black-box function interfaces",
+      "url": "https://arxiv.org/abs/1901.03995",
+      "relationship": "differentiable black-box surrogate antecedent",
+      "difference": "Jacovi et al. learn a differentiable proxy for a black-box function so gradients can train an upstream model, then restore the exact black box at inference. The target predicts the black box's Jacobian itself from scattered values and keeps that learned derivative estimator at inference, targeting scientific sensitivity analysis rather than end-to-end interface optimization.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1 / ICLR 2019, 2019-01-13"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "A neural network can directly estimate a multivariate unknown function's Jacobian from sample values alone by training on nearest-neighbor Taylor residuals, with a convergence guarantee under suitable sampling and smoothness assumptions.",
+    "evidence": "The paper specifies a derivative-free loss and neighbor algorithm, reports analytic-function accuracy over sample sizes up to one million, examines noise and nonsmooth targets, and proves a conditional uniform error theorem.",
+    "reviewer_inference": "Learning an amortized matrix-valued Jacobian field directly from scattered observations is a useful formulation distinct from derivative-supervised Sobolev training, pointwise finite differences, and domain-specific Jacobian estimation. The evidence does not establish state-of-the-art accuracy or real-world utility because there are no competing baselines, dimensions remain small, and the theorem's strongest premises are neither induced nor audited by the empirical procedure. E* should be treated as a local-consistency diagnostic, not validation that the Jacobian is correct."
+  },
+  "confidence": 0.94,
+  "reviewer_notes": "Read all thirteen pages of the exact indexed manuscript, including the loss and pseudocode, every analytic benchmark, full Tables I-III, noise and nonsmooth tests, convexity discussion, Assumptions 1-4, Theorem VI.3 and proof, conclusion, and references. Source hashes and page count match fulltext_index.jsonl. Four official arXiv primary sources were checked on 2026-08-23. The audit distinguishes the useful direct-Jacobian formulation from the paper's unsupported comparative implications, the circularity of E*, the gap between average training and uniform theorem premises, and the F10 dimension/formula inconsistency."
+}

@@ -1,0 +1,181 @@
+{
+  "stable_id": "arxiv:2509.25049",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2509.25049",
+    "pdf_sha256": "7d9d65639b8117986d255a37f30fe74d655a7bcc36e90a0d28580438a3c45836",
+    "text_sha256": "58183cceb816cfa408b3e19554e7d71124367a42d179746fa849d41303c31d72",
+    "page_count": 20,
+    "extracted_at": "2026-08-23T15:07:00.492984+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can invariant structure in AdamW training trajectories collapse a costly learning-rate/weight-decay sweep to one salient direction, and does that structure determine how batch size and token horizon should be tuned?",
+  "key_findings": [
+    {
+      "claim": "The central empirical phenomenon has two stages: early trajectories group by raw learning rate, while sufficiently long small-batch trajectories group by the product of learning rate and weight decay.",
+      "evidence": "Across a 5-by-5 grid of eta and lambda, validation loss initially overlaps for fixed eta even when lambda changes. Later, loss, preconditioned gradient noise, and gradient norm cluster for fixed gamma=eta*lambda, including pairs whose learning rates differ eightfold. Pairwise relative-distance matrices and group averages quantify rather than only visually assert the collapse.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 1, "section": "Figure 1 trajectory invariance"},
+        {"page": 4, "section": "3.1 Trajectory invariance with respect to LR and ELR"},
+        {"page": 5, "section": "Figure 3 quantitative relative-distance evaluation"},
+        {"page": 17, "section": "A.5 Quantitative results"}
+      ]
+    },
+    {
+      "claim": "The transition to product invariance is associated with optimizer-step count rather than processed-token count, and a small-to-large batch schedule can recover it.",
+      "evidence": "Batch 8192 processes 100B tokens in only 12,500 steps and continues to group by raw learning rate, whereas batch 512 reaches a comparable step count after roughly 5B tokens and begins grouping by eta*lambda. Two schedulers—resuming a large batch from one small-batch checkpoint and switching each swept run at 30B tokens—restore the product-aligned trajectories at large batch.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "3.2 Sufficient iterations matters / Figure 4"},
+        {"page": 15, "section": "A.4 Full dynamics"},
+        {"page": 16, "section": "Figures 12-14 scheduler dynamics"}
+      ]
+    },
+    {
+      "claim": "The proposed tuning rule follows the empirically dominant curvature direction of the final-loss surface: tune eta*lambda after sufficient small-batch steps, but tune eta under naive large-batch training.",
+      "evidence": "After a 105B-token warmup-stable-decay run, heatmaps show near-diagonal equal-loss bands at batch 512 and near-vertical bands at batch 8192. Quadratic fits have one eigenvalue that dominates, motivating a one-dimensional search: fix eta and vary lambda in the product-invariant regime, or vary eta and hold lambda fixed in the large-batch raw-LR regime.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "3.4 Efficient hyperparameter tuning / Figure 5"},
+        {"page": 17, "section": "Figure 15 eigen dynamics"}
+      ]
+    },
+    {
+      "claim": "The fitted data-horizon laws find nearly constant optimal learning rate, sublinearly decreasing weight decay and therefore decreasing eta*lambda; they do not support one universal growing optimal batch-size law.",
+      "evidence": "For each token budget the authors fit a paraboloid to the swept post-decay loss surface and power laws to its minimum. All fitted learning-rate exponents have magnitude below 0.057, while weight decay falls with data. Batch 512 outperforms batch 8192 across the measured range, but scheduled large-batch training improves sharply and sometimes beats the small batch in the data-limited regime.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "4 Refined hyperparameter scaling laws / Figure 6"},
+        {"page": 9, "section": "Batch-size scheduler and scaling-law discussion"},
+        {"page": 19, "section": "A.6 Full scaling laws"}
+      ]
+    },
+    {
+      "claim": "The apparent universality is not demonstrated beyond one 164M-parameter model family, one corpus, fixed Adam coefficients, and a narrow optimizer/schedule design.",
+      "evidence": "All sweeps use 164M-parameter autoregressive models, GPT-2 tokenization, the Pile, context length 1024, AdamW beta1=0.9 and beta2=0.95, and only constant or WSD schedules. The limitations explicitly say model-size scaling is unknown and beta1, beta2, and epsilon are unmodeled. Extrapolating a 600-tokens-per-parameter observation to frontier models or other modalities is therefore an untested hypothesis.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "2 Preliminaries / experiment setup"},
+        {"page": 3, "section": "Optimizer, batch, LR and WD grids"},
+        {"page": 9, "section": "6 Conclusion and limitations"},
+        {"page": 10, "section": "Remaining limitations"}
+      ]
+    },
+    {
+      "claim": "The paper treats preconditioned gradient-noise scale as the critical-batch-size proxy even though later empirical work directly questions that proxy, so the small/large batch labels should not be mistaken for directly measured throughput optima.",
+      "evidence": "Batch 512 is called small because B_precond remains above it and batch 8192 large because B_precond remains below it. Those labels drive interpretation, but final validation loss and scheduled versus unscheduled behavior are separate empirical outcomes; the manuscript does not directly sweep enough batch sizes to locate a critical or optimal batch boundary.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "Preconditioned gradient-noise definitions"},
+        {"page": 4, "section": "Identifying small and large batches with GNS"},
+        {"page": 8, "section": "Challenge to optimal batch-size scaling"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Search for low-dimensional invariants in complete optimization trajectories, then use the dominant invariant direction to reduce joint hyperparameter tuning and fit data-horizon scaling laws.",
+    "mechanism": "Train 164M-parameter language models over crossed learning-rate and weight-decay grids at small and large batches; compare loss and preconditioned gradient statistics; alter optimizer-step count with batch schedules; fit local quadratic loss surfaces and power laws to their minima.",
+    "assumptions": [
+      "The product gamma=eta*lambda is an adequate effective-learning-rate coordinate after parameter norms stabilize.",
+      "Preconditioned gradient-noise scale adequately separates small from large batches for AdamW.",
+      "The sampled 5-by-5 eta/lambda grid resolves the salient loss-surface direction and its optimum.",
+      "A 164M model on the Pile is a useful proxy for larger autoregressive models."
+    ]
+  },
+  "techniques": [
+    {"id": "trajectory-collapse", "role": "Groups full loss and gradient-statistic curves by candidate invariant coordinates."},
+    {"id": "adamw-effective-rate", "role": "Uses eta times lambda as the late-training trajectory coordinate."},
+    {"id": "preconditioned-gradient-noise", "role": "Defines optimizer-aware gradient noise and an estimated critical batch size."},
+    {"id": "batch-size-scheduling", "role": "Separates token budget from update count and restores small-batch trajectory history."},
+    {"id": "loss-surface-eigendecomposition", "role": "Extracts the dominant one-dimensional tuning direction."},
+    {"id": "hyperparameter-scaling-law", "role": "Fits optimum eta, lambda, gamma, and loss against dataset size."}
+  ],
+  "evaluations": [
+    {"setting": "164M language model, Pile, up to 100B constant-LR tokens", "metric": "validation-loss, preconditioned gradient-noise and gradient-norm trajectory distance", "result": "Early curves collapse by eta; late small-batch curves collapse by eta*lambda.", "baseline": "All 25 crossed eta/lambda configurations"},
+    {"setting": "Batch 512 versus 8192 and two small-to-large schedulers", "metric": "invariance coordinate and final validation loss", "result": "Naive large batch stays eta-aligned; sufficient small-batch updates restore product alignment and improve large-batch loss.", "baseline": "Fixed small and fixed large batches"},
+    {"setting": "105B-token WSD runs", "metric": "post-decay loss heatmap and quadratic Hessian spectrum", "result": "One direction dominates, but its orientation changes with update regime.", "baseline": "Full two-dimensional eta/lambda grid"},
+    {"setting": "Multiple token horizons", "metric": "fitted optimal eta, lambda, eta*lambda and loss", "result": "Optimal eta is nearly constant while lambda and eta*lambda decrease sublinearly with data.", "baseline": "Previously proposed increasing/decreasing LR and inverse-linear WD laws"}
+  ],
+  "limitations": [
+    "Only one 164M-parameter architecture and one text corpus are directly evaluated.",
+    "The model-size dependence of eta, lambda, and their product is not measured.",
+    "Adam beta1, beta2, epsilon, clipping, initialization, architecture, and data composition are outside the invariant search.",
+    "Only two main batch sizes are used, which is insufficient to directly estimate a smooth optimal-batch law.",
+    "Quadratic interpolation can place a minimum between sparse grid points and is not validated with dense confirmatory runs at every horizon.",
+    "The practical savings of the proposed one-dimensional search are argued from geometry but not reported as an end-to-end tuning budget against Bayesian or bandit HPO.",
+    "Validation loss is the sole downstream objective; calibration, task transfer, stability tails, wall time, and hardware efficiency may prefer different settings."
+  ],
+  "failure_modes": [
+    "Applying the eta*lambda rule before sufficient optimizer steps groups the wrong trajectories.",
+    "Naively using a huge batch can suppress the transition and yield worse loss despite processing many tokens.",
+    "Square-root learning-rate scaling during batch growth fails to preserve the small-batch trajectory and underperforms fixed eta in the reported test.",
+    "A tuning direction inferred at one batch regime can rotate after scheduling or at a different horizon.",
+    "Fixed beta2 may disadvantage small batches and confound claims about their inherent superiority."
+  ],
+  "reusable_insights": [
+    "Diagnose hyperparameter spaces with entire trajectories and local curvature, not only final scalar loss.",
+    "Count optimizer updates separately from processed tokens when comparing batch-size regimes.",
+    "Warm up batch size when the useful critical batch grows during training; this can preserve early stochastic dynamics while recovering later parallelism.",
+    "Before launching a joint sweep, test whether loss contours have one dominant eigen-direction and tune along it.",
+    "Re-evaluate invariant coordinates after schedule phase transitions rather than assuming one rule holds from warmup through decay."
+  ],
+  "open_questions": [
+    "Does eta*lambda collapse survive billion- and tens-of-billions-parameter scale under matched tokens per parameter?",
+    "How does the invariant change when beta2, beta1, epsilon, clipping, parameterization, normalization, or optimizer family varies?",
+    "Can a causal dynamical model derive the LR-to-product transition rather than fit it empirically?",
+    "What online diagnostic reliably signals that enough updates have accumulated to rotate the tuning direction?",
+    "Does the rule predict downstream task quality and quantization robustness, or only held-out pretraining loss?",
+    "How many off-axis confirmatory runs are needed to falsify a proposed invariant before collapsing a search space?",
+    "Can direct critical-batch measurements replace the GNS proxy and sharpen the batch scheduler?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2505.13738",
+      "title": "Power Lines: Scaling Laws for Weight Decay and Batch Size in LLM Pre-training",
+      "url": "https://arxiv.org/abs/2505.13738v2",
+      "relationship": "closest weight-decay and batch-size scaling study",
+      "difference": "Power Lines models the AdamW timescale B/(eta*lambda*D), validates linear lambda scaling with batch at fixed N,D, and fits tokens-per-parameter laws across N and D on Cerebras systems. Trajectory Invariance instead studies within-run curve collapse at fixed 164M scale and argues that update history rotates the salient direction; it challenges Power Lines' growing batch optimum but lacks its model-size sweep.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2505.23971",
+      "title": "Critical Batch Size Revisited: A Simple Empirical Approach to Large-Batch Language Model Training",
+      "url": "https://arxiv.org/abs/2505.23971v3",
+      "relationship": "direct competing account of batch warmup and critical batch",
+      "difference": "Merrill et al. directly measure critical batch rather than infer it from gradient-noise scale, find it rises then plateaus in 1B and 7B OLMo, and obtain slightly better loss with 43% fewer steps via batch warmup. The reviewed paper reaches a compatible scheduler recommendation through trajectory invariance, but its critical-batch labels retain the proxy this work questions.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2503.04715",
+      "title": "Predictable Scale: Part I, Step Law -- Optimal Hyperparameter Scaling Law in Large Language Model Pretraining",
+      "url": "https://arxiv.org/abs/2503.04715v7",
+      "relationship": "large empirical hyperparameter-scaling competitor",
+      "difference": "Step Law uses more than 3,700 training runs across architectures and data recipes to fit optimal learning rate as a power law of N and D and batch mainly as a function of D. Trajectory Invariance reports nearly constant eta over D at one N and emphasizes optimizer-step regime; its mechanistic trajectory view is richer, but its broad challenge to Step Law is underpowered in model scale.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v7"
+    },
+    {
+      "canonical_id": "arxiv:2507.07101",
+      "title": "Small Batch Size Training for Language Models: When Vanilla SGD Works, and Why Gradient Accumulation Is Wasteful",
+      "url": "https://arxiv.org/abs/2507.07101v4",
+      "relationship": "small-batch optimization competitor",
+      "difference": "Marek et al. show stable training down to batch one when Adam's second-moment half-life is held fixed in tokens, and argue small batches are robust and per-FLOP efficient. Trajectory Invariance also favors small-batch histories but fixes beta2, focuses on eta/lambda geometry, and retains large batches through scheduling for parallelism rather than rejecting accumulation more generally.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Trajectory invariance reveals a hidden one-dimensional structure in learning-rate/weight-decay space, yields an efficient tuning principle, explains batch-schedule effects, and refines hyperparameter scaling laws.",
+    "evidence": "Loss and optimizer-aware gradient statistics collapse along different coordinates over time; relative-distance and curvature analyses quantify the collapse; controlled batch schedules change update count; and post-decay sweeps define fitted optima across token horizons.",
+    "reviewer_inference": "The strongest contribution is the time-dependent rotation from raw learning rate to eta*lambda and its recovery through small-batch update history. That is a useful hypothesis-generator and tuning diagnostic. Claims of a general principle should remain provisional because the corpus, architecture, optimizer coefficients, and model size are fixed, while competing 2025 work provides broader N/D sweeps or direct critical-batch measurements."
+  },
+  "confidence": 0.92,
+  "reviewer_notes": "Read all 20 extracted pages, including quantitative distance plots, scheduler variants, scaling-law interpolation, stated limitations, and the gradient-noise/cooldown appendix. Current competitor revisions were checked on arXiv on 2026-08-23."
+}

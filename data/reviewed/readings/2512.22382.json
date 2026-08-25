@@ -1,0 +1,266 @@
+{
+  "stable_id": "arxiv:2512.22382",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2512.22382",
+    "pdf_sha256": "38f6139cc625a38e34869389865a371482dc731f3b4119a8c5233a5cb5249333",
+    "text_sha256": "06911b8c7c617c3daa378c431020a7899afc0d546489b0d5687ab89f68a8587b",
+    "page_count": 26,
+    "extracted_at": "2026-08-23T14:12:42.084535+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can one parameterization make global and per-module optimizer hyperparameters found on a small transformer transfer jointly across width, depth, batch size, and training duration?",
+  "key_findings": [
+    {
+      "claim": "The proposed Complete(d)P rules preserve the optimum of a global learning-rate sweep across simultaneous width and depth changes for both tested residual-depth exponents, alpha = 1/2 and alpha = 1.",
+      "evidence": "Three-seed sweeps in Figure 2 keep the loss-minimizing effective learning rate aligned as width and depth increase; the authors attribute the improvement over CompleteP to QK-normalization support plus corrected AdamW epsilon and unembedding rules.",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "2.1 Hyperparameter transfer across model size"
+        },
+        {
+          "page": 21,
+          "section": "B Motivation of the Complete(d)P adjustments"
+        }
+      ]
+    },
+    {
+      "claim": "For AdamW, scaling both learning rate and decoupled weight decay by the square root of a batch-size multiplier approximately preserves training behavior when the number of optimization steps is scaled by the same multiplier.",
+      "evidence": "The RMSPropW/AdamW stochastic-differential-equation argument yields eta-prime = sqrt(kappa) eta, lambda-prime = sqrt(kappa) lambda, and k-prime = kappa k. Three-seed sweeps in Figures 3 and 4 show learning-rate and weight-decay optima transfer with these adjustments but drift without them.",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "2.2 Hyperparameter transfer across batch-size"
+        }
+      ]
+    },
+    {
+      "claim": "In the paper's fixed cosine-schedule setting, the optimum peak learning rate decreases approximately as the inverse square root of the token-horizon multiplier, and an SDE iso-horizon construction transfers the optimum by increasing batch size rather than step count.",
+      "evidence": "Figure 5 aligns the inverse-square-root extrapolation with measured learning-rate optima across longer iteration horizons, while Figure 14 reports near-aligned optima when extra tokens come from larger batches at a fixed number of iterations. Figure 6 reports a better fitted scaling-law lower bound under the full rule.",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "2.3 Hyperparameter transfer in training duration"
+        },
+        {
+          "page": 8,
+          "section": "2.3 Hyperparameter transfer in training duration"
+        },
+        {
+          "page": 18,
+          "section": "A Additional experiments and figures"
+        }
+      ]
+    },
+    {
+      "claim": "Type-by-depth factorization captures most of the observed benefit of independently tuned module learning rates in the tested transformer.",
+      "evidence": "The no-depth-multiplier ablation is worse than the factorized search, while continuing from the factorized solution into a fully uncoupled per-layer search gives virtually no further improvement. The authors caution that the larger uncoupled space is harder to optimize, so this is evidence about the achieved solutions rather than proof of factorized optimality.",
+      "anchors": [
+        {
+          "page": 10,
+          "section": "3.2 Per-module hyperparameters matter"
+        },
+        {
+          "page": 19,
+          "section": "A Additional experiments and figures"
+        }
+      ]
+    },
+    {
+      "claim": "Per-module tuning produces a sizable speed advantage over the best global setting at the proxy scale and retains a smaller advantage after transfer to much larger training runs.",
+      "evidence": "Figure 1 reports that the global setting requires 2.3 times as much training to match the per-module proxy result at 50M parameters and 1.6B tokens, and reports a 1.32-fold speed advantage on the largest plotted transfer. Section 3.3 separately reports a 27% speed-up to equivalent loss after transfer to a 1.3B-parameter, 26B-token run.",
+      "anchors": [
+        {
+          "page": 1,
+          "section": "Figure 1"
+        },
+        {
+          "page": 10,
+          "section": "3.3 Optimal per-module hyperparameters transfer with scale"
+        }
+      ]
+    },
+    {
+      "claim": "The per-module search is expensive despite being performed on a proxy: the reported 79-dimensional search used 5,000 trials and 6,730 A100 GPU-hours.",
+      "evidence": "The experiment-details appendix gives the module grouping, six optimizer/initialization families, 100-way parallelism, total trial budget, and GPU-hour total; it says 99% of the achieved loss gain appeared within 3,168 GPU-hours.",
+      "anchors": [
+        {
+          "page": 23,
+          "section": "D.3 Per-module hyperparameter search and transfer"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Factor each hyperparameter into module-type and depth multipliers, then analytically supply the width/depth, batch-size, and token-horizon scaling factors so the costly free multipliers can be searched only at a small reference scale.",
+    "mechanism": "Complete(d)P adapts CompleteP to QK-normalized transformers and corrects tensor-specific optimizer scalings; an AdamW SDE approximation supplies batch and duration rules; a Kronecker-style type-by-depth factorization reduces per-module dimensionality; and an adaptive trust-region random search explores log-scaled multipliers while shrinking after stalled trials.",
+    "assumptions": [
+      "Finite models are close enough to the same infinite-width and infinite-depth feature-learning limits for hyperparameter optima to align.",
+      "AdamW remains a sufficiently fine discretization of the same continuous stochastic process over the batch sizes and step sizes being transferred.",
+      "Depth-dependent hyperparameter multipliers vary smoothly enough that linear interpolation to a new depth is meaningful.",
+      "Validation loss on RedPajama pretraining is an adequate proxy for downstream model quality.",
+      "A fixed cosine schedule and the tested decoder-only transformer recipe are representative enough to motivate the proposed rules."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "complete-d-parameterization",
+      "role": "Assigns tensor- and scale-dependent initialization and AdamW factors that preserve feature-learning dynamics across transformer width and depth."
+    },
+    {
+      "id": "adamw-sde-scaling",
+      "role": "Derives coupled learning-rate, momentum, epsilon, weight-decay, batch-size, and horizon adjustments from an approximate continuous-time optimizer limit."
+    },
+    {
+      "id": "type-depth-kronecker-factorization",
+      "role": "Represents a layer-specific hyperparameter as the product of a module-type multiplier and a depth-position multiplier, reducing the free search dimension."
+    },
+    {
+      "id": "trust-region-random-search",
+      "role": "Samples log-scale hyperparameters near the best feasible configuration and contracts the search region after 100 non-improving trials to avoid unstable cliffs."
+    },
+    {
+      "id": "coordinate-transfer-sweeps",
+      "role": "Tests whether loss-minimizing hyperparameters remain aligned when individual scale axes are varied under the proposed reparameterization."
+    },
+    {
+      "id": "proxy-to-target-transfer",
+      "role": "Tunes a cheap model, applies analytic transformations without target-scale retuning, and compares the transferred configuration against global baselines at larger compute."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Decoder-only transformers trained on RedPajama while varying width, depth, and the residual scaling exponent, with three seeds per sweep point.",
+      "metric": "Final pretraining validation loss as a function of effective global learning rate.",
+      "result": "Complete(d)P keeps the observed optimum aligned across width and depth for alpha = 1/2 and alpha = 1.",
+      "baseline": "The CompleteP behavior reported by Dey et al., including its reported degradation at alpha = 1/2, plus unadjusted tensor rules."
+    },
+    {
+      "setting": "Batch-size changes under AdamW, evaluated with three seeds for learning-rate and weight-decay sweeps.",
+      "metric": "Alignment of final-validation-loss optima across batch sizes.",
+      "result": "The square-root SDE adjustment substantially aligns both learning-rate and effective weight-decay optima.",
+      "baseline": "Changing batch size without the corresponding learning-rate and weight-decay adjustments."
+    },
+    {
+      "setting": "A 121M-parameter GPT-2 model over five horizons from 155M to 1.24B tokens, with 4,842 non-increasing piecewise-constant schedules enumerated using shared prefix checkpoints.",
+      "metric": "Best final validation loss and selected learning-rate schedule at each horizon.",
+      "result": "No best short-horizon schedule is a prefix of the best longer-horizon schedule, and the best peak learning rate decreases with horizon.",
+      "baseline": "Reusing a short-horizon schedule unchanged or greedily extending its prefix."
+    },
+    {
+      "setting": "A 50M-parameter, 1.64B-token proxy with a 79-dimensional per-module search, followed by direct transfer to larger parameter and token budgets.",
+      "metric": "Tokens or training time required to reach equivalent validation loss, plus downstream benchmark performance.",
+      "result": "The paper reports a 2.3-fold proxy-scale advantage over global hyperparameters and retained but smaller target-scale gains, including 1.32-fold on its largest plotted comparison and 27% at 1.3B parameters and 26B tokens.",
+      "baseline": "A 2,048-trial global hyperparameter search whose best proxy validation negative log-likelihood is reported as 3.34 nats."
+    },
+    {
+      "setting": "Per-module learning-rate searches with factorized depth multipliers, no depth multipliers, fully uncoupled layer multipliers, and an asynchronous CMA-ES comparison.",
+      "metric": "Best achieved final validation loss over search trials.",
+      "result": "The factorized search beats the no-depth ablation, the uncoupled continuation does not improve it, and the paper's trust-region random-search implementation outperforms its asynchronous CMA-ES variant.",
+      "baseline": "No-depth, fully uncoupled, and CMA-ES search variants initialized from comparable achieved solutions."
+    }
+  ],
+  "limitations": [
+    "Author-stated: every central experiment uses one autoregressive transformer recipe and RedPajama, so cross-architecture, cross-domain, and cross-objective transfer are untested.",
+    "Author-stated: all transfer experiments use a fixed cosine schedule; the token-horizon rule may change when schedule shape is also optimized.",
+    "Author-stated: the per-module speed advantage decreases with model and data scale, and the study cannot distinguish imperfect finite-scale transfer from a vanishing asymptotic benefit.",
+    "Author-stated: the SDE approximation should break when batches become so large that discrete AdamW steps no longer approximate the continuous process.",
+    "Reviewer inference: the 5,000-trial, 6,730-A100-hour proxy search is too costly to establish a generally practical recipe without stronger sample-efficiency results.",
+    "Reviewer inference: most transfer evidence follows coordinate sweeps and a small number of target configurations rather than a prospective preregistered grid of unseen architectures, datasets, schedules, and scales."
+  ],
+  "failure_modes": [
+    "A proxy below the asymptotic regime can select a shifted optimum; the paper observes a penalty when transferring from 58M rather than 136M parameters.",
+    "Very large batches or learning rates can invalidate the SDE discretization and destroy the batch/horizon invariance.",
+    "Changing optimizer, learning-rate schedule, normalization, data distribution, or model family can violate the parameterization assumptions learned from the single tested recipe.",
+    "Non-smooth layerwise optima would make linear interpolation of depth multipliers misleading at a new depth.",
+    "Sharp, interacting stability cliffs can cause random, Gaussian-process, CMA-ES, or trust-region searches to spend most trials on divergent runs or converge to a merely local feasible region.",
+    "Target-scale per-module gains may disappear even when the transferred configuration remains stable, because the observed advantage already shrinks with scale."
+  ],
+  "reusable_insights": [
+    "Separate invariant free hyperparameters from analytic scale factors; this turns transfer into a testable composition of mechanisms rather than a single empirical scaling law.",
+    "Factor high-dimensional layerwise controls by semantic module type and normalized depth position before resorting to fully independent parameters.",
+    "Treat divergence boundaries as part of the search geometry: locality bias and adaptive contraction can be more useful than a globally smooth surrogate.",
+    "Validate proxy selection scale explicitly; cheaper proxies are not automatically better if they sit outside the regime where optima stabilize.",
+    "Report transfer along width, depth, batch, and horizon separately before claiming their composed rule works jointly.",
+    "Distinguish stable transfer from useful transfer: a configuration can avoid retuning yet still lose its performance advantage at larger scale."
+  ],
+  "open_questions": [
+    "Does the per-module advantage persist prospectively across model families, tokenizers, data mixtures, objectives, and learning-rate schedules?",
+    "Can early learning-curve, gradient, or stability-boundary signals reduce the thousands of proxy trials by an order of magnitude without changing the selected target-scale configuration?",
+    "At what smallest width, depth, and token budget do the different hyperparameter families enter their transferable regime?",
+    "Can finite-size corrections predict and remove the residual drift between a proxy and target rather than only observing it after a target sweep?",
+    "Do the rules continue to hold for MoE routing, sparse activation, Muon, Shampoo, or optimizer-state sharding?",
+    "Is the shrinking per-module gain a finite-scale parameterization error or a genuine infinite-scale property?",
+    "Would a prospective multi-target study support the same inverse-square-root horizon exponent once schedule shape is co-optimized?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2505.01618",
+      "title": "Don't be lazy: CompleteP enables compute-efficient deep transformers",
+      "url": "https://arxiv.org/abs/2505.01618",
+      "relationship": "direct predecessor",
+      "difference": "CompleteP develops non-lazy width/depth transfer for transformer global hyperparameters. Complete(d)P builds directly on it, adds QK-normalization and corrected tensor rules, and composes width/depth transfer with batch, duration, and per-module controls.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v4, 2026-01-19"
+    },
+    {
+      "canonical_id": "arxiv:2409.19913",
+      "title": "Scaling Optimal LR Across Token Horizons",
+      "url": "https://arxiv.org/abs/2409.19913",
+      "relationship": "prior token-horizon competitor",
+      "difference": "Bjorck et al. fit an empirical power law for the global optimal learning rate across token horizons. Complete(d)P instead motivates an approximately inverse-square-root rule through an AdamW SDE and extends the adjustment to weight decay, momenta, epsilon, and composition with other scaling axes.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, 2025-02-24"
+    },
+    {
+      "canonical_id": "arxiv:2502.17405",
+      "title": "Function-Space Learning Rates",
+      "url": "https://arxiv.org/abs/2502.17405",
+      "relationship": "alternative transfer mechanism",
+      "difference": "FLeRM measures layerwise function-space updates on a base model and matches them at new widths, depths, initialization scales, or LoRA ranks. It is more architecture-agnostic and measurement-driven, but it does not jointly transfer the full AdamW tuple across batch and token horizon or optimize the paper's type-by-depth module grid.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2025-05-22"
+    },
+    {
+      "canonical_id": "arxiv:2507.03526",
+      "title": "Decoupled Relative Learning Rate Schedules",
+      "url": "https://arxiv.org/abs/2507.03526",
+      "relationship": "concurrent per-group competitor",
+      "difference": "RLRS tunes relative learning rates for broad transformer components and reuses them up to a reported 27-fold larger model, including MoE. Complete(d)P searches finer module-and-depth controls and six optimizer or initialization families while explicitly deriving transfer along four scale axes.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2025-07-04"
+    },
+    {
+      "canonical_id": "arxiv:2601.05049",
+      "title": "How to Set the Learning Rate for Large-Scale Pre-training?",
+      "url": "https://arxiv.org/abs/2601.05049",
+      "relationship": "later contradictory evidence",
+      "difference": "Zhou et al. compare fitting-based extrapolation with transfer at industrial pretraining scale and report that mu-transfer scalability can fail and module-wise tuning can underperform. That directly challenges extrapolating Complete(d)P's single-recipe, diminishing module-wise gains into a universal large-scale claim.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2026-01-08"
+    },
+    {
+      "canonical_id": "arxiv:2605.23893",
+      "title": "Complete-muE: Optimal Hyperparameter Transfer and Scaling for MoE Models",
+      "url": "https://arxiv.org/abs/2605.23893",
+      "relationship": "later architectural extension",
+      "difference": "Complete-muE introduces dense-to-sparse bridges for expert count, activation sparsity, router scaling, and tokens per expert while also covering width, depth, batch, and duration. It extends the transfer target beyond the dense transformer family evaluated by Complete(d)P and reports both language and diffusion experiments.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2026-05-22"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims the first unified parameterization that transfers a fine-grained per-module set of learning rates, AdamW parameters, weight decay, initialization scales, and residual multipliers across transformer width, depth, batch size, and training duration, including an SDE-derived AdamW weight-decay rule.",
+    "evidence": "The paper combines corrected CompleteP rules, an AdamW SDE derivation, a factorized 79-dimensional search, and proxy-to-target experiments; its related-work section explicitly distinguishes prior work on each individual axis.",
+    "reviewer_inference": "The composition and breadth of the transferred hyperparameter tuple appear novel relative to the checked 2024-2025 primary records, but the evidence supports a recipe for one dense-transformer training family rather than a general law. Later primary work both extends the idea to MoE and reports contrary evidence about module-wise tuning and large-scale mu-transfer, so the durable novelty is the concrete compositional parameterization and test protocol, not universal scale invariance."
+  },
+  "confidence": 0.91,
+  "reviewer_notes": "Primary full-text pass covered all 26 extracted pages, including derivations, experimental details, ablations, and extended related work. Competitor checks used current arXiv primary records through 2026-08-23 across four query families: width/depth transfer, token-horizon scaling, layerwise or per-module learning rates, and later large-scale or MoE extensions. Numerical statements above are author-reported; the generalization and novelty boundaries are reviewer inference."
+}

@@ -1,0 +1,191 @@
+{
+  "stable_id": "arxiv:2302.10801",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2302.10801",
+    "pdf_sha256": "4406bd020ac5f0d9b391e6d9c7fec1ebfca072f37a4aaa09a60c7a25a7fcd41c",
+    "text_sha256": "8e8b4664956cf8ab6e633717b213d62e3c0e9797e1f004639626945f12fe69c2",
+    "page_count": 8,
+    "extracted_at": "2026-08-23T19:56:09.466342+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can replacing an autoencoder's encoder with one optimizable latent vector per training example produce both a flexible two-dimensional visualization and a decoder that reconstructs or interpolates the original high-dimensional data?",
+  "key_findings": [
+    {
+      "claim": "Generative Neural Embeddings are an auto-decoder: a lookup table assigns each training item its own latent coordinate and a shared generator reconstructs the item from that coordinate.",
+      "evidence": "For item identifier i, the model minimizes reconstruction loss between the data and G(E[i]). The lookup coordinates and decoder weights are optimized jointly; Gaussian noise regularizes coordinates. A two-dimensional table is used for MNIST visualization, making the method explicitly non-parametric in dataset size and independent of an encoder.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "Section 2, Method and Keras listing"}
+      ]
+    },
+    {
+      "claim": "On MNIST, GNE and a VAE produce visually mixed class boundaries, while t-SNE separates classes more cleanly because only t-SNE directly optimizes neighborhood similarity.",
+      "evidence": "The models use two-dimensional bottlenecks, MSE, Gaussian noise, and 100 epochs. Figures 1-3 show the layouts and generated grids. The authors acknowledge that both neural embeddings mix classes at their edges because they do not use pairwise similarity information, whereas t-SNE builds its objective around such relationships.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "Section 3, MNIST setup"},
+        {"page": 3, "section": "Figures 1-2"},
+        {"page": 4, "section": "Figure 3 and discussion"}
+      ]
+    },
+    {
+      "claim": "The ImageNet experiment demonstrates faster raw-pixel reconstruction than the chosen VAE, not a validated large-scale two-dimensional visualization.",
+      "evidence": "Images are center-cropped and reduced to 28x28, then GNE and VAE use 128-dimensional latents. GNE reports MSE 0.376 and 130 seconds per epoch versus VAE 0.379 and 446 seconds; initializing GNE from VAE encodings reaches 0.322. A 128-dimensional code is not directly viewable, and the nearest-neighbor figures supply no stated projection rule or visualization-quality metric.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Section 3, ImageNet experiment"},
+        {"page": 5, "section": "Figure 4"},
+        {"page": 6, "section": "Figure 5"}
+      ]
+    },
+    {
+      "claim": "The training-time advantage is incomplete because it excludes the O(Nd) item-embedding table and the optimization required for every unseen point.",
+      "evidence": "GNE omits the VAE encoder and therefore reports shorter epochs. The paper states that parameter count grows with the number of data points and that a test item's embedding must be found by optimizing the latent while freezing the generator, which is slower than a feed-forward encoder. No memory, total convergence time, ingestion latency, or scaling curve is reported.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 2, "section": "Section 2, non-parametric parameter growth"},
+        {"page": 4, "section": "Section 3, per-epoch timing"},
+        {"page": 7, "section": "Section 5, unseen test embeddings"}
+      ]
+    },
+    {
+      "claim": "Reconstruction and interpolation do not certify that geometric distances in the learned plot preserve neighborhoods, density, clusters, or global structure.",
+      "evidence": "The loss is per-example pixel MSE and contains no pairwise or neighborhood term. The authors explicitly note there is no constraint placing similar points nearby and propose such a term as future work. No trustworthiness, continuity, k-NN preservation, stress, cluster score, density distortion, or human interpretation study is measured.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Section 2, reconstruction objective"},
+        {"page": 4, "section": "Section 3, comparison with t-SNE"},
+        {"page": 7, "section": "Section 5, pairwise-similarity limitation"}
+      ]
+    },
+    {
+      "claim": "The claimed human-in-the-loop application is only a proposal and may conflict with the learned decoder geometry.",
+      "evidence": "The abstract and future-work section suggest dragging individual embeddings to group points or edit decision boundaries. No interface, optimization constraint, user study, labeling experiment, or method for preventing collisions and reconstruction degradation is implemented. Moving one lookup vector leaves others fixed but can send it to a region whose decoder output no longer resembles the source item.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "Abstract"},
+        {"page": 7, "section": "Section 5, human interaction proposal"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Make each training sample's low-dimensional coordinate a free parameter and jointly learn a decoder, avoiding an encoder so points can later be moved independently.",
+    "mechanism": "Index an embedding matrix by sample ID, optionally perturb the selected coordinate with Gaussian noise, and pass it through a residual fully connected or deconvolutional generator. Minimize pixel MSE to reconstruct each indexed image. Visualize two-dimensional coordinates directly, decode a grid for interpolation, or initialize the table with VAE encodings before further optimization.",
+    "assumptions": [
+      "A reconstruction objective alone induces a two-dimensional geometry useful for human visualization.",
+      "Gaussian noise supplies enough latent regularity for interpolation despite the absence of a prior or neighborhood objective.",
+      "One trainable code per example is affordable at large N and per-point optimization is acceptable for new data.",
+      "Low raw-pixel MSE and plausible decoded grids correlate with preservation of semantic structure.",
+      "Manual movement of codes remains meaningful under a decoder trained on the original coordinate arrangement.",
+      "Center-cropped 28x28 ImageNet pixels are a suitable large-scale test of general visualization claims."
+    ]
+  },
+  "techniques": [
+    {"id": "per-example-latent-lookup", "role": "Replaces an encoder with independently trainable coordinates keyed by item ID."},
+    {"id": "shared-generative-decoder", "role": "Compresses common structure by reconstructing every item from its learned code."},
+    {"id": "latent-gaussian-noise", "role": "Encourages local decoder smoothness around training coordinates."},
+    {"id": "vae-code-initialization", "role": "Seeds item coordinates from an amortized encoder before auto-decoder refinement."},
+    {"id": "grid-decoding-and-nearest-neighbor-display", "role": "Visualizes latent regions through generated samples or nearby observed images."}
+  ],
+  "evaluations": [
+    {"setting": "MNIST, 60,000 training images, two-dimensional codes", "metric": "Visual class layout, decoded grid, MSE, and seconds per epoch", "result": "GNE and VAE show similar transitions and mixed class edges; GNE is reported near twice as fast per epoch.", "baseline": "A two-dimensional VAE with coefficient choices 1e-2 versus GNE 1e-1; no repeated runs or matched parameter accounting."},
+    {"setting": "MNIST", "metric": "Qualitative scatterplot", "result": "t-SNE produces more visibly separated color classes than both reconstruction-based neural layouts.", "baseline": "t-SNE; no quantitative neighborhood or runtime comparison."},
+    {"setting": "ImageNet ILSVRC 2017 training set, 1,281,167 center-cropped 28x28 images", "metric": "Pixel MSE and seconds per epoch", "result": "GNE reports 0.376 MSE at 130 s/epoch versus VAE 0.379 at 446 s/epoch; VAE initialization followed by GNE reaches 0.322.", "baseline": "VAE; latent dimension is 128, so this is reconstruction rather than direct 2D visualization."},
+    {"setting": "ImageNet latent grid", "metric": "Qualitative nearest-neighbor mosaics", "result": "The authors state GNE initialized from VAE improves local contrast.", "baseline": "VAE nearest-neighbor grid without a blinded human rating or geometric metric."}
+  ],
+  "limitations": [
+    "[Author-stated] No explicit similarity constraint places related items nearby; adding one increases computation.",
+    "[Author-stated] New points lack an encoder and require iterative latent optimization with a frozen generator.",
+    "[Author-stated] Human editing, decision-boundary mapping, global latent optimization, and labeling-speed effects are future work.",
+    "[Reviewer-identified] The main objective measures reconstruction, not visualization fidelity, and no accepted geometric quality metric is reported.",
+    "[Reviewer-identified] The ImageNet experiment uses 128-dimensional embeddings, so it does not demonstrate the paper's core direct-visualization property.",
+    "[Reviewer-identified] Per-epoch speed omits code-table memory, different encoder costs, epochs-to-convergence, and new-item optimization.",
+    "[Reviewer-identified] Baseline coverage excludes parametric t-SNE, UMAP extensions, auto-decoders beyond DeepSDF, and modern inverse-graphics or latent-optimization methods.",
+    "[Reviewer-identified] Results lack seeds, uncertainty, hyperparameter sweeps, held-out reconstruction, semantic features, and user studies.",
+    "[Reviewer-identified] With no density prior, decoded grid points can be unsupported interpolations and Euclidean distance can be arbitrary up to decoder reparameterization."
+  ],
+  "failure_modes": [
+    "The item table can memorize coordinates while the decoder overfits training images, leaving no reliable mapping for unseen data.",
+    "Similar images can occupy distant codes and dissimilar images adjacent codes because the loss is invariant to many latent rearrangements.",
+    "A dragged point can enter an unsupported region and decode to a different or implausible sample.",
+    "Gaussian noise can blur reconstructions without enforcing globally coherent latent density.",
+    "Pixel MSE favors low-frequency appearance and may organize backgrounds or brightness rather than semantic class.",
+    "Memory and optimization cost grow linearly with dataset size and can dominate for streaming or interactive use.",
+    "Comparing per-epoch time at different architectures and regularization settings can make encoder removal look like end-to-end scalability."
+  ],
+  "reusable_insights": [
+    "An auto-decoder separates per-item coordinates from shared generation, making coordinates directly editable and revealing the cost of amortized versus per-instance inference.",
+    "A visualization method should validate neighborhood preservation, global distortion, density, stability, and task usefulness separately from reconstruction quality.",
+    "Hybrid initialization from an encoder followed by per-item refinement is a practical pattern when amortized inference is fast but systematically biased.",
+    "For an interactive paper atlas, editable node positions should be stored as a presentation layer separate from evidence-derived graph geometry, so manual curation cannot silently alter similarity claims.",
+    "Human-in-the-loop benefits need a concrete interaction protocol and measured downstream decision quality, not only the technical ability to move a point."
+  ],
+  "open_questions": [
+    "Can neighborhood and topology regularizers make GNE competitive with t-SNE/UMAP while retaining a usable decoder?",
+    "How do trustworthiness, continuity, k-NN recall, stability, and human task accuracy compare under matched compute?",
+    "What is the full memory and latency trade-off between an encoder, per-item optimization, and hybrid amortized refinement at million-item scale?",
+    "How should unsupported latent regions be detected before grid decoding or manual movement?",
+    "Can a human edit be projected onto a constrained manifold that preserves the source sample and local neighborhood?",
+    "Does training on semantic foundation-model features rather than raw pixels produce more interpretable layouts?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1901.05103",
+      "title": "DeepSDF: Learning Continuous Signed Distance Functions for Shape Representation",
+      "url": "https://arxiv.org/abs/1901.05103",
+      "relationship": "Direct auto-decoder predecessor that jointly learns one latent code per object and a shared decoder.",
+      "difference": "DeepSDF already establishes per-instance latent optimization without an encoder and defines inference for unseen shapes. GNE applies this architecture to two-dimensional raw-data visualization and editable points, but does not add a validated geometric visualization objective.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:1312.6114",
+      "title": "Auto-Encoding Variational Bayes",
+      "url": "https://arxiv.org/abs/1312.6114",
+      "relationship": "Amortized generative-latent baseline used throughout the paper.",
+      "difference": "A VAE learns an encoder for new samples and a prior-regularized latent distribution. GNE removes encoder and prior, gaining independent train-point codes and shorter epochs but losing immediate out-of-sample mapping and a defined sampling distribution.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "jmlr:v9:vandermaaten08a",
+      "title": "Visualizing Data using t-SNE",
+      "url": "https://www.jmlr.org/papers/v9/vandermaaten08a.html",
+      "relationship": "Canonical non-parametric neighborhood-preserving visualization baseline.",
+      "difference": "t-SNE explicitly matches high- and low-dimensional neighborhood distributions and produces better separated MNIST classes in the reviewed paper. GNE adds a decoder and editable codes but lacks t-SNE's pairwise geometry objective and evaluation.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "JMLR volume 9 record"
+    },
+    {
+      "canonical_id": "pmlr:v5:maaten09a",
+      "title": "Learning a Parametric Embedding by Preserving Local Structure",
+      "url": "https://proceedings.mlr.press/v5/maaten09a.html",
+      "relationship": "Direct parametric alternative that gives out-of-sample embeddings while preserving local geometry.",
+      "difference": "Parametric t-SNE trains a neural map under a neighborhood objective, addressing unseen data. GNE optimizes each coordinate directly and reconstructs pixels; a matched comparison would expose the trade-off among editability, geometry, generation, and inference speed.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "AISTATS 2009 PMLR volume 5 record"
+    },
+    {
+      "canonical_id": "arxiv:1802.03426",
+      "title": "UMAP: Uniform Manifold Approximation and Projection for Dimension Reduction",
+      "url": "https://arxiv.org/abs/1802.03426",
+      "relationship": "Major scalable manifold-visualization competitor named in the introduction but not evaluated.",
+      "difference": "UMAP optimizes a fuzzy neighborhood graph and supports efficient large-data layouts. GNE supplies a generative decoder and pointwise codes, but the paper omits the UMAP comparison needed to substantiate visualization scalability or neighborhood quality.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims a flexible non-parametric visualization and generative model whose per-item embeddings can be optimized or edited independently, with better speed than a VAE and ImageNet-scale feasibility.",
+    "evidence": "It applies a DeepSDF-like auto-decoder to MNIST two-dimensional codes and a 128-dimensional ImageNet reconstruction experiment, including VAE initialization and qualitative grids.",
+    "reviewer_inference": "The application of an established auto-decoder pattern to editable 2D visualization is a straightforward but potentially useful combination. The work does not yet show that the learned layout is a good visualization, that ImageNet visualization scales, or that human editing helps; its supported contribution is a preliminary architecture demonstration."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Read all eight extracted pages, including figures, timings, limitations, and references. Competitors were checked on official arXiv, JMLR, and PMLR pages. The main evidence gap is that reconstruction loss is repeatedly used where visualization fidelity would require geometric or human evaluation."
+}

@@ -1,0 +1,873 @@
+{
+  "stable_id": "arxiv:2310.05566",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2310.05566",
+    "pdf_sha256": "fe0eb5e7c05d88e74cec7f84ee846b9e932465d9add6d99d4eeb01a751f7ed0b",
+    "text_sha256": "34c1b610f1f8c788d2d7519e93637dc731ee0e0d2192cb97ac78df5c11052067",
+    "page_count": 29,
+    "extracted_at": "2026-08-23T18:55:17.686064+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a supervised network that combines several generalized f-averages fuse cumulative few-shot class-incremental classifiers more effectively and interpretably than ordinary averaging, generic stackers, and established FSCIL methods, while retaining a simple and reproducible training pipeline?",
+  "key_findings": [
+    {
+      "claim": "The proposed FSCIL pipeline is a learned output stacker over a frozen base representation and a sequence of cumulative nearest-centroid heads.",
+      "evidence": "A ResNet-18 feature extractor is trained in the base session and then frozen. The base linear head and later SimpleShot-style heads produce probability vectors; each earlier vector is padded to the eventual class dimension, all head outputs are concatenated, and an Aggregated f-Average (AFA) network produces the final softmax prediction. Prototype rehearsal supplies the supervised examples used to fit the output fusion network.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 13, "section": "4.4 AFA for FSCIL"},
+        {"page": 14, "section": "Figure 4 pipeline"},
+        {"page": 15, "section": "SimpleShot weak classifiers"},
+        {"page": 17, "section": "Prototype rehearsal"}
+      ]
+    },
+    {
+      "claim": "The matrix-valued construction is not generally an average in the mathematical sense claimed by its f-average motivation.",
+      "evidence": "A scalar quasi-arithmetic mean is idempotent: identical inputs return that same input. AFA replaces per-learner scalar weights by a dense N-by-KN row-stochastic matrix W that may mix both learners and class coordinates. Under the stated constraints, a permissible W can swap or blend coordinates even when every weak classifier supplies the same vector, so f-inverse(W f(x,...,x)) need not equal x. The generalized branch is therefore more accurately a constrained nonlinear stacking layer than an average without additional block or coordinate-preserving constraints.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "4.1 Weighted averages"},
+        {"page": 10, "section": "4.2 f-averages"},
+        {"page": 11, "section": "Matrix generalization"}
+      ]
+    },
+    {
+      "claim": "The advertised interpretability is asserted from parameter constraints but is neither operationally defined nor empirically validated.",
+      "evidence": "The paper says branch matrices retain f-average interpretability and the final nonnegative matrix A expresses each average type's contribution. Yet W contains class-coordinate-to-class-coordinate weights, A is a full output-specific mixing matrix, and nonlinear f, inverse-f, softmax, and cross-coordinate interactions prevent a raw weight from being a faithful additive contribution. No learned-weight visualization, sparsity or stability analysis, attribution test, human evaluation, or interpretability ablation appears in the experiments.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 11, "section": "Generalized f-average network"},
+        {"page": 12, "section": "4.3 Aggregated f-averages"},
+        {"page": 24, "section": "Conclusion"}
+      ]
+    },
+    {
+      "claim": "The description of session-specialized weak classifiers conflicts with the cumulative classifier actually defined by the equations and diagrams.",
+      "evidence": "The manuscript repeatedly says a weak classifier is fitted only on D_train_k and specialized only to its own session/classes. However, the evaluation class set C_test_k is the union of all classes through k, the SimpleShot prediction takes an argmin over that cumulative set, and Figure 4 gives later heads outputs of cumulative size N_k. Equation 14 defines centroids only for c in C_train_k and divides by n_shots even for the abundant base session. Either the heads are session-only, in which case their dimensions and argmin domain are wrong, or they are cumulative, in which case the specialization and training claims are wrong. This distinction changes both the implemented method and ensemble diversity.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "3.2 FSCIL problem statement"},
+        {"page": 13, "section": "4.4 session-specialized narrative"},
+        {"page": 14, "section": "Figure 4 cumulative output sizes"},
+        {"page": 15, "section": "SimpleShot prediction rule"}
+      ]
+    },
+    {
+      "claim": "The formal task and dataset protocols contain cardinality and session-count contradictions.",
+      "evidence": "The FSCIL setup says each of n_way new classes contributes n_shots examples but then writes the incremental training-set cardinality as n_shots rather than n_way times n_shots. The experiment section says FGVC-Aircraft has 10 sessions, while Figures 5-6 and aircraft_f1.dat contain 11 rows; starting from 50 base classes requires ten 5-way increments, hence 11 total sessions, to reach all 100 classes. For tiered-ImageNet, only 200 of 506 classes are used but their identities and ordering are not specified.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "3.2 FSCIL training-set definition"},
+        {"page": 17, "section": "Dataset protocols"},
+        {"page": 21, "section": "Figure 5 session curves"},
+        {"page": 22, "section": "Figure 6 session curves"}
+      ]
+    },
+    {
+      "claim": "Dynamic padding is a brittle confidence heuristic rather than a validated estimate of probability mass for unseen classes.",
+      "evidence": "The method thresholds the maximum predicted probability and assigns one of two hard-coded retained masses, one-half(N_k/N_K+1) or one-half(N_k/N_K), distributing the remainder uniformly across future-class slots. Maximum probability changes with class count, temperature, and calibration; the binary threshold causes a discontinuity. The paper reports no threshold sweep, calibration error, inlier/OOD AUROC, comparison with learned unknown mass, or ablation of the two formulas.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 15, "section": "Distance-to-probability conversion"},
+        {"page": 16, "section": "Dynamic padding and inlierness"},
+        {"page": 17, "section": "Padding formula"}
+      ]
+    },
+    {
+      "claim": "The online protocol is ambiguous about whether the method must know the final class count and session schedule in advance.",
+      "evidence": "Every earlier head is padded to N_K, the class count of the final session, and the displayed AFA consumes K completed heads. A deployable FSCIL system can instead encounter an unknown number of future sessions or classes. The manuscript does not say whether K and N_K are assumed known, whether the fusion network is rebuilt when classes arrive, how old parameters are expanded, or whether all reported models are trained retrospectively after the full benchmark stream is known.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 14, "section": "Figure 4 final-dimensional padding"},
+        {"page": 16, "section": "Padding to N_K"},
+        {"page": 17, "section": "Prototype rehearsal"}
+      ]
+    },
+    {
+      "claim": "Prototype rehearsal is an attractive data-minimizing interface, but it also leaves a heavily parameterized fusion model trained from only class-level summaries.",
+      "evidence": "Weak classifiers are evaluated on the stored training prototypes from all sessions to construct AFA training inputs. This avoids replaying images and makes the output layer modular, but reduces its supervised training set to roughly one point per encountered class and discards within-class variation, hard examples, and calibration tails. Moreover, each centroid is computed from the same few-shot support examples used to define its nearest-centroid head, so its own class obtains a zero self-distance; training fusion on those centroids creates an especially easy, self-included calibration set. No leave-one-out/query training, exemplar replay, multiple prototypes, covariance summaries, or held-out validation images test whether the learned stacker generalizes rather than fits prototype geometry.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 15, "section": "Class prototypes"},
+        {"page": 17, "section": "Prototype rehearsal"},
+        {"page": 23, "section": "Neural stacker loss discussion"}
+      ]
+    },
+    {
+      "claim": "The headline benchmark evidence supports a competitive simple ensemble, not general state-of-the-art FSCIL performance.",
+      "evidence": "At the final sessions AFA is reported as 48.80 F1 versus FACT 48.59 on mini-ImageNet, but 51.58 versus FACT 56.29 on CUB-200, 31.73 versus FACT 41.78 on FGVC-Aircraft, and 37.57 versus FACT 41.80 and CEC 43.10 on tiered-ImageNet. Thus it narrowly leads one selected strong baseline on one dataset while trailing by 4.71, 10.05, and at least 4.23 points on the other three. The paper's own more cautious word 'comparable' is defensible only as a broad efficiency/performance trade-off, not as SOTA.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 20, "section": "Tables 4-5"},
+        {"page": 21, "section": "Figure 5 FSCIL comparison"},
+        {"page": 22, "section": "State-of-the-art discussion"}
+      ]
+    },
+    {
+      "claim": "The final mini-ImageNet FACT result is materially inconsistent across the paper's own tables and released source data.",
+      "evidence": "Table 3 gives final-session mini-ImageNet FACT F1 as 44.77, whereas Table 4 gives 48.59. The supplied mini_imagenet_f1.dat source file also ends at 44.77 for FACT, agreeing with Table 3 and contradicting Table 4. AFA has a smaller discrepancy: 48.75 in Table 3 versus 48.80 in Table 4 and 48.81 in the data file. Because the alleged final mini-ImageNet advantage over FACT depends on which value is used, this is not a cosmetic rounding issue.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 19, "section": "Table 3 metric comparison"},
+        {"page": 20, "section": "Table 4 mini-ImageNet"}
+      ]
+    },
+    {
+      "claim": "The claim that AFA is significantly better than ordinary fusion in every session is falsified by the supplied result curves.",
+      "evidence": "Recomputing from the four source .dat tables, AFA is below at least one classic or neural ensemble competitor in 2 of 9 mini-ImageNet sessions, 6 of 11 CUB sessions, 8 of 11 Aircraft sessions, and 1 of 11 tiered-ImageNet sessions: 17 of 42 dataset-session points. Even restricting comparison to the three neural stackers, AFA loses 13 of 42 points. No significance test is supplied, so both 'significantly' and 'in all sessions' overstate the displayed evidence.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 20, "section": "Tables 4-5"},
+        {"page": 21, "section": "Figure 5"},
+        {"page": 22, "section": "Figure 6 and average-comparison prose"}
+      ]
+    },
+    {
+      "claim": "The reported F1 metric is not reproducibly specified and does not by itself solve the base-versus-novel imbalance the paper motivates.",
+      "evidence": "The manuscript prints the binary F1 formula but never states whether multiclass F1 is macro, weighted, samples, or another aggregation. Micro-F1 equals accuracy in single-label multiclass classification, yet the reported F1 and mean accuracy differ, so the omitted aggregation choice is consequential. Macro-F1 weights each of 60-100 base classes and each novel class equally, but does not directly balance the base and novel groups; separate base/new metrics or a group-balanced harmonic metric would test stability-plasticity more directly.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 18, "section": "5.1 Comparison metric"},
+        {"page": 19, "section": "Equation 19 and Table 3"}
+      ]
+    },
+    {
+      "claim": "The experiments provide point estimates only, so claims of significance and stable superiority have no statistical support.",
+      "evidence": "Tables and curves report a single number for each method, session, and dataset. The paper gives no number of seeds, class orders, confidence intervals, standard deviations, paired tests, or statistical model. FSCIL results are sensitive to few-shot sample choice and class order; without repeated trials, differences such as mini-ImageNet's 0.21-point final gap cannot be distinguished from run variability.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 18, "section": "Experimental setup"},
+        {"page": 20, "section": "Tables 4-5"},
+        {"page": 21, "section": "Figure 5"},
+        {"page": 22, "section": "Figure 6"}
+      ]
+    },
+    {
+      "claim": "AFA's stated parameter count can be large relative to its prototype-level training set and is not supported by resource measurements.",
+      "evidence": "The paper gives J N^2(K+1) trainable linear parameters. At N=200 and K=11 this is 480,000J; with three branches it is 1.44 million parameters, before considering other state, trained from approximately 200 class prototypes. The manuscript calls this limited or reduced without reporting actual J, parameter counts per dataset/session, memory, FLOPs, wall time, or comparisons normalized for capacity. The full class-specific matrices also make permutation memorization possible.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 12, "section": "AFA parameter count"},
+        {"page": 17, "section": "Prototype rehearsal"},
+        {"page": 23, "section": "Stacker size discussion"},
+        {"page": 24, "section": "Reduced-weights conclusion"}
+      ]
+    },
+    {
+      "claim": "Essential AFA and baseline training details are missing, preventing a faithful independent implementation.",
+      "evidence": "The method examples introduce arithmetic, geometric, leaky-harmonic, and power transforms, but the experiments do not state the actual number J or functions used, epsilon, power exponents, optimizer, learning rate, epochs, initialization, stopping rule, validation protocol, padding threshold, or temperature training. The theory requires A to be nonnegative but describes projection only for W; it requires tau greater than zero but gives no positive parameterization. Generic stackers receive only architecture sketches and 'slight' learning-rate adjustments, leaving tuning parity and selection procedures unknown.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "Table 2 f examples"},
+        {"page": 12, "section": "AFA training description"},
+        {"page": 16, "section": "Padding threshold"},
+        {"page": 18, "section": "Experimental setup"},
+        {"page": 23, "section": "Neural-network comparison"}
+      ]
+    },
+    {
+      "claim": "The current v3 revision deleted concrete training details that appeared in v1/v2, while also changing the named framework, so older settings cannot safely fill the current omissions.",
+      "evidence": "Official v1/v2 source specified four branches (arithmetic, geometric, harmonic, and quadratic), epsilon 1e-4, Adam for 100 epochs, batch size 64, learning rate 0.1 with drops at epochs 40 and 70, and TensorFlow. The reviewed v3 removes that paragraph, reports PyTorch, and materially expands the FSCIL presentation. Because code is absent, it is unknown whether current tables use the old branch/training recipe, a ported implementation, or different settings; silently importing old values would not reproduce the pinned v3 method.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 12, "section": "4.3 generic AFA training"},
+        {"page": 18, "section": "v3 PyTorch experimental setup"},
+        {"page": 24, "section": "Conclusion"}
+      ]
+    },
+    {
+      "claim": "The paper does not establish fair end-to-end comparability with the reported FSCIL baselines.",
+      "evidence": "SPPR, CEC, FACT, LUCIR, and EEIL values are compared with AFA, but the text does not identify exact checkpoint/code revisions, whether baselines were rerun or copied, shared class orders and few-shot draws, per-method tuning budgets, or identical preprocessing. AFA and neural ensemble baselines are said to use the same process with architecture-specific learning-rate changes, without exact values. These omissions preclude attributing small score differences to the fusion architecture alone.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 18, "section": "Baselines and setup"},
+        {"page": 20, "section": "Tables 4-5"},
+        {"page": 23, "section": "Standard neural-network comparison"}
+      ]
+    },
+    {
+      "claim": "The source archive is typesettable but contains no executable implementation or complete experimental package.",
+      "evidence": "The v3 e-print source contains 16 files: TeX/bibliography/style files, one raster plot, and eight plotting-data files. A clean TeX Live 2025 rebuild succeeds to 29 pages, but the archive has no training code, environment, configs, checkpoints, seeds, split manifests, or logs. The manuscript supplies no repository URL, and targeted current searches of the title, arXiv ID, and authors found no author implementation as of 2026-08-23; Papers with Code likewise listed no implementation. Source-level reproducibility therefore stops at the document and selected plotted numbers.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 18, "section": "PyTorch and hardware statement"},
+        {"page": 24, "section": "Conclusion"}
+      ]
+    },
+    {
+      "claim": "The loss figure cannot be regenerated from the numerical loss files included in the official source archive.",
+      "evidence": "Figure 7 is embedded as loss.png with an x-axis extending to roughly 2,000 and losses around 4.3-5.3. The four supplied *_loss.dat files instead contain 100 epochs indexed 0-99 and are neither the points shown nor sufficient to reconstruct the raster. In particular, wa_loss.dat changes substantially (training 5.523 to 0.787 and validation 5.143 to 0.925), contradicting the prose that the weighted-average loss converges in one epoch and then does not evolve; AFA validation ends near 0.431 while its plotted curve is near 4.3. The source artifact therefore cannot support the convergence narrative as written.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 23, "section": "Figure 7 loss curves"}
+      ]
+    },
+    {
+      "claim": "The base feature-training protocol is only partially described and the incremental data protocol is not reproducible.",
+      "evidence": "The paper reports ResNet-18, batch size 128, learning rate 0.1, momentum 0.9, drops at epochs 30 and 40, and a V100. It omits total base epochs, weight decay, augmentations, optimizer identity, normalization, initialization/pretraining, validation split, exact dataset splits and class orders, sample draws, seeds, and all AFA training details. It also calls later SimpleShot heads fine-tuned even though centroids are computed directly, creating an additional ambiguity about what is optimized.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 14, "section": "Figure 4 caption"},
+        {"page": 15, "section": "SimpleShot centroids"},
+        {"page": 17, "section": "Dataset protocols"},
+        {"page": 18, "section": "Training hyperparameters"}
+      ]
+    },
+    {
+      "claim": "The evaluation breadth is narrow relative to claims that the architecture is a general and flexible ensemble-learning method.",
+      "evidence": "All experiments are 5-shot image classification using a frozen ResNet-18 on four classic FSCIL datasets and fixed benchmark schedules. There is no shot-count sweep, class-order stress test, domain shift, open-world unknown detection, longer stream, alternate backbone, modern vision-language representation, label permutation, regression task, or non-FSCIL ensemble application. Regression is explicitly deferred to future work.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 17, "section": "Datasets"},
+        {"page": 18, "section": "Experimental setup"},
+        {"page": 24, "section": "Conclusion and future work"}
+      ]
+    },
+    {
+      "claim": "Several captions and references contain concrete reporting errors that complicate exact interpretation.",
+      "evidence": "Figure 6 plots F1 in percent but says values closer to 1 are better; its scale makes 100 the relevant endpoint. Figure 7 calls CUB's last session the 10th even though the protocol and Table 5 index sessions 0 through 10, producing an ordinal/index ambiguity. The SimpleShot bibliography entry prints arXiv:1412.5068 while its DOI field points to the actual arXiv:1911.04623. These are likely editorial mistakes, but the citation error and off-by-one language impair traceability.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 22, "section": "Figure 6 caption"},
+        {"page": 23, "section": "Figure 7 caption"},
+        {"page": 25, "section": "SimpleShot reference"}
+      ]
+    },
+    {
+      "claim": "The strongest reusable contribution is the modular idea of treating session checkpoints as calibrated experts with a learnable prototype-trained output adapter.",
+      "evidence": "The frozen representation, centroid heads, probability conversion, fixed-dimensional interface, and shallow fusion layer separate feature learning from stream adaptation. This is easy to transplant into other continual-learning systems and can retain old experts without modifying their weights. Its value does not depend on calling the dense transformation an average; a better-tested version could use block-diagonal, sparse, monotone, or uncertainty-aware fusion with explicitly calibrated experts.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 13, "section": "AFA for FSCIL"},
+        {"page": 14, "section": "Figure 4"},
+        {"page": 17, "section": "Prototype rehearsal"},
+        {"page": 24, "section": "Conclusion"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Represent each FSCIL session by a probability-producing classifier over all classes encountered so far, pad its output to a common dimension, and learn a shallow constrained fusion network that combines several nonlinear f-average branches from class prototypes.",
+    "mechanism": "A base-session ResNet-18 is frozen as a feature extractor. Its original classifier forms the first expert; subsequent cumulative SimpleShot nearest-centroid heads form later experts, with a learned temperature converting negative distances to probabilities. A confidence threshold determines how much probability earlier experts retain before their output is uniformly padded across unseen class slots. For each branch j, f_j is applied coordinatewise, a dense nonnegative row-stochastic matrix W_j mixes all expert-class coordinates, and f_j inverse maps back; a nonnegative matrix A combines branch outputs before a final softmax. Rows of W_j are projected onto the simplex after gradient updates. Predictions on stored class prototypes provide the supervised rehearsal set for learning W_j and A.",
+    "assumptions": [
+      "The base-trained frozen ResNet-18 embeds all future classes well enough for nearest-centroid classification.",
+      "One prototype per class adequately represents the input distribution needed to train and validate the fusion network.",
+      "Session heads provide complementary rather than merely redundant cumulative predictions.",
+      "Maximum softmax probability is a calibrated, session-comparable inlier signal.",
+      "The final session count K and total class count N_K are known, or model expansion and retraining are available but unstated.",
+      "Uniform probability over unseen classes is a useful prior once padding mass is selected.",
+      "Dense cross-class weights remain interpretable despite nonlinear branches and final mixing.",
+      "The selected benchmark class orders, 5-shot draws, and point estimates are representative.",
+      "Prototype storage is allowed by the FSCIL memory protocol.",
+      "Quadratic growth in class count is acceptable for the targeted stream sizes."
+    ]
+  },
+  "techniques": [
+    {"id": "fscil", "role": "Defines a stream with one data-rich base session followed by few-shot novel-class sessions and cumulative evaluation."},
+    {"id": "frozen-resnet18", "role": "Provides the shared image embedding trained only on base classes."},
+    {"id": "simpleshot", "role": "Builds cumulative nearest-centroid incremental classification heads without retraining the backbone."},
+    {"id": "prototype-rehearsal", "role": "Stores class centroids and uses their cross-expert predictions to train the fusion layer."},
+    {"id": "temperature-softmin", "role": "Converts distances from centroid heads into probability vectors."},
+    {"id": "confidence-padding", "role": "Allocates heuristic probability mass to not-yet-represented class coordinates."},
+    {"id": "quasi-arithmetic-mean", "role": "Motivates branches of the form f-inverse of a weighted combination in transformed space."},
+    {"id": "leaky-harmonic", "role": "Avoids the harmonic transform's singularity at zero using an epsilon-adjusted inverse."},
+    {"id": "matrix-f-average", "role": "Replaces scalar expert weights by a dense row-stochastic class-coordinate mixing matrix."},
+    {"id": "afa", "role": "Combines J transformed branches with a nonnegative output matrix and final task activation."},
+    {"id": "simplex-projection", "role": "Enforces nonnegative unit-sum rows of each branch matrix after gradient updates."},
+    {"id": "output-stacking", "role": "Learns a supervised meta-model over weak-classifier outputs."},
+    {"id": "f1", "role": "Replaces mean accuracy as the principal reported metric, although its multiclass aggregation is unspecified."},
+    {"id": "pgfplots", "role": "Generates most result curves from source .dat files; one loss plot remains an external raster."},
+    {"id": "source-rebuild", "role": "Permits independent verification of the manuscript layout and hard-coded numerical tables, not the experiments."
+    }
+  ],
+  "evaluations": [
+    {"setting": "mini-ImageNet, 60 base classes plus eight 5-way 5-shot increments", "metric": "Final-session F1 (%)", "result": "AFA 48.80 in Table 4; 48.75 in Table 3; 48.81 in the source curve file.", "baseline": "FACT 48.59 in Table 4 but 44.77 in Table 3 and source data; CEC 47.72."},
+    {"setting": "CUB-200, 100 base classes plus ten 10-way 5-shot increments", "metric": "Final-session F1 (%)", "result": "AFA 51.58.", "baseline": "FACT 56.29 and CEC 52.12; AFA trails FACT by 4.71 points."},
+    {"setting": "FGVC-Aircraft, 50 base classes plus ten 5-way 5-shot increments", "metric": "Final-session F1 (%)", "result": "AFA 31.73.", "baseline": "FACT 41.78; AFA trails by 10.05 points."},
+    {"setting": "tiered-ImageNet, 100 base classes plus ten 10-way 5-shot increments", "metric": "Final-session F1 (%)", "result": "AFA 37.57.", "baseline": "FACT 41.80 and CEC 43.10; AFA trails the best listed value by 5.53 points."},
+    {"setting": "Final mini-ImageNet base/new diagnostic", "metric": "Mean accuracy, base accuracy, new accuracy, and unspecified multiclass F1", "result": "AFA 48.11 mean, 66.96 base, 27.80 new, and 48.75 F1.", "baseline": "FACT 49.51 mean, 73.80 base, 13.07 new, and 44.77 F1 in Table 3."},
+    {"setting": "Final CUB-200 base/new diagnostic", "metric": "Mean accuracy, base accuracy, new accuracy, and unspecified multiclass F1", "result": "AFA 52.22 mean, 70.53 base, 34.33 new, and 51.58 F1.", "baseline": "FACT 56.43 mean, 72.93 base, 40.30 new, and 56.03 F1 in Table 3 versus 56.29 final F1 in Table 5."},
+    {"setting": "All four datasets and 42 source-data session points", "metric": "Whether AFA exceeds every ordinary or learned ensemble competitor", "result": "AFA loses at 17/42 points to at least one listed ensemble and at 13/42 points to at least one of the three neural stackers.", "baseline": "Arithmetic, geometric, harmonic, majority-vote, shallow, deep, and weighted-average fusion."},
+    {"setting": "CUB-200 last indexed session", "metric": "Training/validation loss curve", "result": "The raster figure is described as lower and more stable for AFA, but its plotted points cannot be reproduced from the four included 0-99 epoch loss files.", "baseline": "Shallow NN, deep NN, and weighted-average NN."},
+    {"setting": "Four-dataset robustness", "metric": "Run-to-run uncertainty and significance", "result": "No seeds, standard deviations, confidence intervals, or tests are reported.", "baseline": "All reported methods and sessions."},
+    {"setting": "Official v3 source artifact", "metric": "Document rebuild", "result": "Clean TeX Live 2025 rebuild succeeds to 29 pages; normalized text comparison to the cached PDF is approximately 0.988 sequence similarity.", "baseline": "Official cached 29-page export PDF."},
+    {"setting": "Executable reproducibility search through 2026-08-23", "metric": "Author implementation and runnable artifact", "result": "No implementation, environment, checkpoints, configs, splits, or logs were present in the source or found through targeted title/ID/author searches.", "baseline": "The archive contains TeX assets, eight result/loss .dat files, and one raster loss plot only."}
+  ],
+  "limitations": [
+    "Dense W matrices violate quasi-arithmetic-mean idempotence unless additional coordinate-preserving constraints are imposed.",
+    "Interpretability is asserted rather than defined or evaluated.",
+    "The weak learners are described inconsistently as session-specific and cumulative.",
+    "The FSCIL training-set cardinality omits the n_way factor, and Aircraft's stated session count conflicts with its curves.",
+    "The confidence-padding rule is hand-designed and receives no ablation or calibration test.",
+    "The method may require the final class count and schedule in advance; online expansion is unspecified.",
+    "Prototype rehearsal discards within-class variation and offers a tiny training set for a potentially million-parameter adapter.",
+    "Training on centroids evaluated by their own nearest-centroid heads creates self-inclusion leakage and an artificially easy meta-training set.",
+    "The actual f branches, branch count, epsilon, and power choices are omitted.",
+    "AFA optimizer, learning rate, initialization, epoch count, stopping rule, and validation protocol are omitted.",
+    "Concrete v1/v2 AFA settings were removed from v3 while the implementation framework changed from TensorFlow to PyTorch.",
+    "Enforcement of the final matrix A's nonnegativity is not specified.",
+    "Temperature learning and the padding threshold are unspecified.",
+    "The multiclass F1 aggregation convention is unspecified.",
+    "No repeated runs, error bars, or statistical tests are provided.",
+    "A material FACT score conflict changes the apparent final mini-ImageNet comparison.",
+    "The all-sessions superiority claim contradicts 17 of 42 supplied curve points.",
+    "Baseline rerun provenance, code revisions, class orders, and tuning budgets are missing.",
+    "Base representation training omits total epochs, weight decay, augmentations, normalization, initialization, and splits.",
+    "There is no executable code or complete experiment artifact.",
+    "The source loss files do not regenerate Figure 7.",
+    "Parameter count grows quadratically with the number of classes and linearly with sessions and branches.",
+    "No parameter, memory, FLOP, latency, or energy table supports the efficiency language.",
+    "All experiments use one shallow backbone and 5-shot image-classification protocols.",
+    "No class-order, shot-count, domain-shift, open-world, or long-stream stress test is reported.",
+    "No modern vision-language or larger pretrained representation is tested.",
+    "No non-FSCIL ensemble task or regression experiment supports generality beyond this application.",
+    "No label-permutation or cross-dataset transfer test checks whether class-specific matrices learn reusable fusion.",
+    "The arXiv comment reports three figures although the current 29-page PDF contains seven numbered figures.",
+    "The current v3 title and task emphasis differ materially from the original v1 title, complicating version-level citation without explicit revision pinning.",
+    "Several figure captions and the SimpleShot citation contain reporting errors."
+  ],
+  "failure_modes": [
+    "An uncalibrated early head crosses the maximum-probability threshold and abruptly reallocates probability mass to future classes.",
+    "Changing the number of classes changes confidence statistics even when representation quality is constant.",
+    "Uniform padding assigns equal prior mass to semantically implausible and plausible future classes.",
+    "Dense cross-class fusion overfits class identity and does not transfer to a permuted or expanded label space.",
+    "AFA memorizes the prototype rehearsal set while failing on tail or boundary examples absent from class centroids.",
+    "The frozen base feature extractor collapses or aliases novel classes, which output fusion cannot repair.",
+    "A future session adds classes beyond the predeclared N_K and requires architectural surgery or full retraining.",
+    "The learned temperature produces overconfident distance softmax outputs, invalidating inlierness comparisons across heads.",
+    "A branch transform approaches a singular or numerically unstable region near zero despite leaky handling.",
+    "Large J, N, or K makes quadratic class mixing expensive relative to direct prototype classification.",
+    "A nonnegative but unnormalized final A matrix scales branches in a way that undermines weight-based interpretation.",
+    "The manuscript does not state how A remains nonnegative or how the learned temperature remains positive.",
+    "Different class orders or few-shot draws erase a sub-point advantage reported from one run.",
+    "Macro-like F1 hides the desired base/new stability-plasticity trade-off by weighting groups according to class count.",
+    "A copied or differently tuned baseline score yields a misleading ranking under ostensibly shared conditions.",
+    "Loss-curve conclusions cannot be audited because the plotted raster and numeric files describe different trajectories.",
+    "Rebuilding from the prose selects different branch functions, optimizer settings, or thresholds and produces a non-equivalent method.",
+    "Later high-capacity or pretrained FSCIL methods dominate the frozen ResNet-18 benchmark regime.",
+    "Multiple cumulative heads become highly correlated, reducing the benefit of treating them as diverse experts."
+  ],
+  "reusable_insights": [
+    "Separate frozen representation learning, per-session prototype construction, and output fusion behind explicit interfaces.",
+    "Store class summaries rather than raw images when the memory policy permits and privacy or replay cost matters.",
+    "Treat cumulative classifiers as experts whose calibration, correlation, and scope are measured before fusion.",
+    "Use coordinate-preserving or block-diagonal weights when the term average and its idempotence are important.",
+    "Make branch transforms declarative so arithmetic, geometric, harmonic, and power pooling can be ablated independently.",
+    "Use sparse or low-rank fusion to control the N-squared parameter term.",
+    "Replace hard confidence padding with calibrated unknown mass, conformal scores, or explicit density/OOD estimates.",
+    "Train fusion on multiple prototypes, covariance-aware synthetic features, or held-out examples rather than only one centroid per class.",
+    "Report base accuracy, novel accuracy, a group-balanced score, calibration, forgetting, and compute together.",
+    "Validate every significance adjective with repeated class orders, seeds, uncertainty, and a stated test.",
+    "Ship curve data that exactly regenerates every figure and make tables consume the same canonical numbers.",
+    "Pin baseline code revisions, splits, class orders, few-shot draws, and tuning budgets.",
+    "Distinguish a mathematical mean from a learned stacker and test invariants promised by the terminology.",
+    "Audit interpretability with parameter stability, faithfulness interventions, sparsity, and human-readable visualizations.",
+    "Design adapters that expand without knowledge of the eventual class count.",
+    "Evaluate whether a prototype-trained fusion layer transfers across datasets and label permutations.",
+    "Include simple prototype calibration and training-free baselines alongside learned output fusion.",
+    "Treat document rebuildability and experiment reproducibility as separate artifact levels."
+  ],
+  "open_questions": [
+    "Which exact f functions and branch count produced the reported AFA results?",
+    "Does AFA preserve identical expert predictions, class permutation equivariance, monotonicity, or any other averaging invariant?",
+    "Can block-diagonal, sparse, or low-rank fusion match accuracy with far fewer parameters?",
+    "Would leave-one-out or held-out query predictions eliminate prototype self-inclusion leakage and change the reported gains?",
+    "How stable are learned W and A weights across seeds, class orders, and prototype draws?",
+    "Do raw weight magnitudes predict causal branch or expert importance under ablation and activation patching?",
+    "What multiclass F1 aggregation generated the tables?",
+    "Which of the conflicting final FACT values is correct, and are other table values traceable to logs?",
+    "Which Aircraft session count and tiered-ImageNet class subset/order were actually used?",
+    "How is the padding threshold selected without a held-out future-class set?",
+    "Can calibrated energy, density, conformal, or open-set scores replace maximum probability for unseen-mass allocation?",
+    "Does the method work when the total number of future sessions and classes is unknown?",
+    "Is AFA retrained from scratch or expanded incrementally at every session, and what old data or prototypes are accessible then?",
+    "How much performance comes from the cumulative SimpleShot experts versus the AFA architecture itself?",
+    "Would multiple centroids or distributional prototypes reduce prototype-set overfitting?",
+    "How does performance scale with 1, 2, 5, 10, and 20 shots and with much longer streams?",
+    "Does fusion help when the backbone is CLIP, a self-supervised ViT, or a modern foundation model?",
+    "What are actual parameter, memory, latency, and energy costs per session?",
+    "Does AFA outperform logistic stacking, calibrated linear pooling, mixture-of-experts gating, and regularized opinion pools under equal tuning budgets?",
+    "Can the method improve regression or non-continual ensembles while retaining claimed interpretability?",
+    "Are the results robust to class permutation, order, dataset domain, and prototype noise?",
+    "Can all tables and figures be regenerated from a released training pipeline and canonical result files?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1105.5466",
+      "title": "Issues in Stacked Generalization",
+      "url": "https://arxiv.org/abs/1105.5466",
+      "relationship": "Established confidence-level stacking precursor that studies how a learned high-level classifier should combine lower-level models.",
+      "difference": "It predates the target's broad averaging-plus-stacking motivation by decades and emphasizes out-of-sample meta-training choices; AFA supplies a particular constrained nonlinear stacker but does not address leakage or meta-level validation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1; JAIR 1999 article"
+    },
+    {
+      "canonical_id": "arxiv:1509.08985",
+      "title": "Generalizing Pooling Functions in Convolutional Neural Networks: Mixed, Gated, and Tree",
+      "url": "https://arxiv.org/abs/1509.08985",
+      "relationship": "Conceptual predecessor that learns mixtures, gates, and trees over established pooling rules.",
+      "difference": "It learns spatial feature pooling rather than classifier-output fusion, but already establishes that a network can automatically balance multiple average-like operators, narrowing AFA's broad learned-pooling novelty.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:1703.06114",
+      "title": "Deep Sets",
+      "url": "https://arxiv.org/abs/1703.06114",
+      "relationship": "General learned-aggregation predecessor characterizing permutation-invariant functions of sets.",
+      "difference": "Deep Sets supplies a principled invariant architecture for unordered experts; AFA uses session- and class-position-specific dense matrices and never tests permutation invariance or equivariance.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:1810.00825",
+      "title": "Set Transformer: A Framework for Attention-based Permutation-Invariant Neural Networks",
+      "url": "https://arxiv.org/abs/1810.00825",
+      "relationship": "Expressive attention-based learned aggregation framework for interacting set elements.",
+      "difference": "Set Transformer models content-dependent interactions while retaining permutation invariance and can reduce set-size attention to linear complexity; AFA has fixed f branches and dense class-specific mixing.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:1711.02512",
+      "title": "Fine-tuning CNN Image Retrieval with No Human Annotation",
+      "url": "https://arxiv.org/abs/1711.02512",
+      "relationship": "Generalized-mean pooling predecessor with a trainable power that continuously interpolates pooling behavior.",
+      "difference": "GeM learns a compact pooling family with one interpretable power per representation channel; AFA stacks several fixed transforms using full output-coordinate matrices and far more parameters.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2308.09228",
+      "title": "Generalized Sum Pooling for Metric Learning",
+      "url": "https://arxiv.org/abs/2308.09228",
+      "relationship": "Contemporaneous learnable convex aggregation method for metric representations.",
+      "difference": "It derives sparse weighted semantic-entity pooling through optimal transport with analytical gradients; AFA uses dense simplex matrices across classifier coordinates without a comparable invariance or sparsity analysis.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:1703.05175",
+      "title": "Prototypical Networks for Few-shot Learning",
+      "url": "https://arxiv.org/abs/1703.05175",
+      "relationship": "Foundational episodic prototype method underlying nearest-centroid few-shot classification.",
+      "difference": "It learns an embedding explicitly for prototype inference using support/query episodes; AFA freezes a base-only embedding, forms centroids, and learns only the output combiner.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:1911.04623",
+      "title": "SimpleShot: Revisiting Nearest-Neighbor Classification for Few-Shot Learning",
+      "url": "https://arxiv.org/abs/1911.04623",
+      "relationship": "Exact frozen-embedding nearest-class-mean predecessor for AFA's incremental weak heads.",
+      "difference": "SimpleShot establishes the simple centroid classifier; AFA wraps cumulative SimpleShot-style outputs in a learned fusion network. The target bibliography incorrectly prints arXiv:1412.5068 for this work.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2203.17030",
+      "title": "Few-Shot Class-Incremental Learning by Sampling Multi-Phase Tasks",
+      "url": "https://arxiv.org/abs/2203.17030",
+      "relationship": "LIMIT predecessor that meta-trains sampled pseudo-incremental sequences and calibrates classifiers with a transformer.",
+      "difference": "LIMIT aligns representation and calibration training with the multi-session test process; AFA trains a prototype-level stacker after freezing its base representation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2208.00147",
+      "title": "Few-Shot Class-Incremental Learning from an Open-Set Perspective",
+      "url": "https://arxiv.org/abs/2208.00147",
+      "relationship": "ALICE predecessor framing FSCIL representation learning through open-set recognition and broader robustness protocols.",
+      "difference": "ALICE evaluates one-shot, class-order, augmentation, and open-set behavior with angular objectives; AFA reports only fixed closed-set 5-shot schedules and uses an unvalidated inlier threshold.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2312.04225",
+      "title": "TLCE: Transfer-Learning Based Classifier Ensembles for Few-Shot Class-Incremental Learning",
+      "url": "https://arxiv.org/abs/2312.04225",
+      "relationship": "Very close classifier-ensemble successor that was public before the target's September 2024 v3 revision.",
+      "difference": "TLCE ensembles diverse pretrained models and quasi-orthogonal prototypes; AFA ensembles nested/session heads sharing one frozen backbone through transformed output pooling.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2405.17022",
+      "title": "Compositional Few-Shot Class-Incremental Learning",
+      "url": "https://arxiv.org/abs/2405.17022",
+      "relationship": "Pre-v3 compositional representation method with an explicit interpretability story based on reusable visual primitives.",
+      "difference": "It evaluates compositional primitives and set similarity as human-readable representation structure; AFA infers interpretability only from unconstrained dense learned weights.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2404.06622",
+      "title": "Calibrating Higher-Order Statistics for Few-Shot Class-Incremental Learning with Pre-trained Vision Transformers",
+      "url": "https://arxiv.org/abs/2404.06622",
+      "relationship": "Pre-v3 calibration competitor using higher-order class statistics with a pretrained vision transformer.",
+      "difference": "It models covariance-level uncertainty to calibrate scarce novel prototypes; AFA retains only centroids and applies a binary maximum-probability padding rule.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2601.16773",
+      "title": "CASP: Few-Shot Class-Incremental Learning with CLS Token Attention Steering Prompts",
+      "url": "https://arxiv.org/abs/2601.16773",
+      "relationship": "Current prompt-based FSCIL successor using shared attention steering and augmentation without incremental full-model tuning.",
+      "difference": "CASP adapts a strong transformer representation through compact shared prompts; AFA leaves a shallow representation fixed and retrains an output fusion network whose size grows with classes and sessions.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2601.08448",
+      "title": "Divide and Conquer: Static-Dynamic Collaboration for Few-Shot Class-Incremental Learning",
+      "url": "https://arxiv.org/abs/2601.08448",
+      "relationship": "Current stability-plasticity method separating static retention from dynamic novel-class learning.",
+      "difference": "It gives old-knowledge retention and new-knowledge acquisition distinct modules; AFA only combines the scores of cumulative heads and does not diagnose which module supplies plasticity.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2607.22072",
+      "title": "Alleviating Regional Shortcuts for Few-Shot Class-Incremental Learning",
+      "url": "https://arxiv.org/abs/2607.22072",
+      "relationship": "Latest direct FSCIL successor found before the requested cutoff, diagnosing base-class regional shortcuts and learning common/discriminative primitives.",
+      "difference": "It offers a feature-causal diagnosis and targeted representation remedy; AFA assumes the frozen feature extractor already transfers and cannot correct regional shortcuts through score fusion alone.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2004.10956",
+      "title": "Few-Shot Class-Incremental Learning",
+      "url": "https://arxiv.org/abs/2004.10956",
+      "relationship": "Foundational FSCIL formulation and benchmark with a neural-gas topology-preserving model.",
+      "difference": "It establishes the task and benchmark regime; AFA replaces end-to-end topology adaptation with frozen features, cumulative prototypes, and learned output fusion.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2103.00991",
+      "title": "Few-Shot Lifelong Learning",
+      "url": "https://arxiv.org/abs/2103.00991",
+      "relationship": "Early lifelong few-shot method based on sparse updates and prototype separation.",
+      "difference": "It adapts selected model parameters and regularizes representations; AFA freezes the representation and learns a separate output stacker.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2103.04059",
+      "title": "Semantic-aware Knowledge Distillation for Few-Shot Class-Incremental Learning",
+      "url": "https://arxiv.org/abs/2103.04059",
+      "relationship": "Pre-target FSCIL approach that preserves old knowledge through semantic-aware distillation.",
+      "difference": "It transfers knowledge during representation/classifier updates, whereas AFA relies on frozen features and probability fusion without semantic side information.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2104.03047",
+      "title": "Few-Shot Incremental Learning with Continually Evolved Classifiers",
+      "url": "https://arxiv.org/abs/2104.03047",
+      "relationship": "CEC is a direct benchmark and a close precursor using frozen features, class means, and a graph-based classifier adapter.",
+      "difference": "CEC evolves classifier weights through graph attention and meta-training; AFA stacks cumulative probability heads using generalized pooling branches.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2107.08918",
+      "title": "Self-Promoted Prototype Refinement for Few-Shot Class-Incremental Learning",
+      "url": "https://arxiv.org/abs/2107.08918",
+      "relationship": "SPPR is a reported benchmark that refines prototypes using episodic training and class relations.",
+      "difference": "SPPR improves prototypes and the embedding geometry; AFA leaves prototypes simple and learns how to combine multiple heads' outputs.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "cvf:iccv2021:mixture-subspaces",
+      "title": "Synthesized Feature Based Few-Shot Class-Incremental Learning on a Mixture of Subspaces",
+      "url": "https://openaccess.thecvf.com/content/ICCV2021/html/Cheraghian_Synthesized_Feature_Based_Few-Shot_Class-Incremental_Learning_on_a_Mixture_of_ICCV_2021_paper.html",
+      "relationship": "Pre-target FSCIL method that augments sparse novel classes with VAE-synthesized features in a mixture of subspaces.",
+      "difference": "It models class distributions and generates features; AFA trains fusion only from class prototypes and does not represent within-class uncertainty.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICCV 2021 proceedings"
+    },
+    {
+      "canonical_id": "arxiv:2203.06953",
+      "title": "Forward Compatible Few-Shot Class-Incremental Learning",
+      "url": "https://arxiv.org/abs/2203.06953",
+      "relationship": "FACT is the strongest repeatedly reported target baseline and reserves feature space for future categories.",
+      "difference": "FACT optimizes forward-compatible representation geometry with virtual prototypes; AFA instead pads unknown outputs and fuses frozen-feature classifiers. AFA trails FACT on three of four final datasets.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2203.16588",
+      "title": "Constrained Few-shot Class-incremental Learning",
+      "url": "https://arxiv.org/abs/2203.16588",
+      "relationship": "Resource-aware FSCIL approach with frozen representation and compact class-vector memory.",
+      "difference": "C-FSCIL treats compute and memory constraints explicitly; AFA shares the frozen-feature/prototype premise but adds a quadratic class-fusion layer without resource accounting.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "cvf:cvpr2022:metafscil",
+      "title": "MetaFSCIL: A Meta-Learning Approach for Few-Shot Class Incremental Learning",
+      "url": "https://openaccess.thecvf.com/content/CVPR2022/html/Chi_MetaFSCIL_A_Meta-Learning_Approach_for_Few-Shot_Class_Incremental_Learning_CVPR_2022_paper.html",
+      "relationship": "Meta-learning competitor that aligns training with the incremental evaluation objective through bi-level optimization.",
+      "difference": "MetaFSCIL learns an adaptation procedure over simulated sessions; AFA advertises conceptual simplicity and learns only a final output-fusion network.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "CVPR 2022 proceedings"
+    },
+    {
+      "canonical_id": "arxiv:2207.11213",
+      "title": "Few-Shot Class-Incremental Learning via Entropy-Regularized Data-Free Replay",
+      "url": "https://arxiv.org/abs/2207.11213",
+      "relationship": "Data-free replay competitor that regularizes entropy and synthesizes replay signals.",
+      "difference": "It creates replay samples to preserve decision behavior; AFA replays only stored class centroids through frozen experts.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2302.03004",
+      "title": "Neural Collapse Inspired Feature-Classifier Alignment for Few-Shot Class Incremental Learning",
+      "url": "https://arxiv.org/abs/2302.03004",
+      "relationship": "ICLR 2023 method that aligns features and classifiers using neural-collapse geometry.",
+      "difference": "It changes representation and classifier geometry to reserve discriminative directions; AFA operates after a fixed representation and cannot repair geometric collapse.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2304.00426",
+      "title": "Learning with Fantasy: Semantic-Aware Virtual Contrastive Constraint for Few-Shot Class-Incremental Learning",
+      "url": "https://arxiv.org/abs/2304.00426",
+      "relationship": "Pre-target semantic virtual-class method for forward-compatible representation learning.",
+      "difference": "It creates semantic-aware virtual contrastive constraints before future classes arrive; AFA uses uniform future-class padding and later output aggregation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "cvf:cvpr2023:bidistfscil",
+      "title": "Few-Shot Class-Incremental Learning via Class-Aware Bilateral Distillation",
+      "url": "https://openaccess.thecvf.com/content/CVPR2023/html/Zhao_Few-Shot_Class-Incremental_Learning_via_Class-Aware_Bilateral_Distillation_CVPR_2023_paper.html",
+      "relationship": "Direct pre-target ensemble/distillation competitor using base and previous-session teachers plus two prediction branches.",
+      "difference": "It explicitly calibrates two complementary knowledge sources using semantic similarities and distillation; AFA learns generic dense output pooling over all cumulative heads without semantic supervision.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "CVPR 2023 proceedings"
+    },
+    {
+      "canonical_id": "arxiv:2307.02246",
+      "title": "S3C: Self-Supervised Stochastic Classifiers for Few-Shot Class-Incremental Learning",
+      "url": "https://arxiv.org/abs/2307.02246",
+      "relationship": "Pre-target stochastic-classifier and self-supervised FSCIL method.",
+      "difference": "S3C builds a robust representation and stochastic classifiers; AFA fixes one deterministic representation and seeks gains from output stacking.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2304.08130",
+      "title": "A Survey on Few-Shot Class-Incremental Learning",
+      "url": "https://arxiv.org/abs/2304.08130",
+      "relationship": "Pre-target survey organizing FSCIL assumptions, method families, benchmarks, and evaluation concerns.",
+      "difference": "It provides the landscape needed to position AFA; the target's narrow comparator set omits multiple established representation, replay, meta-learning, and calibration families cataloged there.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2312.05229",
+      "title": "Few-Shot Class-Incremental Learning via Training-Free Prototype Calibration",
+      "url": "https://arxiv.org/abs/2312.05229",
+      "relationship": "Near-concurrent TEEN method calibrating novel prototypes from semantically related base prototypes without training.",
+      "difference": "TEEN directly addresses base-class attraction with a small training-free prototype correction; AFA trains a much larger fusion layer and does not isolate that bias.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2401.01598",
+      "title": "Learning Prompt with Distribution-Based Feature Replay for Few-Shot Class-Incremental Learning",
+      "url": "https://arxiv.org/abs/2401.01598",
+      "relationship": "Later prompt and distributional feature-replay approach.",
+      "difference": "It models distributions and adapts prompts while replaying synthesized features; AFA uses static features and one centroid per class to learn output fusion.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2401.07208",
+      "title": "Enhanced Few-Shot Class-Incremental Learning via Ensemble Models",
+      "url": "https://arxiv.org/abs/2401.07208",
+      "relationship": "The closest later title-level competitor: an FSCIL ensemble framework combining diversified feature extractors, augmentation, and self-supervision.",
+      "difference": "It ensembles representations/models to reduce incremental overfitting; AFA ensembles cumulative classifier outputs with transformed pooling. This later work sharply narrows any broad novelty claim for 'ensemble learning in FSCIL.'",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2403.09857",
+      "title": "Few-Shot Class Incremental Learning with Attention-Aware Self-Adaptive Prompt",
+      "url": "https://arxiv.org/abs/2403.09857",
+      "relationship": "ECCV 2024 prompt-based FSCIL method balancing task-invariant and task-specific information.",
+      "difference": "ASP adapts a transformer through parameter-efficient prompts and an information bottleneck; AFA remains a post-hoc ResNet probability stacker.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2403.18550",
+      "title": "OrCo: Towards Better Generalization via Orthogonality and Contrast for Few-Shot Class-Incremental Learning",
+      "url": "https://arxiv.org/abs/2403.18550",
+      "relationship": "Later representation-learning competitor using supervised/self-supervised contrast and orthogonal class space.",
+      "difference": "OrCo reserves discriminative feature space and reports stronger modern benchmark performance; AFA cannot alter its frozen embedding and focuses on output aggregation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2404.02117",
+      "title": "Pre-trained Vision and Language Transformers Are Few-Shot Incremental Learners",
+      "url": "https://arxiv.org/abs/2404.02117",
+      "relationship": "CVPR 2024 PriViLege framework leveraging pretrained vision-language transformers, prompts, and distillation.",
+      "difference": "PriViLege shows large pretrained models can substantially exceed shallow ResNet-based FSCIL methods; AFA's one-backbone study does not establish competitiveness in that regime.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2407.07468",
+      "title": "Rethinking Few-shot Class-incremental Learning: Learning from Yourself",
+      "url": "https://arxiv.org/abs/2407.07468",
+      "relationship": "Later evaluation-focused work showing common aggregate metrics underweight novel-class learning and proposing gAcc plus AUC.",
+      "difference": "It directly validates the target audit's concern that one aggregate F1 is insufficient; AFA never reports a tunable group-balanced metric or AUC across stability-plasticity preferences.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2503.10003",
+      "title": "Does Prior Data Matter? Exploring Joint Training in the Context of Few-Shot Class-Incremental Learning",
+      "url": "https://arxiv.org/abs/2503.10003",
+      "relationship": "Current benchmark audit and imbalance-aware joint-training study that documents inconsistent FSCIL setups and adds compute-aware standardized evaluation.",
+      "difference": "Its v2 title and protocol explicitly expose the comparability and upper-bound gaps left by AFA's under-specified copied/rerun baselines and absent complexity measurements.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2, revised title"
+    },
+    {
+      "canonical_id": "cvf:cvpr2025:bimc",
+      "title": "Enhancing Few-Shot Class-Incremental Learning via Training-Free Bi-Level Modality Calibration",
+      "url": "https://openaccess.thecvf.com/content/CVPR2025/html/Chen_Enhancing_Few-Shot_Class-Incremental_Learning_via_Training-Free_Bi-Level_Modality_Calibration_CVPR_2025_paper.html",
+      "relationship": "Current training-free CLIP-based calibration and masked-ensemble FSCIL competitor.",
+      "difference": "BiMC combines language descriptions, visual prototypes, covariance-aware distance, and modality calibration without training; AFA trains a dense adapter over shallow unimodal experts.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "CVPR 2025 proceedings"
+    },
+    {
+      "canonical_id": "cvf:cvpr2025:tri-we",
+      "title": "Tripartite Weight-Space Ensemble for Few-Shot Class-Incremental Learning",
+      "url": "https://openaccess.thecvf.com/content/CVPR2025/html/Lee_Tripartite_Weight-Space_Ensemble_for_Few-Shot_Class-Incremental_Learning_CVPR_2025_paper.html",
+      "relationship": "Current direct ensemble competitor combining base, previous, and current models in weight space.",
+      "difference": "Tri-WE updates the entire model and interpolates three checkpoints with amplified-data distillation; AFA freezes features and performs probability-space stacking across every session head.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "CVPR 2025 proceedings"
+    },
+    {
+      "canonical_id": "cvf:cvpr2025:add",
+      "title": "Attraction Diminishing and Distributing for Few-Shot Class-Incremental Learning",
+      "url": "https://openaccess.thecvf.com/content/CVPR2025/html/Zhao_Attraction_Diminishing_and_Distributing_for_Few-Shot_Class-Incremental_Learning_CVPR_2025_paper.html",
+      "relationship": "Current geometric calibration method analyzing hubness and base-class attraction in FSCIL.",
+      "difference": "It targets a diagnosed representation/prototype failure with explicit geometry; AFA's confidence padding and dense fusion do not measure or directly correct hubness.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "CVPR 2025 proceedings"
+    },
+    {
+      "canonical_id": "cvf:iccv2025:fdr",
+      "title": "Feature Decomposition-Recomposition in Large Vision-Language Model for Few-Shot Class-Incremental Learning",
+      "url": "https://openaccess.thecvf.com/content/ICCV2025/html/Xue_Feature_Decomposition-Recomposition_in_Large_Vision-Language_Model_for_Few-Shot_Class-Incremental_Learning_ICCV_2025_paper.html",
+      "relationship": "Current VLM-based prototype calibration using semantic feature decomposition and recomposition.",
+      "difference": "FDR exploits pretrained attribute structure and emphasizes novel-class performance, especially at one shot; AFA treats class coordinates as anonymous outputs and tests only five shot.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICCV 2025 proceedings"
+    },
+    {
+      "canonical_id": "openreview:bRqaHn3J5I",
+      "title": "Prototype Antithesis for Biological Few-Shot Class-Incremental Learning",
+      "url": "https://openreview.net/forum?id=bRqaHn3J5I",
+      "relationship": "ICLR 2025 prototype-focused FSCIL method using antithetical representations to improve class separation.",
+      "difference": "It modifies prototype geometry with a biologically motivated separation signal; AFA combines fixed prototype-derived predictions and cannot recover information absent from the embedding.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2025 forum record"
+    },
+    {
+      "canonical_id": "openreview:LxO83jNZKk",
+      "title": "Consistency-Driven Calibration and Matching for Few-Shot Class-Incremental Learning",
+      "url": "https://openreview.net/forum?id=LxO83jNZKk",
+      "relationship": "ICLR 2026 calibration and matching approach for current FSCIL evaluation.",
+      "difference": "It makes calibration an explicit consistency objective; AFA relies on a learned temperature and hard maximum-probability threshold without calibration evaluation.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2026 forum record"
+    },
+    {
+      "canonical_id": "arxiv:2602.05271",
+      "title": "Unlocking Prototype Potential: An Efficient Tuning Framework for Few-Shot Class-Incremental Learning",
+      "url": "https://arxiv.org/abs/2602.05271",
+      "relationship": "Current efficient method that freezes the feature extractor but directly fine-tunes prototype decision regions with class- and task-aware offsets.",
+      "difference": "It attacks prototype bias with minimal learned parameters, offering a closer efficiency comparator than generic stackers; AFA instead learns full N-by-KN fusion matrices.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "cvf:cvpr2026:hycal",
+      "title": "HyCal: A Training-Free Prototype Calibration Method for Cross-Discipline Few-Shot Class-Incremental Learning",
+      "url": "https://openaccess.thecvf.com/content/CVPR2026/html/Lee_HyCal_A_Training-Free_Prototype_Calibration_Method_for_Cross-Discipline_Few-Shot_Class-Incremental_CVPR_2026_paper.html",
+      "relationship": "Current training-free prototype calibration and cross-discipline variable-shot benchmark.",
+      "difference": "HyCal tests heterogeneous domains, imbalance, and varying shot counts with a foundation model; AFA assumes homogeneous fixed 5-shot image streams and a known output schedule.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "CVPR 2026 proceedings"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims a novel Aggregated f-Average shallow neural architecture that automatically models and combines several interpretable averaging rules, with a simple prototype-rehearsal strategy that makes ensemble learning competitive for FSCIL.",
+    "evidence": "The manuscript gives a distinct dense matrix generalization of quasi-arithmetic pooling, multiple transformed branches, simplex-constrained W matrices, a nonnegative branch mixer, and a concrete frozen-ResNet/SimpleShot FSCIL integration. Pre-v1 FSCIL literature already includes prototype rehearsal, frozen representations, cumulative classifiers, multi-branch aggregation, distillation, meta-learning, replay, and semantic calibration; stacking and learned classifier combination are also established concepts. The target's empirical evidence is four fixed 5-shot datasets without uncertainty, code, ablations, or validated interpretability, and it trails FACT on three final datasets. Near- and post-v1 papers add direct FSCIL ensembles, training-free prototype calibration, stronger metrics, foundation models, and standardized evaluation.",
+    "reviewer_inference": "The defensible novelty is narrow: a particular multi-branch, simplex-constrained, transformed output-stacking parameterization and its prototype-trained application to cumulative FSCIL heads. Calling the dense cross-coordinate branches mathematical averages or interpretable is not justified under the stated constraints, and the work should not claim novelty for ensemble learning in FSCIL, frozen prototype classifiers, output stacking, or prototype rehearsal. Its practical status is an interesting modular baseline whose numerical and reproducibility gaps require correction before strong effectiveness claims."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Reviewed the complete current 29-page arXiv v3 export: every extracted page, all seven numbered figures, all five numbered tables, the graphical abstract, and highlights page were inspected. An independent reviewer repeated the full-text contradiction and current-competitor audit before release; its page-level findings were reconciled into this record. The arXiv comment says 27 pages and 3 figures, apparently counting article-numbered pages while understating the actual seven figures; the PDF contains 29 physical pages including front matter. The original v1 title was 'Aggregated f-average Neural Network for Interpretable Ensembling'; v3 is 'Aggregated f-average Neural Network applied to Few-Shot Class Incremental Learning' and later corresponds to Signal Processing 237 (2025), article 110054. Official source e-print SHA-256 d104284430b82ffa77ed693328671c5c0739ea178282471217aec818b4142049 was unpacked in an isolated temporary directory: all 16 files and eight plotting-data artifacts were audited, and a safe TeX Live 2025 rebuild succeeded to 29 pages with PDF SHA-256 0157c6d43f0a37d42735b57176b6a3735b60af3c470aa384e5ed1a42cafce11d. Official v1/v2 sources were also compared solely to explain v3's deleted hyperparameters; their settings were not silently imported into the pinned current method. No author code link appears in the PDF/source; targeted title, ID, author, and implementation-index searches found no runnable artifact as of 2026-08-23. Competitive review used current official arXiv, OpenReview, and CVF proceedings records through 2026-08-23, explicitly including later works because the atlas audits present-day novelty rather than freezing related work at submission."
+}

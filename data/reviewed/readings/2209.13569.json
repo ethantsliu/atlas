@@ -1,0 +1,202 @@
+{
+  "stable_id": "arxiv:2209.13569",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2209.13569",
+    "pdf_sha256": "e812d5485053270880ff9cea7e2a5395587fd277c36d4ed26aa10c4e9266fa90",
+    "text_sha256": "1121a934aaf8520e898792ddecfc918301152cef2bdfb10d045f14f22f1ac6a9",
+    "page_count": 7,
+    "extracted_at": "2026-08-23T20:32:19.146857+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Which initialization, regularization, and warm-start choices make end-to-end low-rank factorized neural-network training competitive, and do the prevailing explanations for those choices survive direct ablation?",
+  "key_findings": [
+    {
+      "claim": "Factorizing a weight changes its optimizer dynamics, not just its parameter count.",
+      "evidence": "For W=UV^T, one gradient step produces first-order terms preconditioned by VV^T and UU^T plus a second-order interaction, so it is not the same update as dense gradient descent constrained to rank r. The paper uses this mismatch to frame initialization and regularization as optimization choices rather than mere compression details.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "3. Low Rank Training / Equation 1"}
+      ]
+    },
+    {
+      "claim": "Spectral initialization works in the tested networks, but retaining the pretrained singular values is not necessary for its benefit.",
+      "evidence": "The authors compare conventional He initialization, truncated-SVD spectral initialization, and 'spectral ones,' which keeps the singular-vector directions but replaces retained singular values by one. Spectral ones is better on CIFAR-100, lower-perplexity on LM1B, and comparable on ImageNet, contradicting the prior explanation that matching singular-value scale is central.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "3.2. Spectral Initialisation"},
+        {"page": 4, "section": "4.1. Initialisation"},
+        {"page": 6, "section": "A.3. Initialization Results / Tables 2-4"}
+      ]
+    },
+    {
+      "claim": "Applying weight decay to the recomposed matrix outperforms ordinary factor-wise L2 in most tested vision settings, but not because it simply preserves a larger effective step size.",
+      "evidence": "Halving the learning rate, and thus the paper's normalized-update proxy for effective step size, does not reliably lower performance. By contrast, factor-wise L2 disproportionately grows dominant singular values and lowers effective rank; final average effective rank is 39.87 versus 16.4 on WRN and 68.72 versus 58.00 on ResNet-50 for Frobenius decay versus L2. LM1B effective ranks are nearly equal (206.93 versus 205.70), matching its weaker performance separation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "3.3. L2 Regularisation"},
+        {"page": 4, "section": "4.2. L2 Regularisation / Table 1"},
+        {"page": 7, "section": "Tables 6-7"}
+      ]
+    },
+    {
+      "claim": "A short dense warm start helps scaled GPT-2 language modeling but provides little systematic benefit on the reported vision models.",
+      "evidence": "LM1B experiments train densely for 40,000 steps then factorize by truncated SVD for the remaining 200,000 steps and show an improved compute/performance frontier as models scale. CIFAR-100 and ImageNet sweeps across warm-start lengths fluctuate close to training from scratch, without a consistent gain.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "4.3. Pre-training / Figures 1-2"},
+        {"page": 6, "section": "A.2. Experiment Details"},
+        {"page": 7, "section": "A.5. Pre-training Results / Tables 8-9 and Figures 3-5"}
+      ]
+    },
+    {
+      "claim": "Low-rank training can save memory and computation, but the paper does not report an end-to-end systems benchmark sufficient to substantiate a general two-times speedup.",
+      "evidence": "The complexity analysis reduces a dense matrix from O(mn) to O(mr+rn) and gives analogous convolutional savings. The introduction states up to 2x speedup and Figure 1 plots TPU compute-hours, yet tables emphasize accuracy/perplexity rather than measured peak memory, throughput, communication, optimizer state, or hardware-specific break-even ranks.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Introduction / Figure 1"},
+        {"page": 2, "section": "3.1. Factorisation"},
+        {"page": 6, "section": "A.2. Experiment Details"}
+      ]
+    },
+    {
+      "claim": "The work is primarily a falsification and ablation study rather than a complete replacement theory.",
+      "evidence": "Its conclusion explicitly says spectral initialization and recomposed Frobenius decay improve low-rank training but remain poorly understood. The singular-direction and effective-rank observations undermine earlier explanations and suggest hypotheses, but no theorem predicts when either choice will close the dense performance gap.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "5. Conclusion"},
+        {"page": 5, "section": "Conclusion continuation and references"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Interrogate low-rank neural training as a distinct optimization system by holding architectures and ranks fixed while ablating factor initialization, the object to which L2 is applied, learning-rate scaling, and a dense warm-start phase.",
+    "mechanism": "Dense matrices and convolutional kernels are replaced by depth-two factors U and V. The study compares He factors with truncated-SVD directions and with the same directions but unit singular values; compares factor-wise L2, which induces a nuclear-norm penalty on UV^T, with Frobenius decay applied to the recomposed matrix; and optionally trains densely before SVD factorization. Singular-value dynamics, effective rank, interpolation to dense solutions, accuracy, perplexity, and compute-hours diagnose the resulting solutions.",
+    "assumptions": [
+      "Depth-two factorization captures the useful memory/speed tradeoff without materially changing the conclusions for deeper factorizations.",
+      "The chosen rank fractions are representative and comparisons at those ranks expose the mechanisms of interest.",
+      "Effective rank, defined as nuclear norm divided by operator norm and averaged across layers, is a meaningful account of regularizer behavior.",
+      "Replacing singular values with ones isolates directions without introducing a different layer-scale or optimizer interaction.",
+      "Dense warm-start compute is properly included when interpreting the resulting training-efficiency frontier.",
+      "CIFAR-100, ImageNet, and LM1B results transfer to larger modern architectures and datasets."
+    ]
+  },
+  "techniques": [
+    {"id": "depth-two-weight-factorization", "role": "Reduces parameter, activation, and arithmetic cost by representing each selected weight as UV^T."},
+    {"id": "truncated-svd-initialization", "role": "Initializes factors from a dense matrix while retaining its leading singular directions."},
+    {"id": "unit-spectrum-ablation", "role": "Separates singular-vector direction from the retained singular-value magnitudes."},
+    {"id": "recomposed-frobenius-decay", "role": "Regularizes ||UV^T||_F rather than the factors, avoiding the implicit nuclear-norm penalty of factor-wise L2."},
+    {"id": "effective-rank-tracking", "role": "Diagnoses whether regularization concentrates the spectrum into a few dominant directions."},
+    {"id": "dense-to-factorized-warm-start", "role": "Lets early dense optimization choose a subspace before imposing the low-rank constraint."},
+    {"id": "solution-interpolation", "role": "Compares warm-started low-rank and dense solutions along straight parameter-space paths."}
+  ],
+  "evaluations": [
+    {
+      "setting": "WideResNet-28 on CIFAR-100 at rank fractions 0.1-0.3.",
+      "metric": "Accuracy, effective rank, initialization and regularization ablations.",
+      "result": "The dense baseline is 81.08%; spectral/unit-spectrum schemes reach about 81.5-81.6% at rank 0.3, while recomposed Frobenius decay materially outperforms factor-wise L2 at low ranks and retains much higher effective rank.",
+      "baseline": "Dense He-initialized training and factorized He/L2 variants."
+    },
+    {
+      "setting": "ResNet-50 on ImageNet at rank fractions 0.3 and 0.5.",
+      "metric": "Top-1/top-5 accuracy and effective rank.",
+      "result": "Dense top-1 is 76.39%; spectral initialization reaches 76.13% at rank 0.5. Frobenius decay is consistently above factor-wise L2 in the reported grid and gives final average effective rank 68.72 versus 58.00.",
+      "baseline": "Dense ResNet-50 and factorized training with ordinary L2."
+    },
+    {
+      "setting": "GPT-2-style transformers on LM1B at rank 0.625 and scaled hidden sizes, trained for 240,000 steps.",
+      "metric": "Perplexity, TPU compute-hours, parameter count, and effective rank.",
+      "result": "Dense baseline perplexity is 37.67; spectral ones reports 38.47 versus 39.6 for He factors. A 40,000-step dense warm start improves the scaled low-rank compute/performance frontier, while Frobenius-decay and factor-L2 differences are small at the single reported rank.",
+      "baseline": "Dense GPT-2 and low-rank training from scratch."
+    },
+    {
+      "setting": "Warm-start-length sweeps and parameter-space interpolation on CIFAR-100 and ImageNet.",
+      "metric": "Accuracy and loss along the line between low-rank and dense endpoints.",
+      "result": "Vision warm starts do not consistently improve endpoint accuracy; the warm-started solutions lie closer to their dense counterparts according to the interpolation plots.",
+      "baseline": "Low-rank training from initialization without a dense phase."
+    }
+  ],
+  "limitations": [
+    "Author-stated: the study disproves earlier explanations but does not provide a settled theory for spectral initialization or recomposed Frobenius decay.",
+    "Reviewer-identified: only depth-two static ranks are studied; adaptive ranks, rank growth, and deeper factors may have different dynamics.",
+    "Reviewer-identified: end-to-end memory and throughput measurements are sparse relative to the paper's systems-efficiency motivation.",
+    "Reviewer-identified: the transformer scale and LM1B protocol are far below contemporary LLM pretraining, and only one language-model rank is tabulated.",
+    "Reviewer-identified: effective rank averaged across layers can conceal bottleneck layers and does not establish causality for generalization.",
+    "Reviewer-identified: the spectral-ones intervention also changes factor norms and layer scaling, so it does not perfectly isolate singular-vector information.",
+    "Reviewer-identified: hyperparameter budgets for dense and factorized baselines are not shown to be equally optimized.",
+    "Reviewer-identified: dense warm-start cost and temporary full-rank memory reduce its utility in the most resource-constrained setting."
+  ],
+  "failure_modes": [
+    "A fixed low rank can exclude task-critical directions that emerge only after early training.",
+    "Factor-wise L2 can concentrate the spectrum, lower effective rank, and erase the nominal capacity of the chosen factorization.",
+    "Truncated-SVD initialization can lock optimization into leading directions of an uninformative random or briefly trained dense matrix.",
+    "At ranks near the dense break-even point, factorization overhead and extra activations can erase theoretical speed gains.",
+    "A dense warm start can violate the memory constraint that motivated low-rank training and shift cost rather than remove it.",
+    "Recomposed-weight regularization requires coupled factor operations and may be expensive or numerically unstable at large distributed scale.",
+    "Static singular directions can become stale, leaving the model unable to explore a high-rank cumulative update."
+  ],
+  "reusable_insights": [
+    "A structural parameterization changes the update rule; compare optimization dynamics, not only representational capacity.",
+    "Use intervention-style ablations that preserve singular vectors while altering singular values before assigning credit to either.",
+    "Distinguish regularizing factors from regularizing their composed function because they induce different implicit norms.",
+    "Track full spectral evolution and layerwise effective rank when testing explanations based on effective learning rate.",
+    "Include warm-start compute and peak-memory requirements in any claimed efficiency frontier.",
+    "Treat counterexamples to a popular explanation as a valuable research product even when the replacement theory is incomplete."
+  ],
+  "open_questions": [
+    "Why do leading singular-vector directions help when their original singular values can be discarded?",
+    "Can an optimizer maintain useful effective rank without explicitly composing UV^T on every step?",
+    "When should rank expand or rotate during training, and can this be predicted from gradient spectra?",
+    "Does the language-only benefit of a dense warm start persist at billion-parameter scale with compute-matched baselines?",
+    "How do factorization, normalization, weight decay, and adaptive optimizers jointly determine the implicit bias?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "openreview:KTlJT1nof6d",
+      "title": "Initialization and Regularization of Factorized Neural Layers",
+      "url": "https://openreview.net/forum?id=KTlJT1nof6d",
+      "relationship": "The direct predecessor advocating spectral initialization and Frobenius decay for factorized networks.",
+      "difference": "The reviewed paper reproduces the practices but falsifies its singular-value/effective-step-size explanations through unit-spectrum, learning-rate, and effective-rank ablations.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2021 conference version"
+    },
+    {
+      "canonical_id": "arxiv:2307.05695",
+      "title": "ReLoRA: High-Rank Training Through Low-Rank Updates",
+      "url": "https://arxiv.org/abs/2307.05695",
+      "relationship": "Uses repeated low-rank update phases to obtain a cumulatively high-rank pretrained transformer.",
+      "difference": "ReLoRA avoids a permanently rank-r weight by periodically merging and restarting adapters; this paper directly factorizes the deployed weight and studies its static-rank optimization bias.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2307.05695"
+    },
+    {
+      "canonical_id": "arxiv:2403.03507",
+      "title": "GaLore: Memory-Efficient LLM Training by Gradient Low-Rank Projection",
+      "url": "https://arxiv.org/abs/2403.03507",
+      "relationship": "A later memory-efficient pretraining method that projects optimizer gradients/states into changing low-rank subspaces.",
+      "difference": "GaLore retains full-rank weights and rotates gradient subspaces, avoiding the fixed low-rank function class studied here while targeting optimizer-state rather than weight memory.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2403.03507"
+    },
+    {
+      "canonical_id": "arxiv:2504.20437",
+      "title": "GaLore 2: Large-Scale LLM Pre-Training by Gradient Low-Rank Projection",
+      "url": "https://arxiv.org/abs/2504.20437",
+      "relationship": "Scales rotating low-rank gradient projection to 7B-parameter, 500B-token pretraining and distributed systems.",
+      "difference": "It supplies the large-scale systems evidence absent from the 2022 static-factor study, but addresses low-rank optimizer states rather than the initialization and implicit bias of factorized weights.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2504.20437"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims a broad empirical re-examination of low-rank training that falsifies common explanations for spectral initialization and Frobenius decay and identifies dense pretraining as an effective language-model strategy.",
+    "evidence": "It derives the factorized update, performs unit-spectrum and learning-rate interventions, tracks singular/effective rank, and evaluates WideResNet, ResNet-50, and GPT-2-style models.",
+    "reviewer_inference": "Its strongest contribution is epistemic: practices from the direct predecessor remain useful, but their published mechanisms do not survive targeted tests. The resulting direction/effective-rank hypotheses are informative rather than conclusive, and later rotating-subspace methods change the efficiency frontier substantially."
+  },
+  "confidence": 0.94,
+  "reviewer_notes": "Read all seven extracted pages, including the update derivation, all initialization/regularization/warm-start sections, appendix protocols, numeric tables, figures, conclusion, and references. Current low-rank pretraining competitors through 2025 were checked on primary arXiv/OpenReview pages on 2026-08-23."
+}

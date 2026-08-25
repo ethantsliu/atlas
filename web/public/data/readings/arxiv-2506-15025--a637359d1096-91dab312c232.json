@@ -1,0 +1,330 @@
+{
+  "stable_id": "arxiv:2506.15025",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2506.15025",
+    "pdf_sha256": "2b596974ffa874ca3e7c90f3af439f288fcb4b6bc8c09121d752f2a9889e4bd1",
+    "text_sha256": "89e5e73044461eb746f3a80334d38c76a4ffad03c1975a555824cc7817b72db1",
+    "page_count": 21,
+    "extracted_at": "2026-08-23T16:33:39.138815+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "When vocabulary size grows with Transformer width, how should the embedding learning rate scale relative to hidden and output learning rates, and does a large-vocabulary correction improve hyperparameter transfer and production-scale pretraining?",
+  "key_findings": [
+    {
+      "claim": "The paper identifies a real modeling gap in standard muP asymptotics: vocabulary size and token frequency are held outside the width limit even though embedding tables are sparse lookup layers.",
+      "evidence": "The muP table keeps embedding initialization variance and Adam learning rate at order one while hidden and output learning rates scale as d^-1. The paper notes that practical vocabularies can exceed width, grow with model size, and update rows in proportion to token frequency. This is a legitimate omitted asymptotic variable even if the paper's proposed correction is not yet proved.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "Mechanisms of muP / Table 1"},
+        {"page": 4, "section": "Limitations of muP for LLMs"},
+        {"page": 5, "section": "Embedding lookup gradients"}
+      ]
+    },
+    {
+      "claim": "The theoretical vehicle is a one-step, infinite-batch, linear embedding-projection model trained with SignSGD, not a Transformer or Adam analysis.",
+      "evidence": "Inputs are one-hot tokens drawn with frequencies alpha_i, the predictor is f(x)=x-transpose E W, the loss is squared error, and infinite-batch gradients are replaced by frequency-weighted expectations. One SignSGD step is decomposed into an embedding-only feature change, a projection-only feature change, and their multiplicative interaction. Attention, MLPs, finite batches, moment state, cross-entropy, and multiple-step dynamics are absent.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "3 Simple Model with LLM-like Embedding Layer / Equation 2"},
+        {"page": 6, "section": "Large-Batch Training and 3.1 SignSGD"},
+        {"page": 7, "section": "One-step feature-learning decomposition"},
+        {"page": 12, "section": "5 Discussion and Limitations"}
+      ]
+    },
+    {
+      "claim": "Theorem 4 contains a false expectation identity, invalidating its stated projection-update variance formula.",
+      "evidence": "The proof replaces E[alpha_i^2 g_i^2 / sum_j alpha_j^2 g_j^2] by alpha_i^2 / sum_j alpha_j^2 using permutation invariance. That invariance applies to the iid g_j but not after unequal deterministic coefficients are attached. A two-row counterexample is exact: for alpha=(1,2), the expectation of g_1^2/(g_1^2+4g_2^2) is 1/3, obtained from the Cauchy ratio g_2/g_1, whereas the proof claims 1/5. Thus Theorem 4's covariance is wrong for the heterogeneous token frequencies it is designed to analyze.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 18, "section": "Appendix B.3.2 / Theorem 4"},
+        {"page": 19, "section": "Theorem 4 proof, second moment"}
+      ]
+    },
+    {
+      "claim": "Because Theorems 1 and 2 invoke the faulty Theorem 4, the paper does not establish its large-vocabulary learning-rate ratio as written.",
+      "evidence": "Appendix B.1 says Theorem 1 follows directly by applying Theorems 3 and 4 to the embedding and projection feature changes, and Appendix B.2 makes Theorem 2 a corollary of Theorem 1 plus the Zipf lemma. Theorem 3's embedding-side calculation may remain valid, but the projection component and the balancing argument that yields the ratio are not proved once Theorem 4 fails. Empirical gains can still stand independently.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 15, "section": "Appendix B.1 Theorem 1 assumptions"},
+        {"page": 16, "section": "Proofs of Theorems 1-2"},
+        {"page": 18, "section": "Theorem 4"},
+        {"page": 19, "section": "Theorem 4 proof"}
+      ]
+    },
+    {
+      "claim": "The intended Large Vocabulary Parametrization uses SP-like d^-1 variance for all weight groups, d^-1 learning rates for hidden/output weights, and a d^-1/2 embedding learning rate, making the embedding-to-hidden ratio scale as square root of width.",
+      "evidence": "Table 2 states embedding, output, and hidden initialization variances are d^-1; Adam learning rates are eta d^-1/2 for embeddings and eta d^-1 for output/hidden weights. Page 9 derives eta_E/eta_W = Theta(sqrt(d)). This is the internally consistent intended prescription, separate from whether the proof establishes it.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 9, "section": "Interpolation between regimes and LVP definition"},
+        {"page": 10, "section": "Table 2"}
+      ]
+    },
+    {
+      "claim": "The paper contains an internal sign/exponent typo in its headline ratio statement.",
+      "evidence": "Page 4 says LR_embedding/LR_hidden = Theta(d^-1/2), but the same page says hidden learning rate scales as d^-1, and pages 9-10 plus the abstract prescribe embedding d^-1/2 versus hidden d^-1, whose ratio is Theta(d^1/2). The experiments use the positive square-root ratio, so the page-4 exponent should not be treated as an alternative result.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Large Vocabulary regime callout"},
+        {"page": 9, "section": "Interpolation between regimes"},
+        {"page": 10, "section": "Table 2"}
+      ]
+    },
+    {
+      "claim": "The small-model sweep supports a decreasing embedding learning rate near d^-1/2, but the optimum is noisy and not uniquely pinned to that exponent.",
+      "evidence": "Two-hidden-layer decoder models use widths d=2^8 through 2^12 and vocabularies m=2^(k+3), dedicated BPE tokenizers, Wikitext-2, batch 256, context 256, 10,000 Adam steps, and three seeds. The geometric mean of learning rates within 20% of best training loss lies roughly along d^-1/2, while the authors explicitly report significant variance around the line and possible deeper parametrization limits.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "4.1 Increasing Vocabulary Size / Figure 3"},
+        {"page": 20, "section": "Appendix C.2 Experimental Setup for Figure 3"}
+      ]
+    },
+    {
+      "claim": "At 1B parameters, increasing the embedding learning rate relative to the rest improves the reported 1.75T-token training and Wikitext perplexity curves.",
+      "evidence": "A 24-layer width-2048 model with vocabulary 32,064, sliding-window multi-query attention, SwiGLU, and the Phi-3 training corpus is trained twice for 1.75T tokens: ratio 1 and ratio sqrt(2048), about 45.3. The square-root-ratio run has lower plotted training perplexity throughout and lower Wikitext test perplexity. This is strong-duration but two-run evidence with no repeated seeds or downstream suite.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "4.2 Production-Scale LLM Pre-training"},
+        {"page": 11, "section": "Figures 4a and 5"},
+        {"page": 21, "section": "Appendix C.3 / Table 3"}
+      ]
+    },
+    {
+      "claim": "The production experiment does not show that square root of width is the optimal ratio or that the effect scales predictably.",
+      "evidence": "Only ratios 1 and about 45.3 receive full 1.75T-token runs. The broader ratio sweep in Figure 4b stops after 65B tokens and visually leaves a broad region around roughly 40-80 with similar or possibly better values; no uncertainty is shown. Width, vocabulary, and token horizon are not varied at production scale, so neither exponent recovery nor scaling transfer is identified.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 11, "section": "Figure 4a-b and production-scale discussion"}
+      ]
+    },
+    {
+      "claim": "The residual stream is offered as the bridge from the linear model to Transformers, but this is an architectural analogy rather than a derived extension.",
+      "evidence": "The paper argues that residual connections preserve a direct path between embeddings and the output projection despite intervening attention and MLP blocks. It explicitly states that a comprehensive Transformer analysis is not possible in its framework and expects, rather than proves, that the core dynamics survive. The empirical 1B result tests a prescription, not that causal bridge.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "Extension to Transformer Architectures"},
+        {"page": 12, "section": "5 Discussion and Limitations"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Extend width-scaling analysis by allowing vocabulary size and a Zipf-like token-frequency distribution to grow, derive separate embedding and projection feature-update orders in a tractable one-step model, and test the resulting square-root embedding-to-hidden learning-rate ratio in small scaling sweeps and a 1B pretraining run.",
+    "mechanism": "Sparse token lookup makes each embedding row's gradient frequency-dependent, while elementwise sign normalization removes raw magnitude. The model decomposes one-step output change into embedding, projection, and interaction terms, then attempts to balance their root-mean-square sizes as width and vocabulary grow. The proposed large-vocabulary balance uses SP-like initialization and a larger embedding learning rate than the hidden/output rate by square root of width.",
+    "assumptions": [
+      "Inputs are independent one-hot tokens and can be modeled without token-token interaction, attention, or an MLP.",
+      "A square loss and random target residuals approximate the initialization-scale behavior relevant to causal language modeling.",
+      "Batch size tends to infinity so empirical token frequencies equal population probabilities.",
+      "A single SignSGD step captures the normalization mechanism of multi-step Adam with first- and second-moment state.",
+      "Embedding and projection weights are independent iid Gaussian matrices at initialization.",
+      "Residual entries E W minus Z are iid centered unit Gaussians even though they share E and W.",
+      "Token probabilities follow a Zipf-Mandelbrot law with exponent uniformly bounded above one half as vocabulary grows.",
+      "The analyzed token rank i is fixed among the most frequent tokens while vocabulary grows.",
+      "Training step t remains fixed while width and vocabulary tend to infinity.",
+      "Balancing one-step feature-change orders predicts the finite-width validation-loss optimum.",
+      "A direct residual path preserves the linear embedding-output mechanism through deep Transformer blocks.",
+      "Theorem 4's heterogeneous Gaussian ratio identity is valid; the reviewer audit shows this assumption fails."
+    ]
+  },
+  "techniques": [
+    {"id": "joint-width-vocabulary-asymptotics", "role": "Treats both model width and vocabulary size as scalable dimensions."},
+    {"id": "token-frequency-weighted-gradients", "role": "Models embedding-row updates through discrete token probabilities."},
+    {"id": "one-step-feature-decomposition", "role": "Separates embedding, projection, and multiplicative contributions to output change."},
+    {"id": "sign-normalized-gradient-model", "role": "Uses SignSGD as a tractable proxy for Adam-style coordinate normalization."},
+    {"id": "zipf-frequency-asymptotics", "role": "Controls how average squared token frequency changes with vocabulary."},
+    {"id": "layerwise-learning-rate-scaling", "role": "Assigns distinct width exponents to embedding versus hidden/output updates."},
+    {"id": "dedicated-tokenizer-scaling-sweep", "role": "Retrains BPE vocabularies while jointly increasing vocabulary and width."},
+    {"id": "long-horizon-1b-ablation", "role": "Compares ratio 1 against the proposed square-root ratio for 1.75T tokens."},
+    {"id": "proof-counterexample-audit", "role": "Tests a heterogeneous Gaussian expectation identity used by the main theorem."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Two-hidden-layer Wikitext-2 decoders, widths 256-4096, vocabulary fixed at 32,768, 10,000 Adam steps, two seeds in the appendix setup.",
+      "metric": "Best embedding learning rate after sweeping embedding/hidden/output rates and initialization scales.",
+      "result": "The optimal embedding rate declines with width rather than remaining constant as raw muP predicts.",
+      "baseline": "Raw muP constant embedding learning rate and standard-parameterization alternatives."
+    },
+    {
+      "setting": "Two-hidden-layer Wikitext-2 decoders with (width, vocabulary)=(2^k,2^(k+3)) for k=8-12, batch 256, context 256, 10,000 Adam steps, three seeds.",
+      "metric": "Geometric mean of embedding learning rates within 20% of best training loss.",
+      "result": "The near-optimal region roughly follows d^-1/2 but has substantial variance around that line.",
+      "baseline": "muP's constant embedding rate, SP's common rate, and the best rate in each finite grid."
+    },
+    {
+      "setting": "1B, 24-layer, width-2048 Transformer with vocabulary 32,064 on the Phi-3 corpus for 1.75T tokens.",
+      "metric": "Training perplexity trajectory.",
+      "result": "Embedding-to-rest learning-rate ratio about 45.3 stays below ratio 1 and finishes with lower training perplexity.",
+      "baseline": "The conventional same learning rate for embeddings and remaining parameters."
+    },
+    {
+      "setting": "The same two 1B checkpoints evaluated on Wikitext test text.",
+      "metric": "Word-level perplexity.",
+      "result": "The square-root-ratio checkpoint has the lower plotted Wikitext perplexity.",
+      "baseline": "Ratio-1 checkpoint."
+    },
+    {
+      "setting": "The same 1B architecture with several embedding-to-rest ratios for only 65B tokens.",
+      "metric": "Early training perplexity.",
+      "result": "A broad range near the proposed ratio is competitive; the plot does not identify 45.3 as a unique optimum.",
+      "baseline": "Ratio 1 and other swept ratios."
+    },
+    {
+      "setting": "Appendix Theorem 4 with two heterogeneous Gaussian rows alpha=(1,2).",
+      "metric": "Expected normalized squared row contribution.",
+      "result": "The exact first-row expectation is 1/3, while the theorem's proof substitutes 1/5; the stated heterogeneous covariance formula fails.",
+      "baseline": "The permutation-invariance identity asserted on page 19."
+    }
+  ],
+  "limitations": [
+    "Author-stated: the theory covers a simplified linear embedding-projection model, one SignSGD step, and fixed training time as dimensions grow.",
+    "Author-stated: optimal scaling can depend on token frequency, and the proposed square-root rule may not define an optimal feature-learning limit.",
+    "Reviewer-identified: Theorem 4 uses a false expectation identity for unequal row variances, so the main projection-update and learning-rate-ratio derivation is not established.",
+    "Reviewer-identified: SignSGD lacks Adam's moving first and second moments, bias correction, epsilon, weight decay, and time-varying coordinate magnitudes.",
+    "Reviewer-identified: infinite batch removes precisely the sampling variability and rare-token absence that make finite-batch embedding optimization difficult.",
+    "Reviewer-identified: random iid residual targets and square loss are far from shared-softmax cross-entropy with structured next-token targets.",
+    "Reviewer-identified: the theorem applies to a fixed number of highest-frequency token ranks and does not jointly optimize common and tail tokens.",
+    "Reviewer-identified: the small experiments use shallow Wikitext-2 models and a within-20%-of-best summary that yields a broad optimum.",
+    "Reviewer-identified: only two full 1.75T-token 1B runs are compared, with no seeds, error bars, downstream benchmarks, or equal-compute tuning ledger.",
+    "Reviewer-identified: the broad ratio sweep ends at 65B tokens, so early loss may not predict the 1.75T-token optimum.",
+    "Reviewer-identified: production-scale width and vocabulary are not varied, so the square-root exponent is not identified at scale.",
+    "Reviewer-identified: the page-4 negative-half exponent conflicts with the internally consistent positive square-root ratio elsewhere."
+  ],
+  "failure_modes": [
+    "The square-root ratio can be an empirical coincidence of one width, vocabulary, corpus, and token horizon rather than a scaling law.",
+    "Optimizing frequent-token feature change can undertrain rare embeddings or distort tail-token calibration.",
+    "A ratio selected at 65B tokens can become suboptimal after 1.75T tokens as optimizer moments and representation geometry change.",
+    "Tied embeddings, different output heads, vocabulary pruning, multilingual mixtures, or byte-level tokenization can change the embedding-output coupling.",
+    "Adaptive clipping, weight decay, epsilon, or optimizer choice can alter the relative effective learning rate independently of the explicit multiplier.",
+    "Finite batch and data parallelism can make token occurrence, not asymptotic frequency, dominate embedding update quality.",
+    "A lower pretraining perplexity can fail to improve downstream tasks or can reflect head-frequency gains at the expense of the tail.",
+    "Using the invalid theorem as a controller prior can assign confidently wrong ratios when frequency variances are heterogeneous."
+  ],
+  "reusable_insights": [
+    "Vocabulary size is a genuine scaling dimension for optimizer and parametrization studies, not just a parameter-count additive term.",
+    "Embedding, normalization, output, and hidden parameter groups should be audited separately before imposing one global learning-rate law.",
+    "Token-frequency strata are necessary to distinguish a global embedding-rate gain from a head-token tradeoff.",
+    "Long-horizon confirmation is essential because short learning-rate sweeps need not preserve optimizer rankings.",
+    "A scaling prescription can remain empirically useful even when its stated proof fails, but its causal interpretation and extrapolation confidence must be downgraded.",
+    "Expectation identities involving normalized heteroscedastic Gaussian squares should be counterexample-tested before supporting asymptotic theorems.",
+    "Production scaling evidence needs at least two widths and vocabularies, repeated seeds, and a frozen prospective rule to identify an exponent."
+  ],
+  "open_questions": [
+    "What is the correct closed-form or asymptotic replacement for Theorem 4 under heterogeneous token frequencies?",
+    "After repairing that expectation, does balancing embedding and projection feature changes still yield a square-root ratio?",
+    "How does the optimal ratio depend jointly on width, vocabulary, token horizon, batch size, Zipf exponent, and tokenizer family?",
+    "Do per-frequency or per-row embedding learning rates outperform one global embedding multiplier without harming rare tokens?",
+    "Does the full-duration optimum transfer prospectively across 1B, 3B, 7B, and larger models with multiple vocabularies?",
+    "How do tied input-output embeddings and vocabulary expansion change the prescription?",
+    "Does the improvement survive symmetric optimizer tuning, multiple seeds, downstream tasks, calibration, and tail-token perplexity?",
+    "Can function-space update measurements replace the one-step SignSGD proxy and directly calibrate layerwise rates during Adam training?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2203.03466",
+      "title": "Tensor Programs V: Tuning Large Neural Networks via Zero-Shot Hyperparameter Transfer",
+      "url": "https://arxiv.org/abs/2203.03466",
+      "relationship": "canonical muP and muTransfer predecessor",
+      "difference": "Yang et al. derive maximal-update scaling and demonstrate width transfer across architectures under fixed input/output dimensions. This paper's intended novelty is allowing vocabulary and token frequencies to scale, specifically changing the embedding-versus-hidden learning-rate ratio.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, updated 2022-03-28"
+    },
+    {
+      "canonical_id": "arxiv:2011.14522",
+      "title": "Feature Learning in Infinite-Width Neural Networks",
+      "url": "https://arxiv.org/abs/2011.14522",
+      "relationship": "feature-learning limit foundation",
+      "difference": "Yang and Hu classify parametrizations that retain feature learning versus kernel behavior at infinite width. The present paper narrows that framework to a one-step linear embedding-output model and introduces a growing discrete vocabulary dimension.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, updated 2022-07-15"
+    },
+    {
+      "canonical_id": "arxiv:2407.17465",
+      "title": "u-μP: The Unit-Scaled Maximal Update Parametrization",
+      "url": "https://arxiv.org/abs/2407.17465",
+      "relationship": "current practical muP alternative",
+      "difference": "u-muP combines maximal-update transfer with unit scaling and low-precision-friendly near-unit scales. LVP instead returns to SP-like initialization and raises the embedding rate relative to hidden/output weights based on vocabulary-growth reasoning.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, updated 2025-01-10"
+    },
+    {
+      "canonical_id": "arxiv:2407.05872",
+      "title": "Scaling Exponents Across Parameterizations and Optimizers",
+      "url": "https://arxiv.org/abs/2407.05872",
+      "relationship": "broad empirical parametrization competitor",
+      "difference": "Everett et al. test exponent transfer across parametrizations and optimizers through 26.8B parameters, showing that non-muP schemes and per-layer SP can transfer or win. That breadth challenges any claim that LVP's one ratio is the unique route to transfer.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, updated 2024-07-16"
+    },
+    {
+      "canonical_id": "arxiv:2404.05728",
+      "title": "An Empirical Study of μP Learning Rate Transfer",
+      "url": "https://arxiv.org/abs/2404.05728",
+      "relationship": "large empirical muTransfer validation",
+      "difference": "Lingle studies muP learning-rate transfer across many Transformer ablations up to 10B parameters and 190B tokens. The present paper contributes a vocabulary-specific exception and two 1B long runs, but has much narrower replication and an invalid main proof step.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v6, updated 2025-02-13"
+    },
+    {
+      "canonical_id": "arxiv:2407.13623",
+      "title": "Scaling Laws with Vocabulary: Larger Models Deserve Larger Vocabularies",
+      "url": "https://arxiv.org/abs/2407.13623",
+      "relationship": "vocabulary-scaling predecessor",
+      "difference": "Tao et al. estimate compute-optimal vocabulary jointly with model and token budgets through 3B parameters. This paper conditions on vocabulary growth and asks how layerwise optimizer learning rates, rather than vocabulary allocation itself, should respond.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, updated 2024-11-01"
+    },
+    {
+      "canonical_id": "arxiv:2309.16620",
+      "title": "Depthwise Hyperparameter Transfer in Residual Networks: Dynamics and Scaling Limit",
+      "url": "https://arxiv.org/abs/2309.16620",
+      "relationship": "multi-dimension transfer predecessor",
+      "difference": "Bordelon et al. extend hyperparameter transfer across width and depth using residual-network dynamics. The present paper studies width plus vocabulary and a special lookup/output coupling, without depth asymptotics.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, updated 2023-12-08"
+    },
+    {
+      "canonical_id": "arxiv:2310.02244",
+      "title": "Tensor Programs VI: Feature Learning in Infinite-Depth Neural Networks",
+      "url": "https://arxiv.org/abs/2310.02244",
+      "relationship": "infinite-depth scaling predecessor",
+      "difference": "Tensor Programs VI classifies depth parametrizations and their feature-learning behavior, including limitations relevant to residual architectures. LVP leaves depth fixed and treats vocabulary-size effects through a shallow linear surrogate.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v5, updated 2023-10-12"
+    },
+    {
+      "canonical_id": "arxiv:2604.27077",
+      "title": "Learning Rate Transfer in Normalized Transformers",
+      "url": "https://arxiv.org/abs/2604.27077",
+      "relationship": "later normalized-Transformer alternative",
+      "difference": "This later work uses normalized Transformer dynamics to transfer learning rates across width, depth, and token horizon. Those dimensions and a direct Transformer mechanism are absent from LVP's fixed-time linear embedding-projection derivation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, updated 2026-05-01"
+    },
+    {
+      "canonical_id": "openreview:eNKEToqt1E",
+      "title": "Function-Space Learning Rates",
+      "url": "https://openreview.net/forum?id=eNKEToqt1E",
+      "relationship": "function-space layerwise-rate alternative",
+      "difference": "FLeRM measures and matches layerwise function changes in arbitrary networks and transfers across width, depth, initialization, and LoRA rank. It offers an empirical functional controller alternative to LVP's disputed parameter-scaling proof and one global embedding multiplier.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2025 poster record, published 2025-05-01 and last modified 2025-06-18"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim that growing vocabulary size moves LLM training from raw muP toward a Large Vocabulary regime in which the embedding learning rate should be square root of width larger than hidden/output rates, and that this rule improves a 1B, 1.75T-token run.",
+    "evidence": "The paper supplies a token-frequency-aware one-step derivation, shallow width-vocabulary sweeps, two full-duration 1B runs, a shorter ratio sweep, and Wikitext evaluation.",
+    "reviewer_inference": "The empirical observation that embeddings benefit from a distinct, width-dependent multiplier is useful, and explicitly treating vocabulary as a scaling axis is a meaningful framing. However, prior muP, u-muP, exponent-transfer, depth-transfer, vocabulary-scaling, normalized-Transformer, and function-space-rate work already covers the surrounding territory. Most importantly, the heterogeneous Gaussian identity in Theorem 4 is false, so the advertised square-root rule is an empirical hypothesis rather than a proved large-vocabulary law. Novelty survives as a narrow empirical prescription and a falsifiable question, not as the stated theoretical result."
+  },
+  "confidence": 0.94,
+  "reviewer_notes": "All 21 extracted pages were read after removing the cached text's embedded NUL for display only; the pinned text hash remains the indexed original. Equations 1-2, Tables 1-3, Theorems 1-4, Figures 1-5, and the page-19 expectation step were visually inspected in the PDF. Coverage is 21/21 pages with no missing text. Ten unique primary competitors were checked at exact arXiv/OpenReview source versions on 2026-08-23, with own-ID exclusion. The contradiction audit supplies an exact m=2 counterexample to Theorem 4 and therefore does not propagate the paper's theoretical confidence into its still-interesting empirical 1B result."
+}

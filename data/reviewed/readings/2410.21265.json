@@ -1,0 +1,199 @@
+{
+  "stable_id": "arxiv:2410.21265",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2410.21265",
+    "pdf_sha256": "797ae9c86ac6b9e379910bead649ee26296da7885876fa6849ac420990626e85",
+    "text_sha256": "41cc4e355e3dc81ac29911ce67d287d28be86f4167f1cec1a73744e3c5d118ad",
+    "page_count": 12,
+    "extracted_at": "2026-08-23T17:45:22.141576+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can layer semantics determine norms and duality maps that compose recursively into architecture-aware steepest-descent directions, thereby unifying width-scalable parameterization and fast matrix-preconditioned optimization?",
+  "key_findings": [
+    {
+      "claim": "Modular dualization gives a clean recursive construction of a norm-steepest direction for a network assembled from typed modules.",
+      "evidence": "Each atomic module is assigned input/output norms, a weight norm, sensitivity, and mass so it is locally Lipschitz. Composition and concatenation induce a weighted-max modular norm; because the dual of a max-style product norm separates, Equations 11-12 recursively rescale and concatenate the atomic duality-map outputs.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "3.4 The Modular Norm"},
+        {"page": 5, "section": "Definitions 5-7"},
+        {"page": 7, "section": "4.3 Duality Maps for Compound Modules"}
+      ]
+    },
+    {
+      "claim": "For dense matrices, the proposed direction is a dimension-rescaled polar factor of the gradient; embeddings and convolutions receive different rules because their inputs have different semantics.",
+      "evidence": "A Linear gradient G=U Sigma V^T maps to sqrt(d_out/d_in) UV^T under the RMS-to-RMS operator norm. Embed instead normalizes every column in RMS under an l1-to-RMS norm. Conv2D splits the kernel into k^2 channel matrices and polarizes each with an additional 1/k^2 factor. This is a concrete argument against applying one coordinatewise optimizer rule to every tensor.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "4.1 Duality Maps for Atomic Modules"},
+        {"page": 7, "section": "Table 1 and Conv2D example"}
+      ]
+    },
+    {
+      "claim": "The claimed unification with muP and Shampoo is insightful but partial, not an equivalence of full optimizers.",
+      "evidence": "The Linear map recovers muP's width factor and a no-accumulation Shampoo-like UV^T direction. It does not recover muP's full parameterization across initialization/readout/learning rates, nor Shampoo's accumulated Kronecker second moments, damping, grafting, and update schedule. The paper itself calls these 'essential features' and 'partial approximations.'",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "1 Introduction"},
+        {"page": 6, "section": "Linear module discussion"},
+        {"page": 9, "section": "6.3 Unifying Theoretical Framework"}
+      ]
+    },
+    {
+      "claim": "Rectangular Newton-Schulz makes approximate polar updates GPU-friendly without an SVD, but finite-step accuracy, scaling, and end-to-end cost are not evaluated here.",
+      "evidence": "After spectral- or Frobenius-normalizing G, the cubic X_{t+1}=1.5X_t-0.5X_tX_t^TX_t pushes each nonzero singular value toward one; higher odd polynomials are suggested. The text discusses sketching and inverse roots qualitatively, but reports no error curves, iteration counts, precision tests, throughput, memory, communication, or optimizer benchmark.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "5 Fast Duality Maps"},
+        {"page": 9, "section": "6.2 Neural Network Speedrunning"}
+      ]
+    },
+    {
+      "claim": "This paper supplies a geometry and direction oracle rather than a complete, experimentally supported training algorithm for general networks.",
+      "evidence": "Steepest descent in Proposition 1 also needs the dual norm and a sharpness or step-size scalar; practical momentum, state accumulation, weight decay, parameter exclusions, distributed execution, and mass selection are unspecified. Atomic maps cover Linear, Embed, and a conservative Conv2D construction, while attention, normalization gains, biases, MoE routers, and recurrent/shared parameters are not instantiated. The only speed evidence is an external NanoGPT record attributed to a variant communicated via a workshop paper.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Proposition 1"},
+        {"page": 7, "section": "Table 1"},
+        {"page": 9, "section": "6.1-6.2"},
+        {"page": 10, "section": "7 Conclusion"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Treat gradients as dual objects and map them into parameter updates using the norm geometry implied by each layer's input-output semantics and the network's composition graph.",
+    "mechanism": "Choose atomic operator norms, solve their unit-norm linear maximization maps, recursively propagate sensitivity and mass factors through module composition/concatenation, and approximate matrix polar factors with a few GPU-efficient Newton-Schulz polynomial iterations.",
+    "assumptions": [
+      "Chosen activation and operator norms approximate the anisotropic smoothness relevant to training.",
+      "Atomic modules satisfy the stated well-normed Lipschitz bounds near the current weights and activations.",
+      "Weighted-max composition captures the useful geometry of the full parameter space.",
+      "Module masses and sensitivities can be specified robustly for real architectures.",
+      "Approximate polar directions remain beneficial after momentum, stochastic noise, finite precision, and distributed execution."
+    ]
+  },
+  "techniques": [
+    {"id": "semantic-operator-norms", "role": "Assigns different geometries to dense, embedding, and convolutional layers."},
+    {"id": "modular-max-norm", "role": "Recursively combines layer norms using mass and downstream sensitivity."},
+    {"id": "norm-duality-map", "role": "Selects the unit-norm update maximizing inner product with the gradient."},
+    {"id": "matrix-polar-gradient", "role": "Equalizes nonzero singular values of matrix update directions."},
+    {"id": "rectangular-newton-schulz", "role": "Approximates the polar factor through matrix multiplications suited to accelerators."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Analytic Linear, Embed, and Conv2D modules",
+      "metric": "closed-form induced norm and duality map",
+      "result": "derives polar-factor, column-normalization, and per-kernel-slice polar maps",
+      "baseline": "raw Euclidean gradient and prior spectral-duality constructions"
+    },
+    {
+      "setting": "Composed and concatenated modules",
+      "metric": "exact duality map of the induced weighted-max norm",
+      "result": "atomic maps combine recursively with explicit mass/sensitivity factors",
+      "baseline": "prior weighted-sum duality that updates only one layer"
+    },
+    {
+      "setting": "Polar-factor computation",
+      "metric": "asymptotic singular-value convergence",
+      "result": "normalized Newton-Schulz iterates converge to UV^T for nonzero singular directions",
+      "baseline": "exact SVD, randomized sketching, and inverse matrix-root iterations"
+    },
+    {
+      "setting": "Practical neural-network training",
+      "metric": "none reported in the paper",
+      "result": "an external NanoGPT speedrun using a variant is cited, with no controlled experiment included",
+      "baseline": "no in-paper AdamW, Shampoo, or muP benchmark"
+    }
+  ],
+  "limitations": [
+    "No training experiments, ablations, timing, memory, or numerical-accuracy results appear in the paper.",
+    "It specifies update directions but not a complete optimizer or principled adaptive step-size rule.",
+    "Layer norms, masses, sensitivities, and atomic boundaries require human semantic choices.",
+    "Only three parameterized atomic layer types receive explicit maps.",
+    "The Conv2D per-slice max norm is a conservative bound, not the exact convolution operator norm.",
+    "The fast polar method is analyzed only asymptotically, without stochastic or finite-precision guarantees.",
+    "The rhetoric that gradient subtraction fails a type check depends on refusing the usual Euclidean Riesz identification; it is a design lens rather than a coordinate-free impossibility."
+  ],
+  "failure_modes": [
+    "Poor module masses can over-update one branch or suppress feature learning in another.",
+    "Polarization amplifies tiny noisy singular directions to unit magnitude unless finite iterations, momentum, or regularization suppress them.",
+    "Rank-deficient minibatch gradients leave null directions untouched and can make behavior batch-size dependent.",
+    "Frequent Newton-Schulz matrix multiplications can erase sample-efficiency gains through wall-clock or communication overhead.",
+    "Treating a convolution as independent kernel slices can ignore spatial Fourier structure and weight sharing.",
+    "Unsupported layer types can force arbitrary fallback geometry, breaking architecture-wide scaling claims."
+  ],
+  "reusable_insights": [
+    "Choose optimization geometry at the layer-semantic level rather than only by tensor shape.",
+    "Represent optimizers as compositional linear minimization oracles so architecture changes induce update rules mechanically.",
+    "Separate direction geometry, scalar step size, momentum, and regularization when comparing optimizer mechanisms.",
+    "Approximate matrix functions with accelerator-friendly polynomials when exact decompositions dominate runtime.",
+    "Benchmark both training FLOPs and elapsed time because matrix-aware updates trade extra compute for fewer tokens or steps."
+  ],
+  "open_questions": [
+    "Which module norm best predicts local loss curvature rather than merely activation scale?",
+    "Can masses and sensitivities be inferred online with stable learning-rate transfer?",
+    "How should attention, normalization, shared weights, MoE, state-space layers, and biases be typed?",
+    "What finite-step Newton-Schulz accuracy is optimal under bf16/fp8 and distributed sharding?",
+    "When does polarizing small singular directions help feature learning versus amplify gradient noise?",
+    "Can one prove end-to-end convergence and width/depth transfer for the actual momentum-and-weight-decay optimizer now called Muon?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2405.14813",
+      "title": "Scalable Optimization in the Modular Norm",
+      "url": "https://arxiv.org/abs/2405.14813",
+      "relationship": "Immediate modular-norm foundation",
+      "difference": "Large et al. recursively define the norm, smoothness bounds, and update normalization for learning-rate transfer; Modular Duality derives the exact steepest-direction map of that norm and fast polar implementations.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:1802.09568",
+      "title": "Shampoo: Preconditioned Stochastic Tensor Optimization",
+      "url": "https://arxiv.org/abs/1802.09568",
+      "relationship": "Matrix/tensor preconditioning baseline",
+      "difference": "Shampoo accumulates Kronecker-factored second moments and inverse roots for adaptive preconditioning; the modular Linear map uses an instantaneous polar direction and interprets its no-accumulation form as one part of Shampoo.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2502.16982",
+      "title": "Muon is Scalable for LLM Training",
+      "url": "https://arxiv.org/abs/2502.16982",
+      "relationship": "Direct large-scale empirical successor",
+      "difference": "Muon operationalizes matrix orthogonalization with momentum, weight decay, update-scale rules, distributed implementation, scaling laws, and a 5.7T-token MoE run; Modular Duality provides the earlier compositional norm rationale but no such empirical validation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "openreview:Blz4hjxLwU",
+      "title": "Muon Optimizes Under Spectral Norm Constraints",
+      "url": "https://openreview.net/forum?id=Blz4hjxLwU",
+      "relationship": "Post-publication optimizer theory",
+      "difference": "Chen et al. place practical Muon in the Lion-K family and show decoupled weight decay implies spectral-norm-constrained optimization; Modular Duality derives the same polar direction as steepest descent under RMS operator norms and extends it compositionally to layer types.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "TMLR OpenReview record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2601.19156",
+      "title": "Convergence of Muon with Newton-Schulz",
+      "url": "https://arxiv.org/abs/2601.19156",
+      "relationship": "Post-publication numerical/convergence analysis",
+      "difference": "Kim and Oh prove stationary-point convergence for the actual finite-q Newton-Schulz approximation and quantify doubly exponential approach to exact polar behavior; Modular Duality only gives the asymptotic singular-value argument and suggests polynomial tuning.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "A recursive architecture-level duality map unifies fast Shampoo-like and scalable muP-like training, with GPU-friendly maps for the layers needed by transformers and CNNs.",
+    "evidence": "The paper gives explicit norm-dual derivations, composition rules, three atomic layer maps, and Newton-Schulz/sketching/inverse-root computation routes, while citing an external NanoGPT record.",
+    "reviewer_inference": "The compositional type-and-norm framework is conceptually original and directly anticipated the influential Muon optimizer. At publication, however, it was a direction-design paper rather than evidence that the resulting optimizer was fast, scalable, or general; those claims gained substantial support only from subsequent large-scale Muon experiments and theory."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Read all 12 pages including every derivation and reference. The landscape was updated through primary arXiv/OpenReview records on 2026-08-23 to distinguish the paper's pre-Muon theoretical contribution from later optimizer engineering, scaling, and convergence results."
+}

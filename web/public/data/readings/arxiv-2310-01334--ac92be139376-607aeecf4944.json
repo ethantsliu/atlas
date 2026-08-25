@@ -1,0 +1,205 @@
+{
+  "stable_id": "arxiv:2310.01334",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2310.01334",
+    "pdf_sha256": "46f0846652cf77269c156717929af9f45cdc6204d39b758dccc75297f1702ac9",
+    "text_sha256": "6c41b39df553beb5c061a2de5c19981eff1d0e346ae3721bbd2912fe31b20ed4",
+    "page_count": 23,
+    "extracted_at": "2026-08-23T19:03:22.843541+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can routing statistics identify redundant experts in a pretrained sparse mixture-of-experts model well enough to merge, align, and further compress them after training?",
+  "key_findings": [
+    {
+      "claim": "M-SMoE chooses a layer-adaptive set of dominant experts and groups the remaining experts using observed routing behavior rather than weight distance alone.",
+      "evidence": "Activation frequency estimates expert importance, cosine similarity between router-logit vectors over sampled inputs estimates functional affinity, and globally normalized utilization determines how many dominant experts each layer retains.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "Routing-policy-guided grouping"}
+      ]
+    },
+    {
+      "claim": "The method aligns hidden neurons before averaging experts and weights each aligned expert by its activation frequency.",
+      "evidence": "A weight-matching permutation is applied to the two linear layers of each expert relative to its dominant expert; grouped experts are then merged with routing-frequency weights to reduce interference from rarely selected members.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "Expert permutation alignment"},
+        {"page": 5, "section": "Importance-weighted merging"}
+      ]
+    },
+    {
+      "claim": "MC-SMoE follows merging with a low-rank-plus-sparse decomposition motivated by an observed fall in the stable rank of merged weights.",
+      "evidence": "Each merged matrix is represented as UV plus a sparse residual S; columns of S are structurally removed using an aggregate absolute weight-times-gradient importance score.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "Low-dimensionality after merging"},
+        {"page": 6, "section": "Low-rank and sparse compression"}
+      ]
+    },
+    {
+      "claim": "On the main Switch-base-32 study, merging retains task quality at roughly 60% fewer expert parameters, while merge-then-compress reaches about an 80% parameter reduction and a 20% FLOP reduction with uneven task losses.",
+      "evidence": "M-SMoE reduces the reported 2.0B parameters to 733M at the same 4.65 TFLOPs and is close to the original on eight tasks; MC-SMoE reaches 381M and 3.83 TFLOPs, with small losses on five tasks but larger degradation on SST-2, MultiRC, and WinoGrande.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "Main downstream results"},
+        {"page": 8, "section": "Task-wise comparison"}
+      ]
+    },
+    {
+      "claim": "Adaptive layerwise ratios, router-logit similarity, permutation alignment, knowledge distillation, and frequency weighting each contribute in the reported ablations.",
+      "evidence": "Replacing these components with uniform ratios, parameter similarity, no alignment, no distillation, or uniform averaging lowers the aggregate task score; frequency weighting is best among tested merge weights.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "Component ablations"},
+        {"page": 9, "section": "Merging and compression ablations"}
+      ]
+    },
+    {
+      "claim": "The advertised parameter and FLOP reductions do not translate automatically to lower latency in the released architecture.",
+      "evidence": "The appendix reports that unmodified M-SMoE and MC-SMoE do not improve latency because the router still predicts the original expert classes and sparse residual operations lack efficient hardware support; throughput gains require a specialized grouped-token implementation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 16, "section": "Latency analysis"},
+        {"page": 17, "section": "Specialized implementation"}
+      ]
+    },
+    {
+      "claim": "Lower stable rank after averaging is an empirical compression opportunity, not evidence that the merged experts have become intrinsically less redundant or more knowledgeable.",
+      "evidence": "The paper measures stable-rank changes and downstream accuracy but gives no causal analysis, identifiability result, or pre/post functional diversity test that distinguishes cancellation, smoothing, and genuine consolidation.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "Stable-rank observation"},
+        {"page": 9, "section": "Compression analysis"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Treat a trained MoE router as a behavioral probe for post-training expert consolidation, align experts within router-derived groups, then exploit the merged weights' low-rank structure.",
+    "mechanism": "Sampled routing logits and activation counts define dominant experts and group membership. Weight matching permutes neurons into a common basis, frequency-weighted averaging produces one expert per group, and an optional low-rank-plus-structured-sparse factorization further reduces expert size before distillation-based fine-tuning.",
+    "assumptions": [
+      "Routing frequencies on the sampled data reflect task-relevant expert importance.",
+      "Router-logit similarity is a reliable proxy for functional expert similarity.",
+      "Permutation alignment exposes a shared neuron basis in which parameter averaging is meaningful.",
+      "A compressed expert can represent the union of behaviors of its assigned experts.",
+      "Fine-tuning with access to the original model and representative data can repair merging damage.",
+      "Parameter count and theoretical FLOPs are useful proxies for deployment cost."
+    ]
+  },
+  "techniques": [
+    {"id": "routing-frequency-importance", "role": "Ranks experts and allocates a nonuniform retained-expert budget across layers."},
+    {"id": "router-logit-similarity", "role": "Groups non-dominant experts with behaviorally similar dominant experts."},
+    {"id": "weight-matching-alignment", "role": "Permutes hidden neurons before parameter averaging to reduce symmetry-induced mismatch."},
+    {"id": "frequency-weighted-expert-merge", "role": "Consolidates each aligned group while emphasizing frequently routed experts."},
+    {"id": "low-rank-plus-sparse-factorization", "role": "Compresses merged matrices into a low-rank term and a structurally pruned residual."},
+    {"id": "fixed-teacher-distillation", "role": "Fine-tunes the compressed model to recover the original model's behavior."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Switch-base-32 fine-tuned across eight natural-language understanding tasks.",
+      "metric": "Task accuracy or task-specific score, parameter count, and theoretical TFLOPs.",
+      "result": "M-SMoE is near the original at about 733M versus 2.0B parameters; MC-SMoE reaches about 381M and 3.83 versus 4.65 TFLOPs, with task-dependent degradation.",
+      "baseline": "Original SMoE, expert pruning, averaging, ZipIt, REPAIR, Git Re-Basin, and compress-only variants."
+    },
+    {
+      "setting": "Component and design ablations on the Switch model.",
+      "metric": "Average downstream score.",
+      "result": "Adaptive ratios, router logits, alignment, frequency weighting, and distillation outperform the tested replacements.",
+      "baseline": "Uniform expert budgets, weight similarity, no permutation, equal averaging, and no KD."
+    },
+    {
+      "setting": "Zero-shot evaluation of a fairseq 15B MoE compressed from 512 experts toward roughly 16 retained experts.",
+      "metric": "Zero-shot language-task accuracy.",
+      "result": "Routing-guided M-SMoE and MC-SMoE generally outperform pruning-style compression in the appendix study.",
+      "baseline": "The uncompressed fairseq MoE and expert-pruning baselines."
+    },
+    {
+      "setting": "GPU latency and throughput study with standard and specialized grouped-token implementations.",
+      "metric": "Wall-clock latency and throughput.",
+      "result": "The direct transformed models do not become faster; specialized routing/grouping code demonstrates potential throughput benefits.",
+      "baseline": "Original SMoE and unmodified M-SMoE/MC-SMoE execution."
+    }
+  ],
+  "limitations": [
+    "The main method requires representative data to collect routing statistics and usually requires fine-tuning plus knowledge distillation.",
+    "The first MoE layer is exempted from merging in the main recipe because it is unusually sensitive, limiting the generality of a uniform consolidation story.",
+    "Only two older NLP MoE families are studied; neither reflects the scale, routing, granularity, and serving stack of current open MoE LLMs.",
+    "The router retains its original output dimension, so parameter removal does not fully simplify routing or communication.",
+    "Unstructured or low-rank-plus-sparse arithmetic needs specialized kernels; theoretical FLOP reductions can yield worse wall-clock throughput.",
+    "The claimed memory savings are principally inferred from parameter count rather than an end-to-end peak-memory study across devices and batch sizes.",
+    "Routing similarity can shift across domains, languages, prompts, fine-tuning stages, and sequence positions.",
+    "The paper does not quantify uncertainty across seeds or stress-test rare experts whose low average frequency masks critical tail behavior."
+  ],
+  "failure_modes": [
+    "Rare but safety-critical or domain-specific experts can be absorbed because average activation frequency underrates them.",
+    "Two experts with similar router logits can implement complementary rather than redundant functions.",
+    "Neuron matching can settle on an alignment that averages incompatible features and causes destructive interference.",
+    "Grouping several experts into one can create capacity bottlenecks or erase specialization under distribution shift.",
+    "Fixed-teacher distillation can conceal compression damage on the calibration set while failing on unseen behaviors.",
+    "Sparse residuals can increase kernel-launch, indexing, and memory-traffic overhead despite lower nominal FLOPs."
+  ],
+  "reusable_insights": [
+    "A learned router is a useful empirical map of expert usage, but frequency, co-activation, output similarity, and tail importance should be measured separately.",
+    "Resolve permutation symmetries before averaging independently trained or specialized neural modules.",
+    "Report parameter count, resident memory, transferred bytes, communication, latency, and throughput rather than labeling them all as efficiency.",
+    "Compression evaluations should include domain-shift and rare-route probes, not only aggregate downstream averages.",
+    "Layer sensitivity can justify nonuniform compression budgets and should be estimated explicitly."
+  ],
+  "open_questions": [
+    "Can expert groups be selected with activation/output reconstruction criteria that protect rare but consequential routes?",
+    "How stable are routing-derived groups across domains, prompts, languages, sequence positions, and fine-tuning stages?",
+    "Can the router itself be contracted so that expert consolidation reduces routing and all-to-all communication costs?",
+    "When is expert merging preferable to pruning, low-rank factorization, quantization, or distillation into a dense model?",
+    "Can a hardware-aware objective optimize actual latency and energy jointly with functional preservation?",
+    "What guarantees can bound worst-case behavioral drift after merging experts with overlapping but nonidentical support?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2101.03961",
+      "title": "Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity",
+      "url": "https://arxiv.org/abs/2101.03961",
+      "relationship": "base architecture and efficiency antecedent",
+      "difference": "Switch Transformer scales capacity through top-one sparse routing and supplies the principal model family compressed here; the target is a post-training consolidation method rather than a new pretraining router.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2209.04836",
+      "title": "Git Re-Basin: Merging Models modulo Permutation Symmetries",
+      "url": "https://arxiv.org/abs/2209.04836",
+      "relationship": "parameter-alignment and model-merging antecedent",
+      "difference": "Git Re-Basin aligns permutations to connect or merge independently trained networks; M-SMoE adapts weight matching inside one routed model and adds router-derived grouping and importance-weighted averaging.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2407.00945",
+      "title": "Efficient Expert Pruning for Sparse Mixture-of-Experts Language Models: Enhancing Performance and Reducing Inference Costs",
+      "url": "https://arxiv.org/abs/2407.00945",
+      "relationship": "post-training expert-reduction competitor",
+      "difference": "EEP searches expert-pruning configurations with a gradient-free evolutionary strategy on modern MoE LLMs and can avoid fine-tuning; the target merges aligned expert weights and then decomposes them, preserving information from removed experts at the cost of repair training.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2411.01016",
+      "title": "MoE-I2: Compressing Mixture of Experts Models through Inter-Expert Pruning and Intra-Expert Low-Rank Decomposition",
+      "url": "https://arxiv.org/abs/2411.01016",
+      "relationship": "two-stage MoE-compression successor",
+      "difference": "MoE-I2 combines layerwise genetic search for expert pruning with low-rank decomposition inside retained experts on Qwen, DeepSeek, and Mixtral; the target uses router-guided merging before low-rank-plus-sparse compression on earlier MoEs.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Routing-policy-guided expert merging, followed by low-rank and structural-sparse compression, removes up to roughly 80% of SMoE parameters and about 20% of FLOPs with virtually no performance loss.",
+    "evidence": "The method beats tested pruning and generic merging baselines on two pretrained NLP MoEs, and ablations support routing-derived grouping, alignment, weighted merging, and distillation.",
+    "reviewer_inference": "Router-guided aligned merging is a useful and fairly distinctive post-training recipe. The strongest efficiency language should be narrowed: accuracy loss is task-dependent, memory is proxied by parameters, and the appendix shows that latency gains require further router and kernel engineering."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Read all 23 extracted pages, including the fairseq study, stable-rank analysis, ablations, latency appendix, and specialized implementation. The review distinguishes expert-parameter reduction from measured memory and runtime and audits tail-expert and distribution-shift risks. Current primary competitors were checked on arXiv on 2026-08-23."
+}

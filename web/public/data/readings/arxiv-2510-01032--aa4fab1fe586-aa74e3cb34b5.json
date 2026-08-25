@@ -1,0 +1,271 @@
+{
+  "stable_id": "arxiv:2510.01032",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2510.01032",
+    "pdf_sha256": "3e8d59968cceded776423e3f6025174674df1399502077959840150c12bd1560",
+    "text_sha256": "7d3c42ead26e954df4327f862b09bc0acc68601a631378c99ba90555119907c6",
+    "page_count": 29,
+    "extracted_at": "2026-08-23T19:51:51.416729+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Why can a repeated, semantically irrelevant token prefix improve some language-model reasoning scores, and can directly randomizing near-zero first-layer MLP activations reproduce that effect without lengthening the prompt?",
+  "key_findings": [
+    {
+      "claim": "Long repeated token strings placed between the system prompt and question sometimes improve math accuracy, but the effect is sharply conditional on token identity, length, position, model, and task.",
+      "evidence": "Across six initially tested models, selected slash prefixes raise MATH-500 accuracy by roughly 0.4-2.6 points and AIME 2024 by 0.2-4.5 points. Appendix sweeps show performance fluctuates with length and collapses when the prefix becomes too long; only the system-question boundary works reliably, and different slash/question-mark searches yield different best settings. A repeated meaningful but irrelevant token can produce a similar pattern, so semantic meaninglessness is not the operative invariant.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "2 Observation / Table 1"},
+        {"page": 17, "section": "F.1-F.2 length and position ablations"},
+        {"page": 18, "section": "F.3 token-type ablation / Table 5"},
+        {"page": 19, "section": "F.5 repeated meaningful tokens"}
+      ]
+    },
+    {
+      "claim": "The paper interprets repeated-prefix insertion as an approximate affine perturbation of meaningful-token attention outputs, followed by broader first-layer MLP activation histograms.",
+      "evidence": "Adding keys changes each query's softmax denominator, reducing attention mass on original prompt tokens while the repeated tokens receive individually small weights. The authors approximate the new attention output as lambda times the old output plus the weighted repeated-token values, then report fewer near-zero post-activation values and larger L1/L2 norms after the first MLP. Later layers do not show the same simple attention-weight pattern.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "2 Observation / Equations 1-2 and Figures 2-3"},
+        {"page": 6, "section": "3.3 Verification of activation redistribution / Figure 4"},
+        {"page": 18, "section": "F.4 Why we only analyze first layer"}
+      ]
+    },
+    {
+      "claim": "The affine account is an approximation rather than a demonstrated causal mechanism: its scale and bias are query-dependent, and the mathematical variance argument assumes properties not established for the actual token perturbation.",
+      "evidence": "For each query, the denominator ratio and attention paid to repeated positions can differ, so one shared lambda and unified bias do not exactly describe the sequence. The proof models the bias as independent zero-mean random noise, whereas a fixed repeated-token prefix produces a deterministic, context-dependent intervention. The scaling derivation permits a negative covariance term and guarantees increased variance only after a threshold where quadratic terms dominate, while simultaneously relying on a local Taylor approximation; it does not prove improvement in reasoning or correctness.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Equations 1-2"},
+        {"page": 4, "section": "3.1 / Equations 3-5"},
+        {"page": 5, "section": "3.2 / Equations 6-9"},
+        {"page": 16, "section": "E.1 / Equations 13-16"},
+        {"page": 17, "section": "E.2 / Lemmas E.2-E.3"}
+      ]
+    },
+    {
+      "claim": "ARM is a randomized first-layer MLP intervention that selects near-zero activations with a MAD-derived threshold and moves each selected value outward while preserving its sign.",
+      "evidence": "The module runs after the gate nonlinearity in only the first MLP. It clips the selected fraction to nominal bounds, samples a signed displacement from a range whose positive endpoint is an activation quantile and whose negative endpoint is the activation minimum, and then multiplies the altered gate activations by the up projection before the down projection. Gemma requires a separate direct-fraction rule rather than the stated adaptive threshold.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "4 Method and 4.1 selection rule"},
+        {"page": 7, "section": "4.2 redistribution / Equation 10"},
+        {"page": 22, "section": "Table 9 and H hyperparameters"}
+      ]
+    },
+    {
+      "claim": "ARM raises reported pass@1 on most tested reasoning cells, but the evidence does not support the paper's language of consistent, robust gains because hyperparameters are benchmark-specific and unsuccessful settings are omitted.",
+      "evidence": "Table 2 contains many small gains, ties, and dashes, with larger changes on small AIME sets. Table 9 assigns different c or p1 values by model and benchmark and states that hyperparameters are replaced by a dash when performance does not improve. Appendix F.7 explicitly shows non-monotonic accuracy and narrow good regions. No held-out tuning split, multiple-comparison correction, confidence interval, or paired significance test is reported; default decoding plus random ARM shifts makes run-level uncertainty especially relevant.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "5 Experiments / Table 2"},
+        {"page": 8, "section": "5.1 results and Table 3"},
+        {"page": 20, "section": "F.7 hyperparameter range / Figure 12"},
+        {"page": 22, "section": "Table 9 and H hyperparameters"}
+      ]
+    },
+    {
+      "claim": "Higher pass@3 and output 2-gram diversity do not establish that ARM improves internal exploration or representational capacity.",
+      "evidence": "The exploration claim is based on three models' pass@3 and surface 2-gram diversity. Randomly perturbing activations can increase output variability by construction; greater lexical diversity is neither a measure of reasoning-path independence nor a causal mediator of accuracy. Likewise, digits, operators, and conjunctions having more near-zero coordinates does not show those coordinates are weak signals or that outward shifts preserve their semantics.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "5.3 Exploration capabilities / Figure 6"},
+        {"page": 9, "section": "6 Discussion / Figure 7"}
+      ]
+    },
+    {
+      "claim": "ARM removes the repeated prefix's attention and context-length cost, but its actual overhead and safety profile are not adequately measured.",
+      "evidence": "The paper counts elementwise ARM work as O(B S D_f) versus dense MLP projection O(B S D_f D_model) and declares overhead negligible. This asymptotic comparison omits quantile/MAD implementations, random-number generation, masks, memory traffic, kernel launches, and device synchronization; no wall-clock latency, memory, throughput, or serving benchmark is supplied. Non-reasoning tables include some degradations, including a two-point OpenBookQA drop for Llama, despite prose describing negligible adverse effects.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 16, "section": "D Time Complexity / Equations 11-12"},
+        {"page": 21, "section": "G.1 non-reasoning results / Table 6"},
+        {"page": 22, "section": "G.3 inference-time comparison"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Use a repeated-token prompting anomaly as a mechanistic probe, associate it with first-layer MLP activation redistribution, and replace the prompt with a direct stochastic intervention on near-zero gate activations.",
+    "mechanism": "The authors measure attention to original and inserted tokens, approximate prefix-induced attention outputs by a scale-plus-bias transformation, and compare first-layer post-nonlinearity histograms. ARM computes a robust near-zero range from MAD, clips or directly chooses the fraction of coordinates to edit, and samples sign-preserving outward displacements bounded by activation statistics. It is inserted in the first MLP at inference time and evaluated on math, code, general reasoning, and knowledge benchmarks.",
+    "assumptions": [
+      "Repeated inserted tokens have identical value vectors and sufficiently similar, small attention weights to act like a low-rank bias.",
+      "A context-dependent attention perturbation can be approximated by a scale and an independent zero-mean bias.",
+      "Increased variance and fewer near-zero GeLU/SiLU outputs improve representational capacity rather than corrupting learned features.",
+      "Coordinates close to zero are weak or under-activated signals, and moving them outward while preserving sign preserves useful semantics.",
+      "First-layer histograms causally explain accuracy changes even though token insertion changes every layer and position.",
+      "Benchmark-specific hyperparameters found on evaluation tasks will transfer without validation-set selection bias."
+    ]
+  },
+  "techniques": [
+    {"id": "filler-token-prompting", "role": "Adds repeated low-semantic-content tokens as an inference-time probe and baseline."},
+    {"id": "attention-denominator-analysis", "role": "Connects extra keys to rescaling of attention on existing context."},
+    {"id": "activation-histogram-analysis", "role": "Measures near-zero fraction, norms, and distribution shape after the first MLP nonlinearity."},
+    {"id": "activation-editing", "role": "Directly modifies internal gate activations without changing weights or prompt length."},
+    {"id": "median-absolute-deviation", "role": "Sets an input- and model-dependent near-zero selection range."},
+    {"id": "stochastic-sign-preserving-perturbation", "role": "Moves selected activations outward using random bounded displacements."},
+    {"id": "pass-at-k", "role": "Measures whether perturbation changes multi-sample task success."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Slash-prefix insertion on Qwen, DeepSeek-distilled, DeepSeek-Math, and Llama models.",
+      "metric": "Average MATH-500 and AIME 2024 accuracy over five tests.",
+      "result": "Selected prefixes improve all displayed model-task pairs by small to moderate absolute amounts, with AIME gains based on a much smaller item set.",
+      "baseline": "Identical prompts without inserted repeated tokens."
+    },
+    {
+      "setting": "First-layer attention and post-nonlinearity activations with and without repeated prefixes.",
+      "metric": "Average received attention, near-zero fraction, L1/L2 norms, and a reported Gini statistic.",
+      "result": "Original-token attention spikes fall and the activation histogram broadens after insertion in the inspected cases.",
+      "baseline": "Unmodified forward passes on aligned meaningful-token positions."
+    },
+    {
+      "setting": "ARM on seven open-weight model variants across GPQA Diamond, MATH-500, AIME 2024/2025, LiveCodeBench, and HumanEval.",
+      "metric": "Pass@1 accuracy.",
+      "result": "Most displayed cells improve or tie, from 0 to 13.3 absolute points, but per-task tuning, dashes for non-improving configurations, and missing uncertainty prevent an unbiased aggregate effect estimate.",
+      "baseline": "Vanilla model inference under the stated default generation parameters."
+    },
+    {
+      "setting": "ARM versus repeated-token insertion on Qwen2.5-Math-7B and Llama-3.1-8B-Instruct.",
+      "metric": "MATH-500 and AIME 2024 pass@1.",
+      "result": "Both interventions improve selected scores; neither uniformly dominates the other across the four cells.",
+      "baseline": "No intervention."
+    },
+    {
+      "setting": "Three models on MATH-500 and AIME 2024 with multiple samples.",
+      "metric": "Pass@3 and output 2-gram diversity.",
+      "result": "ARM increases both reported quantities, consistent with but not diagnostic of more exploratory reasoning.",
+      "baseline": "Unmodified sampling."
+    },
+    {
+      "setting": "GSM8K, ARC-E/C, MMLU, BoolQ, HellaSwag, and OpenBookQA.",
+      "metric": "Task accuracy.",
+      "result": "Most changes are near zero, while some negative cells remain, including Llama OpenBookQA dropping from 52.8 to 50.8.",
+      "baseline": "Vanilla models."
+    },
+    {
+      "setting": "ARM combined with Best-of-5 sampling on two math benchmarks.",
+      "metric": "Pass@1 under a common temperature/top-p sampling setup.",
+      "result": "The combination exceeds Best-of-5 alone in the displayed Qwen settings, without compute-normalized or uncertainty analysis.",
+      "baseline": "Vanilla, ARM alone, and Best-of-5 alone."
+    }
+  ],
+  "limitations": [
+    "The paper itself notes that token identity effects are unexplained, inserted tokens are ignored in the mechanism analysis, and only the first layer is modeled.",
+    "The affine transformation is query- and context-dependent; treating it as one scale plus a unified bias discards attention-head, position, and token variation.",
+    "The proof's independent zero-mean noise assumption does not describe a deterministic repeated-token prefix.",
+    "Variance increase is not sufficient for information gain, feature preservation, improved reasoning, or causal mediation of accuracy.",
+    "GeLU and SiLU activations are dense, so thresholded 'sparsity' depends on an arbitrary near-zero range rather than exact inactive units.",
+    "ARM hyperparameters vary across model, scale, and benchmark, and the paper explicitly suppresses settings that do not improve.",
+    "No held-out tuning protocol, seed-level result table, confidence intervals, significance tests, or multiple-hypothesis correction is reported.",
+    "AIME and several code benchmarks have small effective sample sizes, making point gains unstable.",
+    "The comparison does not include random-noise controls matched for activation norm, layer, coordinate count, or output entropy.",
+    "There is no causal intervention showing that activation redistribution mediates the repeated-token effect rather than merely correlating with it.",
+    "No wall-clock, accelerator, memory-bandwidth, throughput, or batch-size benchmark supports the negligible-overhead claim.",
+    "Open-weight models and mostly quantitative benchmarks do not establish transfer to closed models, long contexts, multimodal systems, dialogue, tool use, factuality, calibration, or safety."
+  ],
+  "failure_modes": [
+    "An unlucky random displacement can flip downstream gating behavior or amplify an irrelevant feature even while preserving the activation's sign.",
+    "Benchmark-specific tuning can overfit test questions and disappear on a fresh problem distribution.",
+    "Long or misplaced repeated prefixes can destroy accuracy, trigger repetition, or consume context and KV-cache capacity.",
+    "Tokens treated as meaningless may carry tokenizer-, language-, or safety-specific associations and shift behavior unpredictably.",
+    "Broadening activations can worsen calibration, factuality, refusal behavior, toxicity, or robustness outside the selected accuracy metric.",
+    "Quantile, MAD, mask, and RNG operations can become memory-bound and add serving latency despite lower asymptotic FLOPs.",
+    "Mixed-precision rounding and model quantization can make near-zero selection and sampled updates discontinuous.",
+    "Editing only the first layer may fail for architectures whose reasoning or attention-sink behavior emerges deeper.",
+    "Random perturbations may inflate lexical diversity without increasing independent valid reasoning paths.",
+    "Activation shifts can interact badly with speculative decoding, KV-cache reuse, tensor parallelism, or compiled kernels.",
+    "The rule can amplify spurious digit/operator features or memorized answer patterns rather than genuine computation."
+  ],
+  "reusable_insights": [
+    "Treat filler-token prompts as controlled computational interventions and separate extra positions, softmax renormalization, token identity, and semantic content with factorial ablations.",
+    "When proposing a mechanistic mediator, match a direct intervention to the observed perturbation's layer-, head-, position-, norm-, and covariance structure.",
+    "Evaluate activation edits against norm-matched random, permutation, opposite-direction, and alternate-layer controls.",
+    "Use nested validation for every model-task hyperparameter and publish all cells, including negative results.",
+    "Report uncertainty across questions and random perturbation seeds; small point gains are not evidence of a robust universal effect.",
+    "Measure reasoning quality with verifier-backed path correctness or causal step diversity rather than surface n-gram diversity alone.",
+    "Benchmark actual latency and memory because elementwise selection and RNG can be bandwidth-bound even when FLOPs are small.",
+    "Audit activation interventions across calibration, factuality, safety, and distribution shift before describing them as benign."
+  ],
+  "open_questions": [
+    "Does a mediation experiment that restores the original first-layer activation distribution eliminate the filler-token gain?",
+    "Which part of the intervention matters: extra positions, attention normalization, positional encodings, repeated value direction, activation norm, or stochasticity?",
+    "Can ARM hyperparameters be selected without labels from activation statistics alone and still transfer across tasks?",
+    "Do the reported gains survive preregistered evaluation on fresh AIME-style questions and many random seeds?",
+    "What deterministic edit best matches the full covariance of repeated-token-induced activation changes?",
+    "How do filler prefixes and ARM affect calibration, confidence, hallucination, refusals, jailbreak susceptibility, and long-context recall?",
+    "Are near-zero coordinates causally under-activated reasoning features, or are they simply a consequence of token category and normalization?",
+    "Can a learned low-rank or state-dependent activation controller outperform random outward shifts under equal tuning budget?",
+    "What are the measured GPU latency, memory, batching, and compiler costs in production serving?",
+    "Does the phenomenon persist under different tokenizers, architectures, languages, quantization levels, and reasoning-training recipes?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2310.02226",
+      "title": "Think before you speak: Training Language Models With Pause Tokens",
+      "url": "https://arxiv.org/abs/2310.02226",
+      "relationship": "Foundational empirical study of extra input positions as inference-time computation.",
+      "difference": "Pause-token models are pretrained and finetuned to use explicit delay positions, whereas the reviewed paper inserts untrained repeated tokens into existing models and replaces them with a first-layer activation edit.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2404.15758",
+      "title": "Let's Think Dot by Dot: Hidden Computation in Transformer Language Models",
+      "url": "https://arxiv.org/abs/2404.15758",
+      "relationship": "Direct filler-token reasoning work showing that semantically empty intermediate tokens can supply computation.",
+      "difference": "Pfau et al. train on dense supervision for algorithmic tasks and analyze computational depth; the reviewed paper claims an off-the-shelf prompt effect and attributes it to activation redistribution.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2505.21024",
+      "title": "Pause Tokens Strictly Increase the Expressivity of Constant-Depth Transformers",
+      "url": "https://arxiv.org/abs/2505.21024",
+      "relationship": "Formal expressivity account for why filler positions can increase Transformer computation.",
+      "difference": "London and Kanade prove circuit-class separations for bounded models and demonstrate parity learning; the reviewed paper's Taylor argument concerns activation variance in pretrained LLMs and does not establish expressivity or task-computation gains.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2411.17304",
+      "title": "Meaningless is Better: Hashing Bias-Inducing Words in LLM Prompts Improves Performance in Logical Reasoning and Statistical Learning",
+      "url": "https://arxiv.org/abs/2411.17304",
+      "relationship": "Prior use of meaningless replacements to improve reasoning and reduce lexical bias.",
+      "difference": "Chadimova et al. hash bias-inducing semantic words, changing lexical cues; the reviewed paper uses long repeated prefixes and proposes a model-internal randomized substitute.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2402.17762",
+      "title": "Massive Activations in Large Language Models",
+      "url": "https://arxiv.org/abs/2402.17762",
+      "relationship": "Mechanistic work connecting extreme activations and special tokens to attention behavior.",
+      "difference": "Sun et al. characterize naturally occurring massive activations and attention-sink-like behavior; the reviewed paper actively moves near-zero gate outputs outward and interprets this as improved reasoning capacity.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2308.10248",
+      "title": "Steering Language Models With Activation Engineering",
+      "url": "https://arxiv.org/abs/2308.10248",
+      "relationship": "General inference-time activation-editing predecessor.",
+      "difference": "Activation engineering adds behavior-linked directions to residual streams; ARM uses no labeled steering direction and instead samples coordinate-wise outward shifts after the first MLP nonlinearity.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims a mechanistic explanation of long meaningless-prefix gains through first-layer activation redistribution and introduces ARM as a simple, training-free way to harness that mechanism directly.",
+    "evidence": "Primary-source comparison finds extensive prior work on pause/filler tokens, hidden computation, massive activations, meaningless lexical interventions, and activation steering. The distinct combination is the specific MAD-selected, sign-preserving random edit to near-zero first-layer MLP outputs, not the broader observation that extra tokens or activation edits can improve reasoning.",
+    "reviewer_inference": "ARM is an interesting hypothesis-generating intervention, but the paper does not yet establish its mechanism, unbiased effectiveness, or robustness. The strongest defensible novelty is a particular activation heuristic plus correlational evidence; claims of clear mechanistic explanation, representational-capacity gain, and consistent performance should be narrowed pending causal controls and held-out evaluation."
+  },
+  "confidence": 0.94,
+  "reviewer_notes": "Read the complete 29-page extracted revision, including theory, ablations, hyperparameter tables, examples, and OCR-recovered final pages. Competitors were checked against primary arXiv/OpenReview records on 2026-08-23. This primary pass deliberately distinguishes the observed prefix phenomenon from the proposed affine/variance mechanism and flags evaluation-set hyperparameter selection. Independent passage and revision verification is still required."
+}

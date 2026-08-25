@@ -1,0 +1,564 @@
+{
+  "stable_id": "arxiv:2602.19142",
+  "reading_depth": "verified",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2602.19142",
+    "pdf_sha256": "cb8c7538c585e009c0e0c813eb513268beb2784d3f9db1ff7de44b4faea5c9ad",
+    "text_sha256": "60db0230251321437e0d4a438262fc6d5dd377ce52ddc1ec0ac49fbf5994cab3",
+    "page_count": 25,
+    "extracted_at": "2026-08-23T12:49:16.164422+00:00",
+    "review_pass": "secondary-verified-v1"
+  },
+  "question": "Can a tiny per-parameter learned update rule, meta-trained for only 4.5 GPU-hours on four 8x8 image-classification MLP tasks, remain stable and competitive when transferred to much larger language, vision, and reinforcement-learning workloads, and which learned versus borrowed optimizer components drive that transfer?",
+  "key_findings": [
+    {
+      "claim": "Celo2 meta-trains a small Adafactor-style per-parameter MLP for 4.5 GPU-hours on only four resized 8x8 image-classification MLP task families, then transfers it without task-specific meta-training to language modeling, ImageNet-ViT, and Atari PPO.",
+      "evidence": "The task mixture is MNIST, Fashion-MNIST, CIFAR-10, and SVHN resized to 8x8. Persistent Evolutionary Strategies trains for 100,000 outer iterations on one NVIDIA L40S GPU, using eight parallel tasks, K=50 truncated inner steps, unroll lengths sampled logarithmically from 100 to 2,000, mean unroll loss as meta-objective, and global task reparameterization augmentation. Large evaluations instead use a 32-chip TPU v4 pod and tune a task-level learning rate.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 1,
+          "section": "Abstract and Figure 1"
+        },
+        {
+          "page": 4,
+          "section": "4 Generalization at Scale / Meta-training"
+        },
+        {
+          "page": 5,
+          "section": "4 Generalization at Scale / Implementation details"
+        },
+        {
+          "page": 24,
+          "section": "Appendix D / Persistent Evolution Strategies"
+        },
+        {
+          "page": 25,
+          "section": "Appendix D / Task augmentation and outer-training loop"
+        }
+      ]
+    },
+    {
+      "claim": "The learned core is a direction-only, two-layer MLP with eight hidden units, fed normalized momentum, RMS, and Adafactor row/column features; its output scale is removed by per-step RMS normalization.",
+      "evidence": "Celo2 inherits the Adafactor-MLP state design: three momentum accumulators, one per-parameter RMS accumulator, and row/column second-moment features. It omits global progress features and does not learn a scheduler. The ablated best update predicts only direction d rather than the earlier lambda_1 d exp(lambda_2 m) form. The predicted tensor is divided by its current RMS, making the learned MLP choose direction while a user-tuned scalar learning rate supplies magnitude.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "3 Approach / Tunable step-size and simple design"
+        },
+        {
+          "page": 4,
+          "section": "Normalized learned update and Algorithm 1"
+        },
+        {
+          "page": 7,
+          "section": "Table 1 / architecture and update-form ablations"
+        },
+        {
+          "page": 8,
+          "section": "5 Ablations / meta-training hyperparameters"
+        },
+        {
+          "page": 22,
+          "section": "Appendix D / Adafactor MLP architecture"
+        },
+        {
+          "page": 23,
+          "section": "Appendix D / accumulator and MLP details"
+        }
+      ]
+    },
+    {
+      "claim": "The headline Celo2 optimizer is a hybrid harness, not a learned rule applied uniformly to every parameter.",
+      "evidence": "For two-dimensional hidden-weight tensors, Celo2 applies five Newton-Schulz iterations to the learned MLP update and then RMS-normalizes it. One-dimensional parameters, biases, and embeddings use AdamW, and all parameters receive decoupled weight decay. The authors reserve the name Celo2-base for the fully learned variant that uses the MLP update on all parameters without orthogonalization or AdamW; that base remains stable on GPT-2 but performs worse.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 1,
+          "section": "Abstract / compatibility with modern optimization harness"
+        },
+        {
+          "page": 4,
+          "section": "Algorithm 1 and modern optimization harness"
+        },
+        {
+          "page": 7,
+          "section": "Figure 4 caption"
+        },
+        {
+          "page": 8,
+          "section": "5 Ablations / Orthogonalization"
+        },
+        {
+          "page": 21,
+          "section": "Appendix C / Optax multi-transform example"
+        }
+      ]
+    },
+    {
+      "claim": "Across three language-model scales, the selected Celo2 curves finish below selected AdamW and VeLO curves and stay stable through a 1.3B-parameter run, but the paper does not provide exact tabulated final losses, repeated supervised seeds, or uncertainty intervals.",
+      "evidence": "Visual reading of Figure 1 gives approximate terminal validation losses of 3.66/3.72/3.79 for Celo2/AdamW/VeLO on LM-30M, 3.35/3.39/3.58 on GPT-2 124M, and 2.85/2.97/3.38 on GPT-3 1.3B. These are plot estimates, not author-tabulated values. LM-30M and GPT-2 use about 20 tokens per parameter; the 1.3B model is trained on 10B tokens, a ratio of 10 rather than 20 because of compute limits. The plots show one best tuned trajectory per optimizer without error bars or seed counts.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 1,
+          "section": "Figure 1"
+        },
+        {
+          "page": 5,
+          "section": "Implementation details"
+        },
+        {
+          "page": 6,
+          "section": "4.1 Results / Generalizing to billion-scale models"
+        },
+        {
+          "page": 14,
+          "section": "Appendix B / Language Modeling and Tables 3-4"
+        }
+      ]
+    },
+    {
+      "claim": "On ImageNet with a base ViT, Celo2 reaches VeLO's final validation loss in roughly half as many steps, but all methods plateau near the same approximately 66% validation accuracy and overfit thereafter.",
+      "evidence": "The 50,000-step, batch-512 experiment is 25 times longer than the maximum 2,000-step meta-training unroll and uses bfloat16. From Figure 2, Celo2 reaches a validation loss around 1.5 versus roughly 1.55 for VeLO and 1.8 for AdamW, while validation accuracy converges near 66% for all three even as Celo2 exceeds 80% training accuracy. VeLO's parameter norm rises abruptly near 20,000 steps and its update norms spike; Celo2's norm dynamics resemble AdamW. The plot supplies no seed aggregation or error bands.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Figure 2 caption"
+        },
+        {
+          "page": 6,
+          "section": "4.1 Results / Generalizing to longer unrolls"
+        },
+        {
+          "page": 15,
+          "section": "Appendix B / Image Classification and Table 5"
+        }
+      ]
+    },
+    {
+      "claim": "In three Atari PPO tasks, Celo2 consistently avoids VeLO's stagnation and is competitive with tuned AdamW, but its advantage over AdamW is small relative to the plotted five-seed variability.",
+      "evidence": "Each environment runs for 10M timesteps with five seeds. Approximate Figure 3 endpoints are Freeway 60 for Celo2 versus 61 AdamW and 27 VeLO, Space Invaders 180 versus 165 and 75, and Asterix 14 versus 13 and 1. Celo2 and AdamW uncertainty bands overlap for substantial portions of training, while both clearly exceed VeLO. The result supports cross-domain stability and a VeLO comparison, not a decisive universal improvement over AdamW.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Figure 3 and 4.1 Results / Reinforcement learning"
+        },
+        {
+          "page": 12,
+          "section": "Appendix A / Stability and hyperparameter sensitivity"
+        },
+        {
+          "page": 13,
+          "section": "Figure 6 / SpaceInvaders sensitivity"
+        },
+        {
+          "page": 15,
+          "section": "Appendix B / Reinforcement Learning"
+        },
+        {
+          "page": 16,
+          "section": "Table 6"
+        }
+      ]
+    },
+    {
+      "claim": "The strongest ablation result is that generalization is highly recipe-sensitive rather than emerging automatically from a tiny learned optimizer.",
+      "evidence": "On LM-30M, hidden width 8 yields 3.812 validation loss versus 4.128, 3.857, and 3.869 for widths 4, 16, and 32. RMS decay 0.95 yields 3.812 versus 3.893, 3.865, and 3.922 for 0.999, 0.99, and 0.9. Removing task augmentation degrades 3.812 to 4.417. Raw outputs give 3.961, adding RMS normalization only at meta-test gives 3.992, and using it in meta-training and testing gives 3.812. Direction only gives 3.812 versus 3.900 for learned exponential magnitude and 4.075 for a tensor-averaged magnitude.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "Table 1"
+        },
+        {
+          "page": 8,
+          "section": "5 Ablations"
+        },
+        {
+          "page": 12,
+          "section": "Appendix A / Table 2 normalization variants"
+        }
+      ]
+    },
+    {
+      "claim": "The full optimizer's gain is compounded by hand-designed components: Newton-Schulz orthogonalization and AdamW for one-dimensional parameters each improve Celo2-base, and including them during meta-training works better than attaching them only at test time.",
+      "evidence": "Figure 4 shows a stable but worse Celo2-base GPT-2 curve. The LM-30M bars improve sequentially when orthogonalization is added and again when Adam handles 1D parameters; in both cases meta-training with the harness beats test-only attachment. The exact bars are not tabulated, but visual readings are roughly 3.81 for base, 3.74 after meta-trained orthogonalization, and 3.69 after meta-trained orthogonalization plus Adam-1D, versus roughly 3.74 for AdamW. This isolates the hybrid harness as material to the headline result.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "Figure 4"
+        },
+        {
+          "page": 8,
+          "section": "5 Ablations / Orthogonalization"
+        }
+      ]
+    },
+    {
+      "claim": "Under the closest controlled Muon comparison, Celo2's learned direction is essentially tied with momentum rather than demonstrating a practically material final-loss improvement.",
+      "evidence": "Celo2 with the Kimi-Muon 0.2 RMS multiplier finishes at 3.35588 versus 3.35636 for Muon, an absolute difference of only 0.00048; default Celo2 is worse at 3.36785. The matched variants share Newton-Schulz orthogonalization, RMS scaling, Adam for 1D parameters, schedule, and weight decay and differ mainly in learned MLP direction versus momentum. Muon receives 10 learning-rate trials over 1e-4 to 1, while Celo2 receives seven over 1e-5 to 1e-3. The result supports competitiveness, not a substantive learned-rule win.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.1 Results / Muon pointer"
+        },
+        {
+          "page": 13,
+          "section": "Appendix A / Comparison with Muon and Figure 7"
+        }
+      ]
+    },
+    {
+      "claim": "The paper's claim that Celo2 and AdamW are compared under the 'same tuning budget' conflicts with the documented, asymmetric search procedures.",
+      "evidence": "The results prose says the baselines are competitive under the same tuning budget. Appendix B states Celo2 uses seven learning rates times three weight decays, while AdamW uses values/search spaces inherited from prior larger-compute tuning—for example 13 learning rates on LM-30M—and is further tuned over weight decay. This asymmetry favors the AdamW baseline and thus does not manufacture Celo2's win, but it is still not the same number or provenance of trials. VeLO is evaluated in its self-tuned mode rather than an equal sweep.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Implementation details / seven-rate default"
+        },
+        {
+          "page": 6,
+          "section": "4.1 Results / same-tuning-budget claim"
+        },
+        {
+          "page": 14,
+          "section": "Appendix B / optimizer search spaces"
+        }
+      ]
+    },
+    {
+      "claim": "Celo2 reduces meta-training compute dramatically, but the 'free lunch' framing excludes nontrivial inference-time optimizer costs and downstream selection compute.",
+      "evidence": "The reported 4.5 GPU-hours count covers meta-training. Celo2-base is said to match Adam wall time, while full Celo2 costs about 1.3 times Adam runtime because of Newton-Schulz iterations and keeps roughly five parameter-equivalents of state versus Adam's three. Every downstream task also sweeps learning rate and often weight decay; the large 32-chip TPU evaluations are not included in the meta-training figure. Thus the learned rule is cheap to create relative to VeLO, but using and selecting the full hybrid is not compute-free.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "Introduction / free-lunch framing"
+        },
+        {
+          "page": 5,
+          "section": "Implementation details / downstream sweeps"
+        },
+        {
+          "page": 8,
+          "section": "Runtime and memory overhead"
+        },
+        {
+          "page": 14,
+          "section": "Appendix B / language-model tuning"
+        }
+      ]
+    },
+    {
+      "claim": "The asserted one-million-fold task-size transfer cannot be independently reconstructed from the paper's architecture tables.",
+      "evidence": "The numerator is a GPT-3-style 1.3B-parameter model. The denominator is described only as small 8x8 image MLP tasks; no layer widths, depths, or parameter counts for those meta-training optimizees are tabulated. The paper repeatedly reports a 1,000,000x or six-orders-of-magnitude size ratio, but the information needed to reproduce that quotient is absent from the PDF. The demonstrated qualitative scale gap remains large regardless.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 1,
+          "section": "Abstract and Figure 1 caption"
+        },
+        {
+          "page": 4,
+          "section": "4 Generalization at Scale / Meta-training tasks"
+        },
+        {
+          "page": 6,
+          "section": "4.1 Results / GPT-3 scale ratio"
+        },
+        {
+          "page": 14,
+          "section": "Appendix B / Table 3 target architectures"
+        }
+      ]
+    },
+    {
+      "claim": "The evidence demonstrates broad transfer across the selected benchmark suite, but not a clean, untouched out-of-distribution test of a frozen optimizer recipe.",
+      "evidence": "The learned weights are transferred without additional meta-training, yet LM-30M is used to select MLP width, RMS decay, normalization placement, task augmentation, update form, and harness choices, and every target tunes the learning rate. The paper therefore shows meta-parameter transfer plus task-level optimizer engineering and hyperparameter selection, not zero-decision transfer. RL is described as zero-shot in the narrower sense of no RL meta-training, even though learning rate and decay are swept.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Implementation details / hyperparameter selection"
+        },
+        {
+          "page": 6,
+          "section": "4.1 Results / zero-shot RL wording"
+        },
+        {
+          "page": 7,
+          "section": "5 Ablations / LM-30M recipe selection"
+        },
+        {
+          "page": 12,
+          "section": "Appendix A / sensitivity"
+        }
+      ]
+    },
+    {
+      "claim": "The large-scale stability result is precision-limited: language-model experiments deliberately use float32, and only the ViT run probes bfloat16.",
+      "evidence": "The implementation section says all language-model evaluations default to float32 to decouple optimizer instability from mixed-precision instability. A bfloat16 ImageNet-ViT test showed no instability, but targeted lower/mixed-precision study is left for future work. No FP16/BF16 1.3B language-model run, loss scaling analysis, optimizer-state quantization, or memory-throughput measurement is reported.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Implementation details / precision"
+        },
+        {
+          "page": 8,
+          "section": "Runtime and memory overhead"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Meta-learn only a scale-invariant per-parameter update direction on cheap, heavily augmented microtasks, then supply the step size and high-dimensional conditioning through a conventional optimizer harness at deployment.",
+    "mechanism": "At each step Celo2 updates three gradient momenta, one RMS accumulator, and Adafactor-style row/column statistics. Normalized per-parameter features enter a two-layer MLP with eight hidden units, which predicts a direction-only update. Celo2-base divides that tensor by its instantaneous RMS and applies the user learning rate to all parameters. Full Celo2 instead runs five Newton-Schulz orthogonalization iterations on each 2D update, RMS-normalizes the result, routes 1D parameters and embeddings through AdamW, and adds decoupled weight decay. The MLP is meta-trained through PES on four 8x8 image-MLP task families, with K=50 persistent truncations, 100-2,000-step unrolls, eight tasks in parallel, mean-loss meta-objective, and global log-uniform parameter-rescaling augmentation. Deployment keeps the learned weights fixed but tunes learning rate, schedule, and sometimes weight decay per target.",
+    "assumptions": [
+      "A per-parameter Adafactor-style feature map learned on tiny MLPs contains transferable information about useful descent directions for Transformers, ViTs, and actor-critic networks.",
+      "Removing the learned update magnitude and normalizing every update tensor by RMS makes the learned direction sufficiently invariant to task, width, parameter scale, and horizon.",
+      "A task-specific scalar learning rate is acceptable even though several earlier learned optimizers attempt to learn or self-tune scheduling.",
+      "Global parameter-rescaling augmentation over a wide log range is a useful proxy for the scale changes encountered in unseen architectures.",
+      "The 30M language-model validation task is an acceptable development environment for selecting a recipe claimed to generalize out of distribution.",
+      "Five Newton-Schulz iterations are stable and affordable for 2D tensors, and shape-dependent orthogonalization is appropriate across the tested architectures.",
+      "AdamW for one-dimensional parameters and embeddings can be treated as part of a learned-optimizer harness rather than a competing hand-designed update rule.",
+      "Best-of-sweep final performance is an adequate comparison even when optimizer search budgets and prior tuning provenance differ.",
+      "Float32 language-model results are predictive of the lower-precision regimes needed for cost-efficient large-model training.",
+      "The selected FineWeb/FineWeb-Edu, ImageNet, and three Atari environments are broad enough to support a general-purpose transfer claim."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "direction-only-learned-update",
+      "role": "Constrains the MLP to choose a per-parameter direction while leaving global magnitude to a tuned learning rate."
+    },
+    {
+      "id": "instantaneous-output-rms-normalization",
+      "role": "Removes task- and tensor-scale variation from the learned update and is the strongest normalization variant in the LM-30M ablation."
+    },
+    {
+      "id": "adafactor-mlp-features",
+      "role": "Combines three momenta, an RMS trace, and row/column factored second moments into normalized per-parameter MLP inputs."
+    },
+    {
+      "id": "persistent-evolution-strategies",
+      "role": "Produces unbiased meta-gradient estimates across K=50 truncated segments while carrying inner parameters, optimizer state, and perturbations forward."
+    },
+    {
+      "id": "global-task-reparameterization",
+      "role": "Randomly rescales optimizee initial parameters during meta-training to expose the MLP to a wider gradient-scale distribution."
+    },
+    {
+      "id": "newton-schulz-five-step-orthogonalization",
+      "role": "Applies Muon-style approximate semi-orthogonalization to learned 2D update matrices before RMS scaling."
+    },
+    {
+      "id": "parameter-rank-routing",
+      "role": "Uses the learned orthogonalized update for 2D hidden weights and AdamW for 1D parameters, biases, and embeddings."
+    },
+    {
+      "id": "decoupled-deployment-step-size",
+      "role": "Drops learned progress/scheduler features so practitioners can tune a conventional scalar learning-rate schedule at test time."
+    },
+    {
+      "id": "optax-multi-transform-wrapper",
+      "role": "Packages the hybrid rules as a standard JAX/Optax transformation for sharded target training."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "30M decoder-only Transformer on FineWeb-Edu, 600M tokens, float32, best tuned curve",
+      "metric": "Final validation cross-entropy read from Figure 1",
+      "result": "Approximately 3.66 for full Celo2",
+      "baseline": "Approximately 3.72 AdamW and 3.79 VeLO; plot only, with no repeated-seed uncertainty"
+    },
+    {
+      "setting": "GPT-2 124M decoder-only Transformer on FineWeb, about 2.5B tokens, float32",
+      "metric": "Final validation cross-entropy read from Figure 1",
+      "result": "Approximately 3.35 for full Celo2 with stable training",
+      "baseline": "Approximately 3.39 AdamW and 3.58 VeLO; plot only, with no error bars"
+    },
+    {
+      "setting": "GPT-3-style 1.3B decoder-only Transformer on FineWeb, 10B tokens, float32",
+      "metric": "Final validation cross-entropy read from Figure 1",
+      "result": "Approximately 2.85 for Celo2; stable through the reported run",
+      "baseline": "Approximately 2.97 AdamW and 3.38 VeLO; uses 10 rather than 20 tokens per parameter because of compute constraints"
+    },
+    {
+      "setting": "Base ViT on ImageNet-256, batch 512, 50,000 steps, bfloat16",
+      "metric": "Validation loss and steps to VeLO's terminal loss",
+      "result": "Approximately 1.5 final loss and reaches VeLO's approximately 1.55 endpoint in about half the steps",
+      "baseline": "AdamW approximately 1.8 final validation loss; all optimizers plateau around 66% validation accuracy and no seed bands are reported"
+    },
+    {
+      "setting": "Atari PPO on Freeway, Space Invaders, and Asterix; 10M frames; five seeds",
+      "metric": "Approximate final episodic return from Figure 3",
+      "result": "Celo2 about 60, 180, and 14, respectively",
+      "baseline": "AdamW about 61, 165, and 13; VeLO about 27, 75, and 1; Celo2/AdamW bands overlap substantially"
+    },
+    {
+      "setting": "LM-30M component and architecture ablations with best learning rate selected per setting",
+      "metric": "Final validation loss",
+      "result": "Best settings are width 8 (3.812), RMS decay 0.95 (3.812), task augmentation on (3.812), train-and-test RMS normalization (3.812), and direction-only output (3.812)",
+      "baseline": "Width 4: 4.128; no augmentation: 4.417; raw output: 3.961; test-only RMS norm: 3.992; learned magnitude: 3.900; tensor-averaged magnitude: 4.075"
+    },
+    {
+      "setting": "LM-30M predicted-update normalization variants",
+      "metric": "Final validation loss",
+      "result": "Per-step RMS norm 3.81268, the best reported variant",
+      "baseline": "Raw 3.96168; rolling normalization spans about 3.860-3.999; rolling norm plus clipping 4.084; hard clipping is worse than the corresponding unclipped approach"
+    },
+    {
+      "setting": "GPT-2 124M FineWeb comparison with Kimi-Muon-style shared harness",
+      "metric": "Exact final validation loss",
+      "result": "Celo2 with 0.2 RMS multiplier 3.35588; default Celo2 3.36785",
+      "baseline": "Muon 3.35636, only 0.00048 worse than matched Celo2; Muon uses 10 LR trials and Celo2 uses seven"
+    },
+    {
+      "setting": "Optimizer systems overhead as reported by the authors",
+      "metric": "Wall-clock multiplier and optimizer-state parameter equivalents",
+      "result": "Celo2-base claimed to match Adam wall time; full Celo2 about 1.3x runtime and about 5x parameter memory",
+      "baseline": "Adam about 3x parameter memory; no per-model throughput table, tokens/second, or end-to-end compute-to-target comparison"
+    },
+    {
+      "setting": "Meta-training resource comparison",
+      "metric": "Reported optimizer meta-training compute",
+      "result": "4.5 GPU-hours on one NVIDIA L40S",
+      "baseline": "VeLO reports 4,000 TPU-months; heterogeneous hardware, objectives, task coverage, and target-duration capabilities prevent treating the raw ratio as a controlled efficiency experiment"
+    }
+  ],
+  "limitations": [
+    "Author-stated: Celo2 introduces a user-tuned step-size because it learns only the update rule; learning a scheduler that generalizes across tasks is deferred.",
+    "Author-stated: language-model experiments use float32, while targeted lower- and mixed-precision study is left for future work to address learned-optimizer memory cost.",
+    "Author-stated: GPT-3 1.3B is trained at only 10 tokens per parameter rather than the intended Chinchilla ratio of 20 because of compute constraints.",
+    "Author-stated: full Celo2 has about 5x parameter-state memory and 1.3x Adam runtime due to extra accumulators and Newton-Schulz orthogonalization.",
+    "Author-stated: default Celo2's best learning rate is not always the highest tested, and the largest rate can be unstable in supervised and RL settings.",
+    "Reviewer-identified: the supervised LM and ViT figures do not report seed counts, error bars, significance tests, or exact endpoint tables; small visual differences may not be robust.",
+    "Reviewer-identified: the main comparison selects best hyperparameters under unequal search procedures, while VeLO uses a self-tuned target-duration interface, limiting clean optimizer-level attribution.",
+    "Reviewer-identified: LM-30M is used repeatedly to design the supposedly generalizing recipe, so the evidence is not a preregistered or untouched OOD evaluation.",
+    "Reviewer-identified: the headline full optimizer is partly Muon and AdamW; the pure learned Celo2-base is stable but does not match the full recipe's performance.",
+    "Reviewer-identified: the 1,000,000x task-size ratio is not reproducible because meta-training MLP architectures and parameter counts are omitted.",
+    "Reviewer-identified: no overall downstream tuning/evaluation compute, energy, throughput, or loss-per-total-FLOP accounting accompanies the 4.5 GPU-hour meta-training claim.",
+    "Reviewer-identified: target coverage is still narrow—three decoder LMs, one ViT setup, and three Atari environments—with no speech, diffusion, graph, scientific, multimodal, instruction-tuning, or very long production-scale training.",
+    "Reviewer-identified: the appendix labels code snippets as simplified pseudocode; exact reproducibility depends on the external repository and is not fully self-contained in the PDF."
+  ],
+  "failure_modes": [
+    "Raw learned update magnitudes fail to transfer scale: omitting output RMS normalization raises LM-30M validation loss from 3.812 to 3.961.",
+    "Adding RMS normalization only after meta-training is insufficient and slightly worse than the raw rule, indicating the MLP must adapt to normalization during meta-training.",
+    "Removing global task augmentation sharply degrades LM-30M transfer to 4.417 validation loss.",
+    "A too-small hidden MLP (width 4) underfits the transferable rule, while widths 16 and 32 also trail width 8, showing a narrow architecture optimum.",
+    "Learning an exponential magnitude or tensor-averaged magnitude degrades transfer relative to predicting direction only.",
+    "Hard clipping of normalized updates harms performance relative to simple instantaneous RMS division.",
+    "The highest tested learning rate can destabilize supervised and Atari optimization, so the rule is not learning-rate-free.",
+    "Celo2-base gives up some loss performance when orthogonalization and Adam-for-1D routing are removed, despite retaining stability.",
+    "Full Celo2 loses its practical advantage when Newton-Schulz overhead or fivefold optimizer-state memory is unacceptable.",
+    "VeLO can exhibit update-norm spikes and parameter-norm growth on the long ViT run and stagnates on the selected Atari tasks, whereas Celo2 is designed to avoid these transfer failures.",
+    "Float32-only LM validation may conceal instability, throughput loss, or state-precision sensitivity in BF16/FP16 production training.",
+    "A recipe selected on LM-30M may overfit its optimizer meta-hyperparameters to transformer language modeling even when the MLP weights themselves were trained on image microtasks."
+  ],
+  "reusable_insights": [
+    "For learned optimizers, meta-learning a scale-free direction and tuning one global magnitude can transfer better than learning both direction and schedule end to end.",
+    "Normalize the learned optimizer's outputs during meta-training, not merely its inputs or only at deployment; training-time exposure changes what the MLP learns.",
+    "Tiny task sets can cover a much broader optimization landscape when parameter-scale augmentation perturbs the gradients seen by the learned rule.",
+    "Optimizer generalization should be decomposed into learned-rule transfer, hand-designed preconditioning, parameter-type routing, and downstream hyperparameter tuning.",
+    "A close matched-harness comparison is more informative than an aggregate leaderboard: here learned direction and momentum are virtually tied once both receive the same Muon/Kimi machinery.",
+    "Meta-training compute, deployment overhead, state memory, tuning compute, and total compute-to-target are distinct resource axes and should all be reported.",
+    "Long-horizon validation should plot parameter and update norms alongside loss because apparent final performance can hide unstable transients or norm blow-up.",
+    "Best-of-sweep optimizer comparisons should publish all curves, seeds, exact endpoints, and equalized search policies to separate robustness from selection luck.",
+    "A pure learned base plus modular test-time harness is a useful experimental design because it reveals which gains come from learned behavior versus established optimizer primitives."
+  ],
+  "open_questions": [
+    "Does Celo2 retain its stability and loss advantage for BF16/FP16 billion-parameter language-model pretraining with quantized optimizer state and loss scaling?",
+    "At equal Newton-Schulz, RMS, Adam-1D, schedule, and tuning budget, does learned direction reliably beat Muon momentum across models and multiple seeds?",
+    "Can a learned or self-tuned scheduler recover the hyperparameter-free benefit of VeLO without sacrificing Celo2's scale transfer?",
+    "How much of the result comes from learned MLP weights versus output normalization, task augmentation, orthogonalization, and parameter-rank routing under a fully factorial study?",
+    "What is total wall-clock and energy to a fixed target loss after including meta-training, downstream hyperparameter sweeps, optimizer overhead, and failed runs?",
+    "Does the recipe transfer to multimodal models, diffusion, speech, recurrent/state-space models, graph networks, instruction tuning, and runs beyond 10B tokens?",
+    "Can the optimizer be meta-trained on language or architecture-diverse microtasks within the same 4.5-hour budget and produce a reproducible gain over the current image-only weights?",
+    "How stable are the reported supervised gains across target initialization, data order, meta-training seed, MLP seed, and TPU topology?",
+    "Can the claimed million-fold scale ratio be reconstructed once the exact meta-training optimizee architectures and parameter counts are disclosed?",
+    "Would a held-out optimizer-development protocol preserve performance when LM-30M is not used to select normalization, width, decay, augmentation, and harness choices?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2211.09760",
+      "title": "VeLO: Training Versatile Learned Optimizers by Scaling Up",
+      "url": "https://arxiv.org/abs/2211.09760v1",
+      "relationship": "VeLO is the principal learned-optimizer baseline and prior scale-generalization reference: it meta-trains a hierarchical optimizer on a very broad task distribution with approximately 4,000 TPU-months and offers a self-tuned target-duration interface.",
+      "difference": "Celo2 uses roughly 4.5 GPU-hours, a tiny Adafactor MLP, four 8x8 image task families, a user-tuned learning rate, and a Muon/Adam hybrid harness, yet remains stable at 1.3B parameters where VeLO's checked version documents limitations beyond roughly 500-600M and long horizons. Celo2's compute/scale transfer is striking, but VeLO covers many more meta-training tasks and learns scheduling, so the raw compute ratio is not an equal-capability comparison.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 (2022-11-17)"
+    },
+    {
+      "canonical_id": "openreview:SLqJbt4emY",
+      "title": "Celo: Training Versatile Learned Optimizers on a Compute Diet",
+      "url": "https://openreview.net/forum?id=SLqJbt4emY",
+      "relationship": "Celo is the direct same-author predecessor and supplies the compute-efficient PES, task-augmentation, and small Adafactor-MLP lineage on which Celo2 builds.",
+      "difference": "Celo reports about 24 GPU-hours, jointly learns more scheduling behavior, and evaluates primarily on the VeLOdrome-style suite. Celo2 reduces meta-training to 4.5 hours, removes progress/scheduler features, normalizes the predicted direction, changes RMS decay and hidden width, and integrates Newton-Schulz plus Adam-1D to reach 1.3B LM and Atari targets. The checked predecessor already contains the central 'compute-diet learned optimizer' idea, so novelty is the normalization/harness recipe and much larger transfer, not cheap meta-training alone.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "TMLR official version (published 2025-07-08; last modified 2026-05-27)"
+    },
+    {
+      "canonical_id": "openreview:f8z2bzOLK2",
+      "title": "$\\mu$LO: Compute-Efficient Meta-Generalization of Learned Optimizers",
+      "url": "https://openreview.net/forum?id=f8z2bzOLK2",
+      "relationship": "This contemporary learned-optimizer competitor targets compute-efficient meta-generalization across model width, depth, and substantially longer horizons using a micro-parameterization-aware design.",
+      "difference": "The official ICLR version reports roughly 103 GPU-hours and focuses on controlled muP transfer, whereas Celo2 reports 4.5 hours and reaches larger heterogeneous targets by using RMS-normalized learned directions plus a hand-designed Muon/Adam harness. Celo2 does not provide a matched muP or same-task comparison, so it cannot establish superiority over the competitor's parameterization-specific generalization mechanism.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2026 Poster official version (published 2026-01-26; last modified 2026-04-11)"
+    },
+    {
+      "canonical_id": "pmlr:v199:metz22a",
+      "title": "Practical Tradeoffs between Memory, Compute, and Performance in Learned Optimizers",
+      "url": "https://proceedings.mlr.press/v199/metz22a.html",
+      "relationship": "This primary architecture predecessor develops the small Adafactor-MLP learned optimizer and explicitly studies memory/compute/performance tradeoffs.",
+      "difference": "Celo2 reuses its momentum/RMS/row-column feature template but selects eight hidden units, omits progress features, predicts direction only, normalizes outputs, and adds task augmentation and the hybrid orthogonalization/Adam harness. Accordingly, the per-parameter MLP and factored state are established ingredients; Celo2's narrow novelty lies in the generalization-oriented normalization and composition, plus the large target evaluation.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "CoLLAs 2022 PMLR volume 199 official version (22-24 August 2022)"
+    },
+    {
+      "canonical_id": "arxiv:2502.16982",
+      "title": "Muon is Scalable for LLM Training",
+      "url": "https://arxiv.org/abs/2502.16982v1",
+      "relationship": "Muon/Kimi is the closest hand-designed optimizer competitor and the source of the Newton-Schulz, RMS-matching, and Adam-for-1D harness used by full Celo2.",
+      "difference": "The Muon work validates orthogonalized momentum at much larger language-model scales and token budgets, while Celo2 substitutes a meta-learned MLP direction before essentially the same harness. In Celo2's controlled GPT-2 appendix, matched Celo2 beats Muon by only 0.00048 final loss, so the evidence supports parity and learned-rule feasibility rather than a clear improvement over Muon's core direction.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 (2025-02-24)"
+    },
+    {
+      "canonical_id": "pmlr:v239:rezk23a",
+      "title": "Is Scaling Learned Optimizers Worth It? Evaluating The Value of VeLO’s 4000 TPU Months",
+      "url": "https://proceedings.mlr.press/v239/rezk23a.html",
+      "relationship": "This independent primary audit is the closest evaluation-methodology competitor, reexamining VeLO's generality, speed, and claim to be hyperparameter-free under broader tuning.",
+      "difference": "It finds that learned-optimizer conclusions can change with baseline tuning and that VeLO is not uniformly faster or tuning-free. Celo2 addresses some of the observed scale failures and openly tunes a learning rate, but still reports unequal search procedures and mostly single supervised curves. The audit narrows Celo2's evidence to the tested best-of-sweep suite rather than a universal optimizer free lunch.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2023 Workshop / PMLR volume 239 official version (16 December 2023)"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim a surprisingly cheap recipe for a stable, general-purpose learned optimizer: only 4.5 GPU-hours of image-microtask meta-training produces a rule that transfers six orders of magnitude in model size, outperforms VeLO and tuned AdamW on selected large language/vision tasks, remains competitive on Atari, and composes with modern orthogonalization, parameter-specific update rules, and weight decay.",
+    "evidence": "The paper contributes instantaneous output RMS normalization, direction-only prediction, task-augmentation and architecture selections, and a modular Celo2/Celo2-base comparison. It demonstrates stable 30M/124M/1.3B LMs, a 50K-step ImageNet-ViT run, and five-seed Atari PPO, with component ablations and exact Muon endpoints. Primary-source audit finds that cheap PES/Adafactor-MLP meta-training already appears in Celo and Metz et al., RMS/orthogonalization/Adam-1D comes from Muon/Kimi, broad scaled learned optimization comes from VeLO, and compute-efficient scale transfer is also targeted by muLO.",
+    "reviewer_inference": "The credible narrow novelty is the empirically effective composition of a meta-trained scale-free direction with output RMS normalization, aggressive microtask augmentation, and a contemporary Muon/Adam deployment harness, together with evidence that the learned weights do not destabilize a 1.3B target after only 4.5 GPU-hours. It is not a wholly learned replacement for Adam, not the first compute-efficient learned optimizer, and not a free lunch once downstream sweeps, 1.3x runtime, 5x state, and borrowed conditioning are counted. The matched Muon near-tie further suggests that stability/scale transfer is the contribution, while superior direction quality remains unproven."
+  },
+  "confidence": 0.9,
+  "reviewer_notes": "Read and second-pass audited all 25 pages, including every main figure, Tables 1-6, normalization and Muon appendices, language/ViT/RL configurations, the simplified JAX/Optax implementation, and PES/task-augmentation background. Figures 1-7 were visually inspected because extraction does not preserve curves; all plot-derived endpoints in this reading are explicitly marked approximate, while exact ablation/Muon numbers come from tables or prose. Cross-checks found three material scope corrections: full Celo2 is a learned-plus-Muon-plus-AdamW hybrid, documented tuning budgets are not literally the same, and the 1,000,000x denominator is undisclosed. Primary-source competitor records and version pins were checked on 2026-08-23. Residual uncertainty is moderate for small supervised curve differences because seeds/error bars are absent, for the heterogeneous 4.5-GPU-hour versus 4,000-TPU-month comparison, and for exact reproducibility because the appendix presents simplified code rather than a self-contained implementation snapshot.",
+  "verification": {
+    "reviewer_id": "reviewer-37a2e8f42442",
+    "checked_at": "2026-08-23",
+    "passage_check": "Second passage checked all 25 pages and appendices A-D, directly inspected Figures 1-7, reconciled tables with prose, recalculated the Muon endpoint difference, audited tuning-budget wording, separated Celo2 from Celo2-base, and traced every headline result to target configuration and precision.",
+    "competitor_check": "Checked six closest primary records against version-pinned arXiv, OpenReview, and PMLR pages current 2026-08-23; verified exact titles, stable identifiers, venue/version status, predecessor mechanisms, and whether the claimed component combination was already present."
+  }
+}

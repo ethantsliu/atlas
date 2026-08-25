@@ -1,0 +1,89 @@
+{
+  "stable_id": "arxiv:2509.22358",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2509.22358",
+    "pdf_sha256": "b76ba45683995cdf45c8dc0e4852e5506e02b0e5d5b147852c1fcfa062a7670e",
+    "text_sha256": "0e971f4b1f5313c88713ce255ed0312d8c43d79f62c62b66d9dcaedddd155127",
+    "page_count": 20,
+    "extracted_at": "2026-08-23T15:18:45.230174+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can language models be trained with random SiLU/ReLU activation choices and briefly adapted to ReLU so that inference obtains high activation sparsity without the optimization and quality loss of ReLU-from-scratch training, and can the same randomness diversify generation?",
+  "key_findings": [
+    {
+      "claim": "Stochastic activation exposes a model to both a smooth-training and a sparse-inference regime by Bernoulli-selecting SiLU or ReLU for negative preactivations.",
+      "evidence": "Equation 3 defines the negative branch as SiLU with probability p and ReLU with probability 1-p; positive branches use either identity or SiLU. The final 5–10% activation fine-tuning switches fully to ReLU without optimizer reset or warmup.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "3.1 Fine-tuning with ReLU"}, {"page": 5, "section": "3.2 Stochastic activation, Eq. 3"}]
+    },
+    {
+      "claim": "For models trained from scratch, combining stochastic activation with a final ReLU phase closes much of the ReLU quality gap while yielding very sparse inference activations.",
+      "evidence": "On the 1.5B model, the SiLU baseline validation loss is 2.122 and ReLU-from-scratch is 2.161; stochastic activation plus final ReLU gives 2.138–2.144 for the shown p settings. The sparsity appendix reports roughly 80–90% zero activations depending on p and fine-tuning, and the downstream average is 0.451 versus 0.454 for SiLU and 0.441 for ReLU.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 7, "section": "4.2, Table 1"}, {"page": 9, "section": "4.3, Table 2"}, {"page": 15, "section": "Appendix B, Table 5"}]
+    },
+    {
+      "claim": "Measured sparsity produces hardware speedups, but the scope and headline differ between CPU end-to-end inference and GPU feed-forward kernels.",
+      "evidence": "At 90% sparsity, Figure 3 reports a 1.65x total single-token speedup on one Xeon core and about 1.5x for the GPU FFN operation; the authors explicitly note that KV-cache, masks, RoPE, Python, and other overheads dominate the small-model GPU end-to-end path.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 6, "section": "3.3 Exploiting sparsity"}, {"page": 7, "section": "4.2 Fast inference"}, {"page": 8, "section": "Figure 3"}]
+    },
+    {
+      "claim": "Activation randomness increases lexical and answer diversity, but does not consistently improve answer correctness over ordinary temperature sampling.",
+      "evidence": "StochA raises type-token ratio on NQ and TQA across tested temperatures and improves selected NQ best-of-n results, but is inferior on TQA; multiple stochastic forward passes with majority-vote or maximum-probability token selection do not beat one pass.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 10, "section": "4.4, Figure 6"}, {"page": 11, "section": "Diversity and token-level ablations"}, {"page": 16, "section": "Appendix D"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Train a decoder-only transformer under a stochastic mixture of smooth SiLU and exactly sparse ReLU behavior, then optionally spend the last fraction of pretraining in deterministic ReLU mode.",
+    "mechanism": "A Bernoulli draw gates the negative branch of each FFN activation. The resulting model is evaluated either with ReLU for sparse inference or with stochastic activations for diverse generation; custom sparse matrix-vector kernels exploit zero gated coordinates.",
+    "assumptions": [
+      "Intermittent SiLU gradients prevent the dead-neuron optimization failure associated with pure ReLU training.",
+      "A short low-learning-rate ReLU phase is sufficient to repair train/inference activation mismatch.",
+      "The hardware and batching regime can exploit unstructured activation sparsity rather than becoming overhead-bound."
+    ]
+  },
+  "techniques": [
+    {"id": "bernoulli-activation-mixture", "role": "Randomly selects smooth or sparse behavior for negative FFN preactivations during training or generation."},
+    {"id": "activation-swap-finetuning", "role": "Uses the last 5–20% of a cosine-decay run to adapt a smooth/stochastic model to deterministic ReLU inference."},
+    {"id": "sparse-ffn-kernel", "role": "Skips memory reads and multiplications associated with zero activation coordinates at single-token inference."}
+  ],
+  "evaluations": [
+    {"setting": "Dense 1.5B- and 3B-parameter decoder-only LMs trained for about 100B and 200B tokens", "metric": "Training and validation cross-entropy under SiLU, ReLU, hybrid deterministic, and stochastic activations", "result": "StochA plus a final ReLU phase substantially improves over ReLU-from-scratch and approaches SiLU, while StochA without adaptation retains a ReLU test-time mismatch.", "baseline": "SiLU quality topline and ReLU sparse-inference baseline."},
+    {"setting": "Twelve code, commonsense, reading, math, and QA evaluations", "metric": "Per-task metrics and unweighted average", "result": "For 1.5B, StochA-plus-ReLU averages 0.451 versus 0.454 SiLU and 0.441 ReLU; for 3B it averages 0.509 versus 0.515 and 0.486.", "baseline": "Matched SiLU and ReLU models."},
+    {"setting": "Single-token CPU inference and H100 FFN microbenchmark at varying measured activation sparsity", "metric": "Wall-clock speedup", "result": "About 1.65x total CPU speedup and about 1.5x GPU FFN speedup at 90% sparsity.", "baseline": "Dense FFN execution of the same model."},
+    {"setting": "Twenty sampled answers on Natural Questions and TriviaQA", "metric": "Best normalized-log-likelihood F1 and type-token ratio", "result": "Stochastic activation consistently increases lexical diversity, improves some NQ best-of-n settings, and underperforms SiLU temperature sampling on TQA.", "baseline": "SiLU with temperatures 0–0.5."}
+  ],
+  "limitations": [
+    "Author-stated: practical speedup depends on storage layout, sparsity-specific kernels, batch size, and overheads; sparse training itself is not accelerated.",
+    "Author-stated: stochastic generation is task-dependent and majority-vote or maximum-probability aggregation over repeated passes does not improve accuracy.",
+    "Reviewer inference: results stop at 3B parameters and a single pretraining recipe, so model-scale and architecture generalization are unestablished.",
+    "Reviewer inference: downstream averages conceal task regressions and are not paired with uncertainty or significance estimates."
+  ],
+  "failure_modes": [
+    "A stochastic-to-ReLU model can preserve average benchmark score while harming tasks that rely on negative-activation information.",
+    "Unstructured zeros may yield theoretical FLOP savings but no end-to-end gain under batched GPU serving or generic dense kernels.",
+    "Changing the activation pair can fail badly: the TANH/ReLU appendix reports severe validation mismatch for some stochastic variants."
+  ],
+  "reusable_insights": [
+    "Train-time randomization can continuously expose a model to an inference-time discrete approximation, analogous to quantization-aware training.",
+    "Report kernel-only and end-to-end sparse speedups separately and bind both to a concrete serving regime.",
+    "Activation noise is a controllable diversity source, but diversity and correctness require separate evaluation."
+  ],
+  "open_questions": [
+    "Does the quality–sparsity frontier persist at tens or hundreds of billions of parameters and under mixture-of-experts FFNs?",
+    "Can per-layer or input-adaptive mixture probabilities dominate a global Bernoulli p?",
+    "How does stochastic activation interact with quantization, speculative decoding, batching, and long-context attention overheads?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2310.04564", "title": "ReLU Strikes Back: Exploiting Activation Sparsity in Large Language Models", "url": "https://arxiv.org/abs/2310.04564", "relationship": "direct predecessor", "difference": "ReLU Strikes Back trains and exploits ReLU-based LMs directly; StochA targets the remaining optimization gap by exposing one model to SiLU and ReLU and then adapting it to ReLU inference.", "source_kind": "arxiv", "checked_at": "2026-08-23"},
+    {"canonical_id": "arxiv:2402.13516", "title": "ProSparse: Introducing and Enhancing Intrinsic Activation Sparsity within Large Language Models", "url": "https://arxiv.org/abs/2402.13516", "relationship": "direct sparsification competitor", "difference": "ProSparse uses progressive sparsity regularization after replacing Swish with ReLU and reports up to 4.52x acceleration; StochA instead uses activation randomization plus a short deterministic phase and evaluates stochastic generation as a second use case.", "source_kind": "arxiv", "checked_at": "2026-08-23"},
+    {"canonical_id": "arxiv:2408.14690", "title": "Training-Free Activation Sparsity in Large Language Models", "url": "https://arxiv.org/abs/2408.14690", "relationship": "deployment alternative", "difference": "TEAL prunes low-magnitude hidden activations in already trained SiLU-family models without retraining; StochA changes pretraining so exact ReLU zeros are native but requires a new training recipe.", "source_kind": "arxiv", "checked_at": "2026-08-23"},
+    {"canonical_id": "arxiv:2509.00454", "title": "Universal Properties of Activation Sparsity in Modern Large Language Models", "url": "https://arxiv.org/abs/2509.00454", "relationship": "concurrent empirical framework", "difference": "The universal-properties study audits thresholded activation sparsity across modern and diffusion LMs; StochA proposes a specific stochastic training intervention and measures its quality, exact-zero sparsity, and hardware speed.", "source_kind": "arxiv", "checked_at": "2026-08-23"}
+  ],
+  "novelty_assessment": "Author claim: Bernoulli mixing of SiLU and ReLU, optionally followed by a short ReLU phase, preserves much of SiLU's trainability while enabling exact sparse inference and a new source of generation diversity. Reviewer inference after primary-source comparison: the train/test activation-mixture mechanism and paired diversity study appear distinct, but activation-sparse LLM training and deployment are crowded; the strongest novelty is the quantization-aware-style stochastic bridge, not activation sparsity or ReLU inference itself.",
+  "confidence": 0.91,
+  "reviewer_notes": "Read against all twenty extracted pages, including sparsity, continuous-pretraining, alternate-activation, generation, and benchmark appendices. Hardware and benchmark claims are author-reported. Scale, averaging, and serving-regime cautions are reviewer inferences. Direct competitors were checked on primary arXiv records on 2026-08-23."
+}

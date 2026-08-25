@@ -1,0 +1,425 @@
+{
+  "stable_id": "arxiv:2604.08816",
+  "reading_depth": "verified",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2604.08816",
+    "pdf_sha256": "d6a6153fb83c3a98d92bec646b6c2480ab36767496c8e75da6192aba6d616887",
+    "text_sha256": "5baf744fe65fd857610a0cb099017efe6dd07d308c24b9d225c97256152579ac",
+    "page_count": 17,
+    "extracted_at": "2026-08-23T09:55:41.750566+00:00",
+    "review_pass": "secondary-verified-v1"
+  },
+  "question": "Can one program-independent, analytically weighted looped-transformer template execute a useful compiled instruction set in fewer layers than prior neural computers, scale across fixed state sizes, and run reproducibly in browser and FPGA deployments?",
+  "key_findings": [
+    {
+      "claim": "Loom stores program, data, program counter, and scratch state in one fixed d-by-n tensor and executes one instruction per pass through eight transformer layers.",
+      "evidence": "Columns are divided into 32 scratchpad locations, data memory, and instruction slots; rows hold commands, N-bit memory, scratch registers, PC and position bits, buffers, address tags, and an indicator. The eight stages fetch, decode/read, perform indirect access, subtract, write, compute a branch and PC+1, select the PC, and correct error.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "3.1 State Matrix and 3.2 Attention Mechanism"},
+        {"page": 4, "section": "4 State Layout / Table 1"},
+        {"page": 5, "section": "5 Pipeline / Table 2"}
+      ]
+    },
+    {
+      "claim": "Opcode-as-operand-routing lets all 22 operations share a single subtraction layer.",
+      "evidence": "L2 fetches three operands and maps 21 extended opcodes plus SUBLEQ into two N-bit scratch operands. L4 always computes the same subtraction, and later layers write the result or branch. This trades opcode-specific arithmetic depth for a wide opcode-gated L2 FFN, budgeted at roughly 340 used rows of 640 for N=8 and ell=10.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 1, "section": "1 Introduction"},
+        {"page": 6, "section": "5.2 Operand Read and Opcode Decode"},
+        {"page": 12, "section": "8 L2 FFN Row Budget / Table 3"}
+      ]
+    },
+    {
+      "claim": "The six-threshold ReLU construction exactly implements N-bit two's-complement subtraction for exact bipolar inputs.",
+      "evidence": "For each output bit, three adjacent ReLU differences threshold a weighted suffix difference at -P, 0, and P. Proposition 1 partitions the integer suffix range into four intervals and produces a bipolar bit; the author also exhaustively checks all 65,536 input pairs for N=8. The proposition proves only the arithmetic map under exact inputs, not the complete finite-temperature attention pipeline.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "5.4 Direct Subtraction / Proposition 1"},
+        {"page": 8, "section": "6 Direct borrow-chain layer reduction"}
+      ]
+    },
+    {
+      "claim": "The paper's single-bit SUBLEQ mode test is not equivalent to its stated a-at-least-32 address rule.",
+      "evidence": "L2 and Section 7 say SUBLEQ mode fires when the bit of a representing value 32 is +1. For the valid default memory address a=64, within memory columns 32-95, the 32 bit is 0 even though a is at least 32; addresses 64-95 are therefore misclassified. The compact and large configurations contain still more valid addresses whose 32 bit is 0. This is a constructive counterexample to full-address-space SUBLEQ semantics and is not covered by Proposition 1.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "5.2 SUBLEQ mode detection"},
+        {"page": 9, "section": "7 Instruction Set and 7.1 SUBLEQ"},
+        {"page": 13, "section": "9.1 Scaling configurations"}
+      ]
+    },
+    {
+      "claim": "The stated MULACC product claim needs an unstated no-overflow precondition.",
+      "evidence": "Section 7.14 defines the N repeated updates b <- (b << 1) + c when the old MSB of b is one and says they compute the product for non-negative multipliers. Under the paper's N=8 fixed-width state, b=4 and c=64 evolve to 64 after eight updates, whereas the integer product is 256 and its 8-bit wrap is 0. Exhaustive reviewer simulation found no failures when the non-negative product fits in eight bits, so this is an overflow-boundary defect rather than evidence against the representable-range algorithm.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "7 Instruction Set fixed N-bit arithmetic convention"},
+        {"page": 11, "section": "7.14 MULACC: Multiply-Accumulate Step"},
+        {"page": 15, "section": "12.1 Validation opcode-test scope"}
+      ]
+    },
+    {
+      "claim": "The claimed exact execution guarantee is not proved for the finite-temperature softmax machine.",
+      "evidence": "Attention uses lambda=10 softmax as an approximation to hard argmax, and L3/L8 snap only values that remain in specified neighborhoods of bipolar states. No margin bound covers every attention lookup, every opcode interaction, or arbitrarily many recurrent steps. The validation reaches at most 1,000 ISA steps, so statements about guaranteeing safety-critical rules exceed the established subtraction proof and finite test suite.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "3.2 Attention Mechanism / Equations 1-2"},
+        {"page": 4, "section": "3.2 finite temperature lambda=10"},
+        {"page": 8, "section": "5.7 Error Correction"},
+        {"page": 15, "section": "12.1 Validation"},
+        {"page": 16, "section": "13 Conclusion safety-critical applications"}
+      ]
+    },
+    {
+      "claim": "STORE is a high-leverage ISA addition that greatly reduces variable-index array-write code size.",
+      "evidence": "L2 rewrites the scratchpad b address to s+col[c], allowing L5's existing write attention to target indirect memory. An 81-element-array write falls from an approximately 400-instruction dispatch to about four instructions, and the Sudoku program falls from 1,085 to 284 instructions, a 73.8% reduction rounded to 75%.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 1, "section": "1 Introduction"},
+        {"page": 11, "section": "7.15 STORE"},
+        {"page": 12, "section": "7.15 STORE code-size comparison"},
+        {"page": 15, "section": "12 Sudoku and 13 Conclusion"}
+      ]
+    },
+    {
+      "claim": "Loom is a family of finite machines, not one unbounded Turing computer.",
+      "evidence": "Each configuration fixes n, N, memory slots, and instruction slots: 146x512 provides 160 memory and 320 instruction columns; 155x1024 provides 64 and 928; 164x2048 provides 224 and 1,792. Programs must be recompiled when s,m,n change. Turing-completeness of abstract SUBLEQ does not make a fixed finite-address, fixed-precision instance unbounded.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "3.1 fixed State Matrix"},
+        {"page": 9, "section": "7 address convention"},
+        {"page": 13, "section": "9.1 Scaling"}
+      ]
+    },
+    {
+      "claim": "The C front end compiles a deliberately restricted language rather than general C.",
+      "evidence": "Supported constructs are N-bit integer variables, comparisons and logical operators, if/else, while/for, fixed-size arrays, single-level function inlining, and five built-ins. The paper does not provide recursion, dynamic allocation, general pointer semantics, structs, floating point, I/O, or a standards-conformance claim.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 1, "section": "1 Introduction C compiler"},
+        {"page": 13, "section": "10 C Compiler"}
+      ]
+    },
+    {
+      "claim": "FIND, LOAD, and STORE have explicit undefined cases that the compiler does not eliminate.",
+      "evidence": "FIND requires exactly one matching memory value; duplicates yield a weighted mixture of address tags and no match selects a nearest or mixed entry. LOAD and STORE require raw unsigned pointers in 0 through m-1; out-of-range values redirect attention to unintended columns. The compiler assumes FIND uniqueness at runtime and does not verify it.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "5.3 Head 2 FIND"},
+        {"page": 10, "section": "7.10 LOAD and 7.11 FIND"},
+        {"page": 11, "section": "7.11 FIND and 7.15 STORE"}
+      ]
+    },
+    {
+      "claim": "The architecture's parameterization is analytically sparse but not a standard position-independent transformer layer.",
+      "evidence": "The FFN biases are matrices b1 in R^(rFFN by n) and b2 in R^(d by n), allowing column-specific constants and gates. At 155x1024, 99.9% of dense entries are zero and nonzeros take only 27 distinct values. The reported 4.7 million parameter slots therefore mix a small analytical rule set with n-dependent positional storage.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "3.2 Attention Mechanism / Equation 2"},
+        {"page": 12, "section": "9 Model Properties / Proposition 2"},
+        {"page": 13, "section": "9.1 Scaling"}
+      ]
+    },
+    {
+      "claim": "Fixed cost per instruction at fixed d and n does not imply fixed program cost or favorable scaling in n.",
+      "evidence": "A program needs one eight-layer forward pass for every executed instruction. Dense softmax attention forms n-by-n scores, while the FPGA's no-matrix top-2 implementation still scans query columns for each key column. Snake takes about 84 steps per tick and raycasting about 500, so total latency grows with dynamic instruction count.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "Abstract and 1 Introduction"},
+        {"page": 3, "section": "3.2 Attention Mechanism"},
+        {"page": 14, "section": "11.1 Argmax attention"},
+        {"page": 14, "section": "12 Snake"},
+        {"page": 15, "section": "12 Raycasting"}
+      ]
+    },
+    {
+      "claim": "The reported 111-test success is useful implementation evidence but not an independent proof of ISA correctness.",
+      "evidence": "The suite has 42 opcode tests, 19 cross-head writeback tests, and 50 compiled-C tests, all passing, with loops up to 1,000 steps. The comparison oracle is an author-written interpreter for the same ISA and compiled programs; shared compiler/specification mistakes, untested address ranges, and invalid preconditions can agree in both paths.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 13, "section": "11 Deployment interpreter verification"},
+        {"page": 14, "section": "11 sparse engine validation"},
+        {"page": 15, "section": "12.1 Validation"}
+      ]
+    },
+    {
+      "claim": "The FPGA result demonstrates synthesis and one real-hardware instruction, not end-to-end hardware validation of the computer.",
+      "evidence": "The only reported real-hardware functional test is INC changing mem[0] from 5 to 6 and PC from 192 to 193. The kernel meets 300 MHz but takes about 0.3 seconds per transformer step, around 30 times slower than the approximately 10 ms RTX 4080 WebGPU result; no 111-test, Sudoku, Snake, or raycasting FPGA result is reported.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 14, "section": "11.1 FPGA Results"},
+        {"page": 15, "section": "13 Conclusion hardware-platform claim"},
+        {"page": 16, "section": "13 safety-critical real-time motivation"}
+      ]
+    },
+    {
+      "claim": "The top-2 argmax replacement removes attention-matrix storage but is not mathematically bit-identical to finite-temperature softmax in general.",
+      "evidence": "The hardware rule gives the winner full weight unless the top-two score gap is under 1.0, when it splits 50/50. Finite lambda=10 softmax assigns nonzero mass to every column and varies continuously with all score gaps. Equality is reported only after execution on tested programs; no theorem shows equivalence for every valid state or malformed intermediate.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "3.2 softmax temperature"},
+        {"page": 14, "section": "11.1 Argmax Attention"},
+        {"page": 15, "section": "13 Conclusion top-2 claim"}
+      ]
+    },
+    {
+      "claim": "The paper does not empirically normalize its depth reduction against direct programmable-computer baselines.",
+      "evidence": "Section 6 counts four saved layers relative to the prior SUBLEQ construction, but Loom also adds attention heads, a wide opcode-gated FFN, position-dependent bias matrices, correction logic, and larger state machinery. No matched parameter, nonzero-operation, latency, energy, numerical-margin, or program-suite comparison is reported against Giannou et al., looped ReLU MLPs, Tracr, or ALTA.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 2, "section": "2 Related Work"},
+        {"page": 8, "section": "6 Layer Reduction from the Baseline"},
+        {"page": 12, "section": "8 L2 FFN Row Budget and 9 Model Properties"},
+        {"page": 15, "section": "12.1 Validation"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Hard-code a small computer's routing, arithmetic, memory access, and branching into sparse transformer weights, put compiled instructions and mutable state in the input tensor, and loop the same eight-layer block once per ISA instruction.",
+    "mechanism": "Symmetric attention matches bipolar addresses, positions, or contents to fetch instructions and operands. An opcode-gated FFN rewrites every operation into minuend and subtrahend registers; one six-threshold ReLU borrow-chain layer subtracts them. Attention writes results, FFNs update/select the program counter, and correction layers restore near-bipolar values. STORE rewrites a write address for indirection; a C-subset compiler emits three-address instruction columns.",
+    "assumptions": [
+      "n is a power of two and ell=log2(n); all configurations have fixed n, N, scratch, memory, and instruction budgets.",
+      "Mutable memory and PC values arrive close enough to exact bipolar values for the local correction maps to recover them.",
+      "Finite-temperature softmax has a sufficient winner margin at every legal attention lookup for every executed step.",
+      "The bit representing 32 is treated as a valid proxy for a at least 32, although this fails beyond address 63.",
+      "FIND values are unique at runtime and LOAD/STORE pointers lie in the configured logical-memory range.",
+      "N-bit modular two's-complement arithmetic and raw unsigned pointer interpretation match source-program intent.",
+      "MULACC's repeated in-place recurrence is used only when the non-negative product fits in N bits; the paper does not state this precondition.",
+      "The restricted C compiler and the ISA interpreter faithfully implement the intended language semantics.",
+      "Recompiling addresses and reconstructing weights for each size is acceptable under the scale-independent architecture claim.",
+      "Tests using author-written compiler, interpreter, and transformer are sufficient evidence for deployment outside the tested state space."
+    ]
+  },
+  "techniques": [
+    {"id": "analytical-transformer-weight-construction", "role": "Encodes routing, gates, thresholds, and arithmetic directly without gradient training."},
+    {"id": "bipolar-bit-state", "role": "Makes Boolean pattern matching and sign-dependent ReLU gates simple linear thresholds."},
+    {"id": "symmetric-content-addressing", "role": "Uses common query/key projections to match PC-to-position, address-to-position, and value-to-memory content."},
+    {"id": "opcode-as-operand-routing", "role": "Maps 22 instruction semantics into inputs for one shared subtraction core."},
+    {"id": "six-threshold-borrow-chain", "role": "Computes every subtraction result bit in one FFN layer from weighted suffix differences."},
+    {"id": "indirect-write-address-rewriting", "role": "Implements STORE by replacing a direct write address with a dereferenced pointer before the existing write head."},
+    {"id": "local-bipolar-error-correction", "role": "Snaps numerical outputs near plus or minus one between routing/arithmetic stages and after each instruction."},
+    {"id": "top-two-argmax-attention", "role": "Avoids an explicit n-by-n softmax matrix on FPGA and splits exact/near ties."},
+    {"id": "c-subset-to-isa-compiler", "role": "Lowers fixed-width control flow and arrays to program-independent transformer state."},
+    {"id": "sparse-nonzero-execution", "role": "A JavaScript engine evaluates roughly 8,000 nonzero weights instead of dense matrices."},
+    {"id": "onnx-graph-precomputation", "role": "Simplifies exports and precomputes K-transpose-Q products for browser execution."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Exact N=8 arithmetic core under exact bipolar inputs",
+      "metric": "Exhaustive input-pair correctness",
+      "result": "All 2^16=65,536 subtraction pairs are reported correct.",
+      "baseline": "Three-layer bit-flip, increment, and addition construction replaced by one six-threshold layer."
+    },
+    {
+      "setting": "Software opcode-level validation",
+      "metric": "Unit tests passed",
+      "result": "42 of 42 tests pass across 22 opcodes, including selected signs, zero, overflow, branches, valid pointers, and SUBLEQ countdown loops.",
+      "baseline": "Author-written expected outputs and ISA interpreter."
+    },
+    {
+      "setting": "Cross-head memory-write interactions",
+      "metric": "Regression tests passed",
+      "result": "19 of 19 SWAP and multi-write tests pass.",
+      "baseline": "ISA interpreter/direct expected state."
+    },
+    {
+      "setting": "Restricted-C programs including Fibonacci, GCD, arrays, nested conditions, LOAD/STORE, and loops",
+      "metric": "End-to-end tests and maximum tested execution length",
+      "result": "50 of 50 compiled tests pass; reported loops reach up to 1,000 ISA steps.",
+      "baseline": "Author-written ISA interpreter on the same compiled programs."
+    },
+    {
+      "setting": "9x9 iterative-backtracking Sudoku solver",
+      "metric": "Compiled instruction count and required configuration",
+      "result": "STORE version uses 284 instructions and fits 146x512 with 160 memory slots and 320 instruction slots.",
+      "baseline": "Without STORE, 1,085 instructions on 164x2048; about 75% are variable-index dispatch trees."
+    },
+    {
+      "setting": "Three supported fixed state sizes",
+      "metric": "Model dimension, capacity, and exported ONNX size",
+      "result": "146x512: 320 instruction slots and 7.4 MB; 155x1024: 928 slots and about 16 MB; 164x2048: 1,792 slots and about 29 MB.",
+      "baseline": "Same eight-stage template and compiler, but weights and binaries are rebuilt for each s,m,n."
+    },
+    {
+      "setting": "Default 155x1024 analytical model",
+      "metric": "Dense parameter slots, sparsity, and value vocabulary",
+      "result": "Approximately 4.7 million parameters; 99.9% of entries zero; nonzeros use 27 distinct values.",
+      "baseline": "Dense ONNX execution versus a sparse JavaScript engine using roughly 8,000 nonzero entries."
+    },
+    {
+      "setting": "Xilinx Alveo U200 synthesis of 155x1024 top-2 argmax model",
+      "metric": "Resources, clock, and real-hardware functional test",
+      "result": "About 160/960 URAM, 224/2,160 BRAM, 38K LUTs, 24K flip-flops, no DSPs, 300 MHz; one INC test changes 5 to 6 and PC 192 to 193.",
+      "baseline": "No full-suite FPGA run; softmax software path is reported bit-identical on tested programs after the top-2 replacement."
+    },
+    {
+      "setting": "Per-instruction deployment latency",
+      "metric": "Wall-clock seconds per eight-layer transformer step",
+      "result": "About 0.3 seconds on the sequential all-LUT U200 kernel.",
+      "baseline": "About 10 ms per step on an RTX 4080 via ONNX Runtime WebGPU, a roughly 30-fold FPGA slowdown."
+    },
+    {
+      "setting": "Interactive demonstrations",
+      "metric": "Compiled size and executed steps per update",
+      "result": "Bubble sort about 50 instructions; Snake 210 instructions and about 84 steps/tick; raycasting 531 instructions and about 500 steps/tick; Sudoku 284 instructions.",
+      "baseline": "No runtime/energy comparison to native code, the ISA interpreter, or prior neural-computer architectures."
+    }
+  ],
+  "limitations": [
+    "Author-stated: FIND is defined only for a search value occurring exactly once; duplicates and misses have undefined mixed/nearest-match behavior.",
+    "Author-stated: LOAD and STORE pointers must be valid raw unsigned memory indices; out-of-range values redirect attention unpredictably.",
+    "Author-stated: each configuration has finite memory and instruction capacity, and binaries must be recompiled when s,m,n change.",
+    "Author-stated: the compiler supports a subset of C with fixed-width integers, fixed-size arrays, and single-level inlining.",
+    "Reviewer-identified: the 32-bit mode detector misclassifies valid SUBLEQ addresses at 64-95 in the default configuration and many addresses in larger memories.",
+    "Reviewer-identified: MULACC's product statement omits a no-overflow condition; the published N=8 recurrence maps 4 times 64 to 64 rather than the wrapped result 0.",
+    "Reviewer-identified: only the subtraction core has an exact proof; the softmax, routing, correction, and recurrent composition lack a global numerical correctness bound.",
+    "Reviewer-identified: fixed n,N machines are finite-state and do not inherit unbounded Turing computation merely from SUBLEQ's abstract universality.",
+    "Reviewer-identified: the 111 tests and shared interpreter/compiler oracle can miss common-mode specification and address-range bugs.",
+    "Reviewer-identified: FPGA validation covers only INC and is about 30 times slower per instruction than the reported RTX path.",
+    "Reviewer-identified: depth comparisons omit matched width, parameter, nonzero-operation, latency, and numerical-margin baselines.",
+    "Reviewer-identified: n-dependent per-column bias matrices make the construction less standard and less length-portable than the phrase transformer architecture suggests.",
+    "Reviewer-identified: deterministic integration with a learned perception model and the claimed safety-critical benefit are proposed but never evaluated."
+  ],
+  "failure_modes": [
+    "A SUBLEQ instruction whose a operand is 64-95 in the default memory has its 32 bit clear and can enter neither the intended extended opcode nor correct SUBLEQ route.",
+    "An overflowing MULACC multiplication can diverge from ordinary N-bit wraparound because additions perturb the remaining multiplier-bit stream; for N=8, 4 times 64 finishes at 64 rather than 0.",
+    "Duplicate FIND values average bipolar address tags, potentially producing a nonexistent or wrong index after snapping.",
+    "A missing FIND target selects the closest content rather than signaling failure.",
+    "An out-of-range LOAD or STORE pointer can read or overwrite a scratch, instruction, or otherwise unintended column.",
+    "Softmax leakage or floating-point rounding outside the correction deadzone can survive a stage and compound across recurrent steps.",
+    "The top-2 heuristic can differ from softmax for non-tie gaps because softmax retains mass on every column.",
+    "Programs exceeding fixed instruction/memory budgets cannot run without rebuilding the machine and recompiling addresses.",
+    "N-bit overflow and signed-arithmetic conventions can differ from source-level expectations, especially when values are also interpreted as unsigned pointers.",
+    "Unsupported C features or deep function composition cannot be compiled by the described front end.",
+    "At 0.3 seconds per hardware instruction, multi-hundred-step interactive programs are not real-time on the demonstrated FPGA design."
+  ],
+  "reusable_insights": [
+    "A richer ISA can reduce total neural-computer size: one indirect-write primitive eliminated hundreds of dispatch instructions and enabled a smaller substrate.",
+    "Route many discrete operations into a shared arithmetic primitive to trade depth for structured decode width.",
+    "Piecewise-linear threshold identities can collapse multi-layer bit arithmetic when inputs are exactly discrete.",
+    "Separate the architectural template from program state so one weight set can execute many binaries within a fixed capacity.",
+    "Exploit analytically induced sparsity and small coefficient vocabularies rather than deploying the dense parameter representation literally.",
+    "Validate mode predicates over the entire numeric address range; testing a boundary bit is not the same as testing an inequality.",
+    "For exact-computation claims, prove attention margins and recurrent error invariants in addition to proving the local arithmetic circuit.",
+    "Keep semantic validation independent of the compiler and ISA implementation under test, and include invalid-state/property-based cases."
+  ],
+  "open_questions": [
+    "Can the SUBLEQ mode predicate be replaced with a correct a-at-least-s threshold or OR over all higher address bits, followed by exhaustive address/opcode tests?",
+    "Can MULACC be given an explicit representable-range precondition or redesigned and exhaustively checked to provide well-defined N-bit overflow semantics?",
+    "What finite-precision margin and recurrent invariant suffice to prove the complete eight-layer softmax machine correct for a bounded number of steps?",
+    "Can hard or exact attention replace softmax without changing the claimed transformer model, and can equivalence to top-2 attention be proved?",
+    "Does the full 111-test suite, Sudoku, or raycasting run correctly on the FPGA rather than only INC?",
+    "How do layer count, nonzero operations, energy, memory, and latency compare at matched programs with the Giannou transformer, looped ReLU MLP, Tracr, and ALTA?",
+    "Can position-independent broadcast biases and relative addressing make one set of weights and binaries portable across n?",
+    "What independent formal semantics and property-based test generator would expose common-mode compiler/interpreter errors?",
+    "Can a learned perception front end interact with Loom state without destroying bipolar numerical invariants or safety guarantees?",
+    "What ISA changes minimize end-to-end dynamic instruction count rather than transformer depth alone?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2301.13196",
+      "title": "Looped Transformers as Programmable Computers",
+      "url": "https://arxiv.org/abs/2301.13196v1",
+      "relationship": "Closest foundational programmable-transformer construction.",
+      "difference": "Giannou et al. program a frozen looped transformer as a punchcard computer and provide the SUBLEQ-style baseline; Loom adds 21 extended opcodes, a C-subset compiler, direct one-layer subtraction, browser artifacts, and FPGA synthesis, while inheriting the same need to control finite-precision routing.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2301.13196v1 (2023-01-30)"
+    },
+    {
+      "canonical_id": "arxiv:2402.01107",
+      "title": "Simulation of Graph Algorithms with Looped Transformers",
+      "url": "https://arxiv.org/abs/2402.01107v3",
+      "relationship": "Analytical looped-transformer algorithm simulator.",
+      "difference": "It augments looped transformers with graph-interaction heads and proves constructions for Dijkstra, BFS, DFS, and strongly connected components, including an explicit finite-precision limitation; Loom targets a general finite ISA and concrete C/browser/hardware deployment but provides less complete-system proof.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2402.01107v3 (2024-10-01)"
+    },
+    {
+      "canonical_id": "arxiv:2410.09375",
+      "title": "Looped ReLU MLPs May Be All You Need as Practical Programmable Computers",
+      "url": "https://arxiv.org/abs/2410.09375v2",
+      "relationship": "Attention-free programmable neural-computer competitor.",
+      "difference": "It constructs a 23-layer looped ReLU MLP for programmable computation without attention; Loom uses attention for random-access routing and reduces depth to eight through a wide opcode decoder and shared subtract core, but does not compare matched nonzero work or latency.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2410.09375v2 (2025-02-20)"
+    },
+    {
+      "canonical_id": "arxiv:2410.18077",
+      "title": "ALTA: Compiler-Based Analysis of Transformers",
+      "url": "https://arxiv.org/abs/2410.18077v2",
+      "relationship": "Direct program-to-transformer compiler competitor.",
+      "difference": "ALTA compiles each high-level symbolic program, including loops, into Universal Transformer weights and studies length-invariant algorithms and learnability; Loom fixes weights to an ISA, compiles restricted C into state columns, and emphasizes reusable binaries and deployment.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2410.18077v2 (2025-06-19)"
+    },
+    {
+      "canonical_id": "arxiv:2301.05062",
+      "title": "Tracr: Compiled Transformers as a Laboratory for Interpretability",
+      "url": "https://arxiv.org/abs/2301.05062v5",
+      "relationship": "Analytical compiler-to-weights predecessor.",
+      "difference": "Tracr compiles individual RASP programs such as sorting and parenthesis checking into standard decoder-only transformer weights for mechanistic ground truth; Loom instead hard-codes an interpreter-like ISA once and places each program in mutable state.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2301.05062v5 (2023-11-03)"
+    },
+    {
+      "canonical_id": "arxiv:2407.03310",
+      "title": "Universal Length Generalization with Turing Programs",
+      "url": "https://arxiv.org/abs/2407.03310v1",
+      "relationship": "Universal algorithm execution and length-generalization competitor.",
+      "difference": "Turing Programs expose text-like step traces and prove a RASP simulation of arbitrary Turing machines while empirically training transformers to generalize in length; Loom executes a concrete fixed-width binary state recurrently and does not establish unbounded length generalization.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2407.03310v1 (2024-07-03)"
+    },
+    {
+      "canonical_id": "arxiv:2511.20038",
+      "title": "Softmax Transformers are Turing-Complete",
+      "url": "https://arxiv.org/abs/2511.20038v1",
+      "relationship": "Formal softmax-computation comparator.",
+      "difference": "It proves Turing completeness for length-generalizable softmax chain-of-thought transformers under specified language and positional-encoding conditions; Loom uses a finite fixed tensor and approximate content addressing, so that theorem does not supply Loom's missing recurrent numerical guarantee.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2511.20038v1 (2025-11-25)"
+    },
+    {
+      "canonical_id": "arxiv:2506.12027",
+      "title": "Constant Bit-size Transformers Are Turing Complete",
+      "url": "https://arxiv.org/abs/2506.12027v2",
+      "relationship": "Formal constant-precision universality comparator.",
+      "difference": "Li and Wang prove a constant-bit-size transformer can simulate arbitrary Turing machines when context length grows sufficiently and characterize its space complexity; Loom changes ell and d with n and fixes context/state per deployed machine, prioritizing an executable finite computer over an unbounded theorem.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2506.12027v2 (2025-09-28)"
+    },
+    {
+      "canonical_id": "arxiv:2502.16763",
+      "title": "Learning to Add, Multiply, and Execute Algorithmic Instructions Exactly with Neural Networks",
+      "url": "https://arxiv.org/abs/2502.16763v4",
+      "relationship": "Exact neural instruction-execution competitor.",
+      "difference": "It proves high-probability learnability of binary permutation, addition, multiplication, and SBN using ensembles of trained two-layer networks in the infinite-width NTK regime; Loom analytically constructs one finite recurrent machine with a broader ISA and systems artifacts, but exactness beyond its local subtractor is empirical.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2502.16763v4 (2026-01-30)"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The author claims a 22-opcode, eight-layer analytically weighted transformer computer; opcode-as-operand-routing; one-layer direct subtraction; indirect STORE; a C compiler; size-portable configurations; browser execution; and FPGA synthesis.",
+    "evidence": "The paper specifies the entire state layout and eight stages, proves the exact bipolar subtraction circuit, documents every opcode, reports 111 passing software tests, and supplies concrete ONNX, sparse-JavaScript, compiler, demo, and U200 artifacts. STORE reduces Sudoku from 1,085 to 284 instructions and permits a 7.4 MB 146x512 export instead of 29 MB 164x2048.",
+    "reviewer_inference": "The strongest novelty is the practical ISA/systems co-design: routing many opcodes through one subtract core and adding STORE to shrink the physical neural substrate. It is meaningfully different from program-specific weight compilers and single-instruction looped computers. Claims of exact, safety-critical, or scale-independent computation need substantial narrowing: the published SUBLEQ mode predicate has a valid-address counterexample, softmax/recurrent correctness lacks a global proof, each machine is finite and recompiled by size, the oracle shares semantics, and FPGA validation is one slow INC step. The artifact is an interesting finite analytical computer, not yet a proved general-purpose or safety-certified one."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Primary review plus an independent secondary verification of all 17 pages of arXiv:2604.08816v1, including both propositions and the subtraction proof, every pipeline and opcode subsection, row budgets, deployment details, FPGA resources/results, demonstrations, validation counts, and all references. Provenance exactly matches the indexed export PDF and extracted text. PDF renders independently confirmed the single-bit SUBLEQ predicate, address convention, MULACC recurrence, FPGA claims, and stated test scope. The decisive address counterexample follows from the paper itself: testing the 32 bit cannot implement a>=32 over valid addresses such as 64. Reviewer simulation additionally narrows MULACC correctness to non-overflowing products. Negative and omitted evidence includes no invalid-pointer/FIND test report, no full-address SUBLEQ coverage, no stated MULACC overflow semantics, no matched programmable-computer baseline, no full FPGA suite, a 30x FPGA slowdown, and no learned-model integration. Nine competitors were rechecked at exact current arXiv versions on 2026-08-23. Abstract SUBLEQ universality is not treated as unbounded computation in fixed n,N, nor interpreter agreement as independent formal verification.",
+  "verification": {
+    "reviewer_id": "reviewer-271c217e9ebb",
+    "checked_at": "2026-08-23",
+    "passage_check": "Independently re-read and checked all 17 physical pages of arXiv:2604.08816v1 against the exact indexed PDF/text hashes, including Equations 1-11, Propositions 1-2 and the full borrow-chain proof, Tables 1-4, every stage L1-L8, all 22 opcode definitions, compiler scope, three configurations, ONNX/sparse/FPGA paths, four demonstrations, the 111-test breakdown, and all references. Rendered pages 6, 9, 11-12, and 14-15 confirmed the constructive a=64 SUBLEQ-mode counterexample, MULACC wording, row budget, one-INC-only FPGA evidence, top-2 heuristic, and validation limits; exhaustive reviewer simulation confirmed MULACC for fitting non-negative 8-bit products but found the published overflow counterexample 4 times 64 -> 64 instead of wrapped 0.",
+    "competitor_check": "Re-searched official arXiv primary records through 2026-08-23 and verified titles, current versions, dates, method scope, and direct novelty relationships for nine competitors: 2301.13196v1, 2402.01107v3, 2410.09375v2, 2410.18077v2, 2301.05062v5, 2407.03310v1, 2511.20038v1, 2506.12027v2, and 2502.16763v4. All competitor URLs now pin those exact versions, and theoretical universality papers were kept distinct from fixed-state executable-system competitors."
+  }
+}

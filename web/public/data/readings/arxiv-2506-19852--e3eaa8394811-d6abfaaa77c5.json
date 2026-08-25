@@ -1,0 +1,906 @@
+{
+  "stable_id": "arxiv:2506.19852",
+  "reading_depth": "verified",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2506.19852",
+    "pdf_sha256": "43375b7ef5bad7ddd4ff5a1a2667f706f06c923e844be8373f26d45073c2475b",
+    "text_sha256": "778b96f577b0fb2464f1c2686cd3fd8026022bd11561f9c173ff625096ef1c22",
+    "page_count": 25,
+    "extracted_at": "2026-08-23T16:23:15.243792+00:00",
+    "review_pass": "secondary-verified-v1"
+  },
+  "question": "Does a static sparse mask whose spatial width and temporal density decay geometrically provide a faithful O(n log n) replacement for dense 3D attention in long-video diffusion, and do the theory, experiments, and released implementation support the claimed quality, scaling, and reproducibility?",
+  "key_findings": [
+    {
+      "claim": "Radial Attention converts an observed average spatiotemporal decay pattern into one static, block-friendly mask shared across inputs, layers, heads, and denoising steps.",
+      "evidence": "The method assigns frame pairs to logarithmic temporal-distance bands, halves compute density in successive bands, narrows the within-frame-pair diagonal with distance, sparsely retains diagonals after the nominal width falls below one, and adds a first-frame attention sink. Unlike SVG and online top-p methods, it does not profile the current input.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "Sections 4.1-4.2"},
+        {"page": 6, "section": "Figure 5 and Equation 4"}
+      ]
+    },
+    {
+      "claim": "The empirical premise is much weaker than the pointwise decay condition later used by the theorem.",
+      "evidence": "Figure 4 shows two selected HunyuanVideo attention maps and average post-softmax scores over an unspecified number of random maps, heads, and diffusion steps. Section 5.3 fits exponentials only to these average curves and reports R-squared above 0.985. No per-query, per-head, per-layer, per-prompt, or cross-model distribution is reported, and no values or uncertainty for alpha, beta, or C_rel are estimated.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Section 4.1"},
+        {"page": 5, "section": "Figure 4 and Equation 3"},
+        {"page": 10, "section": "Section 5.3 and Figure 8b"}
+      ]
+    },
+    {
+      "claim": "The formal mask retains full central frame bands, distance-dependent token-index diagonals, subsampled far-frame diagonals, and an all-to-first-frame sink.",
+      "evidence": "Equation 4 permits a token pair when the distance band has width at least one and the flattened token indices lie within the corresponding diagonal, or when the far-frame modular rule holds and k equals l. The surrounding prose adds a first-frame sink not present in the displayed piecewise equation; Appendix A.1 defines that sink explicitly as j equals zero.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "Section 4.2, Equation 4"},
+        {"page": 16, "section": "Appendix A.1, Equations 8-9"}
+      ]
+    },
+    {
+      "claim": "The O(n log n) complexity statement is a frame-length asymptotic with fixed spatial resolution, not a joint high-resolution-and-duration guarantee.",
+      "evidence": "The derived retained-entry bound is 4s n(log2 n minus log2 s), where s is tokens per frame and n equals fs. The paper explicitly states the result for large frame count f with fixed resolution. Thus the hidden factor grows with spatial token count and the method remains quadratic in s when resolution grows at fixed frame count.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "Section 4.2, Equations 5-6"},
+        {"page": 16, "section": "Appendix A.1"},
+        {"page": 17, "section": "Appendix A.1, Equation 17"}
+      ]
+    },
+    {
+      "claim": "The approximation theorem assumes a uniform pointwise exponential upper bound relative to each query token's self-attention score.",
+      "evidence": "Assumption A1 requires every unnormalized attention entry a_j,l to be at most C_rel exp(-alpha temporal distance - beta flattened-index distance) times the self entry a0, for positive constants applying to the whole row. It also extends time to an infinite grid. The resulting total-variation claim is therefore conditional and can be vacuous when C_rel is large.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 17, "section": "Appendix A.2, Assumptions A1-A2"},
+        {"page": 18, "section": "Appendix A.2, Equations 3-4"}
+      ]
+    },
+    {
+      "claim": "Appendix A.2 contains a decisive false inequality, so Equation 3 in the proof and the final exponential error bound do not follow.",
+      "evidence": "The proof defines w(delta t) as s divided by 2 raised to floor(log2 max(delta t,1)), then asserts w(delta t) is at least s/2 whenever delta t is at most s. This is false: for s=16 and delta t=8, w=2, which is below 8; for a power-of-two delta t=s, w=1. More strongly, with s=64, alpha=beta=C_rel=a0=1 and one discarded mass exp(-17) at temporal offset 8 and spatial offset 9, the actual L1 softmax error approaches 8.28e-8 while the boxed RHS is 9.33e-14, smaller by about 8.88e5. The stated theorem is therefore violated, not merely unproved.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 17, "section": "Appendix A.2, Mask geometry"},
+        {"page": 18, "section": "Appendix A.2, Equations 3-4 and total-variation bound"}
+      ]
+    },
+    {
+      "claim": "Under Assumption A1, the mask generally supports only a stretched-exponential rather than exponential-in-s tail rate.",
+      "evidence": "For temporal offsets between one and s, the dyadic width satisfies only w(t) at least s/t up to constants, leaving a discarded-mass sum shaped like sum_t exp(-alpha t-beta s/t). Its saddle occurs near t=sqrt(beta s/alpha), giving exp(-Theta(sqrt(s))); admissible mass near that location matches this scale. An exp(-Theta(s)) bound requires a materially stronger assumption or a different mask.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 17, "section": "Appendix A.2, mask geometry and Assumption A1"},
+        {"page": 18, "section": "Appendix A.2, Equations 3-4"}
+      ]
+    },
+    {
+      "claim": "The theorem analyzes a different boundary from Equation 4 and omits a discarded shell.",
+      "evidence": "Equation 4 retains a pair only when |k-l|+1 is at most w, so the kept integer distances satisfy d at most w-1. Appendix A.2 instead treats d at most w as kept and sums only d greater than w, omitting the entire d=w shell. It also says w belongs to {1,2,4,...,s}, which fails for non-power-of-two s and after temporal distance exceeds s, where the displayed formula gives w below one.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Section 4.2, Equation 4"},
+        {"page": 17, "section": "Appendix A.2, mask geometry"}
+      ]
+    },
+    {
+      "claim": "The infinite-grid extension in Assumption A2 is not justified for normalized attention probabilities.",
+      "evidence": "The real model has a finite frame interval, but A2 redefines both dense and masked softmax distributions on all integer frames and says this only enlarges sums. Adding keys also changes both normalizers, so it does not monotonically enlarge the normalized L1 error as claimed. One could extend only an unnormalized numerator envelope, but that is not the proof written in the paper.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 17, "section": "Appendix A.2, Assumption A2"},
+        {"page": 18, "section": "Appendix A.2, total-variation derivation"}
+      ]
+    },
+    {
+      "claim": "The reported regression does not validate the theorem's assumptions or repair the proof.",
+      "evidence": "An R-squared above 0.985 for a mean curve can coexist with individual rows that have remote high-attention blocks, head-specific stripes, scene cuts, or sinks. Figure 8's printed temporal exp(-1.91x-9.05) and spatial exp(-0.53x-9.14) formulas predict tails roughly 12 and 8 orders below the visibly plateauing fitted curves, respectively, suggesting an unreported floor or a wrong displayed fit. The paper never tests the maximum normalized residual required by A1, never reports C_rel, and evaluates attention-output MSE only as three unreplicated point values.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "Figure 4"},
+        {"page": 10, "section": "Section 5.3"},
+        {"page": 17, "section": "Appendix A.2, Assumption A1"}
+      ]
+    },
+    {
+      "claim": "At default length on HunyuanVideo, Radial Attention is close to SVG in both quality and latency but does not dominate it.",
+      "evidence": "Table 1 reports Radial at PSNR 27.3, SSIM 0.886, LPIPS 0.114, VisionReward 0.139, 339 PFLOPs, and 876 seconds, versus SVG at 27.2, 0.895, 0.114, 0.144, 340 PFLOPs, and 867 seconds. STA is faster at 719 seconds but has worse similarity. The dense model's VisionReward is 0.141.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "Table 1"},
+        {"page": 9, "section": "Section 5.2"}
+      ]
+    },
+    {
+      "claim": "At default length on Wan2.1-14B, Radial improves the selected similarity metrics over the sparse baselines but remains below dense VisionReward.",
+      "evidence": "Table 1 reports Radial at PSNR 23.9, SSIM 0.842, LPIPS 0.163, VisionReward 0.128, 323 PFLOPs, and 917 seconds. Dense VisionReward is 0.136; STA is 812 seconds with VisionReward 0.132; SVG is 949 seconds with VisionReward 0.114.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "Table 1"}
+      ]
+    },
+    {
+      "claim": "PSNR, SSIM, and LPIPS in Table 1 measure similarity to dense-model outputs, not independent video quality.",
+      "evidence": "The setup explicitly defines these metrics as numerical or perceptual differences from original-model outputs. Matching one stochastic generator's output under a common seed can audit approximation fidelity, but it does not show that either output is more realistic, temporally coherent, or preferred by humans.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 7, "section": "Section 5.1, Benchmarks"},
+        {"page": 9, "section": "Section 5.2"}
+      ]
+    },
+    {
+      "claim": "Long-video adaptation uses small, length-specific OpenVid subsets and rank-128 attention LoRA on eight H100s.",
+      "evidence": "For each extended length the authors select 2,000 videos with high aesthetic and motion scores, apply LoRA to Q, K, V, and output projections, and train HunyuanVideo for 2,400 or 1,200 steps, Mochi 1 for 5,000 steps, and Wan2.1-14B for 2,500 steps. Global batch size is one for Hunyuan and Mochi and eight for Wan.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "Section 4.3"},
+        {"page": 8, "section": "Section 5.1, Implementation details"},
+        {"page": 18, "section": "Appendix B"}
+      ]
+    },
+    {
+      "claim": "For 2x Hunyuan length, Radial gives the best reported VisionReward and aesthetic score among the listed fine-tuned methods, but differences are small and metric-specific.",
+      "evidence": "At 253 frames, Radial reports 16.2 training hours, 339-second inference, VisionReward 0.126, and VBench subject/aesthetic/imaging scores 0.968/0.623/0.663. Dense full tuning reports 45.0 hours, 797 seconds, 0.124, and 0.955/0.616/0.648; RIFLEx gives the highest subject score, 0.969, without training.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "Table 2"}
+      ]
+    },
+    {
+      "claim": "For 4x Hunyuan length, the quality case is mixed rather than a clear dense-attention win.",
+      "evidence": "At 509 frames, Radial reports VisionReward 0.134 versus 0.133 for full fine-tuning and 0.130 for dense LongLoRA. Radial has the best aesthetic score, 0.623, while LongLoRA has the best imaging score, 0.689, and RIFLEx has the best subject score, 0.989 despite low VisionReward. No uncertainty is given for the 0.001 VisionReward margin.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Table 2"},
+        {"page": 10, "section": "Figure 8a and Section 5.3"}
+      ]
+    },
+    {
+      "claim": "For 2x Mochi length, Radial improves VisionReward but does not uniformly lead VBench dimensions.",
+      "evidence": "At 331 frames, Radial reports 8.43 training hours, 185-second inference, VisionReward 0.110, and VBench 0.951/0.615/0.602. LongLoRA has higher imaging quality at 0.630, PA has imaging 0.626, and full tuning has aesthetic 0.610 and imaging 0.594.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "Table 2"}
+      ]
+    },
+    {
+      "claim": "For 4x Mochi length, PA is competitive with or better than Radial on two of the three VBench dimensions.",
+      "evidence": "At 667 frames, Radial reports VisionReward 0.113 and VBench 0.958/0.618/0.638, while PA reports 0.107 and 0.956/0.633/0.650. Radial is faster than dense full attention but not faster than the other sparse patterns at equal reported sparsity.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Table 2"}
+      ]
+    },
+    {
+      "claim": "On 2x Wan length, dense full fine-tuning beats Radial on VisionReward and imaging quality.",
+      "evidence": "At 161 frames, full tuning reports VisionReward 0.150 and VBench imaging quality 0.689, compared with Radial at 0.145 and 0.677. Radial is better on subject consistency and aesthetic quality and cuts training from 28.0 to 14.5 hours and inference from 5,735 to 2,847 seconds. No other sparse baseline is shown for Wan extended length.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Table 2"},
+        {"page": 25, "section": "Figure E"}
+      ]
+    },
+    {
+      "claim": "The headline 4.4x training-cost reduction conflates sparse attention with parameter-efficient fine-tuning.",
+      "evidence": "The 4.37x Hunyuan 4x figure divides 93.6 hours of dense full-parameter tuning by 21.4 hours of Radial LoRA. Against the much closer dense-attention LongLoRA baseline, Radial is slightly slower, 21.4 versus 20.9 hours, while VisionReward differs by 0.004. The claimed saving therefore does not isolate the sparse mask's training benefit.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract"},
+        {"page": 8, "section": "Table 2"},
+        {"page": 10, "section": "Section 5.2 and Figure 8"}
+      ]
+    },
+    {
+      "claim": "The wall-clock results mix kernels and device counts, so they are deployment measurements rather than pure algorithm comparisons.",
+      "evidence": "Table 1 uses a single H100 and gives STA a FlashAttention-3 backend while Radial uses FlashAttention-2; the authors acknowledge this. Long-video inference uses eight H100s for Hunyuan and Mochi but one H100 for Wan. Within-row speedups remain useful, but numbers across tables or model families are not directly comparable.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 7, "section": "Table 1"},
+        {"page": 8, "section": "Section 5.1, Implementation details"},
+        {"page": 9, "section": "Section 5.2"}
+      ]
+    },
+    {
+      "claim": "The paper does not disclose the evaluation sample size, prompt set, seed count, repetitions, train-evaluation overlap checks, or uncertainty.",
+      "evidence": "The source names metrics and training data but gives no evaluation n, prompt provenance, random seeds, number of videos per prompt, repeated runs, standard deviations, confidence intervals, significance tests, or human preference study. All table entries and ablations are point estimates.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Section 5.1"},
+        {"page": 8, "section": "Table 2 and Implementation details"},
+        {"page": 19, "section": "Tables A-B"},
+        {"page": 20, "section": "Tables C-D"}
+      ]
+    },
+    {
+      "claim": "The qualitative appendix is a selected showcase and cannot validate long-range motion.",
+      "evidence": "Figures A and B each show four prompts with five sampled still frames; Figures C and D show two prompts each; Figure E shows four; Figure F shows one style-LoRA prompt. Stills do not expose looping, freezes, flicker, motion deceleration, or rare failures, and the selection protocol is not stated.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 21, "section": "Figure A"},
+        {"page": 22, "section": "Figure B"},
+        {"page": 23, "section": "Figure C"},
+        {"page": 24, "section": "Figure D"},
+        {"page": 25, "section": "Figures E-F"}
+      ]
+    },
+    {
+      "claim": "The attention-fidelity and exponential-fit analyses are unreplicated point summaries.",
+      "evidence": "Section 5.3 reports average attention-output MSE of 3.9e-3 for Radial, 4.4e-3 for SVG, and 1.5e-2 for STA, plus R-squared above 0.985 for the average decay fits. It does not state the number of rows, videos, heads, layers, timesteps, seeds, or variance, and does not connect the MSE difference to perceptual effect.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "Section 5.3"}
+      ]
+    },
+    {
+      "claim": "Warmup and dense-layer choices are selected from narrow point-estimate ablations.",
+      "evidence": "For default Wan, 12 dense steps is best among 0, 4, 8, 11, 12, and 13, but 13 is close and has higher VisionReward in the displayed full version. For 4x Hunyuan, three dense steps gives the highest VisionReward in the warmup-step and dense-layer tables, while the chosen two-step/two-layer setting gives the best reported subject and aesthetic scores. No replicate uncertainty supports a unique optimum.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 19, "section": "Table B"},
+        {"page": 20, "section": "Tables C-D"}
+      ]
+    },
+    {
+      "claim": "The paper contradicts itself on how many initial DiT blocks stay dense.",
+      "evidence": "Section 5.1 says the first DiT block remains dense, while Appendix B says the first two DiT blocks remain dense during long-video fine-tuning. The public default Hunyuan inference script instead sets dense_layers to zero, and the Wan script sets it to one.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Section 5.1, Implementation details"},
+        {"page": 18, "section": "Appendix B"}
+      ]
+    },
+    {
+      "claim": "Default-length definitions drift across the evaluation.",
+      "evidence": "The setup describes model defaults as 125 Hunyuan frames, 162 Mochi frames, and 81 Wan frames. Table 1 instead evaluates 117 Hunyuan and 69 Wan frames at 768p, while Table 2 lists 125, 163, and 81. The paper does not explain the 162-versus-163 or default-versus-benchmark differences.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Section 5.1, Models"},
+        {"page": 7, "section": "Table 1"},
+        {"page": 8, "section": "Table 2"}
+      ]
+    },
+    {
+      "claim": "The claimed spatial distance is distance in a raster-flattened token index, not a two-dimensional metric.",
+      "evidence": "Equations 3-4 and Assumption A1 use absolute l minus k0 after assigning a single index to every token in a frame. This treats adjacent rows poorly: vertical neighbors can be far apart in index, while tokens on opposite sides of a row boundary can appear adjacent. No alternative space-filling order or 2D locality ablation is tested.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "Section 4.1, Equation 3"},
+        {"page": 6, "section": "Section 4.2, Equation 4"},
+        {"page": 17, "section": "Appendix A.2, Assumption A1"}
+      ]
+    },
+    {
+      "claim": "The released artifact is an inference demo, not a reproduction package for the paper's training or tables.",
+      "evidence": "At official repository commit 72788d4f0a6d202f1ec5f1c98a6e4c8b2e34fdbc, the tree contains Wan, Wan2.2, and Hunyuan inference entry points and mask kernels, but no training pipeline, OpenVid selection code, evaluation prompts, VisionReward or VBench runner, raw results, table builder, checkpoints for the paper's long-video LoRAs, tests, or CI. Current HEAD is also shape-incompatible: model callers flatten Q/K/V to three dimensions, while attn_mask.py now unpacks four dimensions after commit af371ca without matching caller updates, so the provided paths fail before sparse attention.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract and code link"},
+        {"page": 8, "section": "Section 5.1, Implementation details"},
+        {"page": 18, "section": "Appendix B"}
+      ]
+    },
+    {
+      "claim": "The current implementation's mask is materially different from Equation 4.",
+      "evidence": "attn_mask.py computes widths from Python bit lengths, rounds token counts and distances through powers of two, clamps token-level width at a 128-token block, adds undocumented model-specific decay factors of 0.95 for Hunyuan and 0.2 for Wan, and converts the token mask to blocks only when more than 60% of nonempty columns exceed one-third density. Equation 4 contains none of the decay factors, rounding, clamp, or density heuristic. The released preprocessing also materializes a dense block mask and loops over all frame pairs, so the present mask construction, storage, and replanning remain quadratic even if retained kernel arithmetic is O(n log n).",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Section 4.2, Equation 4 and hardware-friendly block sparsity"},
+        {"page": 8, "section": "Section 5.1, Implementation details"}
+      ]
+    },
+    {
+      "claim": "The released code removed the Hunyuan first-frame attention sink that the paper presents as part of the method.",
+      "evidence": "The paper says a first-frame sink is incorporated, Figure 5c is explicitly a Hunyuan mask, and Appendix A.1 includes the sink in the complexity count. In current attn_mask.py the sink branch applies only when model_type is Wan. Commit 2f61c30a2613cd444b752bd3102feb06f8ff208f is titled 'remove attention sink for hunyuanvideo,' yet the later arXiv v2 still describes it.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Figure 5c and Section 4.2"},
+        {"page": 16, "section": "Appendix A.1"}
+      ]
+    },
+    {
+      "claim": "The released default Hunyuan configuration does not preserve the dense block stated by the paper.",
+      "evidence": "Both Hunyuan shell scripts set dense_layers=0 and dense_timesteps=12; Wan scripts set dense_layers=1. These defaults disagree with the main-text first-block statement and the appendix first-two-block statement, preventing a unique reconstruction of the reported protocol.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Section 5.1, Implementation details"},
+        {"page": 18, "section": "Appendix B"}
+      ]
+    },
+    {
+      "claim": "Dependencies described as optional are imported unconditionally before the fallback logic.",
+      "evidence": "attn_mask.py lines 4, 6, and 7 import sparse_sageattn, sageattention, and spas_sage_attn at module import time. A later try-except intended to fall back between sparse Sage packages cannot catch the earlier import failure. The README labels Sparse Sage installation optional, so the documented base path is not self-consistent.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Section 5.1, implementation backends"}
+      ]
+    },
+    {
+      "claim": "The mask cache is global and configuration-blind.",
+      "evidence": "MaskMap._log_mask is a class variable populated only when None and is not keyed by sequence shape, device, model type, frame count, block size, or decay factor. Multiple models or resolutions in one process can therefore reuse a stale mask unless external code resets the class state.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "Section 4.2, mask definition"},
+        {"page": 8, "section": "Section 5.1, implementation"}
+      ]
+    },
+    {
+      "claim": "Two intended edge-block assignments in the block-mask converter are empty slices.",
+      "evidence": "shrinkMaskStrict assigns True to block_mask[0:0] and block_mask[-1:-1], both empty ranges in Python, so neither line changes the mask. With no tests, it is unclear whether this is dead code or a missed boundary-preservation rule.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Section 4.2, hardware-friendly block sparsity"}
+      ]
+    },
+    {
+      "claim": "The repository's public support and performance claims exhibit revision drift.",
+      "evidence": "The README opening says Mochi-1 and 1-4x video lengths are supported, but the open-source plan leaves Mochi support and long-video LoRA checkpoints unchecked; scripts/mochi_t2v_inference.sh contains only two variable assignments. The README also states 4.6x tuning savings in one performance section versus 4.4x in the paper and elsewhere.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract"},
+        {"page": 8, "section": "Table 2"},
+        {"page": 18, "section": "Appendix B"}
+      ]
+    },
+    {
+      "claim": "Training-data licensing is unresolved in the paper itself.",
+      "evidence": "Appendix E states that SVG and OpenVid-1M do not have an explicit license, while the long-video LoRAs are trained on selected OpenVid-1M videos. The paper does not describe a separate permission or redistribution basis for the intended checkpoint release.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "Section 5.1, training data"},
+        {"page": 20, "section": "Appendix E"}
+      ]
+    },
+    {
+      "claim": "The paper's narrow static-mask contribution was quickly surrounded by dynamic, trainable, fine-grained, distributed, and evaluation-aware alternatives.",
+      "evidence": "Before or near submission, STA, Efficient-vDiT, DSV, SVG, AdaSpa, SpargeAttention, XAttention, GNA, VSA, SVG2, Jenga, Sparse-vDiT, and FPSAttention already covered local tiles, dynamic masks, trainable sparsity, kernel co-design, and attention quantization. By 2026, FG-Attn, SVOO, VecAttention, Veda, LVSA, HEART, Sol-Attn, DSA, and SPADE directly targeted mask granularity, input stability, distillation, loop-sensitive quality, routing overhead, or multi-GPU serving.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "Section 2"},
+        {"page": 4, "section": "Section 2 and preliminary"},
+        {"page": 11, "section": "References"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Approximate full 3D softmax attention with a static radial mask whose retained spatial width and temporal-frame density decrease geometrically with frame separation, then use attention-only LoRA to adapt short-video backbones to longer sequences.",
+    "mechanism": "Flatten each frame's spatial tokens, partition frame-pair blocks by floor-log temporal distance, retain a diagonal whose width shrinks by a power of two, and after that width becomes sub-token retain only periodically sampled same-index diagonals. Add dense central frame bands and a first-frame sink, convert the token mask to 128-by-128 blocks, keep early denoising steps and selected initial layers dense, and run a block-sparse kernel. For length extension, freeze base weights and train rank-128 LoRA on Q, K, V, and output projections using selected longer videos.",
+    "assumptions": [
+      "Post-softmax attention energy is concentrated near matching spatial indices and nearby frames.",
+      "An average exponential decay curve represents individual rows, heads, layers, timesteps, prompts, and models.",
+      "A single static mask is adequate despite head and input heterogeneity.",
+      "Every attention row satisfies a uniform pointwise relative exponential bound with usable alpha, beta, and C_rel.",
+      "The query token's self-attention entry is a stable reference for all other entries.",
+      "Distance in a one-dimensional flattened token order is a meaningful spatial distance.",
+      "First-frame attention supplies sufficient global context for distant frames.",
+      "Dropping remote interactions does not remove scene-cut, object-reentry, or long-range identity information.",
+      "A 128-by-128 block approximation preserves the token-level geometry.",
+      "The implementation's model-specific decay factors can be tuned without undermining the claimed parameter-free mask definition.",
+      "Twelve early dense denoising steps and one or two dense DiT blocks generalize across backbones and lengths.",
+      "Two thousand high-aesthetic, high-motion videos per length are enough for length adaptation.",
+      "Attention-only rank-128 LoRA is an adequate control against full and dense LoRA tuning.",
+      "VisionReward and three VBench-Long dimensions track human judgments of long-video quality.",
+      "Sparse-to-dense output similarity under matched generation settings is a useful quality proxy.",
+      "Point-estimate metric differences reflect method effects rather than prompt or seed variance.",
+      "Sequence-parallel eight-H100 measurements transfer to other deployment topologies.",
+      "Spatial resolution is fixed when interpreting the O(n log n) result.",
+      "The theoretical token mask and heuristic released block mask are equivalent enough for claims to transfer.",
+      "OpenVid selection and checkpoint training can be reproduced without released splits, prompts, or training code."
+    ]
+  },
+  "techniques": [
+    {"id": "energy-decay", "role": "Models average attention mass as decreasing exponentially with temporal and flattened spatial distance."},
+    {"id": "log-bands", "role": "Groups frame pairs into floor-log temporal-distance bands."},
+    {"id": "radial-mask", "role": "Halves compute density across successive temporal bands."},
+    {"id": "diag-width", "role": "Narrows same-spatial-index diagonals with temporal distance."},
+    {"id": "frame-sample", "role": "Subsamples far frame-pair diagonals after nominal width falls below one."},
+    {"id": "attn-sink", "role": "Adds all-to-first-frame attention as a global anchor in the paper formulation."},
+    {"id": "block-mask", "role": "Maps the token-level pattern to 128-by-128 sparse compute blocks."},
+    {"id": "dense-warmup", "role": "Uses dense attention in early denoising steps to protect quality."},
+    {"id": "dense-layer", "role": "Keeps selected initial DiT blocks dense, with contradictory counts across paper and code."},
+    {"id": "attn-lora", "role": "Fine-tunes rank-128 adapters on Q, K, V, and output projections for length extension."},
+    {"id": "flashinfer", "role": "Executes sparse inference blocks."},
+    {"id": "block-fa2", "role": "Uses Block-Sparse-Attention with a FlashAttention-2 backend for training."},
+    {"id": "seq-parallel", "role": "Distributes long Hunyuan and Mochi runs over eight H100 GPUs."},
+    {"id": "metric-proxy", "role": "Uses VisionReward, VBench-Long, PSNR, SSIM, and LPIPS instead of a human study."},
+    {"id": "error-bound", "role": "Attempts to bound row-wise softmax total variation under relative exponential decay."},
+    {"id": "mask-mse", "role": "Measures point-estimate attention-output MSE against dense attention."},
+    {"id": "exp-fit", "role": "Fits average decay curves with an exponential and reports R-squared."},
+    {"id": "artifact-audit", "role": "Compares the exact arXiv v2 formulation with official repository commit 72788d4."}
+  ],
+  "evaluations": [
+    {
+      "setting": "HunyuanVideo, 117 frames at 768 by 1280, single H100, default-length inference",
+      "metric": "PSNR, SSIM, LPIPS, VisionReward, PFLOPs, and latency",
+      "result": "Radial reports 27.3, 0.886, 0.114, 0.139, 339 PFLOPs, and 876 seconds, a 1.88x dense-baseline speedup.",
+      "baseline": "Dense original, STA with FA3, PowerAttention, and SVG."
+    },
+    {
+      "setting": "Wan2.1-14B, 69 frames at 768 by 1280, single H100, default-length inference",
+      "metric": "PSNR, SSIM, LPIPS, VisionReward, PFLOPs, and latency",
+      "result": "Radial reports 23.9, 0.842, 0.163, 0.128, 323 PFLOPs, and 917 seconds, a 1.77x dense-baseline speedup.",
+      "baseline": "Dense original, STA with FA3, PowerAttention, and SVG."
+    },
+    {
+      "setting": "HunyuanVideo, 253 frames, eight-H100 training and inference",
+      "metric": "Training time, latency, VisionReward, and three VBench-Long dimensions",
+      "result": "Radial reports 16.2 hours, 339 seconds, VisionReward 0.126, and subject/aesthetic/imaging 0.968/0.623/0.663.",
+      "baseline": "Original, RIFLEx, spatial, temporal, LongLoRA, PowerAttention, SANA, and dense full tuning."
+    },
+    {
+      "setting": "HunyuanVideo, 509 frames, eight-H100 training and inference",
+      "metric": "Training time, latency, VisionReward, and three VBench-Long dimensions",
+      "result": "Radial reports 21.4 hours, 781 seconds, 0.134, and 0.973/0.623/0.672; its VisionReward exceeds dense full tuning by 0.001 without uncertainty.",
+      "baseline": "Original, RIFLEx, spatial, temporal, LongLoRA, PowerAttention, and dense full tuning."
+    },
+    {
+      "setting": "Mochi 1, 331 frames, eight-H100 training and inference",
+      "metric": "Training time, latency, VisionReward, and three VBench-Long dimensions",
+      "result": "Radial reports 8.43 hours, 185 seconds, 0.110, and 0.951/0.615/0.602.",
+      "baseline": "Original, spatial, temporal, LongLoRA, PowerAttention, SANA, and dense full tuning."
+    },
+    {
+      "setting": "Mochi 1, 667 frames, eight-H100 training and inference",
+      "metric": "Training time, latency, VisionReward, and three VBench-Long dimensions",
+      "result": "Radial reports 17.4 hours, 386 seconds, 0.113, and 0.958/0.618/0.638; PowerAttention is higher on aesthetic and imaging quality.",
+      "baseline": "Original, spatial, temporal, LongLoRA, PowerAttention, and dense full tuning."
+    },
+    {
+      "setting": "Wan2.1-14B, 161 frames, eight-H100 training and single-H100 inference",
+      "metric": "Training time, latency, VisionReward, and three VBench-Long dimensions",
+      "result": "Radial reports 14.5 hours, 2,847 seconds, 0.145, and 0.981/0.607/0.677; dense full tuning is higher on VisionReward and imaging quality.",
+      "baseline": "Original and dense full tuning only."
+    },
+    {
+      "setting": "Wan2.1-14B attention-output approximation",
+      "metric": "Mean-squared error to dense attention output",
+      "result": "Radial 3.9e-3, SVG 4.4e-3, and STA 1.5e-2, with no disclosed n or variance.",
+      "baseline": "SVG and STA."
+    },
+    {
+      "setting": "Average HunyuanVideo decay curves",
+      "metric": "Exponential regression R-squared",
+      "result": "Reported above 0.985, without row-level residuals, parameter estimates, or replication counts.",
+      "baseline": "Visual comparison to the sampled average curves."
+    },
+    {
+      "setting": "Default Wan dense-step ablation",
+      "metric": "PSNR, SSIM, LPIPS, and VisionReward",
+      "result": "Twelve steps gives 23.6/0.823/0.146, while thirteen gives 23.5/0.819/0.150 and therefore higher VisionReward despite prose claiming twelve is best across all metrics.",
+      "baseline": "Zero, four, eight, eleven, twelve, and thirteen dense steps."
+    },
+    {
+      "setting": "Hunyuan 4x dense warmup and initial-layer ablations",
+      "metric": "VisionReward and three VBench-Long dimensions",
+      "result": "Three dense steps gives the highest VisionReward 0.163; two gives 0.163 with better aesthetic score. Three dense layers gives the highest VisionReward 0.163; two gives 0.163 with better subject and aesthetic scores.",
+      "baseline": "Zero through three dense steps and zero through three dense initial layers."
+    },
+    {
+      "setting": "Hunyuan default-length mask-shape ablation",
+      "metric": "PSNR, SSIM, LPIPS, and VisionReward",
+      "result": "Radial 27.3/0.886/0.114/0.139 versus harmonic-series 27.0/0.881/0.119/0.136.",
+      "baseline": "A harmonic-series O(n log n) mask."
+    },
+    {
+      "setting": "Official repository reproducibility audit at commit 72788d4",
+      "metric": "Coverage of paper protocols and executable safeguards",
+      "result": "Inference paths and mask code are present, but training, evaluation, raw results, paper checkpoints, tests, and CI are absent; paper-code mask and sink behavior drift.",
+      "baseline": "The exact arXiv v2 method and implementation claims."
+    }
+  ],
+  "limitations": [
+    "The O(n log n) complexity holds only as frame count grows at fixed tokens per frame.",
+    "The error theorem depends on a strong uniform pointwise decay assumption not established by averaged plots.",
+    "The central Appendix A.2 inequality w(delta t) at least s/2 for delta t at most s is false.",
+    "The spatial variable is a one-dimensional flattened index rather than a two-dimensional distance.",
+    "Energy decay is illustrated on HunyuanVideo and not validated across the three evaluated backbones.",
+    "No alpha, beta, C_rel, regression coefficient, or residual distribution is reported.",
+    "The static mask cannot adapt to head, layer, prompt, motion, shot-boundary, or denoising-step heterogeneity.",
+    "Blockification uses a released heuristic absent from the paper's formal definition.",
+    "The main text and appendix disagree on one versus two initial dense DiT blocks.",
+    "The public Hunyuan scripts use zero initial dense blocks.",
+    "The public code removes the Hunyuan sink described by the paper.",
+    "The public code introduces undocumented model-specific decay factors.",
+    "Evaluation prompt identities, counts, and selection criteria are absent.",
+    "Seeds, repetitions, variance, confidence intervals, and significance tests are absent.",
+    "No human preference or failure-rate evaluation is reported.",
+    "PSNR, SSIM, and LPIPS measure similarity to dense output rather than independent quality.",
+    "Only three VBench-Long dimensions are used, omitting many motion and semantic failure modes.",
+    "Stills cannot demonstrate temporal coherence, absence of loops, or sustained motion.",
+    "The 4.4x training headline compares Radial LoRA with full-parameter dense tuning.",
+    "Dense LongLoRA is slightly faster than Radial at Hunyuan 4x.",
+    "Wan extended-length evaluation omits other sparse baselines.",
+    "Default frame counts differ between setup text and tables.",
+    "Table 1 gives STA a newer FA3 kernel than Radial's FA2.",
+    "Cross-model latency uses different GPU counts and is not directly comparable.",
+    "The 2,000-video length-specific training subsets and train-evaluation overlap checks are not released.",
+    "The official repository has no training or evaluation pipeline for the reported tables.",
+    "Long-video LoRA checkpoints remain unreleased.",
+    "The Mochi script is non-executable and the README still marks Mochi support incomplete.",
+    "There are no unit tests for mask geometry, kernel equivalence, padding, caching, or numerical error.",
+    "Optional sparse-attention dependencies are imported unconditionally.",
+    "A class-global mask cache is not keyed by configuration.",
+    "The repository's block-mask boundary assignments contain empty slices.",
+    "OpenVid-1M is acknowledged to lack an explicit license.",
+    "The analysis does not study memory consumption, communication overhead, or training throughput beyond hours.",
+    "The study does not test scene cuts, camera changes, fast motion, object re-entry, or other adversarial long-range dependencies.",
+    "The theoretical mask and released implementation are sufficiently different that claims cannot be transferred without an equivalence audit."
+  ],
+  "failure_modes": [
+    "A distant frame contains the only evidence for an object's identity, but the static far-frame sample skips it.",
+    "A scene cut or later object re-entry violates monotonic temporal decay.",
+    "A specialized attention head uses a vertical stripe, sink, or semantic block not represented by the radial diagonal.",
+    "Raster flattening excludes a true two-dimensional neighbor or includes a false row-boundary neighbor.",
+    "The first-frame sink anchors irrelevant content after a scene change.",
+    "Removing the Hunyuan sink in code silently changes the paper's receptive field.",
+    "The block-density heuristic drops a narrow but high-attention interaction.",
+    "A cached mask from another resolution, device, model, or decay factor is reused.",
+    "A missing optional package prevents the documented base installation from importing.",
+    "A sparse method matches dense output metrics while both videos contain looping or frozen motion.",
+    "A reward model favors static or aesthetically pleasing clips and masks long-horizon temporal failures.",
+    "A marginal 0.001 metric gain reverses across seeds or prompts.",
+    "Training on top-scoring OpenVid examples introduces style bias, as the paper observes for merged LoRAs.",
+    "A user interprets 4.4x as sparse-attention speedup although most of the comparison comes from LoRA versus full tuning.",
+    "Increasing spatial resolution removes the apparent subquadratic benefit.",
+    "The invalid proof is used as a guarantee outside the empirically sampled regime.",
+    "Different dense-layer counts reproduce different numbers with no authoritative protocol.",
+    "Unreleased long-video checkpoints prevent qualitative claims from being independently inspected.",
+    "Sparse kernels produce model- or GPU-specific numerical drift not covered by output-MSE point estimates."
+  ],
+  "reusable_insights": [
+    "State the scaling variable explicitly: frame-linear or frame-logarithmic complexity does not imply joint spatiotemporal scalability.",
+    "Validate sparse-attention assumptions on the worst relevant rows and heads, not only on an averaged curve.",
+    "Report the empirical C_rel, alpha, and beta distribution if a theorem depends on them.",
+    "Use true 2D or space-filling spatial distance and compare it with raster-index distance.",
+    "Separate algorithmic FLOPs, kernel speed, parallelism, quantization, and parameter-efficient tuning in every speedup headline.",
+    "Compare sparse LoRA to dense LoRA as well as to full-parameter dense tuning.",
+    "Treat similarity-to-dense metrics as fidelity checks, not independent quality measures.",
+    "Include loop-, freeze-, motion-, and long-range identity-sensitive metrics plus blinded human evaluation for long videos.",
+    "Publish prompt lists, dense references, seeds, repetitions, and per-video paired results.",
+    "Version the exact token mask and block-conversion policy and test their equivalence.",
+    "Key mask caches by all semantic and device parameters or keep them instance-local.",
+    "Use executable assertions and unit tests for every claimed mask invariant and boundary rule.",
+    "Preserve theorem counterexamples as regression tests before making asymptotic guarantees.",
+    "Audit camera-ready paper, repository head, and released checkpoints as separate revisions.",
+    "Benchmark static, dynamic, trainable, and fine-grained masks on a common quality-compute Pareto frontier."
+  ],
+  "open_questions": [
+    "Can the Appendix A.2 bound be repaired by splitting near and far temporal tails, and what dependence on both s and f actually results?",
+    "What fraction of attention rows satisfies a useful pointwise exponential envelope across Hunyuan, Wan, and Mochi?",
+    "How large and variable is C_rel after conditioning on head, layer, denoising step, prompt, and motion?",
+    "Does a 2D Manhattan, Euclidean, Morton, or Hilbert ordering improve the static mask at equal block budget?",
+    "Which distant semantic interactions are systematically lost by radial sampling?",
+    "Can a small online residual detector switch only violating heads or steps back to dense attention?",
+    "Does the method remain advantageous when spatial and temporal resolution scale together?",
+    "How does Radial compare with VSA, SVG2, FPSAttention, Sparse-vDiT, VMoBA, and Jenga under one current kernel and one prompt suite?",
+    "Do the conclusions survive at least five seeds and hundreds of preregistered prompts?",
+    "What are paired per-video confidence intervals for the claimed 0.001 to 0.005 quality gains?",
+    "How well do VisionReward and the selected VBench dimensions correlate with human judgments for 20-second outputs?",
+    "Do loop-aware evaluators such as VQeval reverse any long-video rankings?",
+    "What part of training savings remains after matching both methods to attention-only rank-128 LoRA?",
+    "Is the first-frame sink beneficial for Wan but harmful for Hunyuan, and why was it removed after publication?",
+    "Which dense-layer count, one or two, generated each table and checkpoint?",
+    "Can the exact paper results be reproduced from a tagged commit with released LoRAs and evaluation artifacts?",
+    "How sensitive are results to block size, decay factor, and the 60%-over-one-third blockification heuristic?",
+    "Can block-level distillation or error-aware routing preserve remote semantic blocks while retaining static-mask throughput?",
+    "What are the failure rates on scene cuts, rapid motion, camera motion, long occlusion, and object re-entry?",
+    "Can model training learn the radial prior natively without inheriting a dense checkpoint's mismatch?",
+    "What data and checkpoint release terms are valid for OpenVid-derived LoRAs?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2502.04507",
+      "title": "Fast Video Generation with Sliding Tile Attention",
+      "url": "https://arxiv.org/abs/2502.04507",
+      "relationship": "Direct static local-attention baseline used by the paper.",
+      "difference": "STA uses hardware-aware sliding 3D tiles and an optimized kernel, reaching stronger raw latency in Table 1 but worse dense-output similarity. It provides a simpler locality prior without Radial's logarithmic far-frame sampling or flawed decay theorem.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, 2025-06-04; ICML 2025"
+    },
+    {
+      "canonical_id": "arxiv:2502.06155",
+      "title": "Efficient-vDiT: Efficient Video Diffusion Transformers With Attention Tile",
+      "url": "https://arxiv.org/abs/2502.06155",
+      "relationship": "Earlier video-specific static tiled-attention and distillation system.",
+      "difference": "Efficient-vDiT identifies repeating tile patterns with frame-linear attention and combines them with few-step consistency distillation, reporting 7.4-7.8x end-to-end acceleration. Radial isolates sparse attention and length LoRA, but does not compare against the joint architecture-sampling alternative.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2025-02-17"
+    },
+    {
+      "canonical_id": "arxiv:2502.07590",
+      "title": "DSV: Exploiting Dynamic Sparsity to Accelerate Large-Scale Video DiT Training",
+      "url": "https://arxiv.org/abs/2502.07590",
+      "relationship": "Earlier training-time dynamic-sparsity competitor.",
+      "difference": "DSV uses two-stage dynamic sparsity plus sparsity-aware context parallelism and reports up to 3.02x training throughput. It directly targets training and communication heterogeneity that Radial's static mask and hours-only accounting leave unresolved.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, 2025-03-16"
+    },
+    {
+      "canonical_id": "arxiv:2502.01776",
+      "title": "Sparse VideoGen: Accelerating Video Diffusion Transformers with Spatial-Temporal Sparsity",
+      "url": "https://arxiv.org/abs/2502.01776",
+      "relationship": "Direct dynamic sparse-attention predecessor and main baseline.",
+      "difference": "SVG profiles heads online and switches between spatial and temporal masks, achieving up to 2.33x end-to-end acceleration. Radial avoids online classification and supports training, but Table 1 shows near-tied or weaker quality-latency results and no variance.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2025-04-27"
+    },
+    {
+      "canonical_id": "arxiv:2502.21079",
+      "title": "Training-free and Adaptive Sparse Attention for Efficient Long Video Generation",
+      "url": "https://arxiv.org/abs/2502.21079",
+      "relationship": "Earlier online adaptive long-video sparse-attention competitor.",
+      "difference": "AdaSpa caches log-sum-exp information across denoising steps and performs head-adaptive hierarchical block search without fine-tuning or offline profiling. It trades mask-decision overhead for input and head adaptation, directly challenging Radial's uniform static-mask assumption.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2025-02-28"
+    },
+    {
+      "canonical_id": "arxiv:2502.18137",
+      "title": "SpargeAttention: Accurate and Training-free Sparse Attention Accelerating Any Model Inference",
+      "url": "https://arxiv.org/abs/2502.18137",
+      "relationship": "Generic dynamic sparse-and-quantized attention competitor evaluated on video.",
+      "difference": "SpargeAttention predicts blocks online and applies a softmax-aware second filter across language, image, and video models. Radial is structurally cheaper and training-compatible, while SpargeAttention is more input-adaptive and model-general.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v8, 2025-11-19; ICML 2025"
+    },
+    {
+      "canonical_id": "arxiv:2503.16428",
+      "title": "XAttention: Block Sparse Attention with Antidiagonal Scoring",
+      "url": "https://arxiv.org/abs/2503.16428",
+      "relationship": "Contemporary block-importance competitor covering video generation.",
+      "difference": "XAttention scores block antidiagonals as a cheap importance proxy and reports up to 13.5x attention acceleration across long-context tasks. It adapts blocks to actual scores, whereas Radial commits to a video-prior mask before seeing content.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2025-03-20; ICML 2025"
+    },
+    {
+      "canonical_id": "arxiv:2504.16922",
+      "title": "Generalized Neighborhood Attention: Multi-dimensional Sparse Attention at the Speed of Light",
+      "url": "https://arxiv.org/abs/2504.16922",
+      "relationship": "Contemporary multidimensional local-attention kernel alternative.",
+      "difference": "GNA unifies sliding, strided, and blocked neighborhoods, supplies a hardware simulator, and reports 28-46% end-to-end gains on Cosmos, HunyuanVideo, and FLUX on B200. It offers native multidimensional geometry and performance modeling absent from Radial's flattened-index construction.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2025-04-23"
+    },
+    {
+      "canonical_id": "arxiv:2505.13389",
+      "title": "VSA: Faster Video Diffusion with Trainable Sparse Attention",
+      "url": "https://arxiv.org/abs/2505.13389",
+      "relationship": "Closest pre-submission trainable sparse-attention competitor.",
+      "difference": "VSA learns block-friendly critical-token selection end to end, reports a 2.53x training-FLOP reduction in a 60M-1.4B scaling sweep, and retrofits Wan2.1. It appeared five weeks before Radial and provides much stronger scaling evidence for training-time sparsity, at the cost of a learned selector.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v5, 2025-10-28; NeurIPS 2025"
+    },
+    {
+      "canonical_id": "arxiv:2505.18875",
+      "title": "Sparse VideoGen2: Accelerate Video Generation with Sparse Attention via Semantic-Aware Permutation",
+      "url": "https://arxiv.org/abs/2505.18875",
+      "relationship": "Closest pre-submission semantic-routing sparse-attention competitor.",
+      "difference": "SVG2 clusters and permutes semantically similar tokens, uses dynamic top-p budgets, and reports up to 2.30x speedup. It addresses the failure of position-only neighborhoods to capture semantic blocks, precisely the risk in Radial's fixed flattened-index bands.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v5, 2026-05-06; NeurIPS 2025 spotlight"
+    },
+    {
+      "canonical_id": "arxiv:2505.16864",
+      "title": "Training-Free Efficient Video Generation via Dynamic Token Carving",
+      "url": "https://arxiv.org/abs/2505.16864",
+      "relationship": "Pre-submission end-to-end video acceleration competitor.",
+      "difference": "Jenga combines dynamic block carving along 3D space-filling curves with progressive latent resolution and reports up to 8.83x end-to-end speedup. Its broader system changes complicate attribution but give a stronger measured frontier than Radial's attention-only optimization.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2025-11-22; NeurIPS 2025"
+    },
+    {
+      "canonical_id": "arxiv:2506.03065",
+      "title": "Sparse-vDiT: Unleashing the Power of Sparse Attention to Accelerate Video Diffusion Transformers",
+      "url": "https://arxiv.org/abs/2506.03065",
+      "relationship": "Direct pre-submission static-pattern search competitor.",
+      "difference": "Sparse-vDiT profiles diagonal, multi-diagonal, vertical-stripe, and skippable-head patterns offline and performs hardware-aware per-head search, reporting 1.58-1.85x actual speedups on three backbones. It retains static execution while adapting pattern choice across heads and layers, a middle ground Radial omits.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2025-06-03; AAAI 2026"
+    },
+    {
+      "canonical_id": "arxiv:2506.04648",
+      "title": "FPSAttention: Training-Aware FP8 and Sparsity Co-Design for Fast Video Diffusion",
+      "url": "https://arxiv.org/abs/2506.04648",
+      "relationship": "Direct pre-submission training-aware sparsity and quantization competitor.",
+      "difference": "FPSAttention jointly trains denoising-step-aware 3D tile sparsity and FP8 kernels and reports 4.96x end-to-end Wan speedup. It shows that precision and sparsity interactions can dominate a fixed BF16 mask comparison.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2025-06-06; NeurIPS 2025 spotlight"
+    },
+    {
+      "canonical_id": "arxiv:2506.23858",
+      "title": "VMoBA: Mixture-of-Block Attention for Video Diffusion Models",
+      "url": "https://arxiv.org/abs/2506.23858",
+      "relationship": "Immediate post-submission video-native trainable block-routing successor.",
+      "difference": "VMoBA adds recurrent 1D/2D/3D block partitioning, global block selection, and cumulative-similarity thresholds, reporting 2.92x training FLOPs and 1.48x training latency reduction plus training-free inference gains. It directly addresses head-specific and spatial-layout heterogeneity.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2025-06-30"
+    },
+    {
+      "canonical_id": "arxiv:2503.03588",
+      "title": "PowerAttention: Exponentially Scaling of Receptive Fields for Effective Sparse Attention",
+      "url": "https://arxiv.org/abs/2503.03588",
+      "relationship": "O(n log n) static sparse baseline adapted by the paper.",
+      "difference": "PowerAttention attends at power-of-two distances to grow receptive fields exponentially across LLM layers. Radial adds video-specific spatial-temporal geometry and performs better in the target's point estimates, but the baseline was designed for causal language modeling rather than bidirectional video diffusion.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2025-03-05"
+    },
+    {
+      "canonical_id": "arxiv:2309.12307",
+      "title": "LongLoRA: Efficient Fine-tuning of Long-Context Large Language Models",
+      "url": "https://arxiv.org/abs/2309.12307",
+      "relationship": "Dense-inference length-adaptation and sparse-training baseline.",
+      "difference": "LongLoRA combines shifted sparse training attention with improved LoRA while retaining dense global inference. The target adapts it to video as a baseline; at Hunyuan 4x it trains slightly faster than Radial and has better imaging quality but lower VisionReward.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, 2024-03-08"
+    },
+    {
+      "canonical_id": "arxiv:2502.15894",
+      "title": "RIFLEx: A Free Lunch for Length Extrapolation in Video Diffusion Transformers",
+      "url": "https://arxiv.org/abs/2502.15894",
+      "relationship": "Training-free video-length extrapolation baseline.",
+      "difference": "RIFLEx modifies one intrinsic RoPE frequency and enables 2x extrapolation without training, with minimal tuning for 3x. It does not accelerate attention, but exposes how much of length extension can be obtained without Radial's new mask or training data.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, 2025-08-07; ICML 2025"
+    },
+    {
+      "canonical_id": "arxiv:2412.09856",
+      "title": "LinGen: Towards High-Resolution Minute-Length Text-to-Video Generation with Linear Computational Complexity",
+      "url": "https://arxiv.org/abs/2412.09856",
+      "relationship": "Earlier architectural alternative for long-video scaling.",
+      "difference": "LinGen replaces self-attention with a linear Mamba-plus-temporal-window block and reports minute-length single-GPU generation with up to 11.5x latency reduction. It requires training a new backbone rather than retrofitting dense models, but offers true joint token-linear architecture evidence.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2025-05-24; CVPR 2025"
+    },
+    {
+      "canonical_id": "arxiv:2504.12626",
+      "title": "Frame Context Packing and Drift Prevention in Next-Frame-Prediction Video Diffusion Models",
+      "url": "https://arxiv.org/abs/2504.12626",
+      "relationship": "Alternative constant-context route to long video.",
+      "difference": "FramePack compresses history into a fixed context and adds anti-drift sampling, making workload invariant to generated length. It changes generation factorization and can stream, whereas Radial preserves bidirectional full-sequence DiTs and retains growing O(n log n) work.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, 2025-10-14"
+    },
+    {
+      "canonical_id": "arxiv:2410.10629",
+      "title": "SANA: Efficient High-Resolution Image Synthesis with Linear Diffusion Transformers",
+      "url": "https://arxiv.org/abs/2410.10629",
+      "relationship": "Linear-attention architecture baseline adapted by the paper.",
+      "difference": "SANA combines aggressive latent compression and linear DiT attention, designed and trained end to end for images. The target's poor SANA fine-tuning results do not establish that linear video architectures fail, because the replacement is applied post hoc to a softmax-trained video model.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, 2024-10-20; ICLR 2025"
+    },
+    {
+      "canonical_id": "arxiv:2503.21755",
+      "title": "VBench-2.0: Advancing Video Generation Benchmark Suite for Intrinsic Faithfulness",
+      "url": "https://arxiv.org/abs/2503.21755",
+      "relationship": "Contemporary evaluation benchmark that narrows the target's metric claims.",
+      "difference": "VBench-2.0 adds physics, commonsense, anatomy, composition, controllability, and creativity because earlier metrics capture superficial faithfulness. Radial reports only three VBench-Long dimensions, leaving many intrinsic failures unmeasured.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2025-08-20"
+    },
+    {
+      "canonical_id": "arxiv:2509.16518",
+      "title": "FG-Attn: Leveraging Fine-Grained Sparse Attention in Video Diffusion Models",
+      "url": "https://arxiv.org/abs/2509.16518",
+      "relationship": "Later fine-grained sparse-attention successor.",
+      "difference": "FG-Attn skips M-by-1 slices with an asynchronous gather-load kernel and reports up to 1.65x speedup. It demonstrates that Radial's coarse block granularity leaves exploitable vector-level sparsity, while requiring more irregular hardware support.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2026-06-04"
+    },
+    {
+      "canonical_id": "arxiv:2603.18636",
+      "title": "Attention Sparsity is Input-Stable: Training-Free Sparse Attention for Video Generation via Offline Sparsity Profiling and Online QK Co-Clustering",
+      "url": "https://arxiv.org/abs/2603.18636",
+      "relationship": "Later static-plus-online sparse-attention successor.",
+      "difference": "SVOO profiles intrinsic per-layer sparsity offline and co-clusters Q and K online, reporting up to 1.93x speedup across seven models. It keeps most static execution benefits while addressing the layer heterogeneity and query-key coupling ignored by Radial.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2026-05-08; ICML 2026"
+    },
+    {
+      "canonical_id": "arxiv:2603.29494",
+      "title": "VecAttention: Vector-wise Sparse Attention for Accelerating Long Context Inference",
+      "url": "https://arxiv.org/abs/2603.29494",
+      "relationship": "Later vector-granularity competitor for video generation.",
+      "difference": "VecAttention selects informative vertical vectors and reports 2.65x over full attention and 1.83x over sparse baselines on video tasks. Its observed vertical-vector structure directly challenges a single diagonal-band prior.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2026-03-31; CVPR 2026"
+    },
+    {
+      "canonical_id": "arxiv:2605.30325",
+      "title": "Veda: Scalable Video Diffusion via Distilled Sparse Attention",
+      "url": "https://arxiv.org/abs/2605.30325",
+      "relationship": "Later distilled-mask competitor.",
+      "difference": "Veda explicitly reconstructs dense tile geometry using statistics-aware scores and head-aware tiling and reports 5.1x end-to-end acceleration for 720p ten-second Waver generation. It turns mask quality into a supervised reconstruction objective rather than assuming an average decay law.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2026-05-28; ICML 2026"
+    },
+    {
+      "canonical_id": "arxiv:2605.31057",
+      "title": "LVSA: Training-Free Sparse Attention for Long Video Diffusion",
+      "url": "https://arxiv.org/abs/2605.31057",
+      "relationship": "Later long-video static-pattern and evaluation successor.",
+      "difference": "LVSA uses a structured window with rotating global anchors and introduces VQeval because looped videos can score well on VBench-Long. It reports up to 3.33x compute reduction and directly exposes the target's missing loop-sensitive validation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2026-05-29"
+    },
+    {
+      "canonical_id": "arxiv:2605.14513",
+      "title": "HEART: Exploiting Head Heterogeneity in Sparse Attention for Video Diffusion",
+      "url": "https://arxiv.org/abs/2605.14513",
+      "relationship": "Later head-adaptive training-free competitor.",
+      "difference": "HEART reuses masks based on query-key drift and allocates per-head budgets using measured model-output error, improving XAttention and SVG2 up to 1.93x. Its design directly addresses the head heterogeneity and error-budget calibration absent from Radial.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2026-08-09"
+    },
+    {
+      "canonical_id": "arxiv:2607.24027",
+      "title": "Sol-Attn: Accelerating Video Generation Inference via On-the-Fly Attention Sparsification",
+      "url": "https://arxiv.org/abs/2607.24027",
+      "relationship": "Current online sparse-routing competitor.",
+      "difference": "Sol-Attn fuses threshold routing with online softmax and reuses proxy scores to approximate dropped blocks, reporting 2.1x video-generation acceleration. It reduces the routing-overhead argument for choosing a fully static mask and preserves information from rejected blocks.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2026-07-27"
+    },
+    {
+      "canonical_id": "openreview:1ZmdfDzGE1",
+      "title": "DSA: Efficient Serving For Video Generation Models via Distributed Sparse Attention",
+      "url": "https://openreview.net/forum?id=1ZmdfDzGE1",
+      "relationship": "Current distributed-serving sparse-attention competitor.",
+      "difference": "DSA co-designs sparse spatial and temporal patterns with communication and sequence parallelism, reporting up to 1.43x over an existing distributed method and 10.79x over single-GPU dense inference on eight GPUs. Radial reports eight-GPU long-video latency but does not analyze communication or scaling efficiency.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2026 conference paper, official OpenReview PDF checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2608.03335",
+      "title": "SPADE: An Input-Adaptive Sparse Attention Engine for Fast Video Diffusion Models Inference",
+      "url": "https://arxiv.org/abs/2608.03335",
+      "relationship": "Latest pre-cutoff input-adaptive video sparse-attention engine.",
+      "difference": "SPADE specifies 3D candidate blocks, synthesizes runtime schemes, groups kernels, and reports 1.49-1.80x end-to-end gains across Hunyuan and Wan models. It represents the current hardware-aware adaptive alternative to Radial's fixed mask.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2026-08-04; DAC 2026"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims that Spatiotemporal Energy Decay is a general phenomenon in video diffusion attention, that translating it into a static radial compute-density pattern yields the first O(n log n) sparse attention specialized for scalable long-video generation, that a theorem provides exponentially decreasing approximation error, and that the method preserves or improves quality while delivering up to 1.9x default-length inference, 3.7x long-video inference, and 4.4x lower training cost with lightweight LoRA.",
+    "evidence": "The defensible empirical contribution is a simple, block-executable static video mask that runs on three large open video DiTs and can be used during both inference and LoRA training. Table 1 shows roughly 1.8-1.9x single-H100 acceleration with quality close to SVG, and Table 2 shows useful long-video wall-clock savings. However, the pre-submission field already contained STA, Efficient-vDiT, DSV, SVG, AdaSpa, SpargeAttention, XAttention, GNA, VSA, SVG2, Jenga, Sparse-vDiT, and FPSAttention, covering static and dynamic video sparsity, training-time sparsity, per-head pattern search, semantic routing, fine-grained kernels, and quantization. The core theorem is not valid as written because its w(delta t) inequality is false. Its premise is supported only by averaged Hunyuan curves, not the required uniform row-wise bound. The strongest training headline compares sparse LoRA with dense full-parameter tuning rather than dense LoRA. Quality gains are small and mixed, with no prompts, seeds, uncertainty, human study, or loop-sensitive evaluation. The official code differs from Equation 4, removes the Hunyuan sink, contradicts dense-layer counts, and lacks training, evaluation, checkpoints, and tests.",
+    "reviewer_inference": "Novelty is moderate and narrower than the framing: Radial is a memorable video-specific static mask that combines logarithmic temporal bands, narrowing same-index diagonals, far-frame sampling, and length-adaptation LoRA in one practical system. It is not the first efficient video attention, static sparse video pattern, O(n log n) attention, long-video method, trainable video sparsity method, or hardware-aware block-sparse system. The physics language is metaphorical rather than a validated law, and the exponential error guarantee should be withdrawn or repaired. A rigorous successor would use true multidimensional geometry, report per-row decay envelopes, adapt only violating heads or steps, isolate sparse-attention gains from LoRA, evaluate joint resolution-duration scaling, publish exact artifacts, and compare against current static, dynamic, semantic, trainable, fine-grained, and distributed competitors on a paired human-validated quality-compute frontier."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Read all 25 pages of the exact hash-pinned arXiv v2 source and visually audited every rendered page at full resolution. Inspected Figures 1-8 and A-F; Tables 1-2 and A-D; Equations 1-17; the full complexity derivation; the full total-variation proof; training, implementation, license, and qualitative appendices; every displayed prompt strip; and references. Independently checked current official arXiv metadata: v1 was submitted 2025-06-24 and v2, the NeurIPS 2025 camera-ready source reviewed here, was updated 2025-12-06. Audited the official Apache-2.0 repository through commit 72788d4f0a6d202f1ec5f1c98a6e4c8b2e34fdbc, including all 39 commits, three pinned submodules, dependency paths, inference scripts, mask construction, block conversion, caching, dense-step/layer controls, LoRA loading, support checklist, and absent training/evaluation/test artifacts. A second independent reviewer re-read the full paper, exact TeX source, and official repository history, reproduced the false inequality, supplied an explicit theorem counterexample and the correct stretched-exponential scale, and independently confirmed the implementation and evidence defects. Thirty primary competitors, predecessors, baselines, benchmarks, and successors were checked through 2026-08-23 using official arXiv or OpenReview records, including work published after Radial that materially narrows current novelty. No shared atlas projection, generated queue, or frontend build was run.",
+  "verification": {
+    "reviewer_id": "reviewer-9fa47ecbde9c",
+    "checked_at": "2026-08-24",
+    "passage_check": "Two independent reviewers checked every page, display, equation, proof step, table, qualitative panel, exact TeX source, and cited implementation claim against the hash-pinned 25-page arXiv v2 source and official repository commit 72788d4. The second pass independently reproduced the theorem failure, derived a concrete 8.88e5 counterexample, checked the dyadic mask shell and finite-window normalization, inspected all 39 repository commits, and verified current-HEAD shape failure.",
+    "competitor_check": "Thirty current primary competitors were checked through 2026-08-23 from official arXiv or OpenReview records, with exact IDs, source kinds, version dates, and relationship-specific comparisons; the independent second pass rechecked the direct sparse-video-attention novelty boundary."
+  }
+}

@@ -1,0 +1,172 @@
+{
+  "stable_id": "arxiv:2305.07315",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2305.07315",
+    "pdf_sha256": "c5d35380bb308e5f6dcec6f62db805c6472e6a5bfd960abc5b07667001e9ebba",
+    "text_sha256": "6fc15e0fd0a98836fde092f5b63f775577134f8157d9c2962b669c32864866c9",
+    "page_count": 17,
+    "extracted_at": "2026-08-23T19:42:50.812577+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a neural network be trained with gradient descent yet harden exactly into a Boolean program whose predictions are unchanged, compact, interpretable, and formally verifiable?",
+  "key_findings": [
+    {
+      "claim": "The paper defines hard-equivalence as a commutation property between a differentiable soft function and a discrete Boolean function, making exact post-training hardening an architectural invariant rather than an empirical approximation.",
+      "evidence": "For all non-threshold soft inputs, harden(f(x))=g(harden(x)). The proposed negation, conjunction, disjunction, implication, majority, and counting operators satisfy this relationship; compositions therefore retain Boolean semantics. The guarantee excludes values exactly at the 1/2 threshold and concerns predictions after hardening, not closeness of internal real activations.",
+      "anchors": [
+        {"page": 3, "section": "3 dB Nets and Hard-equivalence"},
+        {"page": 15, "section": "A Proofs"}
+      ]
+    },
+    {
+      "claim": "Margin packing is introduced to make hard-equivalent fuzzy operators depend on every input without crossing their Boolean decision boundary.",
+      "evidence": "A min or max representative bit supplies the correct discrete truth value but has sparse gradients. The construction packs a mean-dependent fraction of the available distance to 1/2, preserving the side of the threshold while usually producing nonzero derivatives for all inputs. Sorting plus the same construction yields O(n log n) soft majority and counting operations whose hard implementations use simple counts.",
+      "anchors": [
+        {"page": 4, "section": "3.1 Learning to Negate and Gradient-rich functions"},
+        {"page": 5, "section": "3.2 Margin Packing"},
+        {"page": 7, "section": "3.4-3.5 Majority and Counting"}
+      ]
+    },
+    {
+      "claim": "Soft, hard, and symbolic execution paths let one set of learned Boolean weights serve training, efficient inference, and program inspection.",
+      "evidence": "The JAX/Flax library generates a real-weight soft net, a Boolean-weight hard net, and a symbolic net. A toy 40-weight classifier hardens to five bytes and can be simplified into thresholded propositional evidence; the author argues the resulting expression can be encoded for SAT-based property checking. No end-to-end verifier result or measured hard-inference latency is reported.",
+      "anchors": [
+        {"page": 9, "section": "4 Experiments and Figure 5"},
+        {"page": 10, "section": "4.1 Hardening"}
+      ]
+    },
+    {
+      "claim": "Preliminary classification results show competitiveness on small Boolean tasks but not state-of-the-art accuracy or demonstrated scale.",
+      "evidence": "Over 1,000 binary-Iris splits, dB nets average 93.9% versus 95.0% for a Tsetlin machine and 93.8% for an MLP. On noisy XOR, they average 97.9% versus 99.3% and 95.4%, respectively. A 13.23-kB, nonconvolutional MNIST model reaches 94.0%, below a 98.2% Tsetlin machine and 98.6% two-layer network; it underfits after GPU out-of-memory constraints. Exact hardening is thereby illustrated, but only on three benchmarks.",
+      "anchors": [
+        {"page": 11, "section": "4.2 Binary Iris and Table 3"},
+        {"page": 12, "section": "4.3 Noisy XOR and Table 4"},
+        {"page": 13, "section": "4.4 MNIST and Table 5"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Build networks entirely from differentiable operators whose thresholded outputs exactly equal specified Boolean operators, optimize their real weights, then threshold the weights into an equivalent discrete program.",
+    "mechanism": "Soft bits lie in [0,1] and harden at 1/2. Hard-equivalent, mostly gradient-rich logical operators are composed into negation, implication, conjunction, disjunction, majority, and counting layers. A final hardening layer uses a straight-through estimator so the loss sees discrete outputs. RAdam and softmax cross-entropy train the soft network; learned weights are thresholded for Boolean inference and symbolically simplified for inspection.",
+    "assumptions": [
+      "No learned weight or relevant activation lands exactly on the excluded 1/2 threshold.",
+      "Hard-equivalence of each operator is preserved under the implemented compositions and classification aggregation.",
+      "Nonzero almost-everywhere partial derivatives provide useful optimization signals in deep compositions.",
+      "Binarized input features retain the information required by each target task.",
+      "The symbolic Boolean expression remains small enough after simplification for human interpretation or SAT solving.",
+      "A final-layer straight-through estimator does not introduce optimization pathologies that negate internal exactness."
+    ]
+  },
+  "techniques": [
+    {"id": "hard-equivalence", "role": "Guarantees that thresholding commutes with each learned soft operator."},
+    {"id": "margin-packing", "role": "Injects input-dependent gradient signal without changing a representative bit's Boolean side."},
+    {"id": "differentiable-boolean-majority", "role": "Uses sorting and a packed median to avoid exponentially large DNF expansion."},
+    {"id": "differentiable-counting", "role": "Produces a soft one-hot count that maps to a direct discrete popcount program."},
+    {"id": "soft-hard-symbolic-triple", "role": "Separates differentiable training, Boolean inference, and formula extraction."},
+    {"id": "terminal-straight-through-hardening", "role": "Makes classification loss depend on hard outputs while limiting STE use to the final layer."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Two toy clothing classifiers with one and five Boolean inputs",
+      "metric": "Training/test accuracy, equality after hardening, symbolic simplification, and weight bits",
+      "result": "The learned real weights harden to exactly matching Boolean predictions and compact, inspectable threshold expressions.",
+      "baseline": "Unhardened soft execution of the same architecture"
+    },
+    {
+      "setting": "Binary Iris over 1,000 random 80/20 splits",
+      "metric": "Final test accuracy distribution",
+      "result": "Mean accuracy is 93.9%, statistically close to the reported MLP and SVM results but below the 95.0% Tsetlin mean; hardened weights occupy 236 bytes.",
+      "baseline": "Tsetlin machine, MLP, SVM, and naive Bayes"
+    },
+    {
+      "setting": "10,000-example noisy XOR with 40% training-label inversion and ten distractor bits",
+      "metric": "Final test accuracy over 100 experiments",
+      "result": "The model recovers the parity signal at 97.9%, below Tsetlin at 99.3% and above the MLP at 95.4%; hardened weights occupy 288 bytes.",
+      "baseline": "Tsetlin machine, MLP, SVM, naive Bayes, and logistic regression"
+    },
+    {
+      "setting": "Binarized MNIST with a nonconvolutional 105,840-weight network",
+      "metric": "Test accuracy and hardened parameter storage",
+      "result": "The underfit model reaches 94.0% using 13.23 kB of Boolean weights, substantially below stronger baselines.",
+      "baseline": "Tsetlin machine, two-layer NN, k-NN, logistic regression, tree, and naive Bayes"
+    }
+  ],
+  "limitations": [
+    "This is explicitly a draft with preliminary experiments, one author, and only three small or canonical classification benchmarks.",
+    "The hard-equivalence definition excludes inputs exactly equal to 1/2, yet no margin-from-threshold guarantee or numerical audit is reported.",
+    "Gradient-richness is a local nonzero-derivative property, not a guarantee against exploding, vanishing, discontinuous, or badly conditioned gradients in deep networks.",
+    "The final hardening operator still uses a straight-through estimator, so the training procedure is not fully based on exact derivatives.",
+    "MNIST underfits, has no convolutional comparison, and stops at 94%; no CIFAR, ImageNet, text, continuous-input encoder, regression, or large-scale task is tested.",
+    "Claims of inference efficiency, interpretability, and SAT verifiability are supported by weight counts and toy expressions, not latency, energy, human studies, or completed verification benchmarks.",
+    "Model selection, hyperparameter budgets, uncertainty, training compute, and matched-capacity fairness are not reported consistently across baselines.",
+    "The closest earlier deep differentiable logic-gate network is absent from the extracted related-work discussion, materially weakening the stated novelty positioning."
+  ],
+  "failure_modes": [
+    "Optimization parks weights near 1/2, so tiny numerical or serialization changes flip many Boolean decisions.",
+    "Deep compositions are formally gradient-rich but have derivatives too small or ill-conditioned to train.",
+    "A symbolic net is exact yet expands into a formula too large for a person or SAT solver to use.",
+    "Input binarization discards continuous information and caps achievable accuracy before the logical learner begins.",
+    "The soft and hard predictions match, but both overfit noisy Boolean features or dataset artifacts.",
+    "Sorting-based majority/counting makes soft training expensive even though final inference is cheap.",
+    "A final STE supplies biased gradients that favor a poor discrete basin.",
+    "Bit-packed memory savings fail to translate into speed because the runtime does not fuse the irregular Boolean program."
+  ],
+  "reusable_insights": [
+    "Specify discretization as a semantic commuting property when exact behavior matters, not only as a small empirical accuracy gap.",
+    "Track distance to every discrete threshold during training and certify a post-training robustness margin.",
+    "Measure gradient magnitude and conditioning across depth in addition to whether derivatives are nonzero.",
+    "Evaluate logical models on four separate axes: predictive quality, training cost, compiled inference cost, and formula/verifier tractability.",
+    "Generate soft, hard, and symbolic execution from one operator definition to reduce semantic implementation drift.",
+    "Compare against direct logic-gate learners and Tsetlin machines under equal data preprocessing and compute budgets."
+  ],
+  "open_questions": [
+    "Can hard-equivalence be extended with certified margins that survive finite precision and compiler transformations?",
+    "Which operator parameterizations train deeply without sacrificing exact hard semantics?",
+    "Can convolution, attention, skip connections, regression interfaces, and real-valued encoders preserve a useful end-to-end guarantee?",
+    "How does margin packing compare head-to-head with learned gate mixtures, Gumbel estimators, and conventional quantization?",
+    "Do extracted formulas remain comprehensible and formally verifiable at competitive CIFAR-scale accuracy?",
+    "What hardware/compiler representation realizes the claimed latency and energy advantages of the hardened program?",
+    "Can Boolean architecture search prune redundant gates while maintaining semantic equivalence?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2210.08277",
+      "title": "Deep Differentiable Logic Gate Networks",
+      "url": "https://arxiv.org/abs/2210.08277",
+      "relationship": "closest direct prior",
+      "difference": "Petersen et al. predate this draft and train deep Boolean gate circuits through continuous mixtures over all 16 binary gates, then discretize with under 0.1% reported MNIST loss and million-image-per-second CPU inference. dB nets instead make per-operator hard-equivalence exact by construction and emphasize symbolic programs, but show much weaker scale and performance evidence."
+    },
+    {
+      "canonical_id": "arxiv:1904.01554",
+      "title": "Learning Algorithms via Neural Logic Networks",
+      "url": "https://arxiv.org/abs/1904.01554",
+      "relationship": "earlier differentiable Boolean learner",
+      "difference": "Payani and Fekri compose differentiable AND, OR, and XOR operators to learn explicit Boolean functions and inductive logic programs, including recursive algorithmic tasks. The reviewed work adds the stronger hard-commutation criterion and margin-packing construction, while evaluating a narrower propositional-classification scope."
+    },
+    {
+      "canonical_id": "arxiv:2407.04168",
+      "title": "Learning Interpretable Differentiable Logic Networks",
+      "url": "https://arxiv.org/abs/2407.04168",
+      "relationship": "later scalable competitor",
+      "difference": "Yue and Jha learn gate types, binarization, and connections and evaluate twenty classification tasks, reporting comparable accuracy and up to thousandfold fewer gate-level operations than NNs. That is substantially broader empirical support, though it relies on relaxed discrete choices rather than dB's operator-level exact hardening claim."
+    },
+    {
+      "canonical_id": "arxiv:2506.07500",
+      "title": "Mind the Gap: Removing the Discretization Gap in Differentiable Logic Gate Networks",
+      "url": "https://arxiv.org/abs/2506.07500",
+      "relationship": "alternative discretization solution",
+      "difference": "Yousefi et al. use Gumbel noise and a straight-through gate choice to reduce the soft-to-hard gap by 98% and training time by 4.5x on CIFAR. dB nets eliminate its defined hardening gap structurally, but do not address whether that structure can reach comparable depth, utilization, or image accuracy."
+    },
+    {
+      "canonical_id": "arxiv:2510.03250",
+      "title": "Light Differentiable Logic Gate Networks",
+      "url": "https://arxiv.org/abs/2510.03250",
+      "relationship": "current efficiency frontier",
+      "difference": "Ruttgers et al. reparameterize logic-gate neurons to cut binary-input parameter size fourfold, speed backpropagation up to 1.86x, and converge in 8.5x fewer steps while stabilizing CIFAR-100 depth scaling. It attacks training scalability that the reviewed draft identifies but does not experimentally solve."
+    }
+  ],
+  "novelty_assessment": "Hard-equivalence as an operator-by-operator commuting guarantee and margin packing as its gradient-enrichment device are clear, technically interesting contributions. However, Deep Differentiable Logic Gate Networks appeared earlier and is the closest architectural competitor, yet is not discussed in the extracted paper; it already demonstrated much deeper logic networks, negligible empirical discretization loss, and exceptional compiled inference. The reviewed draft therefore has a narrower novelty claim—exact semantic hardening and symbolic execution—not the broader idea of gradient-trained Boolean networks, and its empirical evidence is too preliminary to establish a practical advantage.",
+  "confidence": 0.93,
+  "reviewer_notes": "Read all 17 extracted pages, including operator constructions, proofs, architectures, symbolic examples, and every benchmark. Treated 'no loss' as a conditional semantic property of the defined computation rather than a general training or accuracy guarantee, and noted the threshold exclusion and terminal STE. Five primary arXiv competitors were checked on 2026-08-23."
+}

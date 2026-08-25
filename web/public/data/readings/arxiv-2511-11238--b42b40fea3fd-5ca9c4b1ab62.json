@@ -1,0 +1,332 @@
+{
+  "stable_id": "arxiv:2511.11238",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2511.11238",
+    "pdf_sha256": "e28a66e2ce646e2328cdc4400f1c18cb3d1b0a8f6c485deb2f953fc96d75f64c",
+    "text_sha256": "e9eeee4cd3ee41a52e4643d0745f9dc6ae416ff9208668d1b9984f17c6bf5366",
+    "page_count": 21,
+    "extracted_at": "2026-08-23T14:25:31.016994+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a Transformer obtain the optimization and downstream benefits of a much wider token representation while keeping its attention and feed-forward backbone at the original width, and how do loss and systems cost change as this virtual width is scaled?",
+  "key_findings": [
+    {
+      "claim": "VWN keeps an over-width state outside each Transformer sublayer and uses Generalized Hyper-Connections (GHC) to compress selected state blocks to backbone width, run the ordinary sublayer, and write its output back into the wider state.",
+      "evidence": "For backbone width D, fraction rate m, and n state blocks, the paper sets virtual width D′=(n/m)D. Equations 5-12 define static-plus-input-conditioned A and B routing matrices, Algorithm 1 gives the compress-transform-write recurrence, and the final state is group-normalized and reduced to D before unembedding. The MTP head shares a block-local 2D/m→D/m projector rather than using a dense 2rD→rD mixer.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "3.2, Equations 1-4"
+        },
+        {
+          "page": 6,
+          "section": "3.3, Equations 5-11"
+        },
+        {
+          "page": 7,
+          "section": "Algorithms 1 and 3.4"
+        },
+        {
+          "page": 19,
+          "section": "Appendix B, Algorithm 2"
+        },
+        {
+          "page": 20,
+          "section": "Appendix B, Algorithm 3"
+        }
+      ]
+    },
+    {
+      "claim": "At fixed fraction rate m=8 on the 0.8B-active-parameter MoE, larger virtual width monotonically improves the reported 500B-token losses and weighted downstream score.",
+      "evidence": "Relative to the non-VWN baseline, VWN×2, ×4, and ×8 reduce next-token loss by 0.020, 0.028, and 0.035, reduce next-2-token loss by 0.030, 0.045, and 0.058, and improve the internally weighted Collection B score by 3.20, 3.50, and 4.16 points. The four baseline/width points yield the fitted relation y=-0.0069 log2(x)+1.6212 with R²=0.9986.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 11,
+          "section": "5.2.1, Figure 7"
+        },
+        {
+          "page": 12,
+          "section": "5.2.1, Table 1 and Figure 8"
+        }
+      ]
+    },
+    {
+      "claim": "The largest experiment reports substantial token-efficiency gains at 8× virtual width, but does not establish wall-clock or total-compute efficiency.",
+      "evidence": "On the 3.3B-active-parameter MoE trained with a constant learning rate, VWN×8 reaches the baseline next-token and next-2-token losses with 2.5× and 3.5× fewer tokens. At 3T tokens the respective loss gaps are about 0.032 and 0.056, and the peak internally weighted downstream gain is 2.16 points. The paper reports no measured training throughput, latency, energy, total parameter count, or end-to-end FLOPs for this run.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 1,
+          "section": "Figure 1"
+        },
+        {
+          "page": 12,
+          "section": "5.2.2"
+        },
+        {
+          "page": 13,
+          "section": "6"
+        }
+      ]
+    },
+    {
+      "claim": "MTP is not uniformly beneficial to the next-token objective, even though it often improves the downstream aggregate when combined with VWN.",
+      "evidence": "For the 0.4B/4B MoE, MTP alone slightly worsens next-token loss and is only comparable to baseline on Collection A; VWN+MTP gives the best downstream aggregate but retains a reported 0.016 loss gap on the MTP-included metric. At 2.5B/25B, VWN and VWN+MTP are each about 0.015 below baseline next-token loss and the combination gives the best downstream aggregate.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 10,
+          "section": "5.1, Figures 4-5"
+        }
+      ]
+    },
+    {
+      "claim": "The paper's virtual-width 'scaling law' is an exploratory within-run fit, not yet a demonstrated scaling law across model, data, or compute scales.",
+      "evidence": "The fit uses only r in {1,2,4,8} at one MoE scale, one 500B-token horizon, fixed m=8, one private data recipe, and no uncertainty intervals or held-out prediction. The m ablation also shows diminishing sensitivity beyond roughly m=4 at this model scale, so virtual-state layout is not independently identified from virtual width.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 11,
+          "section": "5.2, Figure 6"
+        },
+        {
+          "page": 12,
+          "section": "5.2.1, Figure 8 and Table 1"
+        }
+      ]
+    },
+    {
+      "claim": "The strongest systems claim is qualified by the paper's own accounting: activation traffic, communication, and very-wide-state routing can dominate even when arithmetic overhead is small.",
+      "evidence": "For the modest r=1.5 example (m=2,n=3), the paper estimates 3D extra activation bytes per layer, about 8.8% of a stated 34D-byte vanilla footprint, after recomputation. It says kernel fusion is required because activation I/O is a bottleneck and concludes that 1.5×-4× is currently more feasible than 8×, which may require software, layout, and interconnect co-design.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "3.5"
+        },
+        {
+          "page": 8,
+          "section": "3.5"
+        },
+        {
+          "page": 13,
+          "section": "6"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Decouple the width of the persistent token state from the width of the expensive Transformer sublayers, treating the former as a bank of narrow residual streams that a learned router reads and writes.",
+    "mechanism": "An rD-dimensional embedding is split into n blocks of width D/m, with r=n/m. At each attention and FFN sublayer, GHC uses learned static and input-conditioned matrices to mix n stored blocks into m blocks totaling D dimensions, applies the ordinary D-wide sublayer, and writes the result plus carried state back into n blocks. A group-normalized linear reducer maps the last rD state to D. The optional multi-token head performs shared block-local fusion to avoid a dense r-scaled projection.",
+    "assumptions": [
+      "A wider persistent residual state retains useful information even though every attention and FFN computation sees only a learned D-dimensional compression.",
+      "Private internal MoE baselines, data mixtures, schedules, and weighted benchmark collections are sufficiently matched that token-count differences isolate VWN.",
+      "Loss at equal seen tokens is a useful efficiency proxy even when parameter count, activation traffic, communication, optimizer cost, and wall-clock throughput differ.",
+      "A four-point fit over r={1,2,4,8} at one model scale is informative about a possible virtual-width scaling trend.",
+      "Zero-initialized dynamic routing around a hand-designed static carry pattern provides stable enough optimization without a dedicated initialization study.",
+      "Group normalization and a final learned reduction do not create baseline-unequal regularization or parameter effects that explain the gains."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "over-width-persistent-state",
+      "role": "Stores r times the backbone-width token representation across depth while leaving the attention and FFN modules at width D."
+    },
+    {
+      "id": "dynamic-generalized-hyper-connection",
+      "role": "Generates input-conditioned compression, carry, and write coefficients from normalized state blocks, added to stable static routing matrices."
+    },
+    {
+      "id": "block-local-multi-token-head",
+      "role": "Fuses next-token embeddings and hidden states with a projector shared across D/m-sized blocks so MTP cost does not grow quadratically with r."
+    },
+    {
+      "id": "grouped-wide-state-normalization",
+      "role": "Normalizes rD-dimensional states in groups of the original width D before the final reducer."
+    },
+    {
+      "id": "fused-routing-kernel",
+      "role": "Combines normalization, dynamic-coefficient generation, and width routing to limit memory traffic."
+    },
+    {
+      "id": "fixed-backbone-width-sweep",
+      "role": "Varies r at fixed backbone and m to estimate loss and downstream changes attributable to stored-state width."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "MoE-A0.8B, m=8, r in {2,4,8}, 500B private pretraining tokens",
+      "metric": "Next-token loss reduction / next-2-token loss reduction / internally weighted Collection B accuracy gain",
+      "result": "VWN×2: 0.020/0.030/+3.20 points; VWN×4: 0.028/0.045/+3.50; VWN×8: 0.035/0.058/+4.16",
+      "baseline": "Matched non-VWN internal MoE; no seeds, uncertainty intervals, public data recipe, or measured throughput reported"
+    },
+    {
+      "setting": "MoE-A0.8B virtual-width sweep at m=8",
+      "metric": "Fit of terminal next-token loss against log2 virtual width",
+      "result": "y=-0.0069 log2(r)+1.6212, R²=0.9986 across baseline plus r={2,4,8}",
+      "baseline": "Non-VWN r=1 point; exploratory four-point in-sample fit with no held-out scale prediction"
+    },
+    {
+      "setting": "MoE-A3.3B, (m,n)=(8,64), constant learning rate, up to 3T private tokens",
+      "metric": "Tokens to matched next-token and next-2-token loss; terminal loss gap; weighted Collection B score",
+      "result": "2.5× and 3.5× fewer tokens to matched losses; gaps grow to about 0.032 and 0.056 at 3T; peak downstream gain +2.16 points",
+      "baseline": "Matched non-VWN internal MoE; total compute, parameter, throughput, memory, seed, and statistical controls are not reported"
+    },
+    {
+      "setting": "MoE-0.4B/4B with 1.5× VWN and/or MTP",
+      "metric": "Next-token training loss and internally weighted Collection A accuracy",
+      "result": "VWN lowers next-token loss; MTP slightly worsens it; VWN+MTP gives the strongest downstream aggregate while a 0.016 reported loss gap remains on the MTP-included comparison",
+      "baseline": "Internal non-VWN MoE and separate MTP-only arm; curves are reported without numerical uncertainty"
+    },
+    {
+      "setting": "MoE-2.5B/25B with 1.5× VWN and VWN+MTP",
+      "metric": "Next-token training loss and internally weighted Collection A accuracy",
+      "result": "Both augmented models finish about 0.015 loss below baseline; VWN+MTP is best on the downstream aggregate",
+      "baseline": "Internal non-VWN MoE; no MTP-only arm is reported at this scale"
+    },
+    {
+      "setting": "MoE-A0.8B VWN×8 at 500B tokens",
+      "metric": "Per-benchmark accuracy-point gain",
+      "result": "+8.92 DROP, +2.44 HumanEval, +4.20 MATH, +3.95 MMLU, +5.25 MMLU-Pro, +7.45 TriviaQA",
+      "baseline": "Non-VWN MoE; the appendix provides curves but no confidence intervals or multiple-run variability"
+    },
+    {
+      "setting": "Analytical cost example with m=2,n=3 and recomputation factor η=0.5",
+      "metric": "Extra per-layer activation storage",
+      "result": "3D bytes, stated as about 8.8% of a 34D-byte vanilla Transformer-layer footprint",
+      "baseline": "Theoretical vanilla activation accounting, not a measured r=8 end-to-end systems benchmark"
+    }
+  ],
+  "limitations": [
+    "Author-stated: very wide activations create memory-access and cross-device communication overhead; current hardware and software make roughly 1.5×-4× more feasible than the demonstrated 8× state.",
+    "Author-stated: GHC initialization was not specifically tuned, leaving optimization efficiency open.",
+    "Author-stated: the observed per-doubling loss effect is modest and may require more expressive backbones or improved mechanisms to grow.",
+    "Reviewer-identified: every model, data mixture, tokenizer, schedule, benchmark aggregation weight, and most absolute scores are internal, preventing independent reproduction or comparison.",
+    "Reviewer-identified: the large-run claim is token efficiency, not compute or wall-clock efficiency; r=8 parameter counts, optimizer state, activation traffic, communication, measured throughput, latency, and energy are absent.",
+    "Reviewer-identified: no random seeds, error bars, confidence intervals, or paired statistical tests are reported, so small loss gaps and weighted-score differences have unknown variance.",
+    "Reviewer-identified: the paper does not compare directly against AltUp, HC, Frac-Connections, mHC, xHC, MUDDFormer, or DenseFormer under a shared model/data/compute budget.",
+    "Reviewer-identified: the log-linear result is an in-sample fit to four widths at one 0.8B-active MoE scale and one token horizon, without a held-out prediction or sweep over backbone/data scale.",
+    "Reviewer-identified: the task collections use undisclosed internal weights, so a one-point aggregate change is neither transparent nor reproducible and can conceal task trade-offs.",
+    "Reviewer-identified: the contribution of extra embedding/reducer/routing parameters and group normalization is not isolated with parameter-matched or compute-matched controls."
+  ],
+  "failure_modes": [
+    "Activation movement and all-reduce traffic can erase arithmetic savings as r or device count grows.",
+    "A learned compression from n virtual blocks to m backbone blocks can under-use or forget virtual state, especially when routing coefficients are poorly initialized or saturate through tanh.",
+    "Small backbones saturate in fraction rate m beyond about four, so allocating more narrower slots may add traffic without useful depth memory.",
+    "MTP can worsen next-token loss at smaller scale, making claimed synergy objective- and scale-dependent.",
+    "A final linear reduction can bottleneck information stored in the expanded state and may make gains sensitive to normalization and reducer design.",
+    "Token-count speedups can fail to translate to cost speedups when VWN has more parameters, optimizer state, memory traffic, or lower device utilization.",
+    "A weighted benchmark aggregate can improve even if deployment-critical individual tasks regress.",
+    "The apparent log-linear trend may break outside r≤8, at other backbone widths, or after compute-optimal retuning of the baseline."
+  ],
+  "reusable_insights": [
+    "Treat residual-state memory as a scaling axis distinct from the width of expensive nonlinear sublayers.",
+    "Use block-structured shared projections whenever an auxiliary head would otherwise scale quadratically with expanded representation width.",
+    "Separate token efficiency, arithmetic FLOPs, parameter/optimizer cost, memory traffic, and measured wall-clock efficiency in architecture claims.",
+    "Sweep both total state budget r and slot granularity m; a width gain can otherwise be confounded with a different effective depth window.",
+    "Initialize dynamic routers around an explicit identity-like static path so a widened residual architecture starts as a predictable computation.",
+    "Validate a proposed scaling relation by predicting unseen widths or backbone/data scales, rather than fitting only the design points used to discover it."
+  ],
+  "open_questions": [
+    "Does VWN retain a quality-per-dollar or quality-per-joule advantage under parameter-, FLOP-, memory-, and wall-clock-matched baselines?",
+    "How does VWN compare directly with AltUp, mHC, xHC, and other residual-stream expansion methods on the same open pretraining stack?",
+    "Does the -0.0069-per-doubling relation predict held-out widths above 8× or other backbone and dataset scales?",
+    "Which information is stored in distinct virtual slots, and do learned carry matrices actually realize the proposed long depth receptive field?",
+    "Can sparse updates, quantized virtual states, or alternative reducers preserve quality while controlling r=8 memory traffic?",
+    "Is the MTP interaction causal after matching auxiliary-head parameters, supervision tokens, and total training compute?",
+    "How much of the gain comes from added embedding/routing parameters versus state width itself?",
+    "Do independently reproduced public-data runs retain the per-task gains and expose any regressions hidden by internal aggregate weights?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "doi:10.52202/075280-3352",
+      "title": "Alternating Updates for Efficient Transformers",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2023/hash/f2059277ac6ce66e7e5543001afa8bb5-Abstract.html",
+      "relationship": "direct-prior",
+      "difference": "AltUp already decouples a widened token representation from a fixed-width Transformer, processing one sub-block per layer and predicting/correcting inactive blocks. VWN's narrower contribution is its GHC read/write routing, fractional block layout, MTP integration, and larger private-MoE width sweep; the paper does not run a head-to-head AltUp control.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2023 proceedings version, Advances in Neural Information Processing Systems 36"
+    },
+    {
+      "canonical_id": "arxiv:2409.19606",
+      "title": "Hyper-Connections",
+      "url": "https://arxiv.org/abs/2409.19606v3",
+      "relationship": "direct-predecessor",
+      "difference": "HC expands the residual stream into multiple learned paths and supplies the routing idea that GHC generalizes. VWN reinterprets and extends that state as over-width embeddings with n-to-m compression and a final reducer, but inherits HC's memory-traffic and stability concerns.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2409.19606v3, 2025-03-18"
+    },
+    {
+      "canonical_id": "arxiv:2503.14125",
+      "title": "Frac-Connections: Fractional Extension of Hyper-Connections",
+      "url": "https://arxiv.org/abs/2503.14125v1",
+      "relationship": "direct-predecessor",
+      "difference": "Frac-Connections partitions an existing hidden state to obtain HC-like depth connectivity without widening it. GHC explicitly combines fractional partitions with an expanded persistent state, trading the predecessor's lower memory cost for additional representational capacity.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2503.14125v1, 2025-03-18"
+    },
+    {
+      "canonical_id": "arxiv:2501.16975",
+      "title": "Over-Tokenized Transformer: Vocabulary is Generally Worth Scaling",
+      "url": "https://arxiv.org/abs/2501.16975v2",
+      "relationship": "same-team-predecessor",
+      "difference": "Over-Tokenized Transformer expands information entering embeddings through multi-gram vocabulary and reports its own log-linear loss trend. VWN instead scales continuous residual-state width at a fixed backbone and can optionally use over-tokenized inputs, so its width trend is not independent evidence for a wholly new general scaling-law pattern.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2501.16975v2, 2025-05-23"
+    },
+    {
+      "canonical_id": "arxiv:2502.12170",
+      "title": "MUDDFormer: Breaking Residual Bottlenecks in Transformers via Multiway Dynamic Dense Connections",
+      "url": "https://arxiv.org/abs/2502.12170v2",
+      "relationship": "competing-connectivity",
+      "difference": "MUDDFormer dynamically mixes representations from earlier layers separately into query, key, value, and residual streams while adding little arithmetic. VWN stores a fixed-size compressed depth cache instead; a direct comparison would test whether virtual-state width or targeted multiway reuse drives efficiency.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2502.12170v2, 2025-05-28"
+    },
+    {
+      "canonical_id": "arxiv:2512.24880",
+      "title": "mHC: Manifold-Constrained Hyper-Connections",
+      "url": "https://arxiv.org/abs/2512.24880v2",
+      "relationship": "post-publication-direct-competitor",
+      "difference": "mHC identifies identity-mapping loss, instability, and memory access as barriers to scaling HC and constrains routing to a manifold with systems optimization. Those controls directly challenge VWN's unconstrained GHC scaling story and supply stability/system baselines absent from the VWN experiments.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2512.24880v2, 2026-01-05"
+    },
+    {
+      "canonical_id": "arxiv:2607.14530",
+      "title": "xHC: Expanded Hyper-Connections",
+      "url": "https://arxiv.org/abs/2607.14530v1",
+      "relationship": "post-publication-direct-competitor",
+      "difference": "xHC scales residual streams to N=16 using richer temporal write-back, sparse updates, and a fused implementation, and reports explicit memory-traffic and compute-to-loss comparisons. It is the closest current systems competitor to VWN's large-r claim and materially narrows VWN's novelty to its particular n-to-m GHC and embedding/MTP formulation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2607.14530v1, 2026-07-16"
+    },
+    {
+      "canonical_id": "arxiv:2402.02622",
+      "title": "DenseFormer: Enhancing Information Flow in Transformers via Depth Weighted Averaging",
+      "url": "https://arxiv.org/abs/2402.02622v2",
+      "relationship": "competing-connectivity",
+      "difference": "DenseFormer directly averages current and prior layer representations to improve data efficiency with few extra parameters. VWN realizes a learned fixed-budget depth cache instead of retaining explicit prior states; the paper does not isolate whether that cache beats depth-weighted averaging under equal traffic and latency.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2402.02622v2, 2024-03-21"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim a new Virtual Width Network family that decouples embedding/state width from backbone width, a Generalized Hyper-Connection that subsumes HC and Frac-Connections, synergy with MTP, and an approximately log-linear virtual-width scaling relation.",
+    "evidence": "The paper gives an explicit n-to-m static/dynamic routing formulation and implementation, demonstrates fractional and 8× states on private MoEs, and reports monotonic loss and aggregate-score changes over r={1,2,4,8} (pages 3, 5-12, and 19-20).",
+    "reviewer_inference": "The same high-level problem and decoupling were already solved by AltUp, while GHC builds directly on HC/Frac-Connections. The durable contribution is therefore the particular generalized block router, MTP-compatible head, and unusually large private-MoE experiment, not the broad idea of cheap wider representations. The four-point fit is suggestive rather than a validated scaling law. Current mHC and xHC further narrow the systems novelty by directly addressing stability, sparse write-back, and measured memory traffic at expanded residual width."
+  },
+  "confidence": 0.78,
+  "reviewer_notes": "Primary full-text review of the pinned 21-page arXiv v2 PDF, including equations 1-13, Algorithms 1-3, all figures/tables, references, and appendices. Finding attributions distinguish paper claims from audit conclusions. Competitor records were checked against exact official versions on 2026-08-23. Confidence is reduced because all pretraining data/models and benchmark weights are private, numerical curves lack uncertainty, and no measured end-to-end systems comparison or direct current architectural baseline is provided."
+}

@@ -1,0 +1,189 @@
+{
+  "stable_id": "arxiv:2204.10532",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2204.10532",
+    "pdf_sha256": "f116c68374455e5fdbd133628ce084a7810c239d5ff6a32c404b4b1d5df164c7",
+    "text_sha256": "fa9f960ae0f39f1f3511cadf39a0c2d19192d2a394deea685eca8a5c14121e38",
+    "page_count": 20,
+    "extracted_at": "2026-08-23T23:03:51.790878+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a pretrained Transformer infer a complete symbolic expression, including numerical constants, fast enough to approach iterative genetic-programming systems on diverse regression problems?",
+  "key_findings": [
+    {
+      "claim": "The paper's central change is to predict constants and expression structure jointly, then optionally use the predicted constants to initialize nonlinear refinement.",
+      "evidence": "Expressions are serialized in prefix notation with symbolic operator and variable tokens plus three-token base-10 floating-point constants. A sequence-to-sequence Transformer maps a permutation-invariant set of numerical observations to that hybrid sequence; BFGS is then initialized from decoded constants rather than from a random point.",
+      "anchors": [{"page": 2, "section": "Contributions"}, {"page": 4, "section": "Tokenization"}, {"page": 6, "section": "Refinement"}]
+    },
+    {
+      "claim": "On held-out examples from the same synthetic generator, end-to-end prediction plus informed BFGS substantially outperforms an otherwise matched skeleton decoder.",
+      "evidence": "Table 2 reports R2 0.68 versus 0.43 and accuracy-to-tolerance 0.29 versus 0.17 at tolerance 0.001 for informed E2E refinement versus skeleton plus BFGS. E2E without refinement improves coarse fit but falls to 0.09 at the tightest tolerance; random BFGS initialization reduces its R2 to 0.44, showing that decoded constants are mainly valuable as an optimizer warm start.",
+      "anchors": [{"page": 7, "section": "In-domain performance"}, {"page": 8, "section": "End-to-end outperforms skeleton"}]
+    },
+    {
+      "claim": "The architecture handles up to ten input variables and variable-size point sets by compressing each observation to one embedding and omitting encoder positions.",
+      "evidence": "A two-layer point embedder maps 3(Dmax+1) numeric tokens to a 512-dimensional vector. The 86-million-parameter model has a four-layer encoder, sixteen-layer decoder, and sixteen heads; absent positional embeddings make the encoder equivariant to observation order. Training uses roughly 50 epochs of three million generated examples on 32 GPUs.",
+      "anchors": [{"page": 5, "section": "Model"}, {"page": 5, "section": "Training"}]
+    },
+    {
+      "claim": "Fast test-time prediction is not a single forward pass in the strongest reported configuration: it is an amortized candidate-generation, ranking, deduplication, and local-optimization pipeline.",
+      "evidence": "For datasets above 200 points the method forms up to 100 bags, samples 10 candidates per bag, scores as many as 1,000 expressions on all data, removes duplicate skeletons, and refines the best 10 with BFGS on up to 1,024 points. Transformer pretraining cost and CPU refinements are not part of a pure one-pass comparison.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 6, "section": "Bagging and decoding"}, {"page": 7, "section": "Inference time"}]
+    },
+    {
+      "claim": "On the filtered SRBench suite, the method offers a strong speed-accuracy-complexity tradeoff and approaches, but does not surpass, the best genetic-programming methods on average.",
+      "evidence": "Evaluation retains 190 continuous-feature problems with at most ten variables: 119 Feynman, 14 Strogatz, and 57 black-box datasets. The paper reports fourth-ranked mean accuracy on the Feynman suite and lower expression complexity than Operon and SBP-GP, while acknowledging worse performance on trajectory-shaped Strogatz inputs and a remaining gap to GP.",
+      "anchors": [{"page": 8, "section": "Out-of-domain generalization"}, {"page": 10, "section": "SRBench results"}, {"page": 15, "section": "Strogatz datasets"}]
+    },
+    {
+      "claim": "Several evaluation conventions make predictive scores more forgiving and do not establish exact scientific-law recovery.",
+      "evidence": "For in-domain results, pathological R2 values are clamped to zero and accuracy-to-tolerance discards the worst five percent of predicted points. Most reported SRBench comparisons use held-out R2 rather than symbolic equivalence, so a structurally wrong expression can score well over the sampled domain; the Jin-5 appendix example fits observations but extrapolates incorrectly.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 7, "section": "In-domain performance metrics"}, {"page": 18, "section": "Jin benchmark"}]
+    },
+    {
+      "claim": "Synthetic pretraining creates a strong operator and distribution prior whose out-of-distribution limits are only partly measured.",
+      "evidence": "The generator restricts binary operators to addition, subtraction, and multiplication, samples a hand-weighted unary set, caps dimensions at ten and points at 200, rejects functions with invalid or very large outputs, whitens inputs, and favors easier surviving expressions. The appendix excludes exact memorization only for larger skeletons and explicitly cannot exclude repeats among expressions with at most four operators.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 3, "section": "Generating functions"}, {"page": 4, "section": "Generating inputs"}, {"page": 13, "section": "Details on the training data"}, {"page": 14, "section": "Does memorization occur?"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Amortize symbolic search into a set-to-sequence Transformer that emits both syntax and approximate constants, while preserving a small numerical refinement step for precision.",
+    "mechanism": "Pretrain on generated expression/data pairs; encode each whitened observation independently and aggregate it with a position-free Transformer; stochastically decode hybrid symbolic-numeric prefix expressions; undo input scaling; rank and deduplicate candidates; refine selected constants with analytically differentiated BFGS.",
+    "assumptions": [
+      "The synthetic expression grammar and coefficient distribution resemble structures needed at deployment.",
+      "A finite unordered sample of function values identifies a useful expression within the chosen operator language.",
+      "Four-significant-digit decoded constants fall inside a favorable basin for local BFGS refinement.",
+      "Whitening and symbolic unscaling are adequate for numerical ranges outside pretraining.",
+      "Held-out predictive fit and expression-tree size are acceptable proxies for recovering a scientifically meaningful law."
+    ]
+  },
+  "techniques": [
+    {"id": "hybrid-symbolic-numeric-decoding", "role": "Generates prefix expression structure and floating-point constants in one autoregressive sequence."},
+    {"id": "permutation-invariant-point-encoder", "role": "Embeds each observed input-output point and removes encoder positions so point order carries no signal."},
+    {"id": "synthetic-expression-pretraining", "role": "Amortizes experience across millions of randomly generated functions instead of restarting search per dataset."},
+    {"id": "model-initialized-bfgs", "role": "Refines decoded constants from a learned warm start with analytical gradients."},
+    {"id": "bagged-candidate-sampling", "role": "Uses multiple point subsets and stochastic decodes to expand candidate diversity beyond beam search."},
+    {"id": "whiten-and-unscale", "role": "Normalizes input coordinates before inference and symbolically reverses the transformation afterward."}
+  ],
+  "evaluations": [
+    {"setting": "100,000 held-out functions from the training generator", "metric": "R2 and maximum relative error accuracy at tolerances 0.1, 0.01, and 0.001", "result": "E2E plus informed BFGS reaches R2 0.68 and tolerance accuracies 0.61, 0.44, and 0.29; matched skeleton plus BFGS reaches 0.43, 0.40, 0.27, and 0.17.", "baseline": "Skeleton Transformer and E2E variants with no refinement or randomly initialized BFGS."},
+    {"setting": "119 filtered Feynman SRBench datasets over ten seeds and three target-noise levels", "metric": "fraction with test R2 above 0.99, runtime, and expression-tree nodes", "result": "The model ranks fourth in mean accuracy while occupying a favorable runtime and complexity region relative to strong GP systems.", "baseline": "Fourteen SRBench symbolic-regression systems and seven conventional ML baselines."},
+    {"setting": "57 black-box and 14 ODE-Strogatz filtered SRBench datasets", "metric": "test predictive performance, runtime, and expression complexity", "result": "Results are competitive on black-box regression but weaker on time-ordered Strogatz trajectories whose input distribution differs sharply from pretraining.", "baseline": "SRBench GP, neural, and standard regression methods."},
+    {"setting": "Generator-controlled shifts", "metric": "accuracy versus number of points, extrapolation scale, target noise, expression size, and dimension", "result": "More points help E2E most; informed refinement improves precision and noise robustness; performance declines with structural difficulty and distribution shift.", "baseline": "Skeleton and E2E ablations with alternate BFGS initialization."}
+  ],
+  "limitations": [
+    "The model language is fixed by a hand-designed grammar and cannot recover operators, variable interactions, or domains excluded from synthetic pretraining.",
+    "Pretraining consumes about 150 million generated examples and substantial multi-GPU compute, which is amortized away in the inference-time comparison.",
+    "The strongest inference setting samples and scores many candidates and invokes BFGS, so latency and hardware comparisons need a common budget and implementation.",
+    "R2-based success can reward numerically accurate but structurally wrong formulas and does not test dimensional consistency, causality, identifiability, or scientific plausibility.",
+    "Point sets are capped at 200 during training, dimensions at ten, and output dimension at one; larger datasets require bagging and higher dimensions are left open.",
+    "The same-generator validation set tests interpolation within the synthetic prior, while Strogatz results show vulnerability to realistic sampling geometry.",
+    "The memorization analysis counts possible skeletons but does not perform nearest-neighbor or decontamination tests against benchmark equations and transformations."
+  ],
+  "failure_modes": [
+    "Two distinct formulas agree on the observed interval, and the model selects a simpler but physically false extrapolator.",
+    "A necessary operator is absent or rare in the generator, forcing an unwieldy approximation or invalid expression.",
+    "Noise perturbs decoded constants outside the correct BFGS basin, causing local refinement to worsen the candidate.",
+    "Random bags miss a rare regime, singularity, boundary, or transition that identifies the correct law.",
+    "Whitening near-constant or highly anisotropic features amplifies error and produces unstable unscaled constants.",
+    "Candidate ranking before refinement discards a structurally correct expression whose initial constants fit poorly but could refine well.",
+    "Benchmark overlap or grammar frequency makes a familiar short equation look like compositional discovery."
+  ],
+  "reusable_insights": [
+    "Predicting approximate continuous parameters can improve discrete structure learning as well as initialize classical optimization.",
+    "For unordered scientific observations, encode permutation invariance directly instead of asking a sequence model to learn it from augmentation.",
+    "Candidate diversity matters more than local beam variants when numeric-token differences dominate nearby sequences.",
+    "Evaluate symbolic regression on exact or algebraically equivalent recovery, extrapolation, units, and perturbation stability in addition to in-range R2.",
+    "Report total amortized training cost and a fixed end-to-end inference budget when comparing pretrained generators with per-problem search.",
+    "Design benchmark splits by equation family, transformation orbit, and data geometry to distinguish memorization from structural generalization."
+  ],
+  "open_questions": [
+    "How well does the model recover equations whose operator compositions and physical dimensions are held out by family rather than sampled from the same grammar?",
+    "Can active selection of observation points reduce non-identifiability and replace random bagging?",
+    "Can unit constraints, invariances, and domain knowledge be incorporated during decoding without losing fast amortized inference?",
+    "How should uncertainty over algebraically equivalent structures and constants be calibrated?",
+    "Can learned proposal models and evolutionary or tree search be combined under a fixed compute budget to retain both speed and corrective search?",
+    "What benchmark decontamination procedure detects transformed or near-equivalent training equations at scale?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2106.06427",
+      "title": "Neural Symbolic Regression that Scales",
+      "url": "https://arxiv.org/abs/2106.06427",
+      "relationship": "direct-transformer-predecessor",
+      "difference": "Biggio et al. pretrain a Transformer to predict equation structure and guide test-time search. The reviewed paper's principal advance is joint constant decoding, scaling to ten variables, and using constants as BFGS initializers.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:1905.11481",
+      "title": "AI Feynman: a Physics-Inspired Method for Symbolic Regression",
+      "url": "https://arxiv.org/abs/1905.11481",
+      "relationship": "physics-structured-competitor",
+      "difference": "AI Feynman recursively exploits symmetry, separability, compositionality, and dimensional-style structure to reduce search. It is less amortized but encodes scientific biases absent from the reviewed generic grammar model.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:1912.04871",
+      "title": "Deep symbolic regression: Recovering mathematical expressions from data via risk-seeking policy gradients",
+      "url": "https://arxiv.org/abs/1912.04871",
+      "relationship": "neural-search-competitor",
+      "difference": "Petersen et al. optimize a distribution over expressions on each problem with risk-seeking policy gradients and can incorporate black-box objectives and constraints. The reviewed model is dramatically more amortized but less able to adapt its grammar prior from feedback on a new task.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2107.14351",
+      "title": "Contemporary Symbolic Regression Methods and their Relative Performance",
+      "url": "https://arxiv.org/abs/2107.14351",
+      "relationship": "benchmark-and-baseline-source",
+      "difference": "La Cava et al. introduce the 252-problem SRBench and find strong genetic systems remain highly competitive. The reviewed paper relies on a filtered subset and this benchmark's implementations, so its claims inherit the importance of common split, resource, and exact-recovery protocols.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2303.06833",
+      "title": "Transformer-based Planning for Symbolic Regression",
+      "url": "https://arxiv.org/abs/2303.06833",
+      "relationship": "direct-search-extension",
+      "difference": "TPSR adds Monte Carlo tree search to pretrained Transformer decoding so fit and complexity can steer generation. It directly targets the reviewed model's inability to revise one-shot sequence probabilities using non-differentiable task feedback.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2305.01582",
+      "title": "Interpretable Machine Learning for Science with PySR and SymbolicRegression.jl",
+      "url": "https://arxiv.org/abs/2305.01582",
+      "relationship": "modern-evolutionary-competitor",
+      "difference": "PySR uses a high-performance evolve-simplify-optimize loop with custom operators, constraints, parallel populations, and scientific benchmarking. It remains slower per task but is more configurable and does not require a fixed synthetic pretraining prior.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2406.03585",
+      "title": "A Comparison of Recent Algorithms for Symbolic Regression to Genetic Programming",
+      "url": "https://arxiv.org/abs/2406.03585",
+      "relationship": "later-independent-comparison",
+      "difference": "Radwan et al. test an end-to-end Transformer and recent neural methods on novel datasets intended to reduce legacy-benchmark bias and report that Operon-style traditional GP remains superior. This tempers broad state-of-the-art readings of the reviewed SRBench result.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2508.19487",
+      "title": "Data-Efficient Symbolic Regression via Foundation Model Distillation",
+      "url": "https://arxiv.org/abs/2508.19487",
+      "relationship": "current-adaptation-extension",
+      "difference": "EQUATE adapts pretrained equation generators to small domain-specific datasets through symbolic-numeric alignment and evaluator-guided embedding optimization. It targets the reviewed model's negative-transfer and fixed-prior weaknesses while retaining fast generation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": "Reviewer inference after full-text and current primary-source comparison: joint symbolic-numeric decoding plus learned initialization was a substantive and reusable advance over skeleton-only neural regression, yielding an unusually attractive amortized speed/accuracy tradeoff. The strongest scientific-discovery interpretation remains limited by a fixed synthetic grammar, permissive predictive metrics, uncertain benchmark decontamination, and substantial hidden pretraining/candidate-search cost; later planning, adaptive-foundation-model, and independently benchmarked evolutionary methods directly compete on those dimensions.",
+  "confidence": 0.98,
+  "reviewer_notes": "Reviewed all 20 pages, including generator, architecture, decoding and BFGS pipeline, in-domain ablations, filtered SRBench protocol, attention and memorization appendices, and failure examples. Eight directly relevant primary arXiv sources, including later independent and current methods, were checked on 2026-08-23."
+}

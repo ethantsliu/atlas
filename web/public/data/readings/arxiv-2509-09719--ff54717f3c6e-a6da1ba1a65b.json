@@ -1,0 +1,73 @@
+{
+  "stable_id": "arxiv:2509.09719",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2509.09719",
+    "pdf_sha256": "7c1e7a8fffa44c9d70dad3056ba5cd8a82c5a3af0f22713abc257e730a9cc73a",
+    "text_sha256": "76c7f8b0b0dfcb336314bee549686decdaa647abdc6c5bdc31b262f7bb478698",
+    "page_count": 16,
+    "extracted_at": "2026-08-23T15:20:04.907693+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Why do sinusoidal implicit neural representations sometimes collapse to a zero output on high-frequency-dominant signals, and can target-aware noise in the initial weights prevent that failure without adding parameters?",
+  "key_findings": [
+    {
+      "claim": "The paper identifies a spectral bottleneck in which SIREN's activation and empirical-NTK energy remain concentrated at low frequencies, preventing even nominally representable high-frequency modes from learning.",
+      "evidence": "For high-frequency synthetic and natural audio, the NTK-weighted spectral energy does not move toward target modes, error fails to decay, and output collapses to zero; the same 13.4 dB zero-output failure is reported for WIRE, FINER, HOSC, and Gaussian activations under the tested setup.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "III.A-B Challenges and Learning Dynamics in Fourier Space"}, {"page": 5, "section": "Figures 3-4 and spectral-bottleneck characterization"}]
+    },
+    {
+      "claim": "WINNER broadens frequency support by adding Gaussian perturbations to weights before the first two hidden layers while leaving the trained parameter count unchanged.",
+      "evidence": "The added noise increases pre-activation variance by the derived factor sqrt(1+d s^2/2), which the paper interprets as an effective activation-frequency scaling; its effect propagates through later layers and changes the empirical NTK eigenbasis.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 6, "section": "IV WINNER and Theorem IV.1"}, {"page": 7, "section": "Proposition 2"}, {"page": 8, "section": "V Spectral Properties of SIREN2"}]
+    },
+    {
+      "claim": "The target-aware noise rule is an empirically fitted heuristic rather than a derived optimum.",
+      "evidence": "Noise scales use the target spectral centroid in one exponential and one linear formula; the authors explicitly say the form is ad hoc, selected from experiments, and requires a more principled derivation.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 7, "section": "IV.A Target-aware Specification of Noise Scales"}, {"page": 13, "section": "Limitations"}]
+    },
+    {
+      "claim": "SIREN2 produces large fitting gains on high-frequency audio and selected images, but it is not uniformly best against newer INR architectures.",
+      "evidence": "Audio experiments report SIREN2 above 60 dB on difficult clips and strong gains over SIREN. On images it improves SIREN by 7% to 69%, yet FINER is higher on camera, castle, 2D Riemann, and Kodak rows, while SIREN2 leads on several texture averages and noisy-image metrics.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 9, "section": "Table I Audio fitting"}, {"page": 11, "section": "Tables II-III Image fitting and denoising"}]
+    },
+    {
+      "claim": "Improved initialization also helps audio denoising and inpainting, though gains can be small or reverse on low-frequency cases.",
+      "evidence": "At 5 dB input SNR, SIREN2 slightly or materially exceeds FINER++ across four clips; inpainting improves most tested sparsities, but at 50% retained samples on bach.wav SIREN is marginally better (46.89 versus 46.81 dB).",
+      "attribution": "author-reported",
+      "anchors": [{"page": 12, "section": "Tables IV-V Audio denoising and inpainting"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Treat initialization as a controllable spectral prior and match its activation/NTK support to the target before optimization begins.",
+    "mechanism": "Diagnose spectral collapse through layerwise activation FFTs and empirical-NTK eigenmodes; compute a target spectral centroid; use it to set two Gaussian perturbation scales for the first two weight matrices; then retain the ordinary SIREN training procedure.",
+    "assumptions": ["The target spectrum is known or can be estimated", "Spectral centroid is sufficient to choose useful perturbation scales", "Layer-one activations are approximately arcsine distributed for the variance argument", "A learning-rate decay schedule is available to control oscillatory training"]
+  },
+  "techniques": [
+    {"id": "activation-spectrum-audit", "role": "Tracks layerwise pre/post-activation power spectra to localize a learning bottleneck."},
+    {"id": "ntk-eigenmode-audit", "role": "Weights Fourier content by empirical NTK eigenvalues to connect initialization with mode-wise error decay."},
+    {"id": "target-aware-noisy-initialization", "role": "Perturbs the first two weight matrices according to a target-spectrum heuristic without adding trainable parameters."}
+  ],
+  "evaluations": [
+    {"setting": "150,000-sample audio fitting, five trials, 30,000 epochs", "metric": "peak PSNR", "result": "SIREN2 consistently improves high-frequency-dominant clips and reports values above 60 dB on several signals", "baseline": "SIREN, Gaussian activation, WIRE, and FINER"},
+    {"setting": "Image/texture/CFD fitting and noisy-image reconstruction", "metric": "PSNR, SSIM, MAE, LPIPS, and DISTS", "result": "large gains over SIREN and strongest or comparable denoising, but FINER wins multiple clean-fitting rows", "baseline": "SIREN, ReLU positional encoding, WIRE, FINER, and Gaussian activation"},
+    {"setting": "Audio denoising at 5 dB SNR and sparse audio inpainting", "metric": "PSNR", "result": "usually improves FINER++ or SIREN, with one small reversal at high retained fraction", "baseline": "FINER++ for denoising and SIREN for inpainting"}
+  ],
+  "limitations": ["Author-stated: target spectral knowledge is required, which is unavailable in denoising and many PDE settings.", "Author-stated: performance remains sensitive to learning rate and its decay schedule.", "Author-stated: the spectral-centroid-to-noise mapping is ad hoc.", "Reviewer inference: extensive per-task scale searches complicate claims that the heuristic removes expensive tuning."],
+  "failure_modes": ["Broadening the spectrum can suppress low-frequency reconstruction or amplify observation noise.", "A single centroid cannot distinguish multimodal spectra with the same mean frequency.", "Perturbations that help fitting may destabilize gradient flow without a tuned scheduler.", "Unknown target spectra make the initialization circular in inverse problems."],
+  "reusable_insights": ["Audit what frequency modes the optimization kernel can learn, not only what the architecture can represent.", "A no-parameter initialization change can alter effective NTK bandwidth.", "Report exceptions where spectral broadening hurts low-frequency or high-sparsity regimes."],
+  "open_questions": ["Can noise scales be learned online without looking at ground truth?", "Can a multi-band statistic replace the lossy spectral centroid?", "Does spectral support at initialization predict convergence under feature-learning rather than NTK-like dynamics?"],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2006.09661", "title": "Implicit Neural Representations with Periodic Activation Functions", "url": "https://arxiv.org/abs/2006.09661", "relationship": "direct predecessor", "difference": "SIREN introduces sinusoidal activations and a variance-stabilizing initialization; the reviewed paper identifies a high-frequency collapse under that initialization and perturbs its weights based on target spectrum.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv record checked 2026-08-23"},
+    {"canonical_id": "arxiv:2312.02434", "title": "FINER: Flexible spectral-bias tuning in Implicit NEural Representation by Variable-periodic Activation Functions", "url": "https://arxiv.org/abs/2312.02434", "relationship": "direct competitor", "difference": "FINER tunes supported frequencies through variable-periodic activations and bias ranges; WINNER retains SIREN's activation and perturbs early weights to reshape pre-activation and NTK spectra.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv record checked 2026-08-23"},
+    {"canonical_id": "arxiv:2006.10739", "title": "Fourier Features Let Networks Learn High Frequency Functions in Low Dimensional Domains", "url": "https://arxiv.org/abs/2006.10739", "relationship": "mechanistic alternative", "difference": "Fourier features explicitly map coordinates into a tunable stationary-kernel basis; WINNER tries to obtain comparable bandwidth control through initialization without the embedding's parameter and feature expansion.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv record checked 2026-08-23"},
+    {"canonical_id": "arxiv:2301.05187", "title": "WIRE: Wavelet Implicit Neural Representations", "url": "https://arxiv.org/abs/2301.05187", "relationship": "architecture competitor", "difference": "WIRE uses complex Gabor-wavelet activations for localized space-frequency bias; WINNER keeps periodic SIREN activations and alters only initial weights, with stronger audio fitting in the reviewed experiments but mixed image comparisons.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv record checked 2026-08-23"}
+  ],
+  "novelty_assessment": {"author_claim": "WINNER is a target-aware noisy initialization that prevents a newly characterized spectral bottleneck in SIRENs and improves audio fitting without extra parameters.", "evidence": "The paper connects activation spectra, empirical-NTK eigenmodes, a variance calculation, and broad cross-modal experiments.", "reviewer_inference": "The spectral-collapse diagnosis is valuable, but spectral-bias control is already central to Fourier features, FINER, and WIRE; the distinct contribution is early-weight noise plus an empirical target-centroid rule, whose circularity and tuning burden remain unresolved."},
+  "confidence": 0.92,
+  "reviewer_notes": "Read all 16 extracted pages, including result tables and explicit limitations. Primary arXiv records were checked on 2026-08-23; comparisons distinguish target-matched rows from broad state-of-the-art language."
+}

@@ -1,0 +1,169 @@
+{
+  "stable_id": "arxiv:2308.01609",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2308.01609",
+    "pdf_sha256": "bbf5a8dbdc7c2e8983e381e053de5a619e25246ce15f7a76a87a0a0eac926668",
+    "text_sha256": "1d00c2849a7401bff694c2c8104c5c9ae1e7aaa45cbb1140e05378f59e19dd8a",
+    "page_count": 15,
+    "extracted_at": "2026-08-23T19:12:36.626288+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can additive noise on input features provide a cheap, model-agnostic defense against memorizing corrupted labels, and can that benefit be explained by a PAC-Bayes bound on information stored in learned weights?",
+  "key_findings": [
+    {
+      "claim": "Adding feature noise is empirically useful at severe synthetic label corruption and composes with several noisy-label methods, but it is not uniformly beneficial.",
+      "evidence": "Across MNIST, FashionMNIST, a two-class 800-example miniImageNet subset, and 164-training-example ADNI, Gaussian feature noise often produces the largest gains at 80% symmetric corruption. For example, MNIST baseline accuracy rises from 42.5% to 95.7%, and ELR+ rises from 85.5% to 99.2%. Gains are small or negative at low corruption in several cells, including clean ADNI and some ELR/ELR+ settings.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 9, "section": "VII.B Classification accuracy and Table II"}, {"page": 13, "section": "Table III"}]
+    },
+    {
+      "claim": "The central PAC-Bayes argument does not establish that feature noise yields a tighter valid bound for the trained network.",
+      "evidence": "Equation 2 states an expectation-over-datasets relation I(W;S) <= E_S KL(Q||P), but Equations 3-4 replace the sample-specific KL term in a high-probability PAC-Bayes inequality directly by I(W;S). A lower expected quantity cannot simply replace the KL term while retaining the same bound. A valid information-theoretic generalization theorem requires its own expectation or high-probability derivation and explicit learning-algorithm randomness.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 4, "section": "III.B PAC-Bayes generalization bound"}]
+    },
+    {
+      "claim": "The Gaussian-channel bound is dimensionally and probabilistically misapplied.",
+      "evidence": "The proof assumes X -> X-tilde -> W, although W is trained from both noisy features and labels and labels are correlated with X; the Markov chain is not valid unconditionally as stated. Equation 24 uses one-half log(1+E(X)/sigma squared), but Gaussian channel capacity depends on input power or covariance relative to noise covariance and, for vector X, on dimension/eigenvalues—not the feature mean. The claimed approximately 0.35-nat cap for an entire feature matrix is therefore unsupported.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 6, "section": "V.B Feature noise and Theorem V.3"}, {"page": 7, "section": "Discussion of Equation 24"}]
+    },
+    {
+      "claim": "The label-noise theorem compares loose ceilings and then assumes optimization saturates them; it does not prove worse generalization or even ordering of the realized bounds.",
+      "evidence": "Theorem V.2 correctly observes that uniform symmetric corruption increases H(Y|X) under its model, but compares upper bounds that reuse I(W;X) despite clean- and noisy-trained algorithms inducing different W distributions. It then asserts cross-entropy ERM will independently maximize I(W;Y|X) to H(Y|X) and that the generalization gap will reach the displayed ceiling. Neither saturation nor actual-gap equality follows from the loss decomposition.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 5, "section": "V.A Label noise"}, {"page": 6, "section": "Theorem V.2"}]
+    },
+    {
+      "claim": "The proposed formula for an optimal feature-noise variance is an illustrative curve fit, not a theorem about the actual conditional entropy or accuracy optimum.",
+      "evidence": "Proposition VI.4 assumes H(noisy Y | noisy X)=a sigma squared. Conditional entropy is bounded above by H(Y), so it cannot remain linear for unbounded variance; the paper itself just established saturation as sigma squared tends to infinity. The resulting closed-form optimum depends on an undefined coefficient a and a feature mean used where signal power is needed, and is only compared qualitatively with a test-accuracy grid.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 7, "section": "Lemma VI.3"}, {"page": 8, "section": "Proposition VI.4"}, {"page": 10, "section": "VII.F Quantitative relationship"}]
+    },
+    {
+      "claim": "The empirical 'bound visualization' does not validate the proposed information bound.",
+      "evidence": "The experiment fits Gaussian weight distributions from 100 training runs and chooses a Gaussian prior, which the authors acknowledge can be far looser than the optimal prior. It plots a PAC-Bayes surrogate while separately reporting an approximately 0.014 theoretical ceiling; no nonvacuity, coverage, correlation with held-out gap across conditions, or direct I(W;X) estimate is shown.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 9, "section": "VII.C Bound visualization"}, {"page": 10, "section": "Figure 3 discussion"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Inject additive or corruptive noise into each training feature vector, with Gaussian noise as the default, to limit the information about inputs that a stochastic training procedure can encode in its weights and thereby reduce memorization of noisy labels.",
+    "mechanism": "Replace x with x+z during training, leave inference clean, and combine this augmentation with ordinary cross-entropy or existing sample-selection/early-learning methods. Motivate it through a decomposition of a PAC-Bayes complexity term into label-conditional and feature information, interpret additive noise as a communication channel, then select noise type and magnitude using a proposed randomness measure and a variance grid.",
+    "assumptions": [
+      "Training features follow a Gaussian mixture model and label corruption is initially symmetric and uniform.",
+      "Learned weights form a well-defined random variable through training randomness.",
+      "Mutual information I(W;S) can replace the KL term in the stated samplewise PAC-Bayes bound.",
+      "The model weights depend on clean X only through noisy X despite also using labels correlated with X.",
+      "A scalar Gaussian channel formula based on E(X) applies to high-dimensional feature matrices.",
+      "Cross-entropy training saturates selected mutual-information upper bounds.",
+      "Conditional label entropy after feature corruption is linear in noise variance over the relevant range.",
+      "Synthetic label flips and small benchmark subsets represent real annotation noise."
+    ]
+  },
+  "techniques": [
+    {"id": "feature-noise-augmentation", "role": "Adds Gaussian, impulse, blur, or snow corruption to training inputs without changing labels."},
+    {"id": "pac-bayes-information-decomposition", "role": "Attempts to express bound complexity through I(W;Y|X) and I(W;X)."},
+    {"id": "channel-capacity-regularization-view", "role": "Interprets noisy features as a bottleneck on information reaching learned weights."},
+    {"id": "noise-randomness-ranking", "role": "Defines h(X|X-tilde) as recoverability/randomness to rank augmentation types."},
+    {"id": "plug-in-robustness-layer", "role": "Combines feature noise with baseline, early stopping, ELR, and ELR+ training."},
+    {"id": "weight-posterior-bound-visualization", "role": "Fits Gaussian distributions across repeated runs to plot an approximate PAC-Bayes curve."}
+  ],
+  "evaluations": [
+    {"setting": "MNIST and FashionMNIST with symmetric noise rates 0, 0.2, 0.5, 0.8", "metric": "clean-test classification accuracy over three runs", "result": "FN variants are strongest mainly at 0.8 corruption; ELR++FN reaches 99.2% on MNIST and 92.4% on FashionMNIST", "baseline": "BL, SR, CT, CT+, ES, ELR/ELR+, PES, NCT, LIMIT"},
+    {"setting": "Binary miniImageNet and ADNI graph classification", "metric": "clean-test accuracy", "result": "best FN combinations improve over selected comparisons, especially at high corruption, but may hurt clean accuracy", "baseline": "BL, ES, ELR, plus their FN variants"},
+    {"setting": "MNIST at 80% symmetric noise", "metric": "accuracy versus severity for Gaussian, impulse, blur, and snow feature corruption", "result": "Gaussian and impulse improve at higher tested severity while blur and snow degrade", "baseline": "same LeNet without the corresponding corruption"},
+    {"setting": "MNIST with pair and instance-dependent label noise", "metric": "test accuracy curves", "result": "FN improves the baseline across displayed corruption levels", "baseline": "baseline LeNet"},
+    {"setting": "100 repeated LeNet trainings on MNIST", "metric": "Gaussian-approximated PAC-Bayes curve", "result": "label+feature-noise curve is plotted below clean and label-noise-only curves", "baseline": "clean and label-noise-only training"},
+    {"setting": "Grid over Gaussian sigma and symmetric label-noise rate", "metric": "test accuracy", "result": "the empirically best sigma generally rises with label-noise rate and then declines when too large", "baseline": "other sigma values; no validation-selected policy"}
+  ],
+  "limitations": [
+    "The PAC-Bayes and channel-capacity derivations contain foundational substitutions and Markov/dimensional errors.",
+    "The theoretical framework does not establish a bound on actual test error or a causal mechanism for the observed gains.",
+    "The optimal-variance expression rests on a linear-entropy assumption that contradicts entropy saturation.",
+    "Only three runs are used for primary accuracy tables, leaving uncertainty high in small-data settings.",
+    "The miniImageNet experiment is binary with only 800 training images, and ADNI has only 164 training nodes/examples as reported.",
+    "Most noise is synthetic; no Clothing1M, WebVision, CIFAR-N, annotator-stratified, or other large real-noise benchmark is tested.",
+    "Noise-selection details do not clearly separate validation tuning from the test-accuracy grids used to support the theory.",
+    "Strong augmentation and modern semi-supervised noisy-label systems are not all compared under matched architectures and tuning budgets.",
+    "Feature noise can reduce clean or low-noise accuracy and may destroy label-relevant fine detail."
+  ],
+  "failure_modes": [
+    "Too much feature corruption erases class signal before it prevents label memorization.",
+    "Global Gaussian noise can mismatch structured image, graph, text, or medical acquisition noise and induce harmful distribution shift.",
+    "Feature-noise tuning on a clean validation set may be impossible in the motivating setting where clean labels are unavailable.",
+    "Instance-dependent label corruption correlated with fragile features can defeat an unconditional bottleneck story.",
+    "High-dimensional capacity can scale with dimension even when a scalar formula predicts a tiny information cap.",
+    "A deterministic training algorithm or poorly specified source of weight randomness makes I(W;S) infinite or ill-defined for the intended analysis.",
+    "Composing FN with sample selection can change loss ordering and cause clean examples to be discarded.",
+    "Large gains on simple digits at 80% uniform corruption may not transfer to semantically plausible human mistakes."
+  ],
+  "reusable_insights": [
+    "Treat cheap input corruption as an orthogonal component that can be combined with label-selection and early-learning methods.",
+    "Tune corruption strength jointly with estimated label-noise severity; the useful regime is non-monotonic.",
+    "Report clean-accuracy cost alongside high-noise gains because regularization can trade away useful fine-scale information.",
+    "Use structured, label-preserving local noise when whole-input Gaussian corruption destroys class evidence.",
+    "Evaluate a generalization-bound hypothesis by showing a valid nonvacuous bound and preregistered correlation with realized gaps, not only similarly shaped curves.",
+    "Condition information-flow arguments on labels or include the full training input when the learning algorithm consumes both X and Y.",
+    "For vector Gaussian channels, use covariance-aware log-determinant bounds and state the power constraint explicitly."
+  ],
+  "open_questions": [
+    "Which feature corruptions are provably label-preserving while suppressing memorization of instance-dependent annotation noise?",
+    "Can noise magnitude be selected without a clean validation set or known corruption rate?",
+    "Does feature noise add value beyond modern strong augmentation in DivideMix-like semi-supervised pipelines at matched compute?",
+    "Can a correct conditional mutual-information or PAC-Bayes analysis predict when FN helps versus harms?",
+    "How do gains scale with input dimension, model size, dataset size, and realistic annotator disagreement?",
+    "Would adaptive per-example or per-feature noise preserve rare diagnostic signals better than global Gaussian noise?",
+    "Can the mechanism be distinguished experimentally from ordinary smoothing, early stopping, gradient-noise, or loss-landscape effects?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "pmlr:v119:harutyunyan20a",
+      "title": "Improving Generalization by Controlling Label-Noise Information in Neural Network Weights",
+      "url": "https://proceedings.mlr.press/v119/harutyunyan20a.html",
+      "relationship": "Direct information-theoretic predecessor and baseline",
+      "difference": "Harutyunyan et al. bound and actively suppress conditional label-noise information I(W;Y|X) using label-free gradient prediction, with CIFAR and Clothing1M evidence. This paper instead tries to cap feature information I(W;X) using additive noise; it is cheaper but its bound derivation is not valid as written.",
+      "source_kind": "publisher", "checked_at": "2026-08-23", "source_version": "ICML/PMLR record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "openreview:HJgExaVtwr",
+      "title": "DivideMix: Learning with Noisy Labels as Semi-supervised Learning",
+      "url": "https://openreview.net/forum?id=HJgExaVtwr",
+      "relationship": "Strong augmentation-based noisy-label competitor",
+      "difference": "DivideMix partitions examples with a loss mixture model, co-refines labels, and applies MixMatch-style augmentation and semi-supervised training across standard synthetic and real-noise benchmarks. FN is far simpler, but the paper does not establish that additive noise matches this stronger pipeline under common architectures and datasets.",
+      "source_kind": "openreview", "checked_at": "2026-08-23", "source_version": "ICLR/OpenReview record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "neurips:2020:ea89621bee7c88b2c5be6681c8ef4906",
+      "title": "Early-Learning Regularization Prevents Memorization of Noisy Labels",
+      "url": "https://papers.nips.cc/paper/2020/hash/ea89621bee7c88b2c5be6681c8ef4906-Abstract.html",
+      "relationship": "Memorization-focused baseline",
+      "difference": "ELR uses temporal target regularization to preserve early predictions before noisy-label memorization and provides a controlled linear-model analysis. FN can augment ELR empirically, but its own theory does not isolate memorization dynamics.",
+      "source_kind": "publisher", "checked_at": "2026-08-23", "source_version": "NeurIPS proceedings record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "openreview:HkxWXkStDB",
+      "title": "Improving Robustness Without Sacrificing Accuracy with Patch Gaussian Augmentation",
+      "url": "https://openreview.net/forum?id=HkxWXkStDB",
+      "relationship": "Prior Gaussian feature-augmentation design",
+      "difference": "Patch Gaussian localizes additive noise to preserve clean accuracy while improving corruption robustness on CIFAR-10 and ImageNet. This paper applies whole-feature noise specifically to label corruption and provides compositional noisy-label experiments, but underexplores spatially restricted noise that could reduce its clean-accuracy cost.",
+      "source_kind": "openreview", "checked_at": "2026-08-23", "source_version": "ICLR/OpenReview record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "openreview:3taIQG4C7H",
+      "title": "Label Noise-Robust Learning using a Confidence-Based Sieving Strategy",
+      "url": "https://openreview.net/forum?id=3taIQG4C7H",
+      "relationship": "Later lightweight robust-learning alternative",
+      "difference": "CONFES explicitly detects likely noisy examples from per-class confidence error and combines with Co-teaching or DivideMix on broader benchmarks. FN avoids detection altogether, trading diagnostic specificity for an almost free augmentation whose effective strength must still be tuned.",
+      "source_kind": "openreview", "checked_at": "2026-08-23", "source_version": "TMLR/OpenReview record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Simple feature noise is a previously unrecognized standard technique for label-noise robustness, with a PAC-Bayes explanation and rules for choosing its type and magnitude.",
+    "evidence": "The plug-in augmentation produces striking high-corruption gains on several small benchmarks and often improves early-learning methods with little algorithmic overhead.",
+    "reviewer_inference": "The practical observation—that deliberately corrupting inputs can inhibit label memorization and compose with robust training—is useful but adjacent to established Gaussian augmentation and strong-augmentation noisy-label work. The claimed theoretical foundation and closed-form tuning rule are invalid as written; empirical robustness, not PAC-Bayes proof, is the defensible contribution."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Read all 15 pages, including derivations, tables, plots, appendix datasets, and comparison definitions. Audited the PAC-Bayes substitution, label-conditioned Markov structure, vector Gaussian-channel formula, entropy assumption, and experimental selection logic. Primary ICML/PMLR, NeurIPS, ICLR/OpenReview, and TMLR records were checked through 2026-08-23."
+}

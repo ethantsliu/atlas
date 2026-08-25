@@ -1,0 +1,174 @@
+{
+  "stable_id": "arxiv:2507.13162",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2507.13162",
+    "pdf_sha256": "018b30e56665613d274ce2c54a7ba541365cffd251de3acbde01f0c528be831a",
+    "text_sha256": "c734fdee9b782c09e37a315356e3477b84f45ad9d8e38e68d6a9183827e2001f",
+    "page_count": 30,
+    "extracted_at": "2026-08-23T16:16:46.186360+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a compact front-camera-only driving world model sustain realistic long-horizon rollouts in difficult maneuvers, and under a shared tokenizer does continuous flow matching outperform discrete masked-token prediction?",
+  "key_findings": [
+    {
+      "claim": "Orbis isolates continuous-versus-discrete latent prediction with a hybrid tokenizer and finds flow matching consistently stronger and less design-sensitive than masked discrete generation.",
+      "evidence": "The tokenizer has separate DINO-distilled semantic and detail branches and is fine-tuned to decode either continuous or quantized latents. Matched spatial-temporal transformer experiments across three architectures and 12/30 sampling steps give lower FVD for the continuous model in every displayed cell; the discrete model depends strongly on factorization and a refinement network.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "4 Compatible Discrete and Continuous Prediction Models"},
+        {"page": 5, "section": "4.1 Hybrid Image Tokenizer and 4.2 Latent Space World Model"},
+        {"page": 9, "section": "Tokenizer design and Table 6"},
+        {"page": 25, "section": "C.2 Model architecture ablation"}
+      ]
+    },
+    {
+      "claim": "The 469M flow-matching model substantially improves the paper's short- and long-horizon video metrics on unseen driving domains, with one stated metric exception.",
+      "evidence": "At six seconds and 5 Hz, Orbis reports FVD 134.06/167.57/239.20 on nuPlan/Waymo/nuPlan-turns versus the next best displayed values 291.80/278.19/248.39. It has the best displayed JEDi except Cosmos on Waymo. Windowed FVD remains below public baselines through 20-second turning rollouts.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "5.3 Results, Table 3 and Figure 4"},
+        {"page": 29, "section": "D.3 FVD evaluation"},
+        {"page": 30, "section": "E More results"}
+      ]
+    },
+    {
+      "claim": "Trajectory precision/recall exposes driving failures that generic video scores can miss, but it inherits error from the inverse-dynamics estimator and does not validate planning utility.",
+      "evidence": "VGGT maps generated and real videos to planar pose sequences; distributional precision/recall uses discrete Fréchet and ADE neighborhoods. Orbis improves all four displayed values over Vista and GEM on 400 curated turns, while the paper states that downstream planning and decision-making were not evaluated.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "Trajectory failure motivation"},
+        {"page": 7, "section": "5.2.2 Trajectory Quality, Table 2"},
+        {"page": 10, "section": "6 Discussion, Limitations"},
+        {"page": 28, "section": "D.1 Trajectory quality metrics"}
+      ]
+    },
+    {
+      "claim": "The discrete model's long-horizon brittleness is traced to copying and temporal inconsistency, but the paper does not establish that discreteness itself is the causal failure.",
+      "evidence": "The classifier repeats the previous-frame token about 45% of the time versus 29% in encoded real frames, misses small motions, and requires heuristic unmasking plus a 30M flow-matching refiner. Context augmentation and token-similarity loss reduce but do not eliminate the behavior. These are implementation-coupled observations, not a controlled impossibility result for discrete dynamics models.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Discrete model and temporal refinement details"},
+        {"page": 9, "section": "Shortcomings of discrete space modeling"},
+        {"page": 26, "section": "C.3 Masked generative modeling"},
+        {"page": 30, "section": "Refinement ablation"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Train an economical autoregressive next-frame world model on raw monocular video and use one decoder-compatible tokenizer to compare continuous flow trajectories against discrete masked-token reconstruction.",
+    "mechanism": "Five context frames condition a causal spatial-temporal transformer that iteratively denoises Gaussian latent noise with flow matching or unmasks quantized tokens. Each predicted frame enters a sliding context window. Semantic/detail factorization, context dropout/noising, and trajectory-aware evaluation target long-rollout robustness; optional adaptive normalization conditions on ego motion.",
+    "assumptions": [
+      "The shared hybrid tokenizer makes continuous and discrete prediction objectives sufficiently comparable.",
+      "VGGT pose estimates are accurate and similarly biased across real and generated videos.",
+      "FVD/JEDi and trajectory distribution metrics correlate with useful learned state dynamics.",
+      "Front-camera passive-video prediction is a meaningful precursor to planning despite no closed-loop policy test."
+    ]
+  },
+  "techniques": [
+    {"id": "hybrid-continuous-discrete-tokenizer", "role": "Provides the same semantic/detail latent interface for two generative objectives."},
+    {"id": "autoregressive-flow-matching", "role": "Generates one continuous next-frame latent through 30 ODE integration steps."},
+    {"id": "masked-token-next-frame-model", "role": "Provides a discrete, MaskGIT-style comparison under the shared tokenizer."},
+    {"id": "context-corruption-training", "role": "Exposes the model to missing/noisy context to reduce rollout distribution shift."},
+    {"id": "trajectory-distribution-precision-recall", "role": "Measures realism and coverage of estimated ego-motion paths, not only pixels."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Six-second 5 Hz unconditional rollouts on nuPlan, Waymo, and a 400-sample nuPlan-turns set; these are unseen training domains for Orbis.",
+      "metric": "FVD and JEDi.",
+      "result": "Orbis gives the best displayed FVD on all three and best JEDi on nuPlan/turns, while Cosmos has lower JEDi on Waymo.",
+      "baseline": "Official checkpoints for Cosmos, Vista, GEM, and DrivingWorld where applicable."
+    },
+    {
+      "setting": "Windowed and cumulative rollouts through 16-20 seconds on nuPlan and nuPlan-turns.",
+      "metric": "FVD over consecutive four-second windows and increasing prefixes.",
+      "result": "Flow-matching Orbis degrades more slowly and remains below the public baselines; discrete Orbis starts worse but becomes competitive late.",
+      "baseline": "Vista, GEM, Cosmos, and Orbis-MG."
+    },
+    {
+      "setting": "Ten-second trajectories estimated from 400 nuPlan turning videos.",
+      "metric": "Precision and recall in discrete-Fréchet and ADE trajectory spaces.",
+      "result": "Orbis reports 0.47/0.56 Fréchet and 0.41/0.51 ADE precision/recall, higher than Vista and GEM in every displayed column.",
+      "baseline": "Vista and GEM generated trajectories."
+    },
+    {
+      "setting": "Small-scale BDD100K controlled objective and architecture ablations.",
+      "metric": "FVD across tokenizer variants, DiT/STDiT/CDiT, and 12/30 sampling steps.",
+      "result": "Continuous flow matching wins all six matched architecture/budget comparisons and varies less across tokenizer ablations.",
+      "baseline": "Masked discrete Orbis-MG using the same hybrid tokenizer."
+    }
+  ],
+  "limitations": [
+    "Author-stated: the model does not reliably render traffic lights/signs, sometimes violates traffic rules, and does not match the true trajectory probability distribution.",
+    "Author-stated: planning and short-term decision-making utility were not tested.",
+    "Author-stated: compute limits prevented systematic model/data/context scaling and left the failures of much larger public diffusion models unexplained.",
+    "Reviewer inference: the discrete comparison includes heuristic unmasking and a continuous refiner, so it does not isolate all representational and sampler confounds."
+  ],
+  "failure_modes": [
+    "Autoregressive context corruption can compound until scenes stop, blur, or drift from feasible road geometry.",
+    "Discrete-token copying suppresses small motions and can freeze the vehicle or surrounding actors.",
+    "A video can score well perceptually while implying unrealistic speed, lateral slide, or trajectory coverage.",
+    "Monocular generation without maps or multi-view constraints can invent traffic-rule-inconsistent geometry outside the visible context."
+  ],
+  "reusable_insights": [
+    "Evaluate long autoregressive models in temporal windows; a single short-prefix score conceals late rollout collapse.",
+    "Pair perceptual video metrics with state-transition metrics targeted to the deployment domain.",
+    "A shared tokenizer is a useful controlled-test device, but causal claims still require matching sampler, post-processing, and capacity effects.",
+    "Train on corrupted self-like context to reduce the gap between teacher-forced inputs and rollout histories."
+  ],
+  "open_questions": [
+    "Do Orbis representations improve closed-loop planning, policy learning, or safety-critical rare-event prediction?",
+    "Can a discrete model with learned temporal decoding or non-heuristic sampling eliminate copying while retaining fast inference?",
+    "How do results scale prospectively with data, resolution, context, views, and parameter count?",
+    "Can trajectory evaluation be made robust to inverse-model errors and include collision, rule compliance, and multimodal calibration?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2405.17398",
+      "title": "Vista: A Generalizable Driving World Model with High Fidelity and Versatile Controllability",
+      "url": "https://arxiv.org/abs/2405.17398",
+      "relationship": "direct prior baseline",
+      "difference": "Vista fine-tunes a pretrained video diffusion model with structure/motion losses and broad controls; Orbis trains from raw front-camera video and prioritizes long-rollout transition quality.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2412.11198",
+      "title": "GEM: A Generalizable Ego-Vision Multimodal World Model for Fine-Grained Ego-Motion, Object Dynamics, and Scene Composition Control",
+      "url": "https://arxiv.org/abs/2412.11198",
+      "relationship": "direct prior baseline",
+      "difference": "GEM uses more than 4000 hours plus multimodal pseudo-label controls and autoregressive noise schedules; Orbis uses 280 hours of unannotated monocular video and reports better long-horizon metrics but less control.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2412.19505",
+      "title": "DrivingWorld: Constructing World Model for Autonomous Driving via Video GPT",
+      "url": "https://arxiv.org/abs/2412.19505",
+      "relationship": "discrete long-horizon competitor",
+      "difference": "Uses next-state/next-token GPT modeling with masking and control for 40-second videos; Orbis's matched experiment favors continuous flow and notes that DrivingWorld is trained on its nuPlan test domain.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2605.11596",
+      "title": "HorizonDrive: Self-Corrective Autoregressive World Model for Long-horizon Driving Simulation",
+      "url": "https://arxiv.org/abs/2605.11596",
+      "relationship": "subsequent long-horizon competitor",
+      "difference": "Trains a rollout-capable teacher with recovery from corrupted histories and distills minute-scale bounded-memory generation, directly extending beyond Orbis's 20-second evaluation horizon.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims an economical state-of-the-art driving model, a shared continuous/discrete tokenizer comparison favoring flow matching, and trajectory-distribution evaluation for difficult turns.",
+    "evidence": "Matched ablations, three held-out driving datasets, long-window FVD, inverse-dynamics trajectory metrics, and released checkpoints support the claims within the tested setup.",
+    "reviewer_inference": "The strongest contribution is the long-horizon evaluation protocol plus a useful controlled comparison. It does not establish a universal advantage of continuous latents, and subsequent self-corrective models move the frontier to minute-scale rollout."
+  },
+  "confidence": 0.94,
+  "reviewer_notes": "Read all 30 extracted pages, including benchmark selection, metric definitions, tokenizer phases, discrete refinement, frame-rate caveats, and speed/memory appendices. Comparisons are reported with the paper's official-checkpoint protocol; I preserve the Waymo-JEDi exception and separate video/trajectory quality from untested planning value. Primary arXiv competitor records were checked on 2026-08-23."
+}

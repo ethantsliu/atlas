@@ -1,0 +1,87 @@
+{
+  "stable_id": "arxiv:2506.08228",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2506.08228",
+    "pdf_sha256": "e7f1066f87c7f2e2c1f3322e9cd2d8df06788c615dbe301fb8bd23cf45715ac4",
+    "text_sha256": "2b989dbcb0e75307346b42abc5cfae518095474c2a1a7c2fb9d0ad5fbf9e3f28",
+    "page_count": 31,
+    "extracted_at": "2026-08-23T19:25:55.523699+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "How should model parameters, logged driving examples, training compute, and sampled rollouts scale for joint motion forecasting and route-conditioned planning, and do open-loop improvements transfer to controlled closed-loop driving?",
+  "key_findings": [
+    {
+      "claim": "Compute-optimal allocation in this model family favors data more heavily and models much smaller than language-model scaling prescriptions.",
+      "evidence": "Iso-FLOP fits over symmetric encoder-decoder transformers yield N-opt proportional to compute^0.63 plus/minus 0.08 and D-opt proportional to compute^0.44 plus/minus 0.06. At matched compute, the fitted motion models are roughly 50 times smaller than language models.",
+      "anchors": [{"page": 8, "section": "4, compute-optimal formulation"}, {"page": 10, "section": "4.1, exponent fits"}]
+    },
+    {
+      "claim": "Training loss, open-loop displacement metrics, and calibrated closed-loop failures all improve monotonically with scale within the measured regime.",
+      "evidence": "Cross-entropy and minADE/wADE improve under joint model-data scaling. Route-conditioned policies fine-tuned with equal small budgets and calibrated for assertiveness show fewer collision/progress failures as pretraining compute rises.",
+      "anchors": [{"page": 10, "section": "4.2, loss scaling"}, {"page": 12, "section": "5.1, open-loop metrics"}, {"page": 15, "section": "5.2, closed-loop protocol"}, {"page": 16, "section": "Figure 10 discussion"}]
+    },
+    {
+      "claim": "Sampling more futures can make a smaller model competitive only until a model-specific crossover point.",
+      "evidence": "Across 8 to 1,024 rollouts, mAP and displacement metrics improve before saturating; the plotted compute frontier switches to a larger model after additional samples cease being the efficient choice.",
+      "anchors": [{"page": 16, "section": "6, inference scaling setup"}, {"page": 17, "section": "Figures 11-12"}]
+    },
+    {
+      "claim": "Other-agent trajectories transfer to ego forecasting, but the demonstrated-mile equivalence is confounded by collection on the same vehicle platform.",
+      "evidence": "Models trained while excluding ego trajectories zero-shot follow a similar ego-loss scaling trend; iso-loss fits estimate that ten observed miles equal roughly two to three demonstrated miles. The paper explicitly cautions that all logs remain correlated with the ego platform.",
+      "anchors": [{"page": 19, "section": "7, cross-agent transfer"}, {"page": 20, "section": "Figure 15 and caveat"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Run an IsoFLOP scaling study on a fixed autoregressive multi-agent motion-token architecture, then test whether its loss trends persist in open-loop metrics, route-conditioned closed-loop simulation, and test-time sampling.",
+    "mechanism": "Train symmetric encoder-decoder transformers on up to 541 million examples from 447 thousand hours of safety-driver logs. Fit power-law-plus-constant surfaces over parameters, examples, and FLOPs; cluster sampled joint rollouts for forecasting metrics; fine-tune each scale equally for ego planning; and calibrate progress bias before comparing closed-loop failures.",
+    "assumptions": [
+      "The fixed architecture and action tokenization remain representative as compute grows.",
+      "A 30-second mixed logged/simulated closed loop predicts deployment-relevant safety.",
+      "Per-model assertiveness calibration removes rather than hides important behavioral differences.",
+      "The fitted regime is broad enough to inform allocation beyond the observed compute range."
+    ]
+  },
+  "techniques": [
+    {"id": "isoflop-motion-scaling", "role": "Estimates compute-optimal model and data sizes from equal-compute experiment bands."},
+    {"id": "autoregressive-joint-motion-tokenization", "role": "Models interacting agents as one causally masked trajectory-token sequence."},
+    {"id": "closed-loop-assertiveness-calibration", "role": "Matches progress bias across scales before counting collisions and progress failures."},
+    {"id": "sample-cluster-test-time-scaling", "role": "Trades more rollouts from a small model against a larger model on the same inference-compute axis."}
+  ],
+  "evaluations": [
+    {"setting": "Compute-optimal training sweeps on proprietary real driving logs", "metric": "Cross-entropy, minADE, and wADE", "result": "All improve with scale and are better fit by power law plus constant than pure power law", "baseline": "Lower-compute members of the same architecture family"},
+    {"setting": "30-second closed-loop route-conditioned simulation", "metric": "Collision or significantly under/over-progressing scenario count", "result": "Failure count falls with pretraining compute after equal fine-tuning and assertiveness calibration", "baseline": "Smaller pretrained models in the same family"},
+    {"setting": "8-1,024 sampled futures for three model sizes", "metric": "minADE, minFDE, miss rate, and mAP per inference FLOP", "result": "Sampling helps each model until saturation, producing size-dependent crossover points", "baseline": "Larger model with fewer samples"}
+  ],
+  "limitations": [
+    "Author-stated: compute does not span enough orders of magnitude to establish open- or closed-loop power laws.",
+    "Author-stated: passive-transfer logs come from the same ego platform and are not truly independent observations.",
+    "Reviewer-identified: the dataset and simulator are proprietary, limiting independent reproduction and external-distribution testing.",
+    "Reviewer-identified: a fixed architecture, tokenization, curation policy, and scenario distribution make the exponents conditional rather than universal.",
+    "Reviewer-identified: calibrated simulation failure is not evidence of real-world safety at long-tail deployment scale."
+  ],
+  "failure_modes": [
+    "Power-law extrapolation can fail near the observed irreducible-loss curvature.",
+    "Sampling many correlated futures may add compute without adding useful modes.",
+    "Dominant straight-driving data can improve average metrics while leaving rare hazards underlearned.",
+    "Per-model calibration can alter the policy comparison and mask naturally different risk preferences."
+  ],
+  "reusable_insights": [
+    "Estimate domain-specific compute allocation rather than importing language-model exponents.",
+    "Compare train-time size and test-time sampling on one resource frontier.",
+    "Hold architecture and objectives fixed when testing whether open-loop scaling transfers to closed loop."
+  ],
+  "open_questions": [
+    "Do the fitted exponents hold with vision inputs, richer actions, and geographically shifted logs?",
+    "Can difficulty-aware sampling improve data efficiency without erasing scaling predictability?",
+    "Which closed-loop failures remain after average open-loop loss saturates?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2309.16534", "title": "MotionLM: Multi-Agent Motion Forecasting as Language Modeling", "url": "https://arxiv.org/abs/2309.16534", "relationship": "direct architectural predecessor", "difference": "MotionLM establishes autoregressive joint motion tokens and benchmark accuracy; the reviewed report holds that design largely fixed to measure training, sampling, closed-loop, and transfer scaling."},
+    {"canonical_id": "arxiv:2203.15556", "title": "Training Compute-Optimal Large Language Models", "url": "https://arxiv.org/abs/2203.15556", "relationship": "scaling-method predecessor", "difference": "Chinchilla develops IsoFLOP allocation for language models; the reviewed work applies the method to motion and finds much smaller model/data allocation."},
+    {"canonical_id": "arxiv:2306.12241", "title": "ScenarioNet: Open-Source Platform for Large-Scale Traffic Scenario Simulation and Modeling", "url": "https://arxiv.org/abs/2306.12241", "relationship": "open evaluation alternative", "difference": "ScenarioNet supplies heterogeneous public scenarios and an open simulation stack; the reviewed work uses a much larger proprietary log corpus and controlled internal closed-loop suite."}
+  ],
+  "novelty_assessment": "Reviewer inference: the important contribution is the unusually large, controlled motion-domain scaling study spanning training allocation, test-time sampling, closed-loop transfer, and other-agent data. The power-law methodology and autoregressive architecture are inherited, and the exponents should be treated as conditional engineering evidence rather than universal laws.",
+  "confidence": 0.91,
+  "reviewer_notes": "Read through modeling, fit protocol, all evaluation sections, transfer caveat, and discussion. Primary arXiv competitor records were checked on 2026-08-23."
+}

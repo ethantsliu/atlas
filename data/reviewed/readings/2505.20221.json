@@ -1,0 +1,86 @@
+{
+  "stable_id": "arxiv:2505.20221",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2505.20221",
+    "pdf_sha256": "7b64940a24be9172fd58aafa5060aa6852826be562b0122230b20839e09bbf1d",
+    "text_sha256": "9892c7f7b406de95120dee795f43480729ff79fdc06db9fe39879916866097da",
+    "page_count": 18,
+    "extracted_at": "2026-08-23T16:48:20.621553+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can conditional flow matching learn a continuous vector field over early neural-network weight updates that forecasts later weights across optimizers and architectures more usefully than sequence or linear farcasters?",
+  "key_findings": [
+    {
+      "claim": "GFM combines finite-difference prefix supervision with a direct endpoint-displacement target and an integrated endpoint-consistency penalty.",
+      "evidence": "Equation 9 switches between observed local updates and the remaining displacement to the terminal weight; Algorithm 1 adds a midpoint-integrated prediction penalty before inference numerically integrates the learned vector field from the last observed state.",
+      "anchors": [{"page": 5, "section": "4.3, Equation 9"}, {"page": 6, "section": "Algorithm 1 and 4.4"}]
+    },
+    {
+      "claim": "On two-parameter synthetic trajectories, GFM is competitive with the Transformer and best on three of five optimizers.",
+      "evidence": "Using only steps 0-4 to predict step 199, GFM MSE is 0.021/0.020/0.016/0.019/0.013 for SGD, Adam, AdamW, RMSProp, and Adagrad; Transformer is 0.020/0.020/0.019/0.020/0.016.",
+      "anchors": [{"page": 7, "section": "5.1, protocol"}, {"page": 8, "section": "Table 1"}]
+    },
+    {
+      "claim": "Parameter-space error and task performance can disagree strongly.",
+      "evidence": "On CIFAR-10 CNNs, WNN has the best weight MSE (0.365) but source loss 3.605, worse than Introspection's 2.369. GFM is best on the Transformer task loss at 1.117 despite the comparisons using only 100 trajectories per architecture class.",
+      "anchors": [{"page": 9, "section": "5.3 and Table 2"}]
+    },
+    {
+      "claim": "The method does not explicitly encode the optimizer state it claims to model.",
+      "evidence": "Section 4.5 argues universal function approximation can implicitly absorb momentum and second-moment histories from weights alone; the conclusion acknowledges omitted second-order curvature and possible failure in nonstationary regimes.",
+      "anchors": [{"page": 6, "section": "4.5, Optimizer Dynamics"}, {"page": 10, "section": "6, Conclusion"}]
+    }
+  ],
+  "method": {
+    "core_idea": "View recorded weights as samples from a continuous training trajectory and regress a conditional vector field that transports an early state toward the recorded terminal state.",
+    "mechanism": "Linearly interpolate discrete checkpoints; supervise the observed prefix with finite differences; supervise the unobserved interval with final-minus-prefix displacement; penalize a midpoint-integrated terminal forecast; and use ODE integration with update-norm stopping at inference.",
+    "assumptions": [
+      "Weight coordinates are aligned across trajectories and architectures.",
+      "A smooth autonomous vector field conditioned on time can summarize history-dependent optimizer state.",
+      "Recorded step 199 is a meaningful target even when training has not converged.",
+      "Direct weight MSE is meaningful despite neural-network permutation symmetries."
+    ]
+  },
+  "techniques": [
+    {"id": "conditional-weight-flow-matching", "role": "Learns continuous update directions between early and terminal checkpoints."},
+    {"id": "prefix-endpoint-hybrid-target", "role": "Combines observed finite differences with an extrapolative terminal displacement."},
+    {"id": "midpoint-forecast-consistency", "role": "Regularizes local vector matching with an integrated final-weight objective."}
+  ],
+  "evaluations": [
+    {"setting": "250 synthetic two-parameter linear-regression trajectories per optimizer", "metric": "Final-weight MSE from five observed steps", "result": "GFM is first or second across SGD, Adam, AdamW, RMSProp, and Adagrad", "baseline": "Transformer, LSTM, DLinear, WNN, Introspection, and LFD-2"},
+    {"setting": "Train on 3-layer MLP trajectories and test on equal-parameter 2-layer MLP trajectories", "metric": "Task MSE of forecast weights", "result": "Forecasts often land near the recorded terminal-loss trajectories", "baseline": "Actual 200-step loss trajectories"},
+    {"setting": "CIFAR-10 NAS-Bench201 CNNs and sampled small Transformers", "metric": "Weight MSE and source cross-entropy", "result": "GFM wins Transformer source loss at 1.117 but not CNN source loss or CNN weight MSE", "baseline": "Six forecasting models"}
+  ],
+  "limitations": [
+    "Author-stated: no explicit second-order curvature is modeled, limiting highly nonstationary extrapolation.",
+    "Reviewer-identified: endpoint displacement is direct terminal-label supervision, so the method is not learning optimizer dynamics solely from the observed prefix.",
+    "Reviewer-identified: synthetic trajectories have only two parameters and narrowly distributed targets.",
+    "Reviewer-identified: architecture transfer is restricted to equal parameter counts; padding does not solve coordinate or permutation alignment.",
+    "Reviewer-identified: CIFAR experiments use only 60 training trajectories and do not measure saved wall-clock compute against continuing optimization."
+  ],
+  "failure_modes": [
+    "Permutation-equivalent networks can have large weight MSE despite identical functions.",
+    "Momentum or Adam state is not identifiable from a short weight prefix in general.",
+    "ODE integration may leave the basin represented in training data.",
+    "Forecast weights can lower MSE yet produce poor task predictions, or vice versa."
+  ],
+  "reusable_insights": [
+    "Evaluate training forecasts in function/task space as well as parameter space.",
+    "Combine local update supervision with an integrated long-horizon consistency check.",
+    "Audit whether a dynamics model receives future endpoint information unavailable at deployment."
+  ],
+  "open_questions": [
+    "Can optimizer state, gradients, and architecture metadata make the flow identifiable?",
+    "Does forecasting save net compute after training the forecaster and verifying its endpoint?",
+    "How can weight-space flows quotient out neuron-permutation and scale symmetries?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2505.02714", "title": "Less is More: Efficient Weight Forecasting with 1-Layer Neural Network", "url": "https://arxiv.org/abs/2505.02714", "relationship": "direct baseline and same-author predecessor", "difference": "LFD-2 predicts future weights with one linear layer from the initial and latest checkpoints; GFM adds a learned continuous vector field and numerical integration but also uses terminal supervision."},
+    {"canonical_id": "arxiv:2210.02747", "title": "Flow Matching for Generative Modeling", "url": "https://arxiv.org/abs/2210.02747", "relationship": "methodological foundation", "difference": "Original flow matching transports samples between probability distributions for generation; GFM repurposes conditional vector-field regression for optimizer checkpoint trajectories."},
+    {"canonical_id": "arxiv:1606.04474", "title": "Learning to learn by gradient descent by gradient descent", "url": "https://arxiv.org/abs/1606.04474", "relationship": "learned-optimizer alternative", "difference": "The learned LSTM optimizer produces updates online and is trained through optimization outcomes; GFM observes an update prefix and predicts a future trained parameter state."}
+  ],
+  "novelty_assessment": "Reviewer inference: applying conditional flow matching to weight forecasting with a hybrid local/endpoint loss is a distinct construction. The evidence does not yet establish faithful optimizer modeling or training acceleration at realistic scale, and the closest same-author linear farcaster plus future-endpoint supervision substantially narrow the claim.",
+  "confidence": 0.89,
+  "reviewer_notes": "Read the formulation, optimizer-state argument, all main experiments, ablations, and conclusion. Competitor records were checked on arXiv on 2026-08-23."
+}

@@ -1,0 +1,169 @@
+{
+  "stable_id": "arxiv:2309.14322",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2309.14322",
+    "pdf_sha256": "fdad72f0e4f000c9f47a3f7f9bf8dc353bbc9cf8784ff1f27e1caed2beb1a3e1",
+    "text_sha256": "bd2b18cd37778c3d6a63dc3669dda55945dac27d950937807de7a9da3272db4e",
+    "page_count": 26,
+    "extracted_at": "2026-08-23T19:04:10.674012+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can expensive Transformer training instabilities be elicited in small models, measured as sensitivity to learning rate, and prospectively anticipated by scaling activation or gradient statistics?",
+  "key_findings": [
+    {
+      "claim": "Two failure signatures previously reported at large scale can be reproduced in small decoder-only Transformers by deliberately sweeping to high learning rates, and their established mitigations transfer to that proxy regime.",
+      "evidence": "Across a 3e-4 to 3e-1 learning-rate sweep, attention-logit growth and entropy collapse appear in small models and are suppressed by query/key LayerNorm; output-logit drift away from log probabilities appears late in a 2.4M-parameter run and is reduced by a z-loss. Query/key normalization even permits a 1.2B model at learning rate 0.3, but residual sensitivity still rises with scale.",
+      "anchors": [
+        {"page": 4, "section": "3.1.1 Attention logit growth and Figure 2"},
+        {"page": 5, "section": "Output logit divergence and Figures 3-4"}
+      ]
+    },
+    {
+      "claim": "Learning-rate sensitivity distinguishes stabilizing interventions more informatively than a single tuned run, but it is a robustness diagnostic rather than a universal performance measure.",
+      "evidence": "Longer warmup and independently increased weight decay flatten final-loss-versus-learning-rate curves; increasing depth raises sensitivity faster than increasing width. The tested muParam parameterization keeps an approximately scale-invariant best learning rate but neither improves the best loss nor removes sensitivity, so invariant tuning alone does not imply robust optimization.",
+      "anchors": [
+        {"page": 5, "section": "3.2 Measuring the effect of other interventions"},
+        {"page": 6, "section": "Figures 5-8"},
+        {"page": 15, "section": "B Additional discussion of LR sensitivity"}
+      ]
+    },
+    {
+      "claim": "A scaling fit to maximum attention logits gives a concrete prospective warning for one large run, rather than merely explaining an already observed divergence.",
+      "evidence": "Quadratic fits over model size at each learning rate associate loss deterioration with maximum attention logits near 1e3 and divergence above roughly 1e4. The fit predicts that a 4.8B-parameter model at learning rate 1e-2 will cross the region; the subsequently trained model diverges and its measured maximum logit follows the extrapolated trend. Query/key normalization prevents that growth in the tested settings.",
+      "anchors": [
+        {"page": 8, "section": "3.3 Predicting attention logit growth and Figure 9"},
+        {"page": 9, "section": "Figure 10 and 4.8B validation"}
+      ]
+    },
+    {
+      "claim": "Decreasing gradient RMS with scale exposes an optimizer-numerics failure in which AdamW epsilon dominates the denominator and suppresses updates.",
+      "evidence": "Gradient RMS decreases with both model scale and learning rate. In the 4.8B, learning-rate-0.3 case, changing AdamW epsilon from 1e-8 to 1e-15 improves loss and prevents the observed gradient collapse, whereas 1e-6 diverges. Parameter-norm growth is offered as a shared hypothesis for the gradient and attention effects, but the paper does not establish it as a complete causal account.",
+      "anchors": [
+        {"page": 9, "section": "3.4 Searching for new instabilities via scaling"},
+        {"page": 10, "section": "Figures 11-13"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Turn rare large-run failures into controlled small-model stress tests by sweeping learning rate, summarize robustness with clipped excess loss, and extrapolate internal statistics across scale before committing to a large run.",
+    "mechanism": "GPT-2-like pre-norm decoder models are trained on C4 with joint depth/width scaling, AdamW, rotary position embeddings, bfloat16, sequence length 512, and a fixed 100k-step budget. A seven-point learning-rate sweep defines expected clipped loss above the best rate. Architectural and optimizer interventions are ablated, then maximum attention logits and gradient RMS are fitted against model scale and checked in selected 4.8B-parameter runs.",
+    "assumptions": [
+      "A high-learning-rate small run activates mechanisms sufficiently similar to failures at ordinary learning rates in much larger models.",
+      "Final validation loss clipped over the selected learning-rate interval is an adequate robustness summary.",
+      "Activation and gradient statistics have smooth enough scale trends for low-order extrapolation.",
+      "The C4 decoder-only setup represents stability behavior relevant to other data, architectures, optimizers, and longer schedules.",
+      "A single prospective 4.8B validation is sufficient to establish feasibility of the proxy workflow, though not broad calibration."
+    ]
+  },
+  "techniques": [
+    {"id": "learning-rate-sensitivity", "role": "Aggregates excess final loss over a three-order-of-magnitude learning-rate sweep."},
+    {"id": "small-model-instability-stress-test", "role": "Uses deliberately high learning rates to elicit otherwise scale-dependent failure signatures cheaply."},
+    {"id": "query-key-layer-normalization", "role": "Controls query/key norms and prevents attention-logit growth in the tested models."},
+    {"id": "z-loss", "role": "Penalizes squared log-normalizer magnitude to control output-logit drift."},
+    {"id": "norm-scaling-extrapolation", "role": "Fits internal activation or gradient statistics over model size to flag prospective failures."},
+    {"id": "adamw-epsilon-ablation", "role": "Tests whether the numerical stabilizer dominates very small second-moment scales."}
+  ],
+  "evaluations": [
+    {
+      "setting": "C4 GPT-2-like models across size and seven learning rates",
+      "metric": "Final validation loss, clipped LR sensitivity, maximum attention logit, and attention entropy",
+      "result": "Small high-LR models reproduce attention-logit growth; query/key LayerNorm substantially broadens the stable LR range but does not make sensitivity scale-invariant.",
+      "baseline": "The same architecture without query/key LayerNorm"
+    },
+    {
+      "setting": "2.4M-parameter late-training output-logit stress test",
+      "metric": "Loss, output logits, log probabilities, and log-normalizer behavior",
+      "result": "Output logits drift while probabilities remain bounded, especially without weight decay; z-loss mitigates the failure.",
+      "baseline": "Cross-entropy training without z-loss"
+    },
+    {
+      "setting": "Warmup, independent weight decay, depth/width scaling, and muParam ablations",
+      "metric": "Learning-rate sensitivity and best achieved loss",
+      "result": "Warmup and weight decay improve robustness, depth is more destabilizing than width, and muParam preserves the preferred LR without eliminating sensitivity.",
+      "baseline": "Jointly scaled baseline with default schedule and parameterization"
+    },
+    {
+      "setting": "Prospective 4.8B-parameter checks",
+      "metric": "Predicted versus measured maximum attention logits, divergence, gradient RMS, and loss under epsilon changes",
+      "result": "The attention-logit trend predicts one divergent configuration; lowering AdamW epsilon separately prevents update suppression in the high-LR configuration.",
+      "baseline": "Default AdamW epsilon 1e-8 and no query/key normalization"
+    }
+  ],
+  "limitations": [
+    "The proxy correspondence is demonstrated for two already known instability families; high-LR small models may create failures that do not share the mechanism of ordinary-LR large runs.",
+    "The experiments center on one GPT-2-like decoder family, C4, AdamW, bfloat16 TPUs, a 100k-step horizon, and model sizes only through 4.8B parameters.",
+    "The maximum-attention-logit thresholds are empirical in these configurations and receive only one emphasized prospective large-scale check.",
+    "LR sensitivity can be low when every run is poor and can become incomparable when an intervention changes the effective meaning of learning rate.",
+    "Several interventions are evaluated against a strong combined query/key-normalization and z-loss baseline, which can mask marginal effects.",
+    "Parameter-norm growth and AdamW epsilon domination are plausible mechanistic accounts, but broad causal interventions across components are incomplete.",
+    "The study targets slow divergence and explicitly does not reproduce the abrupt loss spikes often encountered during long pretraining.",
+    "No downstream capability, data-quality, wall-clock, or long-horizon scaling validation establishes that the most robust proxy configuration is best in deployment."
+  ],
+  "failure_modes": [
+    "A proxy selects a mitigation for an artificial high-LR pathology that never occurs in the intended large run.",
+    "A stable small model misses a scale-emergent failure because the monitored norm changes regime beyond the fitted range.",
+    "A low LR-sensitivity score hides uniformly bad losses after clipping or a shifted effective learning-rate scale.",
+    "Attention logits remain bounded while a different subsystem causes a fast loss spike.",
+    "A quadratic extrapolation appears accurate at one scale but fails under a new width/depth ratio, data mixture, sequence length, or precision format.",
+    "Reducing optimizer epsilon avoids update suppression but amplifies numerical noise or destabilizes other parameter groups.",
+    "A mitigation improves optimization stability yet damages final quality or compute efficiency."
+  ],
+  "reusable_insights": [
+    "Stress-test proposed training recipes over a learning-rate range rather than reporting only a tuned point.",
+    "Monitor subsystem-specific statistics such as attention logits, entropy, gradients, updates, and parameter norms across scale.",
+    "Require at least one preregistered large-run prediction before treating a small proxy as a validated scaling signal.",
+    "Separate invariance of the optimal hyperparameter from robustness and best achievable loss.",
+    "Include optimizer constants and numeric precision in scaling audits; seemingly negligible epsilons can become dominant.",
+    "Distinguish slow drift, abrupt spikes, NaNs, and quality regressions because they demand different proxies and interventions."
+  ],
+  "open_questions": [
+    "How many independently predicted large runs are needed to calibrate false-positive and false-negative rates for a stability proxy?",
+    "Can mechanistically matched proxy construction be automated instead of relying on a high-learning-rate heuristic?",
+    "Which activation, optimizer-state, and update statistics extrapolate reliably across architecture, data, sequence length, and precision changes?",
+    "Can scaling models express uncertainty and change points instead of a fixed quadratic trend?",
+    "Do proxy-selected mitigations preserve downstream capability and efficiency over full token horizons?",
+    "How should fast loss spikes and data-triggered failures be reproduced at small scale?",
+    "Can controlled norm interventions establish whether parameter-norm growth is causal rather than correlational?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2302.05442",
+      "title": "Scaling Vision Transformers to 22 Billion Parameters",
+      "url": "https://arxiv.org/abs/2302.05442",
+      "relationship": "large-scale source and architectural mitigation",
+      "difference": "Dehghani et al. demonstrate a stable 22B vision Transformer recipe including query/key normalization at genuine large scale. The reviewed work turns its attention-logit symptom into a cheap language-model stress test and robustness metric, but has far less task and scale validation."
+    },
+    {
+      "canonical_id": "arxiv:2303.06296",
+      "title": "Stabilizing Transformer Training by Preventing Attention Entropy Collapse",
+      "url": "https://arxiv.org/abs/2303.06296",
+      "relationship": "competing mechanism and intervention",
+      "difference": "Zhai et al. connect low attention entropy to instability, prove a spectral-norm-dependent entropy bound, and propose sigmaReparam across vision, language, speech, and translation. The reviewed paper instead emphasizes cross-scale proxy construction, query/key normalization, and prospective norm extrapolation."
+    },
+    {
+      "canonical_id": "arxiv:2304.09871",
+      "title": "A Theory on Adam Instability in Large-Scale Machine Learning",
+      "url": "https://arxiv.org/abs/2304.09871",
+      "relationship": "alternative optimizer mechanism",
+      "difference": "Molybog et al. analyze Adam updates that become large and poorly aligned with descent in 7B-to-546B runs. The reviewed epsilon failure is nearly the converse numerical regime—gradients become small enough that updates are suppressed—and is explored through small-scale trends plus a 4.8B ablation."
+    },
+    {
+      "canonical_id": "arxiv:2312.16903",
+      "title": "Spike No More: Stabilizing the Pre-training of Large Language Models",
+      "url": "https://arxiv.org/abs/2312.16903",
+      "relationship": "adjacent fast-spike stabilization",
+      "difference": "Takase et al. target abrupt loss spikes through Jacobian spectral-norm analysis and the design rule of small sublayers plus a large shortcut. That directly covers a failure class the reviewed paper excludes, while offering less emphasis on scale-extrapolated proxy validation."
+    },
+    {
+      "canonical_id": "arxiv:2410.16682",
+      "title": "Methods of improving LLM training stability",
+      "url": "https://arxiv.org/abs/2410.16682",
+      "relationship": "later direct extension",
+      "difference": "Rybakov et al. likewise induce divergence in an 830M model with high learning rates, extend monitoring beyond Q/K to all linear outputs, and test broader normalization and softmax-capping recipes. It strengthens the practicality of the proxy paradigm while underscoring that Q/K logits alone are incomplete."
+    }
+  ],
+  "novelty_assessment": "The central contribution is a practical experimental paradigm: reproduce selected large-scale instabilities with cheap high-learning-rate stress tests, quantify robustness across a sweep, and make a prospective prediction from internal-statistic scaling. Query/key normalization, z-loss, warmup, and muParam are not new, and adjacent work offers alternative entropy and optimizer mechanisms. The one prospective 4.8B attention-logit check is unusually valuable but insufficient to establish that small-model proxies generally forecast large training failures.",
+  "confidence": 0.94,
+  "reviewer_notes": "Read all 26 extracted pages, including appendices on LR sensitivity, architecture, optimizer settings, extra scaling plots, and stated caveats. Distinguished the prospective attention-logit check from the exploratory AdamW-epsilon result and did not generalize either beyond the tested C4 decoder setting. Five primary arXiv competitors/extensions were checked on 2026-08-23."
+}

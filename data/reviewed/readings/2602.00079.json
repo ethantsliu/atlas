@@ -1,0 +1,369 @@
+{
+  "stable_id": "arxiv:2602.00079",
+  "reading_depth": "verified",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2602.00079",
+    "pdf_sha256": "3ed93aff0decddc3e344a06489428853de40cd38e727d85870d0f948f18ea176",
+    "text_sha256": "85a3e51cc0c656b5ffbea7f546d5ff906ae27b718ff7fe603ecb9cdc07eff8af",
+    "page_count": 13,
+    "extracted_at": "2026-08-23T13:27:22.065032+00:00",
+    "review_pass": "secondary-verified-v1"
+  },
+  "question": "Can a deterministic Cartesian-to-spherical transform make unit-normalized float32 embeddings more entropy-compressible than byte-shuffled lossless baselines while keeping reconstruction perturbations small enough not to change measured retrieval quality?",
+  "key_findings": [
+    {
+      "claim": "The proposed codec replaces each d-dimensional unit vector by d-1 float32 spherical angles, groups equal angle positions across vectors, byte-shuffles the angle words, and applies zstd; inverse trigonometry is evaluated in float64 and only the stored angles are rounded to float32.",
+      "evidence": "Algorithm 1 gives the spherical-transform, transpose, byte-shuffle, and zstd pipeline, while Appendix B supplies the reference NumPy implementation. The radius is omitted because the input is assumed to have norm exactly one. Appendix C replaces the Python implementation's repeated partial norms with a backward cumulative sum so the transform itself is O(nd).",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "2.2, Spherical and Polar Coordinate Methods"},
+        {"page": 3, "section": "3, Method"},
+        {"page": 5, "section": "Algorithm 1, Spherical Compression and Direct Similarity"},
+        {"page": 8, "section": "Appendix B, Python Implementation"},
+        {"page": 9, "section": "Appendix C, Compression Speed"}
+      ]
+    },
+    {
+      "claim": "On the headline 7,600-vector, 2,048-dimensional jina-embeddings-v4 case, spherical coding compresses 59.38 MB to 37.59 MB (1.58x), versus 49.57 MB (1.20x) for the ZipNN-style transpose, shuffle, and zstd baseline.",
+      "evidence": "Table 2 reports maximum element error 9e-8, mean element error 2e-8, and maximum cosine error 2e-7 for the spherical round trip. The ratio improvement over the 1.20x baseline is about 31.9%, while the actual compressed-byte reduction relative to that baseline is about 24.2%; the paper's generic '25% better' language refers to compression-factor improvement rather than a uniform 25% reduction in bytes.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract and 1, Contribution"},
+        {"page": 4, "section": "4.1, Experimental Setup"},
+        {"page": 5, "section": "Table 2, Baseline comparison"}
+      ]
+    },
+    {
+      "claim": "Across the reported 26 float32 configurations, compression is consistently 1.47x-1.59x, but the table's 20.5%-32.0% 'improvement' is improvement in compression factor, not the same percentage of storage saved over the baseline.",
+      "evidence": "Table 3 spans 20 text models on 7,600 AG News samples, three image models on CIFAR-10, and three multi-vector ColBERT settings. For example, the 128-dimensional multi-vector case falls from 22.69 MB to 18.82 MB, a 20.5% factor improvement but only a 17.1% byte reduction; the 1,536-dimensional jina-code case falls from 37.48 MB to 28.40 MB, a 32.0% factor improvement and 24.2% byte reduction.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "4.2, Main Results"},
+        {"page": 6, "section": "Table 3, 26 embedding configurations"}
+      ]
+    },
+    {
+      "claim": "The nine reported BEIR model-dataset combinations show no change in nDCG@10 or Recall@10 to six decimal places after the full round trip, but this is a narrow no-measurable-change result rather than proof of semantic equivalence.",
+      "evidence": "Appendix A tests MiniLM, BGE-base, and E5-large on SciFact, NFCorpus, and FiQA. Displayed nDCG@10 ranges from 0.4854 to 0.7426 and Recall@10 from 0.3026 to 0.8659; maximum element error is 6.3e-8-8.9e-8 and maximum cosine-score perturbation is 4.2e-7-1.0e-6. The table prints only one metric value per row and states before/after equality at six decimals; it does not report rank-flip counts, near-tie sensitivity, significance, or broader retrieval suites.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "4.2 and 5, retrieval summary"},
+        {"page": 8, "section": "Appendix A, Table 4"}
+      ]
+    },
+    {
+      "claim": "The empirical entropy evidence supports the transform's average-case mechanism: spherical angles have much lower exponent entropy and somewhat lower total byte entropy than Cartesian coordinates.",
+      "evidence": "Across 11 models in Table 6, average total entropy drops from 7.36 to 6.52 bits/byte, exponent entropy from 2.53 to 0.07 bits/byte, and unique exponent values from 28 to 12. The text attributes about 0.61 bits/byte to exponent savings and the rest to improved mantissa compressibility after byte shuffling. Figure 2 reports exponent 127 for 99.7% of angles for a 2,048-dimensional model.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "3, Method and entropy mechanism"},
+        {"page": 4, "section": "Figure 2"},
+        {"page": 9, "section": "Appendix D, Theorem 1"},
+        {"page": 10, "section": "Appendix E, Entropy Analysis"},
+        {"page": 11, "section": "Table 6"}
+      ]
+    },
+    {
+      "claim": "The stated worst-case reconstruction corollary is not proved by the appendix and is contradicted by an unhandled valid-input edge case in the supplied reference code.",
+      "evidence": "Theorem 1 invokes an approximate normal law for a uniformly random spherical angle and then asserts probability greater than 0.999 without a finite-approximation error bound. Corollary 2 changes this distributional premise into a claim for every unit vector of dimension at least 64; its proof says errors 'do not accumulate significantly' and cites empirical validation, but supplies no rounding-error propagation bound. In Appendix B, r=norm(x[i:]) is used as a divisor with no zero guard, so a valid axis-aligned or trailing-zero unit vector can reach 0/0 and produce NaN. Table 9's random sparse sample does not cover that deterministic edge case.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Appendix B, Python compress lines 7-10"},
+        {"page": 9, "section": "Appendix D, distributional premise and Theorem 1"},
+        {"page": 10, "section": "Appendix D, Corollary 2"},
+        {"page": 12, "section": "Appendix F.3, Table 9"}
+      ]
+    },
+    {
+      "claim": "Calling reconstructed values 'indistinguishable at float32 precision' is too strong: the method is explicitly lossy, and an absolute error below 1.19e-7 is neither bitwise identity nor a one-ULP guarantee for small embedding coordinates.",
+      "evidence": "Table 2 reports nonzero element and cosine errors, and the paper itself labels the method epsilon-bounded while comparing it with exact lossless codecs. Float32 machine epsilon is the spacing relative to 1.0; typical embedding coordinates are much smaller, so an absolute perturbation below that constant can span many local ULPs and change stored bits. The retrieval study supports task-level tolerance on its cases, not representational identity.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract and 1, Contribution"},
+        {"page": 3, "section": "3, fidelity definition"},
+        {"page": 5, "section": "4.1 and Table 2"},
+        {"page": 8, "section": "Appendix A, Table 4"}
+      ]
+    },
+    {
+      "claim": "The optimized transform can be fast, but the end-to-end throughput result lacks enough system detail for an independent performance comparison.",
+      "evidence": "Appendix C reports more than 1,000 MB/s for the transform and, on a 100 MB 768-dimensional workload using one CPU thread, 487 MB/s encode and 605 MB/s decode at zstd level 1 with 1.52x compression. Level 19 falls to 7 MB/s encode for 1.50x. The paper does not name the CPU, compiler flags, memory configuration, code revision, warm-up protocol, or variance, and only the O(nd^2) Python reference is printed in the PDF.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "4.1, throughput summary"},
+        {"page": 8, "section": "Appendix B, Python Implementation"},
+        {"page": 9, "section": "Appendix C, Table 5"}
+      ]
+    },
+    {
+      "claim": "Compression weakens for low dimensions and fine-grained random access, exposing the entropy coder's need for many vectors per compressed unit.",
+      "evidence": "The Matryoshka ablation rises from 1.39x at 64 dimensions to 1.50x at 1,024 dimensions. At 768 dimensions, full-matrix compression is 1.35x for one vector, 1.32x for ten, 1.49x for 100, and 1.52x for 10,000 or more. On a fixed 10,000-vector collection, per-vector chunks cost 13.2% over the full archive and give 1.35x, while chunks of 1,000 give 1.50x, 1.8% overhead, and 2.66 ms access latency.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 11, "section": "Appendix F.1, Table 7"},
+        {"page": 12, "section": "Appendix F.2, Table 8"}
+      ]
+    },
+    {
+      "claim": "The transform is specifically a float32 codec and is counterproductive for native reduced-precision embeddings.",
+      "evidence": "Table 10 shows 0.77x for native BF16 and FP16 because the spherical path emits four-byte angles, and 0.39x for FP8-E4M3, FP8-E5M2, and Int8. A BF16-in-float32 baseline reaches 3.10x by preserving zero mantissa bits, whereas the spherical transform is only 1.54x. The authors explicitly recommend applying the byte baseline directly to reduced-precision data.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "5, Conclusion"},
+        {"page": 13, "section": "Appendix F.4, Table 10"}
+      ]
+    },
+    {
+      "claim": "The angular representation permits an O(d) dot-product recurrence without constructing Cartesian vectors, but the paper does not benchmark this path or demonstrate the claimed top-k early termination and fused-kernel benefits.",
+      "evidence": "Algorithm 1 initializes the last-angle cosine difference and folds earlier angles backward; Proposition 3 derives that recurrence exactly. The conclusion proposes streaming similarity, early termination, and fused GPU kernels, yet all timing results concern compression/decompression and no accuracy, latency, or early-stopping experiment evaluates direct spherical retrieval.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "3, direct similarity discussion"},
+        {"page": 5, "section": "Algorithm 1, Similarity"},
+        {"page": 6, "section": "5, Conclusion"},
+        {"page": 10, "section": "Appendix D, Proposition 3"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Exploit the concentration of high-dimensional unit-vector spherical angles near pi/2 to manufacture low-entropy IEEE-754 exponent and high-order mantissa streams before conventional byte shuffling and entropy coding.",
+    "mechanism": "For each unit-normalized float32 vector, compute d-2 arccos polar angles and one atan2 angle in float64, cast the d-1 angles to float32, transpose the angle matrix across vectors, byte-shuffle each four-byte word, and compress with zstd. Decompression reverses the entropy and layout transforms and evaluates the inverse spherical map in float64 before casting to float32. A separate backward recurrence computes cosine similarity directly from two angle sequences.",
+    "assumptions": [
+      "Every input is a finite float32 vector with Euclidean norm exactly one; the radius is discarded rather than encoded.",
+      "The component ordering yields nonzero trailing partial norms whenever an arccos ratio is evaluated, although the reference code does not enforce this.",
+      "Float64 implementations of norm, arccos, atan2, sin, and cos are sufficiently accurate and portable for the desired reconstruction tolerance.",
+      "Casting each angle to float32 does not accumulate into an element error above the claimed absolute bound across the tested dimensional range.",
+      "High-dimensional embedding directions induce angle distributions concentrated enough to reduce exponent and mantissa entropy after transposition.",
+      "The final atan2 angle and the last O(64) less-concentrated angles are a small enough fraction of a high-dimensional vector not to dominate entropy.",
+      "A compressed unit contains enough vectors, usually at least 100, for zstd to learn useful cross-vector statistics.",
+      "Applications tolerate a non-bitwise, non-lossless round trip whose cosine perturbation is around 1e-6 on the reported data.",
+      "Embedding payload dominates index storage, so raw-vector compression factors translate meaningfully to database-level savings.",
+      "Compression ratio is the primary fidelity-efficiency target; transform CPU cost, temporary angle storage, and random-access amplification remain acceptable.",
+      "A single compress-decompress cycle is representative; repeated recompression drift is not evaluated.",
+      "Native data are float32; BF16, FP16, FP8, and integer representations require a different path."
+    ]
+  },
+  "techniques": [
+    {"id": "unit-radius-elision", "role": "Uses the unit-norm constraint to represent d Cartesian values with d-1 angles and no stored radius."},
+    {"id": "float64-spherical-transform", "role": "Evaluates forward and inverse trigonometric transforms in double precision before storing or returning float32 values."},
+    {"id": "angle-position-transpose", "role": "Groups the same polar-angle index across many embeddings so the entropy coder sees similar distributions."},
+    {"id": "ieee754-byte-shuffle", "role": "Separates exponent and mantissa byte positions prior to zstd coding."},
+    {"id": "backward-partial-norm-scan", "role": "Reduces forward-transform complexity from the printed Python reference's O(nd^2) to O(nd)."},
+    {"id": "angle-entropy-audit", "role": "Measures total byte entropy, exponent entropy, and unique exponents before and after the transform."},
+    {"id": "epsilon-bounded-roundtrip", "role": "Targets small absolute float32 reconstruction error instead of bit-exact losslessness or low-bit quantization."},
+    {"id": "spherical-dot-product-recurrence", "role": "Computes x dot y from angle sequences without explicitly materializing Cartesian coordinates."},
+    {"id": "chunk-size-ablation", "role": "Quantifies the storage-latency tradeoff when compression units are made small enough for random access."},
+    {"id": "precision-format-negative-control", "role": "Tests and rejects the transform for BF16, FP16, FP8, and Int8 payloads."}
+  ],
+  "evaluations": [
+    {
+      "setting": "7,600 jina-embeddings-v4 vectors, 2,048 dimensions, raw float32; gzip, brotli, zstd, npz, fpzip, zfp, SZ3, ZipNN-style transpose/shuffle/zstd, and mantissa-truncation controls.",
+      "metric": "Compressed MB, compression ratio, maximum and mean element error, and maximum cosine error.",
+      "result": "Raw 59.38 MB; ZipNN baseline 49.57 MB/1.20x with zero reconstruction error; spherical 37.59 MB/1.58x with 9e-8 max, 2e-8 mean, and 2e-7 cosine error. Five-bit truncation is 42.23 MB/1.47x with 9e-7 max error.",
+      "baseline": "Exact generic/scientific codecs, an exact ZipNN-style baseline, and deliberately lossy mantissa truncation."
+    },
+    {
+      "setting": "Twenty text embedding configurations on 7,600 AG News examples, three CIFAR-10 image configurations, and three multi-vector ColBERT configurations; all unit-normalized float32.",
+      "metric": "Raw, baseline, and spherical compressed MB; compression factor and factor improvement.",
+      "result": "Spherical compression spans 1.47x-1.59x and table-reported factor improvement spans 20.5%-32.0%. Actual byte savings versus the baseline are smaller, approximately 17%-24% at the displayed extremes.",
+      "baseline": "Transpose plus byte shuffle plus zstd."
+    },
+    {
+      "setting": "MiniLM, BGE-base, and E5-large on BEIR SciFact (5K documents), NFCorpus (3.6K), and FiQA (57K), comparing original embeddings with a Cartesian-spherical-float32-Cartesian round trip.",
+      "metric": "nDCG@10, Recall@10, maximum element error, and maximum cosine-score perturbation.",
+      "result": "The nine nDCG@10 and Recall@10 values are reported identical to six decimals; maximum element error is 6.3e-8-8.9e-8 and score perturbation 4.2e-7-1.0e-6.",
+      "baseline": "Uncompressed original embeddings from the same three models."
+    },
+    {
+      "setting": "Single-threaded CPU, 100 MB of 768-dimensional data, optimized C transform and zstd levels 1-21.",
+      "metric": "Compression ratio and encoding/decoding throughput in MB/s.",
+      "result": "Level 1 gives 1.52x, 487 MB/s encode, and 605 MB/s decode; level 19 gives 1.50x, 7 MB/s encode, and 555 MB/s decode. The transform alone is reported above 1,000 MB/s, but hardware and variance are omitted.",
+      "baseline": "Different zstd effort levels after the same spherical transform."
+    },
+    {
+      "setting": "Eleven embedding models from 384 to 1,024 dimensions.",
+      "metric": "Total byte entropy, exponent-byte entropy, and number of unique exponent values for Cartesian and spherical forms.",
+      "result": "Average total entropy 7.36 to 6.52 bits/byte; exponent entropy 2.53 to 0.07; unique exponents 28 to 12.",
+      "baseline": "The original Cartesian float32 representation."
+    },
+    {
+      "setting": "Jina embeddings at Matryoshka dimensions 64-1,024, 2,000 vectors.",
+      "metric": "Compression factor and factor improvement over the byte-shuffle baseline.",
+      "result": "Compression increases from 1.39x at 64 dimensions to 1.50x at 1,024 for jina-embeddings-v3 and from 1.40x to 1.49x for jina-clip-v2.",
+      "baseline": "Matched transpose/shuffle/zstd at every dimension."
+    },
+    {
+      "setting": "768-dimensional vectors with N from 1 to 100,000; separately, N=10,000 with chunk sizes 1-10,000.",
+      "metric": "Compression ratio, storage overhead relative to full-matrix compression, and random-access decompression latency.",
+      "result": "Full-matrix ratio rises from 1.35x at N=1 to 1.52x at N>=10,000. Chunk 1 gives 1.35x, 13.2% overhead, and 0.01 ms; chunk 1,000 gives 1.50x, 1.8% overhead, and 2.66 ms; full chunk gives 1.52x and 14.8 ms.",
+      "baseline": "Full-matrix compression of all 10,000 vectors."
+    },
+    {
+      "setting": "2,000 vectors at 768 dimensions drawn uniformly, from five-cluster or single von Mises-Fisher distributions, orthogonally, sparsely, or from BGE-base.",
+      "metric": "Average cosine similarity and baseline/spherical compression factor.",
+      "result": "Dense synthetic distributions are approximately 1.50x spherical versus 1.18x-1.19x baseline; BGE-base is 1.52x versus 1.19x. Ten-percent-sparse data is 7.22x versus an already strong 5.83x baseline.",
+      "baseline": "Transpose/shuffle/zstd on the corresponding Cartesian vectors."
+    },
+    {
+      "setting": "10,000 BGE-base vectors at 768 dimensions represented as float32, BF16-in-float32, native BF16/FP16, FP8-E4M3/E5M2, or Int8.",
+      "metric": "Original and compressed MB, ratio, maximum element error, and cosine error.",
+      "result": "Float32 spherical is 1.54x versus 1.22x baseline. Native BF16/FP16 spherical is 0.77x; FP8 and Int8 spherical is 0.39x. Baselines remain 1.21x-1.55x, and BF16-in-float32 baseline reaches 3.10x.",
+      "baseline": "Direct byte compression in each native format."
+    }
+  ],
+  "limitations": [
+    "[Author-stated] The method is designed for IEEE-754 float32; BF16, FP16, FP8, and Int8 require different entropy-reduction strategies.",
+    "[Author-stated] Random access requires chunking, which reduces compression from 1.52x to as little as 1.35x and creates a storage-latency tradeoff.",
+    "[Author-stated] The reference Python transform is O(nd^2); the claimed O(nd) throughput relies on a separate C implementation not printed in the paper.",
+    "[Reviewer-inferred] The codec discards radius, so embeddings that are not exactly unit-normalized incur normalization error unrelated to float32 machine epsilon.",
+    "[Reviewer-inferred] The universal error Corollary 2 is not a worst-case proof: it imports a random-sphere approximation, uses qualitative stability language, and finishes with empirical validation.",
+    "[Reviewer-inferred] The reference code divides by a trailing partial norm without guarding zero, so valid unit vectors with trailing zero tails can produce NaN.",
+    "[Reviewer-inferred] An absolute error below float32 epsilon at 1.0 does not mean bitwise identity or one local ULP for small coordinates; comparison with exact lossless codecs is therefore fidelity-mismatched.",
+    "[Reviewer-inferred] Retrieval validation covers only three models, three BEIR datasets, two aggregate metrics, and one round trip; it reports no rank-flip analysis, repeated cycles, or adversarial near ties.",
+    "[Reviewer-inferred] Model checkpoint identifiers, exact preprocessing/normalization, software revisions, seeds, and measurement variance are not tabulated for the 26-configuration sweep.",
+    "[Reviewer-inferred] The throughput table omits CPU model, compiler flags, memory configuration, warm-up, repetitions, and uncertainty.",
+    "[Reviewer-inferred] The 240 GB to 160 GB ColBERT extrapolation concerns embedding payload and does not include index structures, document-length variation, chunk metadata, or query-time decompression work.",
+    "[Reviewer-inferred] The direct-angle similarity and proposed early termination/fused GPU kernels are derived but not benchmarked.",
+    "[Reviewer-inferred] No end-to-end database study measures build time, compressed-domain search latency, recall under close score ties, or storage after real index metadata.",
+    "[Reviewer-inferred] No repeated compress-decompress experiment tests whether small round-trip errors accumulate over archival or network relays."
+  ],
+  "failure_modes": [
+    "A non-unit input loses its radius and is reconstructed on the unit sphere, potentially producing far larger error than the claimed epsilon bound.",
+    "If a trailing partial vector is exactly zero, the printed forward transform computes 0/0 before arccos and can emit NaN angles.",
+    "NaN or infinite input components propagate through norms and transcendental functions without validation or a recoverable error path.",
+    "Axis-aligned, low-dimensional, or adversarial vectors need not satisfy the random-angle concentration argument used for Theorem 1.",
+    "Very small chunks deprive zstd of cross-vector context, reducing compression and increasing header/model overhead.",
+    "Native BF16/FP16/FP8/Int8 expands because the transform always emits float32 angles.",
+    "Different math-library implementations of arccos, atan2, sin, and cos can make archives non-bit-reproducible across platforms even when semantic error stays small.",
+    "A cosine perturbation around 1e-6 can reorder documents whose scores are separated by less than that amount even though aggregate nDCG is unchanged on the tested data.",
+    "Repeated recompression can drift because reconstructed Cartesian values are not bitwise identical to the originals.",
+    "Changing coordinate order changes which trailing partial norms and angle distributions occur, affecting both numerical robustness and compression.",
+    "Sparse vectors with a fortunate random support may compress well, while deterministic sparse layouts can hit zero-tail singularities.",
+    "Payload savings may disappear in small collections or indexes dominated by IDs, posting lists, codebooks, and chunk metadata.",
+    "Direct spherical dot products still require decompressed float32 angles and O(d) transcendental evaluations unless specialized kernels are implemented.",
+    "A fixed absolute element bound does not protect downstream functions with high sensitivity, discontinuous thresholds, or exact reproducibility requirements."
+  ],
+  "reusable_insights": [
+    "Before entropy coding floats, search for an invertible or near-invertible domain transform that concentrates exponent and high-order mantissa fields.",
+    "Report both compression-factor improvement and actual byte reduction; the two percentages differ materially.",
+    "Separate exact losslessness, ULP-level fidelity, absolute-error bounds, cosine preservation, and task-metric invariance instead of treating them as interchangeable.",
+    "A distributional concentration theorem cannot by itself establish a worst-case numerical round-trip bound; add finite-distribution and floating-point error analysis.",
+    "Guard coordinate singularities explicitly when implementing spherical transforms, especially zero trailing norms and non-unit inputs.",
+    "Benchmark the same codec across dimension, batch size, chunk size, distribution, sparsity, and native precision because each changes the redundancy source.",
+    "Use reduced-precision formats as negative controls: a transform that helps FP32 can destroy pre-existing zero-bit structure in BF16 or quantized data.",
+    "Evaluate compressed retrieval with score-margin and rank-flip diagnostics in addition to aggregate nDCG and Recall.",
+    "For database claims, distinguish vector payload compression from complete-index storage and query-time decompression amplification.",
+    "When a transform makes the data model simple, low-effort entropy coding can outperform expensive compressor levels by orders of magnitude in throughput.",
+    "Direct computation in a transformed domain is a separate systems contribution and needs its own numerical and latency benchmarks.",
+    "Archive formats that depend on transcendental functions should specify reproducibility, library, and conformance requirements."
+  ],
+  "open_questions": [
+    "Can the reconstruction claim be replaced by a rigorous worst-case forward-error bound that includes float32 angle rounding and all inverse products?",
+    "What branch or alternate coordinate chart handles exact zero trailing norms without NaNs while preserving entropy concentration?",
+    "How much radius metadata is needed for approximately normalized embeddings, and how does that change compression?",
+    "How many top-k rank flips occur as a function of score margin across larger BEIR and ANN suites?",
+    "Does repeated compression/decompression remain stable or converge to a fixed representation?",
+    "What are end-to-end build, storage, search latency, and recall results in a production ANN or ColBERT index with realistic metadata?",
+    "Can a deterministic arithmetic coder based on the analytical angle distribution recover full-matrix compression for single-vector random access?",
+    "Can native BF16 or FP16 angles be encoded without expanding the payload and with a meaningful fidelity bound?",
+    "How do coordinate permutations or blockwise spherical charts trade numerical robustness against entropy?",
+    "Does direct spherical similarity beat decompress-then-dot on CPU or GPU after accounting for sin/cos cost and vectorized kernels?",
+    "Can early termination of the recurrence provide certified top-k bounds rather than heuristic stopping?",
+    "How does the codec behave on embeddings with subnormal coordinates, signed zeros, NaNs, infinities, or model-specific normalization errors?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2003.02633",
+      "title": "Inline Vector Compression for Computational Physics",
+      "url": "https://arxiv.org/abs/2003.02633v2",
+      "relationship": "closest-spherical-coordinate-compression-predecessor",
+      "difference": "Trojak and Witherden convert three-component single-precision vectors to spherical polar form, quantize the two angles, and use a bespoke magnitude float to obtain a fixed 1.5x ratio and 1.5x GPU vector-add speedup. The target extends spherical coordinates to high-dimensional unit embeddings, omits radius, keeps angles as float32, and obtains variable entropy compression with much smaller reported error rather than fixed-bit lossy quantization.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2 (2020-06-24), corresponding to Computer Physics Communications 258 (2021), article 107562"
+    },
+    {
+      "canonical_id": "arxiv:2411.05239",
+      "title": "ZipNN: Lossless Compression for AI Models",
+      "url": "https://arxiv.org/abs/2411.05239v2",
+      "relationship": "direct-exact-lossless-baseline",
+      "difference": "ZipNN is bit-exact and exploits the field-level statistics of neural-network tensors with byte grouping and entropy coding, reporting large savings for model weights. The target uses the same broad shuffle-and-code idea after a geometric transform of unit-normalized embedding outputs, reaches a higher ratio on its selected float32 embedding cases, but gives up exact reconstruction.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2 (2025-06-04), IEEE CLOUD 2025"
+    },
+    {
+      "canonical_id": "arxiv:2102.02705",
+      "title": "EFloat: Entropy-coded Floating Point Format for Compressing Vector Embedding Models",
+      "url": "https://arxiv.org/abs/2102.02705v3",
+      "relationship": "direct-exponent-entropy-embedding-predecessor",
+      "difference": "EFloat already targets vector embedding models by entropy-coding signs and clustered exponents and reallocating saved bits to the significand; its EF12/EF16 formats are lossy reduced-bit representations evaluated with RMS error and NDCG. The target instead creates exponent concentration geometrically, stores full float32 angles, and applies a conventional archive codec for approximately 1.5x payload compression.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3 (2022-02-03)"
+    },
+    {
+      "canonical_id": "arxiv:2504.19874",
+      "title": "TurboQuant: Online Vector Quantization with Near-optimal Distortion Rate",
+      "url": "https://arxiv.org/abs/2504.19874v1",
+      "relationship": "direct-high-dimensional-geometric-vector-quantizer",
+      "difference": "TurboQuant uses random rotation to induce concentrated coordinate distributions, Lloyd-Max scalar quantizers, and a residual QJL stage for near-optimal MSE or unbiased inner-product estimates, reaching 2.5-3.5 bits per KV channel and nearest-neighbor gains. The target performs no rotation or low-bit quantization and instead entropy-codes float32 spherical angles for a far lower ratio but much smaller perturbation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 (2025-04-28); current official arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "openreview:Igzjw1Pkds",
+      "title": "PolarQuant: Vector Quantization with Polar Transformation",
+      "url": "https://openreview.net/forum?id=Igzjw1Pkds",
+      "relationship": "closest-current-polar-angle-vector-quantizer",
+      "difference": "PolarQuant applies random preconditioning, a recursive polar transform, and data-independent angle codebooks, reporting more than 4.2x KV-cache compression with strong long-context quality. The target uses the conventional d-1-angle chart on already unit-normalized embeddings, preserves each angle in float32, and depends on zstd context rather than quantization codebooks.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "AISTATS 2026 proceedings version, PMLR volume 300, OpenReview record Igzjw1Pkds"
+    },
+    {
+      "canonical_id": "arxiv:2506.05432",
+      "title": "PCDVQ: Enhancing Vector Quantization for Large Language Models via Polar Coordinate Decoupling",
+      "url": "https://arxiv.org/abs/2506.05432v2",
+      "relationship": "direct-polar-coordinate-quantization-predecessor",
+      "difference": "PCDVQ separates direction and magnitude, then constructs distribution-aligned codebooks for 2-bit LLM weight vectors, motivated by direction being much more sensitive than magnitude. The target handles unit embedding outputs, drops magnitude entirely, and avoids learned codebooks and low-bit quantization in favor of float32 angle entropy.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2 (2025-06-26), ICML 2025"
+    },
+    {
+      "canonical_id": "arxiv:2504.11651",
+      "title": "70% Size, 100% Accuracy: Lossless LLM Compression for Efficient GPU Inference via Dynamic-Length Float (DFloat11)",
+      "url": "https://arxiv.org/abs/2504.11651v3",
+      "relationship": "current-bit-exact-dynamic-float-competitor",
+      "difference": "DFloat11 entropy-codes low-entropy BF16 model weights into dynamic-length codes and decodes them with custom GPU kernels while preserving outputs bit-for-bit, reporting about 30% model-size reduction. The target focuses on float32 unit embeddings, manufactures redundancy through spherical geometry, and is not bit-exact; its own BF16 ablation favors direct baseline coding.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3 (2026-01-01), NeurIPS 2025"
+    },
+    {
+      "canonical_id": "arxiv:2608.02162",
+      "title": "Lossless Tensor Compression as Program Synthesis",
+      "url": "https://arxiv.org/abs/2608.02162v1",
+      "relationship": "later-current-lossless-tensor-archive-competitor",
+      "difference": "Brevis synthesizes reversible programs from a typed tensor-compression DSL and reports bit-exact archives smaller than ZipNN and DFloat11 on model checkpoints. It is a later current competitor for tensor archival rather than a unit-embedding codec; unlike the target it searches tensor-specific transformations and guarantees exact recovery, but does not report BEIR embedding retrieval or spherical angle coding.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 (2026-08-03)"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The author claims the first use of high-dimensional spherical coordinates as an entropy-reducing transform for epsilon-bounded unit-embedding compression, achieving about 1.5x without training, roughly 25% better than the best prior exact-lossless approach, plus direct similarity computation from compressed angles.",
+    "evidence": "The paper supplies the transform and recurrence, a 26-configuration size sweep, a nine-case BEIR round trip, entropy measurements on 11 models, CPU throughput versus zstd effort, and ablations over dimension, chunking, vector distribution, sparsity, and precision. The central float32 compression gain is consistent in the reported tables and the reduced-precision negative results are unusually explicit.",
+    "reviewer_inference": "Spherical/polar vector compression, exponent-entropy coding for embeddings, byte-shuffled lossless tensor coding, and polar-angle quantization all predate the target. The defensible novelty is their particular composition: convert high-dimensional unit embeddings to conventional float32 spherical angles, transpose and byte-shuffle them, then entropy-code the resulting exponent/mantissa concentration at a near-lossless operating point. The broad fidelity wording is not established: the method is not exact, the universal epsilon corollary lacks a worst-case proof and misses a zero-tail singularity, and the direct-similarity systems claims are unevaluated. Thus the empirical codec idea is credible and distinct, while 'indistinguishable' and comparisons to lossless methods require qualification."
+  },
+  "verification": {
+    "reviewer_id": "reviewer-90d952d9dab1",
+    "checked_at": "2026-08-23",
+    "passage_check": "Read and second-pass checked all 13 cached pages, including the references, retrieval appendix, printed Python implementation, optimized complexity discussion, formal distribution/error/similarity claims, entropy table, and all four ablation subsections. Rendered PDF pages 5, 8, and 13 were inspected to verify Algorithm 1 and Tables 2, 4, and 10 against extraction. Compression percentages were recomputed, the zero-trailing-norm code path and machine-epsilon interpretation were independently audited, and author-stated float32/random-access boundaries were separated from reviewer-inferred numerical and systems limitations.",
+    "competitor_check": "Official current primary records were inspected for arXiv 2003.02633v2, 2411.05239v2, 2102.02705v3, 2504.19874v1, 2506.05432v2, 2504.11651v3, and 2608.02162v1, plus the AISTATS 2026 OpenReview/PMLR proceedings version of PolarQuant (Igzjw1Pkds). Exact titles, IDs, versions, dates, abstracts/method scope, fidelity regimes, and concrete differences were checked; the target was excluded."
+  },
+  "confidence": 0.95,
+  "reviewer_notes": "The indexed PDF and extracted text hashes match fulltext_index exactly, all 13 pages contain text, and the official arXiv record identifies the current cached paper as v4 revised 2026-03-25 and accepted to the ICLR 2026 GRaM workshop. Table values were checked from rendered PDF pages. The principal unresolved issue is whether an unprinted current C implementation contains guards or normalization logic absent from Appendix B; the reading therefore attributes the 0/0 edge case specifically to the supplied reference code and treats the universal Corollary 2 as unsupported rather than declaring every practical implementation incorrect. Hardware-level throughput, exact model revisions, and full-index behavior remain unverifiable from the paper."
+}

@@ -1,0 +1,505 @@
+{
+  "stable_id": "arxiv:2604.07822",
+  "reading_depth": "verified",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2604.07822",
+    "pdf_sha256": "a1a0e8f0507df84ddc70d438ba465a883c1f0002a7fc04845e471eabcb3d10b8",
+    "text_sha256": "bcfab4598c623daaad207d3c2f5c3fbc848f0227fdb94161561ea8dfe5ab8efb",
+    "page_count": 21,
+    "extracted_at": "2026-08-23T09:56:11.218718+00:00",
+    "review_pass": "secondary-verified-v1"
+  },
+  "question": "Does repeatedly applying a shared transformer block let a decoder-only model compositionally reuse atomically learned knowledge in one latent forward process—both for unseen fact combinations and for more hops than were learned—and which training-recurrence, initialization, stopping, data-construction, and overthinking constraints determine that generalization?",
+  "key_findings": [
+    {
+      "claim": "The paper separates two compositional tests that are often conflated: systematic reuse of atomically seen but never jointly composed facts, and extrapolation to longer compositions over the same fact distribution.",
+      "evidence": "All atomic KG triples are available during training, but only inferred facts composed from C_ID are used as training compositions. Systematic test facts are composed solely from the held-out atomic subset C_OOD, whose atoms were seen individually but never in any training composition. Depth extrapolation instead uses C_ID and tests k larger than the model's learned curriculum depth. The first axis changes which atoms have appeared in compositions; the second changes sequence/composition depth, not factual support.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "3 Task Formulation / 3.1 Task Definition"},
+        {"page": 4, "section": "3.2 Generalization Challenges / training set, systematic generalization, and depth extrapolation"}
+      ]
+    },
+    {
+      "claim": "The recurrent architecture supplies parameter sharing across effective depth, but the successful main recipe also relies on specialized identity-at-initialization dynamics.",
+      "evidence": "A GPT-2-style block of L transformer layers is reused R times, yielding effective depth LxR, followed by a tied embedding/output head. Both attention and MLP c_proj matrices are zero-initialized so every recurrent block is exactly the identity at initialization and the unrolled Jacobian remains stable. Fixed R and batch-wise dynamic R sampled from a clipped Poisson are studied. Appendix F shows that replacing this initialization with default Gaussian c_proj initialization produces mixed, seed-sensitive scaling and overthinking rather than the clear main trend.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Figure 1 recurrent-depth architecture"},
+        {"page": 4, "section": "4 Recurrent-Depth Transformer / model architecture"},
+        {"page": 5, "section": "Zero initialization and stopping strategies"},
+        {"page": 17, "section": "F Experiments with default initialization / Figures 12-13"}
+      ]
+    },
+    {
+      "claim": "On the controlled two-hop split, recurrent-depth models learn substantial systematic generalization whereas the four-layer non-recurrent baseline remains at chance-like zero OOD accuracy.",
+      "evidence": "The systematicity KG has 2,000 entities, 200 relations, average out-degree 20, 40,000 atomic facts split 95% C_ID/5% C_OOD, 273,600 inferred training facts, 3,000 ID test compositions, and nearly 2,000 OOD compositions. With L=4 and fixed R in {1,2,4,8}, R=1 stays near zero OOD accuracy while recurrent curves converge around the upper-0.7 range in Figure 3; R=4 reaches its plateau by about 2,000 epochs whereas R=2 takes about 7,000, and the wall-clock plot preserves the acceleration.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "5.1 Experiment Setup"},
+        {"page": 5, "section": "5.2 Results"},
+        {"page": 6, "section": "Figure 3 left and middle"}
+      ]
+    },
+    {
+      "claim": "Systematic generalization appears only after distinct memorization and in-distribution-generalization stages, yielding a three-stage grokking trajectory.",
+      "evidence": "For R=4, training accuracy rises first, ID accuracy rises after prolonged training, and OOD accuracy rises only after ID is near perfect. The text contrasts final systematic generalization at roughly 10^4 epochs with training overfit at roughly 10^2 epochs. Curves are smoothed with a 100-epoch rolling mean, so the exact transition timing is approximate and no seed-level transition distribution is reported.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "5.2 Three-stage grokking / Figure 3 right"}
+      ]
+    },
+    {
+      "claim": "Logit-lens and activation-patching analyses support a bridge-first composition account, but they establish a localized causal pathway more strongly than they establish the paper's broader claim of reusable parametric rules.",
+      "evidence": "Across recurrent training stages, the bridge entity becomes decodable at the first-relation position before the target becomes correct at the second-relation position; on OOD inputs the eight-layer vanilla model can decode the bridge only at effective layer 7 or later and never decodes the target. Patching a clean r1 activation into a corrupted first-hop prefix recovers final-answer logits at early recurrent sites, whereas the vanilla OOD bridge arrives too late. This is causal evidence that r1 states mediate the tested two-hop prediction, but it does not intervene on shared weights, prove the same factual rule is represented identically each loop, or explain the 20-plus-hop extrapolation circuit.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Analyzing model internals with logit lens / Figure 4"},
+        {"page": 7, "section": "Grokking marks a transition"},
+        {"page": 16, "section": "E Causal analysis of systematic generalization / Figure 11"}
+      ]
+    },
+    {
+      "claim": "The depth-extrapolation benchmark removes a serious suffix shortcut, but its threshold curriculum uses the reported held-out split to decide training progression and creates model-dependent ID/OOD boundaries.",
+      "evidence": "Each of 10 relations is a random permutation over 200 entities, giving one outgoing edge per relation and preventing a short relation suffix from determining the final entity. There are 2,000 atomic facts, 15,000 inferred facts for every hop 2-40, and 750 held-out facts per hop. Training adds the next hop only after accuracy exceeds 95% on a 'held-out ... test split'; failure to cross that threshold stops the curriculum. Consequently the maximum ID depth is selected by repeated monitoring of the same held-out criterion, and each model's OOD region begins at a different hop, making this split validation-like rather than a pristine test set.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "6.1 Curriculum training and Dataset"},
+        {"page": 8, "section": "6.1 model-dependent extrapolation split"},
+        {"page": 14, "section": "B Dataset"},
+        {"page": 15, "section": "B permutation construction continuation"},
+        {"page": 21, "section": "K Illusion of very deep composition through shortcuts"}
+      ]
+    },
+    {
+      "claim": "Increasing fixed training recurrence raises learned in-distribution hop depth up to a plateau, while dynamic recurrence reaches the largest learned depth in the main run.",
+      "evidence": "Figure 5 labels maximum ID depths for R=1 through 8 as 2, 6, 9, 10, 12, 13, 16, and 16 hops; the clipped-Poisson dynamic model reaches 22 hops. Thus effective depth helps, but R=7 and R=8 tie despite more recurrence, and the dynamic model has also consumed curriculum data through more hop levels than fixed models that stopped earlier.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Figure 5"},
+        {"page": 8, "section": "6.2 In-Distribution Generalization"}
+      ]
+    },
+    {
+      "claim": "Most curriculum compute is spent discovering a low-hop compositional rule; after that phase, higher-hop ID generalization advances rapidly.",
+      "evidence": "The dynamic model needs more than 1.3 million updates to reach four-hop generalization, then reaches 19 hops with few additional steps per hop. Hops 20-22 exceed 90% with fewer than 8,000 extra updates per hop, and continuing a 20-hop checkpoint on only 21-hop samples crosses 90% on the new split in as few as 50 steps. This sharp phase change supports reusable computation but is conditioned on the curriculum's monitored threshold and does not quantify the cost of the full mixed-data run against a non-curriculum control.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "6.2 Phase transition / Figure 6"}
+      ]
+    },
+    {
+      "claim": "Additional inference recurrence unlocks depth extrapolation only after enough recurrence was used in training, and the extrapolation range remains finite.",
+      "evidence": "At the training loop count, models fail just beyond their learned depth; increasing inference loops pushes correct predictions to harder hops for models trained with R>4. In the main curriculum comparison, the text reports R=6 reaching 17 hops after learning through 13, and R=8 reaching 24 after learning through 16. Models trained with R<=4 do not show the scaling effect. This is genuine test-time-depth scaling on the permutation KG, not unbounded extrapolation.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "Figure 5"},
+        {"page": 8, "section": "6.3 Scaling inference-time iterations"},
+        {"page": 9, "section": "6.3 training-strategy comparison setup"}
+      ]
+    },
+    {
+      "claim": "Matched-hop controls show that dynamic recurrence is not intrinsically better than the strongest fixed recurrence at a common maximum loop budget; much of its main-run advantage comes from learning deeper curriculum data.",
+      "evidence": "When every model is trained only through 12 hops, fixed R=6 extrapolates to 14, fixed R=8 to 19, and dynamic recurrence with maximum 8 also to 19. Additional matched 8-, 10-, and 12-hop heatmaps preserve the pattern that larger training recurrence improves extrapolation. Dynamic recurrence remains valuable because it reaches a larger learned depth under the full curriculum and is more robust to overthinking, but Figure 7 does not show a range advantage over R=8 at matched data.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "6.3 Effect of training iteration strategy / Figure 7"},
+        {"page": 18, "section": "H Additional experiments with matched-hop data / Figure 15"}
+      ]
+    },
+    {
+      "claim": "Overthinking is the main limit on inference scaling: confidence peaks and then declines with extra recurrent computation, especially on deeper tasks and fixed-recurrence models.",
+      "evidence": "For R=6,7,8 and dynamic models, the correct-versus-best-competitor logit margin rises to a peak and then falls as loops continue; peak margin is lower for larger hop counts. The dynamic model's margin decays much more slowly, but increasing it beyond about 15 inference iterations no longer improves its OOD range in the main figure. The text states that repeated input injection, successful in prior algorithmic/recurrent models, does not resolve this implicit-reasoning failure, but supplies no detailed input-injection result.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "Scaling inference-time iterations is limited by overthinking / Figure 8"},
+        {"page": 10, "section": "Figure 8 discussion"}
+      ]
+    },
+    {
+      "claim": "Adding an entropy requirement to KL-based adaptive halting better tracks hop complexity and delays premature stopping, although no full compute-accuracy frontier or threshold tuning protocol is reported.",
+      "evidence": "The proposed rule stops only when KL(p_t||p_{t-1})<0.01 and H(p_t)<3.00. Figure 9 shows its average loops rising roughly from 3 at two hops to about 16 at the deepest plotted tasks; KL-only rises until the mid-20-hop range and then collapses toward about four loops as complexity grows. Figure 10's heatmap shows better OOD accuracy for the combined rule. The thresholds are fixed but their selection set, sensitivity, latency distribution, and comparison to oracle first-hit or learned halting are absent.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "Adaptive halting / Figures 9-10"},
+        {"page": 15, "section": "C Training details and additional parameters"}
+      ]
+    },
+    {
+      "claim": "Default Gaussian projection initialization substantially weakens the architecture-only interpretation of the main result.",
+      "evidence": "With default c_proj initialization, the recurrence sweep has no clear, consistent ID/OOD or overthinking trend: only R=7 shows strong scaling and robustness, R=5 shows no OOD benefit, and most other runs degrade with extra loops. Across five default-init R=5 seeds, seed 1 is stable without scaling, seed 2 is stable with scaling, and seeds 3-5 combine varying scaling with overthinking. The clean main trend therefore demonstrates a recurrent-depth-plus-zero-init training recipe, not recurrence alone.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 17, "section": "F Experiments with default initialization / Figures 12-13"}
+      ]
+    },
+    {
+      "claim": "Larger vanilla depth improves learned hop depth but does not reproduce scalable OOD extrapolation, while recurrent results have limited multi-seed support.",
+      "evidence": "Eight-, 16-, and 24-layer vanilla transformers learn farther than the four-layer baseline but remain weaker than recurrent models of matched effective depth and have no knob for more test-time layers. Main fixed-recurrence patterns recur in two seed initializations, except the second R=8 run; dynamic recurrence is shown for three seeds with ID boundaries at 22, 21, and 19 hops and is relatively overthinking-resistant. Two fixed and three dynamic seeds are useful checks but insufficient for precise variance estimates across every R/hop/loop cell.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 17, "section": "G Experiments with larger vanilla transformers"},
+        {"page": 18, "section": "Figure 14 and I Results with different random seeds"},
+        {"page": 19, "section": "Figures 16-17"},
+        {"page": 20, "section": "Figure 18"}
+      ]
+    },
+    {
+      "claim": "The broader scaling sweep yields a negative result: neither more block layers nor a larger maximum dynamic training recurrence consistently improves extrapolation ratio.",
+      "evidence": "Appendix J varies block depth L in {4,6,8} and dynamic maximum recurrence in {8,12,16}, defining generalization ratio as the maximum >=60%-accuracy inference-scaled hop divided by maximum learned ID hop. Ratios rise above one after low-hop grokking and fluctuate up to roughly 1.8, but the authors find no clear or consistent model-size or train-recurrence trend. This contradicts any simple law that bigger recurrent models or more maximum loops automatically yield proportionally better depth extrapolation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 20, "section": "J Extrapolation with varying model size and dynamic recurrence / Figure 19"},
+        {"page": 21, "section": "J conclusion"}
+      ]
+    },
+    {
+      "claim": "The authors correctly invalidate their original apparent 80-hop result as a data shortcut, demonstrating why causal audits and bijective relation construction are necessary.",
+      "evidence": "Before the permutation KG, models trained through 40 hops appeared to generalize strongly to 80 hops for R=4, R=8, and dynamic recurrence. Activation patching on a 60-hop example found the largest causal changes only near a short suffix of the relation sequence, showing the target was inferable without traversing all intermediate entities. The final permutation construction forces every relation to be a bijection over entities and removes this suffix-only solution. The negative result is a strong self-audit but also shows how easily heatmap depth can overstate implicit composition.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 14, "section": "B Dataset shortcut motivation"},
+        {"page": 21, "section": "K Illusion of very deep composition through shortcuts / Figures 20-21"}
+      ]
+    },
+    {
+      "claim": "After exact-priority review, novelty lies in the paper's controlled fact-composition and negative-audit package—not in weight-tied depth, latent test-time scaling, or the first demonstration of depth-recurrent compositional generalization.",
+      "evidence": "Universal Transformers introduced depth recurrence and adaptive halting; later looped-transformer work established iterative-algorithm and length generalization; Saunshi et al. studied latent thoughts and p-hop induction; Huginn and Ouro scaled recurrent latent reasoning to billions of parameters; and Wang et al. supplied the same implicit-composition grokking task and failure of vanilla systematicity. More materially, arXiv:2603.21676v1 was submitted on 2026-03-23, before this paper's 2026-04-09 v1, and already used a shared depth-recurrent transformer with identity-biased/LayerScale stabilization, variable train recurrence, extra test-time steps, and compositional OOD evaluations on graph reachability, nested logic, and relational text. The target's distinctive evidence is therefore narrower: an atom-level unseen-combination split, three-stage grokking, shortcut-resistant permutation-KG curriculum, matched-data controls, and unusually candid initialization, seed, size, halting, overthinking, causal, and shortcut audits.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "2 Related Work"},
+        {"page": 3, "section": "2 Related Work continuation"},
+        {"page": 15, "section": "D Other related work"},
+        {"page": 16, "section": "D Compositional Generalization"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Replace uniquely parameterized transformer depth with repeated application of one shared L-layer decoder block so the same parametric mappings can be reused across latent reasoning steps, train it on atomic and curriculum-staged multi-hop KG queries, and allocate additional recurrent iterations at inference for harder compositions.",
+    "mechanism": "Dedicated entity and relation tokens encode a query <head><r1>...<rk>; only the final tail token is supervised. Each recurrent iteration applies the same causal GPT-2-style L-layer block to all sequence states. Zero c_proj matrices make every attention/MLP residual update initially zero. Systematicity experiments fix R and test compositions built from an atom subset never used compositionally in training. Depth experiments use a permutation KG, a 95%-threshold easy-to-hard hop curriculum, NoPE, fixed R=1-8 or clipped-Poisson dynamic R, and sweep inference recurrence. Logit lens decodes bridge/target states; activation patching tests first-hop mediation; logit margin diagnoses overthinking; KL plus entropy provides adaptive halting.",
+    "assumptions": [
+      "A permutation knowledge graph with dedicated tokens is a valid controlled proxy for compositional reuse of factual knowledge in natural-language LLMs.",
+      "Seeing every atomic fact but excluding C_OOD atoms from all training compositions cleanly isolates systematic recombination rather than factual acquisition.",
+      "The one-token tail objective forces latent traversal once suffix shortcuts are removed, rather than another unmeasured global lookup or algebraic shortcut.",
+      "A shared transformer block can implement the same transition repeatedly and zero c_proj initialization lets optimization discover it reliably.",
+      "Results under specialized zero initialization characterize a practically relevant recurrent-depth recipe even though default initialization is unstable.",
+      "No positional embeddings in depth experiments remove length-position confounds without creating a mismatch with realistic pretrained LLMs.",
+      "A 95% held-out threshold is an appropriate curriculum gate and definition of learned depth despite making the ID/OOD boundary model-dependent and test-monitored.",
+      "Fifteen thousand training examples and 750 held-out examples per hop adequately sample each composition distribution.",
+      "Inference recurrence can be increased beyond training recurrence without severe state-distribution shift until overthinking begins.",
+      "The maximum train recurrence, rather than its full sampling distribution or total compute, is the dominant determinant of extrapolation range.",
+      "Logit-lens decodability at token positions is meaningful evidence about intermediate computation, and activation patching recovers a sufficiently specific causal route.",
+      "KL and entropy thresholds transfer across hop depths and examples without per-task tuning.",
+      "Two fixed-model seeds and three dynamic-model seeds are representative enough to support qualitative recurrence trends.",
+      "Composition depth, although correlated with input length here, is the operative complexity axis rather than length alone."
+    ]
+  },
+  "techniques": [
+    {"id": "recurrent-depth-weight-sharing", "role": "Reapplies one L-layer transformer block R times so computation depth can grow without new block parameters."},
+    {"id": "zero-residual-projection-initialization", "role": "Makes attention and MLP residual projections zero so every loop starts as identity and deep unrolling remains trainable."},
+    {"id": "fixed-recurrence-training", "role": "Uses the same loop count for every batch to isolate how training effective depth affects learned and extrapolated hop depth."},
+    {"id": "clipped-poisson-dynamic-recurrence", "role": "Samples batch-level loop counts between 2 and 8 (default mean 4) to train robustness across computation depths."},
+    {"id": "atomic-composition-split", "role": "Includes all facts atomically while reserving a subset from every training composition, creating a systematic recombination test."},
+    {"id": "threshold-hop-curriculum", "role": "Adds the next hop only after held-out accuracy at the current hop exceeds 95%, retaining all earlier hops to reduce forgetting."},
+    {"id": "permutation-knowledge-graph", "role": "Makes every relation a bijection over entities so a relation suffix alone cannot determine the answer."},
+    {"id": "inference-time-recurrence-scaling", "role": "Runs more shared-block iterations at test time to allocate additional latent computation to deeper queries."},
+    {"id": "bridge-target-logit-lens", "role": "Decodes the first-hop bridge and final target at their relation positions across effective depth and training stages."},
+    {"id": "first-hop-activation-patching", "role": "Restores clean r1 states into corrupted prefixes to test whether bridge-position activations mediate the final target."},
+    {"id": "logit-margin-overthinking-audit", "role": "Tracks correct-minus-best-competitor logits across loops to identify the point where extra recurrence degrades confidence."},
+    {"id": "kl-entropy-adaptive-halting", "role": "Stops only when successive output distributions are stable and current prediction entropy is low."},
+    {"id": "matched-hop-training-control", "role": "Holds maximum training hop fixed across recurrence strategies to separate loop policy from extra curriculum exposure."},
+    {"id": "shortcut-causal-audit", "role": "Patches token-by-layer activations on apparent 60-hop reasoning to detect reliance on a short relation suffix."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Two-hop systematicity KG with 2,000 entities, 200 relations, 40k atoms split 95/5 into C_ID/C_OOD, 273.6k inferred training facts, 3k ID and nearly 2k OOD test facts; L=4 and fixed R in {1,2,4,8}.",
+      "metric": "Final-tail token accuracy over training epochs and wall-clock time.",
+      "result": "R=1 remains near zero on OOD composition; recurrent models converge around the upper-0.7 range, with R=4 reaching its plateau at roughly 2k epochs and R=2 at roughly 7k.",
+      "baseline": "Four-layer vanilla R=1 and an iso-effective-depth eight-layer vanilla model for mechanistic comparison."
+    },
+    {
+      "setting": "R=4 systematicity training trajectory with train, ID, and OOD splits.",
+      "metric": "Accuracy by epoch on a logarithmic scale.",
+      "result": "Training memorization occurs around 10^2 epochs; near-perfect ID generalization follows; OOD systematicity emerges only in the final stage, described at roughly 10^4 epochs.",
+      "baseline": "Vanilla transformers exhibit only memorization and ID grokking and no systematic OOD stage."
+    },
+    {
+      "setting": "Systematic two-hop queries at three recurrent training stages and comparable vanilla checkpoints.",
+      "metric": "Logit-lens top-1 bridge accuracy at r1, target accuracy at r2, and activation-patching recovery of final target logits.",
+      "result": "Recurrent OOD bridge/target computation appears only after the third stage; vanilla OOD bridge becomes decodable at layer 7+ but target remains at 0, while recurrent first-iteration r1 sites have causal effects on the final answer.",
+      "baseline": "Eight-layer vanilla transformer with the same effective depth as L=4,R=2."
+    },
+    {
+      "setting": "Permutation KG with 200 entities, 10 relations, 2k atoms, 15k train facts and 750 held-out facts per hop through 40; L=4, NoPE, fixed R=1-8 or dynamic R in [2,8].",
+      "metric": "Maximum hop with >=95% held-out accuracy under the training curriculum.",
+      "result": "Learned ID depths for fixed R=1..8 are 2, 6, 9, 10, 12, 13, 16, and 16 hops; dynamic recurrence reaches 22 hops.",
+      "baseline": "Four-layer non-recurrent R=1 learns through two hops; larger vanilla depth is evaluated separately."
+    },
+    {
+      "setting": "Same permutation-KG curriculum, sweeping more recurrent iterations at inference than during training.",
+      "metric": "OOD tail-token accuracy heatmaps and maximum extrapolated hop.",
+      "result": "Inference scaling appears only for training R>4; R=6 extends from 13 learned hops to about 17, and R=8 from 16 to about 24, before overthinking limits further gains.",
+      "baseline": "Evaluation at the training loop count and R<=4 models, which do not extrapolate with extra loops."
+    },
+    {
+      "setting": "All recurrence strategies trained on the same data through 12 hops and tested on 12-24 hops.",
+      "metric": "Maximum OOD hop supported by inference-time recurrence scaling.",
+      "result": "Fixed R=6 reaches 14 hops; fixed R=8 and dynamic max-8 both reach 19. Matched 8- and 10-hop appendix rows show the same recurrence-order trend.",
+      "baseline": "Fixed R=5,6,7,8 and clipped-Poisson dynamic recurrence under an identical maximum training-hop distribution."
+    },
+    {
+      "setting": "Dynamic model during threshold curriculum, plus exclusive 21-hop continuation from a 20-hop checkpoint.",
+      "metric": "Cumulative gradient updates to first exceed the hop threshold and held-out accuracy on the new hop.",
+      "result": "More than 1.3M updates are needed through four hops; hops 20-22 each exceed 90% with fewer than 8k extra mixed-curriculum updates, and exclusive 21-hop training exceeds 90% in as few as 50 steps.",
+      "baseline": "Earlier low-hop curriculum stages; no independently trained no-curriculum model is reported."
+    },
+    {
+      "setting": "R=6,7,8 and dynamic models across 2-, 5-, 10-, 13-, 16-, and for dynamic 30-hop queries.",
+      "metric": "Average correct-answer logit minus strongest-competitor logit across recurrent iterations.",
+      "result": "Every curve peaks and then decays; higher-hop peaks are smaller, fixed models decay faster, and dynamic recurrence is more stable but ceases to improve OOD reach beyond roughly 15 iterations in the main run.",
+      "baseline": "The first-hit iteration and margin-zero threshold for each task/model."
+    },
+    {
+      "setting": "Dynamic model with adaptive stopping on permutation-KG depths, using epsilon_KL=0.01 and entropy threshold 3.00.",
+      "metric": "Average realized recurrent iterations by hop and ID/OOD accuracy heatmap.",
+      "result": "KL+entropy allocation grows with complexity to about 16 loops, whereas KL-only turns downward after the mid-20-hop range and stops around four loops on the deepest inputs; combined halting retains stronger OOD accuracy.",
+      "baseline": "KL-change-only halting from Geiping et al. and fixed recurrence."
+    },
+    {
+      "setting": "Default Gaussian c_proj initialization across R=1-7 and dynamic recurrence, plus five R=5 seeds.",
+      "metric": "ID/OOD accuracy heatmaps over hop and inference loops.",
+      "result": "Only R=7 clearly scales robustly; R=5 has no OOD scaling in the sweep. Of five R=5 seeds, one is stable without scaling, one stable with scaling, and three show scaling plus overthinking.",
+      "baseline": "The main zero-c_proj initialization, which produces a much cleaner recurrence trend."
+    },
+    {
+      "setting": "Dynamic recurrence with block depths L=4,6,8 and maximum train recurrence 8,12,16 as curriculum depth grows.",
+      "metric": "Generalization ratio = maximum >=60%-accuracy inference-scaled hop divided by maximum learned ID hop.",
+      "result": "Ratios rise from about 1 after low-hop learning and fluctuate up to roughly 1.8, but neither model size nor maximum training recurrence has a clear consistent advantage.",
+      "baseline": "Other L and recurrence-maximum settings at the same learned ID depth."
+    },
+    {
+      "setting": "Pre-permutation KG models trained through 40 hops and evaluated to 100 hops, followed by patching on a 60-hop query.",
+      "metric": "Apparent OOD accuracy and change in correct-answer logit margin after replacing one hidden state.",
+      "result": "R=4, R=8, and dynamic models appear strong near 80 hops, but causal effects concentrate almost entirely on the final relation suffix, invalidating the result as full-chain composition.",
+      "baseline": "The final permutation KG, where a suffix cannot identify the tail and extrapolation is much shallower."
+    }
+  ],
+  "limitations": [
+    "Author-stated: the study covers one synthetic family of implicit-reasoning problems rather than the full range of reasoning tasks.",
+    "Author-stated: experiments are intentionally small relative to frontier LLMs and omit web-scale pretraining, tokenization, heterogeneous data, and post-training effects.",
+    "Author-stated: dedicated entity/relation tokens and structured inputs remove natural-language surface variation, underspecification, distractors, and distribution shift.",
+    "Author-stated: results are not claimed to transfer immediately to large recurrent-depth LLMs.",
+    "Author-reported failure: excessive inference recurrence causes overthinking; prediction margins peak and then decay, limiting very deep compositions.",
+    "Author-reported failure: default Gaussian projection initialization gives mixed, seed-sensitive scaling and overthinking, so zero initialization is a material requirement.",
+    "Author-reported negative result: larger block size and larger maximum dynamic training recurrence do not consistently improve the extrapolation ratio.",
+    "Author-reported invalid result: the original non-permutation KG allowed a short-suffix shortcut that created spurious apparent generalization from 40 to 80 hops.",
+    "Reviewer-identified: curriculum progression repeatedly monitors a split called 'test' until 95%; reported learned ID depth is therefore selected on held-out performance rather than evaluated once on an untouched test set.",
+    "Reviewer-identified: depth ID/OOD boundaries are model-dependent, so models are evaluated on differently defined extrapolation regions in Figure 5 and stronger models also receive more high-hop training data.",
+    "Reviewer-identified: matched-hop controls address part of the exposure confound but do not equalize total optimizer steps, training FLOPs, or curriculum history across recurrence strategies.",
+    "Reviewer-identified: there are no confidence intervals, formal statistical tests, or complete per-seed aggregates; only two fixed-recurrence and three dynamic seeds are shown.",
+    "Reviewer-identified: the 100-epoch smoothing in systematicity plots obscures raw grokking transition variance.",
+    "Reviewer-identified: zero initialization is bundled with recurrence in the main comparison; the clean effect is not an architecture-only result.",
+    "Reviewer-identified: logit-lens decodability is associative, and the r1 patching analysis supports bridge mediation for two hops but does not establish the mechanism of long-depth extrapolation.",
+    "Reviewer-identified: the adaptive-halting thresholds have no reported tuning protocol, sensitivity sweep, oracle comparison, or accuracy-versus-compute frontier.",
+    "Reviewer-identified: the claim that input injection fails to prevent overthinking is not accompanied by a figure, table, or implementation details.",
+    "Reviewer-identified: no explicit-CoT, recurrent state-space, Universal Transformer with learned halting, or adaptive-computation baseline is trained on the same KG.",
+    "Reviewer-identified: the permutation task is deterministic, noise-free, single-answer, and closed-vocabulary; it does not test uncertain facts, distractors, branching relations, contradictory knowledge, or language generation.",
+    "Reviewer-identified: all extrapolation uses relation sequences and entities from one generative family; it is depth/length OOD, not domain or rule OOD.",
+    "Reviewer-identified: the 50-step 21-hop continuation changes the training mixture to only the target hop, so it is not directly comparable with the joint anti-forgetting curriculum.",
+    "Reviewer-identified novelty correction: the related-work review omits pre-target arXiv:2603.21676v1, which already demonstrated stable depth-recurrent compositional OOD generalization and a test-time computational frontier across three domains; first-in-kind wording must therefore be restricted to this paper's atom-level systematicity, grokking, permutation-KG, and audit package."
+  ],
+  "failure_modes": [
+    "Without zero residual projections, repeated shared blocks can amplify unstable Jacobians, causing seed-dependent training, no inference scaling, or rapid overthinking.",
+    "Too few training loops (R<=4 here) can produce adequate ID behavior without learning a transition stable enough to reuse at greater inference depth.",
+    "Too many inference loops can move a correct state past its useful attractor, reducing the correct-answer margin and flipping the prediction.",
+    "High-hop queries have smaller peak margins and are therefore most vulnerable to a few extra loops or a miscalibrated stopping threshold.",
+    "KL-only halting can mistake a slowly changing high-entropy distribution for convergence and stop precisely on the hardest examples.",
+    "Fixed recurrence can overfit a particular unroll depth, making representations brittle when test-time recurrence differs.",
+    "A curriculum gate can stop permanently at one difficult hop due to optimization variance, preventing exposure to later hops even if they would become learnable after another schedule.",
+    "Monitoring the held-out threshold can overfit training duration and learned-depth selection to that split.",
+    "Non-bijective or sparse KGs can let a short relation suffix, marginal entity frequency, or collision statistics predict the tail without full traversal.",
+    "Dedicated tokens can encourage table lookup or exact permutation algebra that fails under paraphrases, polysemy, distractor facts, or noisy natural-language evidence.",
+    "Logit-lens projections can miss distributed intermediate state or misleadingly decode a bridge that the final computation does not use.",
+    "A dynamic-loop distribution with a poorly chosen mean or truncation can rarely train the maximum depth, leaving test-time high-loop states out of distribution.",
+    "A recurrent model can reuse an incorrect mapping consistently, compounding one-hop errors over depth even when atomic recall is high.",
+    "More layers or a larger maximum recurrence can increase compute without improving extrapolation ratio, as Appendix J demonstrates."
+  ],
+  "reusable_insights": [
+    "When testing systematic composition, train every component atomically but reserve a disjoint component subset from all composed training examples.",
+    "When testing depth extrapolation, construct transitions as permutations or otherwise prove that no suffix, frequency, or collision shortcut can determine the answer.",
+    "Audit spectacular long-depth results with token-by-layer interventions before calling them multi-step reasoning.",
+    "For repeated-weight networks, treat initialization as part of the method and publish default-initialization and multi-seed failure results.",
+    "Separate maximum learned depth from extrapolation ratio; a training strategy can learn more curriculum levels without extrapolating farther at matched data.",
+    "Use matched-complexity training controls to disentangle extra recurrence from exposure to harder examples.",
+    "Track confidence or logit margins across every inference loop; final accuracy alone hides overthinking and the location of a useful stopping window.",
+    "Combine stability and confidence in adaptive halting: low state change is not sufficient when output entropy remains high.",
+    "Report negative scaling sweeps—larger models and more loops need not yield better normalized extrapolation.",
+    "Distinguish logit-lens decodability from causal use and add activation interventions at the proposed intermediate site.",
+    "Freeze a validation split for curriculum gating and reserve a separate untouched test split for final ID and OOD claims.",
+    "Dynamic recurrence can act as unroll-depth regularization, improving robustness to variable test compute even when its matched-data maximum range equals fixed recurrence.",
+    "A long low-hop grokking phase followed by rapid higher-hop learning is evidence for reusable computation, but compare against equal-compute non-curriculum training before inferring sample-efficiency."
+  ],
+  "open_questions": [
+    "Do systematicity and depth extrapolation survive natural-language paraphrases, distractors, ambiguous relations, contradictory facts, and tokenizer fragmentation?",
+    "Can the same effects be reproduced in pretrained recurrent-depth LLMs while controlling for memorized facts and pretraining contamination?",
+    "How much of the gain comes from weight sharing, zero initialization, NoPE, curriculum, or their interaction in a full factorial ablation?",
+    "Would an untouched test split preserve the reported learned-depth boundaries after a separate validation split controls the 95% curriculum gate?",
+    "What recurrence distribution—mean, variance, minimum, and maximum—best trades training compute, learned depth, extrapolation, and overthinking?",
+    "Can contractive or energy-stable recurrent blocks eliminate margin decay while retaining inference scaling, as stability-oriented concurrent work suggests?",
+    "What circuit implements 10- to 30-hop permutation composition, and does causal state transfer show one relation application per loop or per layer?",
+    "Does adaptive halting remain calibrated across seeds, KG sizes, vocabularies, natural language, and shifted hop distributions without retuning epsilon_KL and H_thresh?",
+    "How does KL+entropy halting compare with oracle first-hit, learned halting, ponder-cost objectives, margin peaks, or state-space convergence at equal accuracy and compute?",
+    "Why is R>4 a threshold for inference scaling in this setup, and does the threshold track block depth L, data complexity, or initialization?",
+    "Can explicit chain-of-thought or scratchpad supervision outperform recurrent latent computation at matched parameters, FLOPs, and training examples on the same permutation KG?",
+    "Do recurrent-depth models systematically recombine OOD atoms at three or more hops, rather than only the two-hop C_OOD test?",
+    "Does the three-stage grokking order persist across optimizers, weight decay, dataset size, relation arity, and larger models?",
+    "Can a training objective make the correct state a stable fixed point so extra recurrence cannot undo a solved prediction?",
+    "How often do apparent deep-reasoning datasets in current benchmarks admit the same suffix shortcut found in Appendix K?",
+    "Under a common graph, logic, and relational-text suite, which gains survive when this paper's zero-c_proj recipe is compared compute-for-compute with the pre-target LayerScale plus identity-gated depth recurrence of arXiv:2603.21676v1?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1807.03819",
+      "title": "Universal Transformers",
+      "url": "https://arxiv.org/abs/1807.03819v3",
+      "relationship": "foundational recurrent-depth transformer precursor",
+      "difference": "Universal Transformers introduced shared depth recurrence and dynamic per-position halting, with algorithmic and language results plus a Turing-completeness argument. Loop, Think, & Generalize uses a simpler full-sequence loop without input injection or learned halting and contributes controlled parametric-fact systematicity, hop extrapolation, overthinking analysis, and a KL+entropy stopping rule rather than the architecture itself.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3, revised 2019-03-05; ICLR 2019"
+    },
+    {
+      "canonical_id": "arxiv:2311.12424",
+      "title": "Looped Transformers are Better at Learning Learning Algorithms",
+      "url": "https://arxiv.org/abs/2311.12424v3",
+      "relationship": "direct looped-transformer iterative-computation precursor",
+      "difference": "Yang et al. show that looped transformers emulate iterative in-context learning algorithms for regression, neural networks, and trees with under 10% of standard-transformer parameters. The target paper studies composition of stored KG facts rather than in-context parameter estimation and adds systematic OOD splits, curriculum hop extrapolation, recurrence-at-inference, and causal audits.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3, revised 2024-03-16; ICLR 2024"
+    },
+    {
+      "canonical_id": "arxiv:2409.15647",
+      "title": "Looped Transformers for Length Generalization",
+      "url": "https://arxiv.org/abs/2409.15647v5",
+      "relationship": "closest algorithmic depth/length-extrapolation prior",
+      "difference": "Fan et al. train looped transformers on copy, parity, addition, and other tasks with a known iterative RASP-L solution and task-complexity-dependent loop counts, then adapt loops at inference. Loop, Think, & Generalize removes oracle complexity during training by using fixed or randomly sampled batch recurrence and targets parametric KG composition, at the cost of a narrower synthetic domain and threshold curriculum.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v5, revised 2025-05-12; ICLR 2025"
+    },
+    {
+      "canonical_id": "arxiv:2502.17416",
+      "title": "Reasoning with Latent Thoughts: On the Power of Looped Transformers",
+      "url": "https://arxiv.org/abs/2502.17416v1",
+      "relationship": "direct looped latent-reasoning competitor",
+      "difference": "Saunshi et al. show that k layers looped L times approach kL-layer performance on addition, p-hop induction, math, and language modeling, theoretically connect loops to latent simulation of chain-of-thought, and identify a reasoning/memorization trade-off. The target paper adds an atom-level systematicity split, three-stage grokking, inference-depth curriculum extrapolation, overthinking margins, and shortcut-aware causal analysis, but offers less task and scale breadth.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1, submitted 2025-02-24; ICLR 2025"
+    },
+    {
+      "canonical_id": "arxiv:2502.05171",
+      "title": "Scaling up Test-Time Compute with Latent Reasoning: A Recurrent Depth Approach",
+      "url": "https://arxiv.org/abs/2502.05171v2",
+      "relationship": "direct recurrent-depth test-time-scaling competitor",
+      "difference": "Geiping et al. train the 3.5B-parameter Huginn on 800B tokens, iterate a recurrent block to arbitrary test depth, use input injection and adaptive halting, and report reasoning gains up to compute equivalent to a 50B model. The target paper sacrifices realism for exact KG ground truth, systematic recombination, matched-hop controls, and mechanistic/shortcut audits; its entropy-augmented halt explicitly addresses premature KL-only stopping observed on this controlled task.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2, revised 2025-02-17"
+    },
+    {
+      "canonical_id": "neurips:2024:ad217e0c7fecc71bdf48660ad6714b07",
+      "title": "Grokking of Implicit Reasoning in Transformers: A Mechanistic Journey to the Edge of Generalization",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2024/hash/ad217e0c7fecc71bdf48660ad6714b07-Abstract-Conference.html",
+      "relationship": "closest implicit-composition task and mechanistic precursor",
+      "difference": "Wang et al. establish grokking for implicit composition/comparison, show vanilla composition fails systematic OOD, analyze bridge/target circuits, and propose cross-layer knowledge sharing. Loop, Think, & Generalize directly implements that suggestion through recurrent weight sharing, reports a third OOD grokking stage, and extends to curriculum depth extrapolation; much of its task formulation and diagnostic logic builds on this predecessor.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2024 final proceedings paper, hash ad217e0c7fecc71bdf48660ad6714b07"
+    },
+    {
+      "canonical_id": "acl:2025.emnlp-main.490",
+      "title": "Language Models Can Learn Implicit Multi-Hop Reasoning, but Only If They Have Lots of Training Data",
+      "url": "https://aclanthology.org/2025.emnlp-main.490/",
+      "relationship": "direct implicit multi-hop depth precursor",
+      "difference": "Yao et al. show vanilla transformers can learn ID multi-hop reasoning with curriculum training but require rapidly growing data and layer depth that scales with hops, and they trace layerwise intermediate retrieval. The target replaces unique layer growth with shared recurrence, tests inference-time extra loops, and adds systematic C_OOD composition, while retaining the predecessor's easy-to-hard curriculum dependence.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "EMNLP 2025 main proceedings, published 2025-11"
+    },
+    {
+      "canonical_id": "arxiv:2411.16353",
+      "title": "Lessons from Studying Two-Hop Latent Reasoning",
+      "url": "https://arxiv.org/abs/2411.16353v4",
+      "relationship": "direct latent two-hop fact-composition benchmark",
+      "difference": "Balesni et al. fine-tune pretrained models including Llama 3 8B and GPT-4o on synthetic facts, finding failure on two synthetic hops but success when one hop is natural and emphasizing both shortcut successes and artificial-setup failures. The target trains small models from scratch for cleaner architectural attribution and achieves systematic synthetic composition with recurrence, but cannot answer whether the effect survives realistic pretraining.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4, revised 2025-11-23"
+    },
+    {
+      "canonical_id": "arxiv:2510.25741",
+      "title": "Scaling Latent Reasoning via Looped Language Models",
+      "url": "https://arxiv.org/abs/2510.25741v5",
+      "relationship": "large-scale looped-language-model competitor",
+      "difference": "Ouro pretrains 1.4B and 2.6B LoopLMs on 7.7T tokens with entropy-regularized learned depth allocation and reports reasoning comparable to models up to 12B plus better knowledge manipulation. The target supplies more controlled causal evidence for composition and exposes overthinking/shortcut failures, while Ouro supplies scale and natural-benchmark evidence absent here.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v5, revised 2026-07-01"
+    },
+    {
+      "canonical_id": "openreview:ri0LAMdhd9",
+      "title": "Parcae: A Dynamical Systems Perspective to Stable Looped LLMs",
+      "url": "https://openreview.net/forum?id=ri0LAMdhd9",
+      "relationship": "concurrent stability-focused recurrent-depth competitor",
+      "difference": "Parcae analyzes looped layers as a nonlinear time-varying dynamical system and enforces stability conditions, reporting faster convergence and lower perplexity than prior looped models and transformers. Loop, Think, & Generalize relies on zero c_proj initialization and empirically documents default-init instability/overthinking, but does not derive or enforce a stable recurrent attractor; Parcae is therefore a direct mechanism-level alternative for the paper's main failure mode.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "LIT Workshop at ICLR 2026 long paper; OpenReview last modified 2026-03-18"
+    },
+    {
+      "canonical_id": "arxiv:2603.21676",
+      "title": "Thinking Deeper, Not Longer: Depth-Recurrent Transformers for Compositional Generalization",
+      "url": "https://arxiv.org/abs/2603.21676v1",
+      "relationship": "direct pre-target depth-recurrent compositional-generalization predecessor",
+      "difference": "Chen's v1 predates the target by 17 days and already trains a shared recurrent transformer with final-step-only supervision, LayerScale, an identity-biased gate, variable train depth, and extra test-time recurrence on graph reachability, nested Boolean logic, and unstructured relational composition. It therefore defeats any priority claim over depth-recurrent compositional OOD or a compute-depth frontier. Loop, Think, & Generalize remains distinct in atom-level systematic recombination, its three-stage grokking account, permutation-KG hop curriculum, and substantially deeper matched-data, initialization, seed, overthinking, halting, causal, and shortcut audits.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1, submitted 2026-03-23"
+    },
+    {
+      "canonical_id": "arxiv:2607.20519",
+      "title": "Adaptive Depth in Looped Transformers: Diagnosing Learned Halting Gates and Trajectory Readouts",
+      "url": "https://arxiv.org/abs/2607.20519v1",
+      "relationship": "post-publication adaptive-halting competitor",
+      "difference": "Popescu et al. separate recurrent trajectory formation from exit readout, showing over three-seed synthetic experiments that fixed-prior trajectories with simple confidence rules can match or outperform jointly trained linear/MLP gates, and that post-hoc rules are competitive on Ouro-1.4B/2.6B with measured latency. It postdates the target and does not test fact-composition systematicity, but supplies the learned-gate, calibration, held-out threshold, accuracy-compute, and latency comparisons missing from the target's hand-set KL-plus-entropy stopping rule.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1, submitted 2026-07-08"
+    },
+    {
+      "canonical_id": "arxiv:2608.18230",
+      "title": "Allocating Recurrent Compute in Looped Language Models",
+      "url": "https://arxiv.org/abs/2608.18230v1",
+      "relationship": "post-publication recurrent-compute-boundary competitor",
+      "difference": "Lin et al. ask which submodule should loop: MixerLoop repeats Gated DeltaNet mixers but executes dense FFNs once. At matched 52.43B-token budgets it beats FullLoop on aggregate CORE at 15M, retains 41.5% of FullLoop's CORE gain at 110M, removes 45.9% of recurrent-backbone projection FLOPs, and measures 1.34x-1.52x throughput at the largest tested batches. It does not test the target's KG systematicity, but shows that looping the entire transformer block is an unablated compute choice rather than a necessary unit of recurrent reasoning.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1, submitted 2026-08-18"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim that recurrent-depth transformers overcome vanilla transformers' systematic-composition failure through a three-stage grokking process and extrapolate beyond trained hop depth when given more inference loops, with dynamic recurrence and entropy-aware halting improving robustness while overthinking remains a limit.",
+    "evidence": "In the controlled two-hop split, R=1 stays near zero OOD while shared-depth models reach substantial OOD accuracy after a delayed third stage; logit lens and r1 activation patching support bridge-mediated reuse. On the final permutation KG, trained recurrence predicts maximum ID depth, extra inference recurrence extends R>4 models beyond that depth, matched 12-hop controls show R=8 and dynamic both reach 19, and default initialization, multi-seed, larger-vanilla, matched-data, size/recurrence, margin, halting, and shortcut appendices expose important boundaries. Prior work already provides recurrent shared depth, adaptive computation, algorithmic length generalization, p-hop latent reasoning, billion-scale recurrent LLMs, and the exact vanilla implicit-composition grokking precursor. Crucially, pre-target arXiv:2603.21676v1 already demonstrates stabilized depth recurrence, extra-test-step scaling, and compositional OOD across graph, logic, and relational text, while later halting and compute-boundary studies strengthen the missing-baseline audit without affecting priority.",
+    "reviewer_inference": "The strongest novelty is the integrated controlled case that a simple shared block plus zero-c_proj initialization crosses Wang et al.'s atom-level systematic-composition boundary and turns trainable recurrence into a test-time depth knob on a shortcut-resistant fact-composition curriculum. It is not the first depth-recurrent compositional-generalization result or the first recurrent compute-depth frontier. The three-stage grokking observation, matched-hop recurrence analysis, default-init failure, overthinking margin study, and invalidated 80-hop shortcut make the remaining contribution unusually diagnostic. Claims must stay recipe- and task-specific: the curriculum monitors a held-out test split, ID/OOD boundaries and data exposure differ by model, dynamic recurrence only ties R=8 at matched data, larger size/max recurrence lacks a consistent normalized trend, the direct predecessor is not compared, and no result shows natural-language or frontier-scale systematic composition."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Secondary verification independently re-read the exact 21-page arXiv:2604.07822v2 PDF end to end, including the complete references, Appendices A-K, every proof-like argument, table, and figure. Rendered pages 6-10 and 16-21 were re-inspected to resolve Figure 3 grokking scales, Figure 5 ID-depth labels, matched-data Figure 7, overthinking margins, adaptive-halting curves, causal Figure 11, default-init Figures 12-13, larger-vanilla and seed plots, the negative generalization-ratio sweep, and the invalidated 60/80-hop shortcut. The indexed PDF SHA-256 a1a0e8f0507df84ddc70d438ba465a883c1f0002a7fc04845e471eabcb3d10b8 and text SHA-256 bcfab4598c623daaad207d3c2f5c3fbc848f0227fdb94161561ea8dfe5ab8efb were rechecked against the pinned extraction; the official current record is v2. All existing numerical findings, evaluation summaries, anchors, negatives, and contradictions were confirmed. One material repair was required: pre-target arXiv:2603.21676v1 already demonstrates depth-recurrent compositional OOD and test-time compute frontiers, so the novelty boundary and limitation audit were narrowed. The official competitor sweep was also extended through 2026-08-23 with post-publication halting and recurrent-compute-allocation studies.",
+  "verification": {
+    "reviewer_id": "reviewer-eb383a15ba15",
+    "checked_at": "2026-08-23",
+    "passage_check": "Independently checked every claim, evidence sentence, evaluation, and page anchor against all 21 pages of arXiv:2604.07822v2, including Sections 1-7, complete references, and Appendices A-K. Re-read every figure/table and confirmed the 2/6/9/10/12/13/16/16 and dynamic-22 ID depths, 13-to-17 and 16-to-24 extrapolation examples, matched 12-hop 14/19/19 result, KL 0.01 plus entropy 3.00 stopping rule, seed counts, default-init instability, flat size/max-recurrence ratio sweep, and suffix-shortcut invalidation. The exact indexed hashes were confirmed. Existing anchors and numbers required no repair; the novelty interpretation did because a direct March 2026 predecessor was missing.",
+    "competitor_check": "Re-searched official primary literature through 2026-08-23 and checked thirteen exact current records: arXiv 1807.03819v3, 2311.12424v3, 2409.15647v5, 2502.17416v1, 2502.05171v2, 2411.16353v4, 2510.25741v5, 2603.21676v1, 2607.20519v1, and 2608.18230v1; the exact NeurIPS 2024 proceedings paper hash ad217e0c7fecc71bdf48660ad6714b07; ACL Anthology 2025.emnlp-main.490; and OpenReview ri0LAMdhd9 last modified 2026-03-18. All arXiv URLs are version-pinned. Full primary PDFs were additionally inspected for the three newly added arXiv records. The audit establishes 2603.21676v1 as a direct 17-day pre-target novelty predecessor; 2607.20519v1 and 2608.18230v1 are treated only as later current baselines."
+  }
+}

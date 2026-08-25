@@ -1,0 +1,190 @@
+{
+  "stable_id": "arxiv:2411.19339",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2411.19339",
+    "pdf_sha256": "966852de7eba96b230140581b6a52148ec27bf1069cca4483e0ecabfa1f8cce7",
+    "text_sha256": "fa80511fa3b83da6d17d3443a549e7ececbab84bc0d580cc872956d639b47350",
+    "page_count": 23,
+    "extracted_at": "2026-08-23T17:37:09.709668+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Do trained image diffusion denoisers generalize by composing local, time-varying empirical patch denoisers rather than approximating the globally optimal empirical posterior mean?",
+  "key_findings": [
+    {
+      "claim": "Four materially different CIFAR-10 denoiser architectures make similar errors relative to the empirical posterior-mean optimum, with the largest deviation concentrated at intermediate noise.",
+      "evidence": "DDPM++, NCSN++, DiT, and U-ViT have low error at very small and very large diffusion time but nearly overlapping error peaks around t=3. Their outputs at shared noisy inputs are qualitatively alike despite U-Net versus Transformer architectures and different parameterizations.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "3 Inductive Biases of Network Denoisers"},
+        {"page": 3, "section": "Figure 2"},
+        {"page": 12, "section": "A.1 CIFAR-10"}
+      ]
+    },
+    {
+      "claim": "Network output sensitivity is spatially local and its effective receptive field expands with noise level.",
+      "evidence": "Absolute input-gradient heatmaps for an output pixel concentrate near the same location. A 3-by-3 patch captures half of sensitivity at t=0.03, whereas about 13-by-13 is required at t=30; the appendix reproduces the trend for DDPM++, NCSN++, and DiT.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "3.1 Network Denoiser Gradients"},
+        {"page": 4, "section": "Figure 3"},
+        {"page": 15, "section": "D.1 Gradient Concentration and Figure 13"}
+      ]
+    },
+    {
+      "claim": "Local empirical patch posterior means reproduce parts of both the global empirical denoiser and trained network denoisers, with the best patch size increasing with noise.",
+      "evidence": "On forward-process inputs, small patches match global posterior-mean patches at low noise and larger patches are needed as noise rises. On network reverse trajectories, local patch means estimate network patches better than the full empirical denoiser through much of the process; the pattern holds across four architectures, though U-ViT is poor at high noise because epsilon prediction amplifies error.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "4 Local Denoising Mechanisms and Figure 4"},
+        {"page": 15, "section": "D.2 Patch Errors"},
+        {"page": 16, "section": "Figure 14"}
+      ]
+    },
+    {
+      "claim": "PSPC-Flex is the strongest non-neural approximation tested for the selected network outputs, but other neural denoisers remain closer to one another.",
+      "evidence": "PSPC averages empirical posterior means over gradient-shaped local crops and generally has lower denoiser MSE than the optimal empirical, Gaussian, closed-form, and square-patch estimators on CIFAR-10, FFHQ, and AFHQ. Appendix Figure 15 explicitly reports that PSPC-Flex still loses to a different trained neural denoiser when predicting a network baseline.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "5 Patch Set Posterior Composites"},
+        {"page": 7, "section": "6.1 Network Denoiser Comparison and Figure 7"},
+        {"page": 15, "section": "D.3 Denoiser Errors"},
+        {"page": 17, "section": "Figure 15"}
+      ]
+    },
+    {
+      "claim": "The sampling evidence supports shared coarse structure but not a competitive training-free generator.",
+      "evidence": "From matched initial noise, PSPC and DDPM++ trajectories retain related content, and CIFAR-10 SSCD similarity averages about 0.55 versus 0.23-0.34 for several analytic baselines. Yet PSPC errors compound into severe texture artifacts; the rendered CIFAR-10, FFHQ, and AFHQ grids are visibly much worse than network samples, and no FID for PSPC is reported.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 7, "section": "6.2 PSPC Sampling"},
+        {"page": 8, "section": "Figures 8 and 9"},
+        {"page": 22, "section": "Figure 24"},
+        {"page": 23, "section": "Figure 25"}
+      ]
+    },
+    {
+      "claim": "PSPC-Flex is not wholly training-free as a scientific mechanism because its crop geometry and schedules use a trained DDPM++ network and are tuned per dataset.",
+      "evidence": "Flexible masks are constructed from average DDPM++ gradients over 1,000 forward samples, while square and flexible time schedules are selected separately for each dataset by minimizing error against network behavior. Sampling avoids training a new denoiser, but the explanatory procedure imports network- and dataset-specific supervision.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "5.1 PSPC-Square and 5.2 PSPC-Flex"},
+        {"page": 13, "section": "B Patch Composite Algorithm Details"},
+        {"page": 14, "section": "Figures 11 and 12"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Approximate a trained diffusion denoiser by independently retrieving training-set patches under local Gaussian posteriors and averaging overlapping reconstructed patches.",
+    "mechanism": "For each noisy image and diffusion time, crop many regions, compute each crop's empirical posterior mean using nearest-neighbor score estimation, transpose the estimates back into image coordinates, sum them, and normalize by overlap. PSPC-Square uses a tuned square size by time; PSPC-Flex uses irregular crops that retain a chosen mass of a pretrained denoiser's average input-gradient sensitivity.",
+    "assumptions": [
+      "Pixel-gradient concentration is evidence for the causal computation a denoiser uses rather than merely a correlated property.",
+      "Empirical patch posterior means are adequate proxies for local neural operations.",
+      "Image position is semantically stable enough that location-specific patch retrieval is meaningful.",
+      "Similarity to network outputs on selected trajectories is informative about the mechanism that training learned."
+    ]
+  },
+  "techniques": [
+    {"id": "empirical-posterior", "role": "Uses the exact finite-data posterior mean as the nonparametric denoising reference."},
+    {"id": "gradient-locality", "role": "Measures and uses spatial input-gradient mass as a network sensitivity map."},
+    {"id": "patch-retrieval", "role": "Computes Gaussian-weighted nearest-neighbor posterior means within local crops."},
+    {"id": "overlap-composition", "role": "Averages overlapping local reconstructions into a full denoiser output."},
+    {"id": "time-varying-scale", "role": "Expands crop support as the diffusion noise level grows."}
+  ],
+  "evaluations": [
+    {
+      "setting": "CIFAR-10 forward samples over 150 noise levels for DDPM++, NCSN++, DiT, and U-ViT.",
+      "metric": "MSE to the optimal empirical denoiser and qualitative output agreement",
+      "result": "All networks show a similar intermediate-time error peak and visually similar deviations.",
+      "baseline": "The exact empirical posterior-mean denoiser over the training set."
+    },
+    {
+      "setting": "Forward and DDPM++ reverse-process inputs on CIFAR-10, FFHQ 64, and AFHQ 64; 10,000 CIFAR or 2,000 FFHQ/AFHQ samples per time.",
+      "metric": "MSE to DDPM++ output",
+      "result": "PSPC-Flex generally gives the lowest error among tested non-network denoisers, especially at intermediate time.",
+      "baseline": "Full empirical posterior mean, Gaussian approximation, closed-form diffusion model, and PSPC-Square."
+    },
+    {
+      "setting": "CIFAR-10 PF-ODE samples from 1,000 matched initial latents.",
+      "metric": "Mean SSCD descriptor cosine similarity to network samples",
+      "result": "PSPC-Flex is about 0.55 versus 0.34 for optimal, 0.34 for Gaussian, and 0.23 for CFDM.",
+      "baseline": "Analytic non-network denoisers and pairwise neural-network sample similarity."
+    }
+  ],
+  "limitations": [
+    "Author-stated: iterative PSPC errors compound, producing visibly lower-quality final samples than neural denoisers.",
+    "Author-stated: PSPC remains less similar to a target network than another trained network is.",
+    "Reviewer inference: the evidence is limited to small unconditional image datasets and mostly 32- or 64-pixel resolution; text conditioning, latent diffusion, video, and modern large-scale attention models are not tested.",
+    "Reviewer inference: flexible crops and schedules are derived from a trained DDPM++ and tuned per dataset, weakening claims of an independent training-free explanation.",
+    "Reviewer inference: gradients describe local sensitivity, not uniquely the internal algorithm; alternative mechanisms could share the same input-output and Jacobian statistics."
+  ],
+  "failure_modes": [
+    "Position-specific patch retrieval can mix locally plausible fragments into globally incoherent objects.",
+    "Rare global structures have no compatible local neighbor combination and accumulate reverse-process artifacts.",
+    "Attention-heavy or conditioned denoisers can depend on distant tokens in ways a fixed local crop family misses.",
+    "SSCD can reward shared low-level content without proving semantic or causal equivalence.",
+    "Dataset-specific schedules can overfit the compared checkpoint and fail under another sampler, resolution, or distribution."
+  ],
+  "reusable_insights": [
+    "Diffusion generalization can be studied as structured approximation error against the exact finite-data objective minimizer.",
+    "A noise-dependent locality curve is a more informative mechanism probe than a single receptive-field measurement.",
+    "An explanatory surrogate should be tested both pointwise and through closed-loop rollouts because small local errors may compound.",
+    "Mechanistic claims need interventions that distinguish competing algorithms, not only output and gradient similarity."
+  ],
+  "open_questions": [
+    "Does patch compositionality still explain text-conditioned latent diffusion and diffusion Transformers at production scale?",
+    "Can learned-network gradients be replaced by an independent, pre-registered crop rule without losing explanatory power?",
+    "Which intervention on training data patches causally changes the predicted output region, and does PSPC forecast that change?",
+    "Can global consistency constraints close the rollout-quality gap while retaining a tractable analytic mechanism?",
+    "How much of the result comes from convolutional locality versus the natural-image patch distribution itself?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2412.20292",
+      "title": "An Analytic Theory of Creativity in Convolutional Diffusion Models",
+      "url": "https://arxiv.org/abs/2412.20292",
+      "relationship": "concurrent closest competitor",
+      "difference": "Kamb and Ganguli derive an equivariant local score machine with explicit locality and translation-equivariance biases and report high output R-squared for convolution-only models. PSPC supports arbitrary location-specific crops and evaluates Transformers, but its flexible form relies on measured network gradients.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2310.02557",
+      "title": "Generalization in Diffusion Models Arises from Geometry-Adaptive Harmonic Representations",
+      "url": "https://arxiv.org/abs/2310.02557",
+      "relationship": "competing mechanism",
+      "difference": "Kadkhodaie et al. explain denoiser generalization through geometry-adaptive harmonic shrinkage bases learned across disjoint datasets; PSPC instead posits retrieval and composition of empirical local patches and directly models approximation error to the finite-data optimum.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2402.08018",
+      "title": "Nearest Neighbour Score Estimators for Diffusion Generative Models",
+      "url": "https://arxiv.org/abs/2402.08018",
+      "relationship": "direct methodological predecessor",
+      "difference": "Niedoba et al. reduce empirical score variance with nearest-neighbor retrieval and show training-free PF-ODE sampling. PSPC reuses that estimator locally and claims that time-varying spatial composition explains neural-network generalization.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2310.12395",
+      "title": "Closed-Form Diffusion Models",
+      "url": "https://arxiv.org/abs/2310.12395",
+      "relationship": "analytic baseline",
+      "difference": "Closed-form diffusion introduces a spectral bias into an empirical denoiser to generalize without a trained score network. PSPC's local retrieval better matches the tested neural denoisers at intermediate noise but produces poorer final images than those networks.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "PSPC supplies a simple training-free local denoising-and-composition mechanism that reproduces network behavior across U-Nets and Transformers better than prior analytic denoisers.",
+    "evidence": "Gradient-locality measurements, patch posterior errors, three-dataset denoiser MSE, matched-latent samples, and comparisons across four architectures support a substantial local component.",
+    "reviewer_inference": "The work offers strong descriptive evidence and a useful surrogate, but not a unique causal mechanism. Its central patch-mosaic idea is shared with concurrent ELS work, and PSPC-Flex depends on a trained network's gradients and per-dataset tuning. The most defensible novelty is the flexible location-aware composition and cross-architecture empirical comparison."
+  },
+  "confidence": 0.94,
+  "reviewer_notes": "Read all 23 extracted pages. I rendered and inspected the denoiser comparisons, gradient heatmaps, MSE curves, sampling trajectories, SSCD matrix, per-architecture appendices, and all final sample grids; the severe PSPC rollout artifacts are visually clear. Four primary arXiv competitor records were checked on 2026-08-23. Causal and training-free qualifications are reviewer judgments."
+}

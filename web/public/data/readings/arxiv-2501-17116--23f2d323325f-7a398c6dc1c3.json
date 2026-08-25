@@ -1,0 +1,195 @@
+{
+  "stable_id": "arxiv:2501.17116",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2501.17116",
+    "pdf_sha256": "e95eaf034443b8b1c78ef073165641d9e7d28708aeb1301f2b0d34eb78c160f2",
+    "text_sha256": "42c298e345d372c8f92b172980c95c662441ed1e92e2c584fcfb2c4877ffe820",
+    "page_count": 21,
+    "extracted_at": "2026-08-23T17:28:14.418166+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can an LLM be pretrained with FP4 weights and activations without divergence or material quality loss, and which numerical corrections make that possible?",
+  "key_findings": [
+    {
+      "claim": "The framework combines hard E2M1 forward quantization with a power-shaped Differentiable Gradient Estimator for weights and Outlier Clamping and Compensation for activations.",
+      "evidence": "DGE replaces STE's unit derivative with the derivative of a soft step fitted to each quantization interval, using k=5 and clipping derivative magnitude at 3. OCC clamps activations at quantile alpha, sends the clamped tensor through FP4 GEMM, and computes the sparse residual in high precision. Token-wise activation scales and channel-wise weight scales complete the GEMM path.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "3 Methodology"},
+        {"page": 3, "section": "3.1 Differentiable Gradient Estimator"},
+        {"page": 4, "section": "3.2 Outlier Clamping and Compensation"},
+        {"page": 5, "section": "4.1 Experiment Setup"}
+      ]
+    },
+    {
+      "claim": "The default FP4 label describes the dominant matrix multiplications, not an entirely four-bit training state.",
+      "evidence": "With alpha=0.99, two percent of activation entries reside in a high-precision sparse compensation matrix. Gradient communication, gradients, and first moments use FP8; second moments use FP16; and remaining operations use FP16 or BF16. Thus precision coverage and the sparse residual are essential parts of the accuracy result and must be disclosed alongside the FP4 GEMMs.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "OCC residual and mixed-precision implementation"},
+        {"page": 8, "section": "4.3 Ablation Study"},
+        {"page": 15, "section": "B Theoretical Analysis on Speed Performance and Overhead"}
+      ]
+    },
+    {
+      "claim": "Across 1.3B, 7B, and 13B models trained for 100B tokens, FP4 converges but retains a measurable loss gap from BF16.",
+      "evidence": "Final training losses are 2.55 versus 2.49 at 1.3B, 2.17 versus 2.07 at 7B, and 1.97 versus 1.88 at 13B for FP4 versus BF16. Zero-shot means are 53.13 versus 53.23, 54.42 versus 53.87, and 54.95 versus 54.44; average perplexities are 36.86 versus 37.38, 35.62 versus 35.06, and 33.99 versus 33.69. The mixed downstream direction supports approximate parity, not dominance.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "4.2 Main Results / Tables 2-3"}
+      ]
+    },
+    {
+      "claim": "The ablations identify activation quantization as the principal immediate failure point and fine-grained scaling as necessary.",
+      "evidence": "On the 1.3B, 10B-token ablation, direct W8A4 eventually becomes NaN while weight-only W4A8 has a much smaller gap. DGE improves weight-only convergence, OCC stabilizes activation-only quantization, and tensor-wise scaling underperforms token-wise activation plus channel-wise weight scaling. Smaller alpha improves accuracy by making the high-precision residual denser: 0.2%, 2%, and 6% nonzeros at alpha 0.999, 0.99, and 0.97.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "4.3 Ablation Study"},
+        {"page": 8, "section": "Activation and Granularity ablations"}
+      ]
+    },
+    {
+      "claim": "OCC's activation-fidelity table makes the accuracy-versus-system-cost tradeoff explicit, but it does not measure realized sparse-kernel efficiency.",
+      "evidence": "At 30,000 iterations of the 1.3B run, no clamping gives 92.19% cosine similarity, MSE 0.1055, and SNR 8.31. Clamping plus compensation at alpha 0.999 gives 99.61%, 0.0245, and 15.31; alpha 0.99 reports 100%, 0.0099, and 18.38. The appendix estimates 5.6% OCC FLOP overhead at alpha 0.99 while acknowledging sparse-GEMM hardware inefficiency, but supplies no wall-clock sparse-kernel benchmark.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Table 1 activation reconstruction fidelity"},
+        {"page": 15, "section": "OCC Overhead and Adjusted Speedup Estimate"}
+      ]
+    },
+    {
+      "claim": "The work demonstrates numerical feasibility but does not demonstrate its headline efficiency, energy, memory, or throughput benefits.",
+      "evidence": "All experiments simulate FP4 on NVIDIA H-series FP8 tensor cores because native FP4 cores were unavailable. The appendix estimates an ideal 3.12x and overhead-adjusted 2.95x compute speedup from FLOP ratios; the limitations say simulation adds casting overhead and greatly lengthens runtime. No native-kernel throughput, end-to-end step time, peak memory, communication, power, energy, or cost measurement is reported.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Introduction"},
+        {"page": 5, "section": "4.1 Experiment Setup"},
+        {"page": 8, "section": "6 Limitation"},
+        {"page": 14, "section": "B Theoretical Analysis on Speed Performance and Overhead"},
+        {"page": 15, "section": "Adjusted Speedup Estimate"}
+      ]
+    },
+    {
+      "claim": "Small apparent downstream gains are not evidence that FP4 improves generalization because uncertainty is unreported.",
+      "evidence": "The paper presents one aggregate score per model/precision and does not report repeated pretraining seeds, confidence intervals, task-level significance tests, or checkpoint-selection uncertainty. The FP4-BF16 differences are small and change direction across model sizes and perplexity datasets, while training loss is consistently worse under FP4.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "4.2 Main Results / Tables 2-3"},
+        {"page": 7, "section": "4.3 Ablation Study"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Preserve FP4 arithmetic in the large GEMMs while correcting its two main pathologies: biased or uninformative weight gradients and activation outliers that consume E2M1's narrow dynamic range.",
+    "mechanism": "Quantize weights and activations to E2M1 using vector-wise absmax scales; apply hard quantization in the forward pass; multiply weight gradients by DGE's clipped soft-step derivative; clamp activations and add a sparse high-precision residual product; keep sensitive optimizer and non-GEMM operations at FP8, FP16, or BF16.",
+    "assumptions": [
+      "A fixed soft approximation to each hard quantization interval supplies a more useful weight-gradient surrogate than STE.",
+      "Activation outliers remain sufficiently sparse that their high-precision residual can be processed efficiently.",
+      "Token-wise and channel-wise scaling are compatible with future native FP4 GEMM kernels at production scale.",
+      "Numerical behavior simulated on FP8 hardware predicts training on native FP4 hardware.",
+      "Results at 13B parameters and 100B tokens transfer to frontier parameter counts and trillion-token horizons."
+    ]
+  },
+  "techniques": [
+    {"id": "e2m1-vector-quantization", "role": "Maps activations token-wise and weights channel-wise into FP4's 16-value format."},
+    {"id": "differentiable-gradient-estimator", "role": "Uses a clipped soft-step derivative instead of STE for weight updates."},
+    {"id": "outlier-clamping-compensation", "role": "Keeps the dense activation path in FP4 while restoring clipped entries through a sparse high-precision path."},
+    {"id": "mixed-precision-state", "role": "Retains communication, optimizer state, and non-GEMM operations at higher precision."},
+    {"id": "fp8-hardware-simulation", "role": "Emulates E2M1 values and evaluates numerical convergence before native FP4 hardware."},
+    {"id": "precision-factor-ablation", "role": "Separates weight, activation, estimator, compensation, and scaling-granularity effects."}
+  ],
+  "evaluations": [
+    {"setting": "LLaMA2-style 1.3B, 7B, and 13B models on DCLM for 100B tokens", "metric": "final pretraining loss", "result": "FP4/BF16: 2.55/2.49, 2.17/2.07, and 1.97/1.88", "baseline": "Matched-hyperparameter BF16 training"},
+    {"setting": "Nine zero-shot language and reasoning tasks", "metric": "mean task score", "result": "FP4/BF16: 53.13/53.23 at 1.3B, 54.42/53.87 at 7B, 54.95/54.44 at 13B", "baseline": "Matched-size BF16 checkpoints"},
+    {"setting": "Lambada OpenAI, Lambada standard, Pile10k, and WikiText", "metric": "mean perplexity", "result": "FP4/BF16: 36.86/37.38, 35.62/35.06, and 33.99/33.69 across the three sizes", "baseline": "Matched-size BF16 checkpoints"},
+    {"setting": "1.3B model activation tensors across 30,000 iterations", "metric": "cosine similarity, MSE, and SNR", "result": "OCC at alpha 0.99 reaches 100% reported cosine similarity, MSE 0.0099, SNR 18.38 versus 92.19%, 0.1055, 8.31 without clamping", "baseline": "Direct activation quantization and clamping without compensation"},
+    {"setting": "1.3B model, 10B-token ablation", "metric": "training-loss convergence", "result": "Direct activation FP4 diverges; DGE, OCC, and vector-wise scaling each improve or restore convergence.", "baseline": "BF16, two FP8 implementations, direct W4A4, and tensor-wise FP4"}
+  ],
+  "limitations": [
+    "Native FP4 hardware is not evaluated, so all speed, energy, and cost benefits remain theoretical.",
+    "The largest run is 13B parameters and 100B tokens rather than a frontier model or trillion-token horizon.",
+    "The claimed framework relies on higher-precision optimizer state, communication, non-GEMM operations, and an alpha-dependent sparse activation residual.",
+    "Main comparisons omit a native or highly optimized FP8 throughput baseline and report no end-to-end systems measurements.",
+    "No repeated-run uncertainty is reported for training loss, downstream accuracy, or perplexity.",
+    "Ablations are confined to the 1.3B model and 10B tokens, leaving large-scale interactions among DGE, OCC, and granularity unresolved.",
+    "DGE's power and clipping parameters and OCC's quantile are selected empirically without an adaptive rule or broad sensitivity analysis.",
+    "Only LLaMA2-style dense decoder models and one pretraining corpus are studied."
+  ],
+  "failure_modes": [
+    "Direct FP4 activation quantization can underflow most ordinary values and eventually produce NaN loss.",
+    "DGE becomes unstable when a sharper approximation creates large derivative corrections near interval midpoints.",
+    "Increasing alpha reduces sparse work but worsens activation reconstruction; decreasing it can erase practical speed gains.",
+    "Tensor-wise scaling wastes FP4 dynamic range, especially for activations.",
+    "Sparse compensation may be FLOP-light but latency- and bandwidth-heavy on real accelerators.",
+    "Longer training can accumulate quantization bias that is invisible at 100B tokens.",
+    "A simulated precision path can converge numerically while native kernel rounding, block scaling, and accumulation behave differently."
+  ],
+  "reusable_insights": [
+    "Report a precision-coverage matrix for forward, activation-gradient, weight-gradient, accumulator, communication, optimizer-state, residual, and non-GEMM paths.",
+    "Separate numerical feasibility from systems efficiency: native-kernel step time, memory, power, communication, and achieved throughput are independent claims.",
+    "Treat activation outlier handling as an explicit precision budget whose density and accuracy are jointly swept.",
+    "Ablate weights and activations separately before attempting fully low-precision training; they fail for different reasons.",
+    "Compare training-loss gaps and downstream uncertainty together so noisy benchmark parity does not hide optimization degradation.",
+    "Test surrogate-gradient corrections against stochastic rounding and structured rotations, not only STE."
+  ],
+  "open_questions": [
+    "Does DGE remain useful against stochastic rounding and Hadamard-rotation methods on native NVFP4 or MXFP4 hardware?",
+    "What step-time, memory, energy, and cost advantage survives casting, scale computation, sparse compensation, and distributed communication?",
+    "Can alpha be adapted per layer and training phase under a measured accuracy-throughput budget?",
+    "Does the FP4-BF16 loss gap widen, stabilize, or reverse at ten-trillion-token scale?",
+    "Which backward paths can safely move from FP8/FP16 to FP4, and is weight-gradient quantization the limiting path?",
+    "How sensitive are results to architecture, normalization, optimizer, dataset, sequence length, and block-scaling format?",
+    "Can DGE be derived as a controlled estimator of a stated objective rather than selected as a heuristic soft step?",
+    "Do repeated seeds support downstream equivalence within a preregistered non-inferiority margin?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2505.19115",
+      "title": "FP4 All the Way: Fully Quantized Training of LLMs",
+      "url": "https://arxiv.org/abs/2505.19115v2",
+      "relationship": "subsequent fully quantized FP4 training competitor",
+      "difference": "Chmiel et al. extend FP4 to weights, activations, and gradients for a 7B model over 200B tokens, using NVFP4 block-16 E2M1 with E4M3 scales, pass-specific rounding, and a gradient-norm versus quantization-noise threshold. The reviewed work predates it and uniquely uses DGE plus sparse OCC, but retains higher-precision backward/state paths and tests only 100B tokens.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2509.25149",
+      "title": "Pretraining Large Language Models with NVFP4",
+      "url": "https://arxiv.org/abs/2509.25149v2",
+      "relationship": "large-scale NVFP4 successor",
+      "difference": "NVIDIA trains a 12B model for 10T tokens using random Hadamard transforms, two-dimensional quantization, stochastic rounding, and selective high-precision layers, reporting comparability to FP8. This directly covers the two-order-of-magnitude token-horizon gap acknowledged by the reviewed paper and replaces its sparse residual and DGE with block-scaling and rotation-based controls.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2605.09825",
+      "title": "Pretraining large language models with MXFP4 on Native FP4 Hardware",
+      "url": "https://arxiv.org/abs/2605.09825v4",
+      "relationship": "native-hardware failure-path study",
+      "difference": "Cim et al. progressively enable FP4 in forward, activation-gradient, and weight-gradient GEMMs on AMD MI355X and identify weight-gradient quantization as the dominant convergence problem; deterministic Hadamard rotations stabilize it while stochastic rounding and random rotations do not. The reviewed work instead leaves gradient GEMMs above FP4 and therefore does not expose this full-pipeline failure mode.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4"
+    },
+    {
+      "canonical_id": "openreview:XMzxZ6h68o",
+      "title": "Quartet: Native FP4 Training Can Be Optimal for Large Language Models",
+      "url": "https://openreview.net/forum?id=XMzxZ6h68o",
+      "relationship": "native Blackwell FP4 systems and scaling competitor",
+      "difference": "Quartet develops optimized native FP4 CUDA kernels and an accuracy-versus-compute scaling account for major linear computations on Blackwell hardware. It evaluates the systems claim the reviewed paper could only estimate theoretically; the reviewed paper's distinctive contribution remains its DGE and explicit sparse activation compensation mechanism.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2025 poster; revised 2026-04-21"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "This is the first FP4 pretraining framework for modern LLMs, enabling weights and activations in FP4 through DGE and OCC while retaining accuracy up to 13B parameters and 100B tokens.",
+    "evidence": "Matched BF16 comparisons show stable 100B-token convergence, near-parity on zero-shot and perplexity evaluations, and component ablations attribute activation stability to OCC, weight improvement to DGE, and lower error to vector-wise scaling.",
+    "reviewer_inference": "At its 2025 publication date, the combination of a surrogate gradient and sparse high-precision outlier path was an important numerical-feasibility result for LLM FP4 GEMMs. Its scope is narrower than the broad phrase FP4 training suggests because backward paths, optimizer state, residuals, and many operations remain above four bits. Later work on fully quantized gradients, 10T-token NVFP4 runs, and native FP4 systems substantially raises the validation bar, but does not erase the paper's early method contribution."
+  },
+  "confidence": 0.95,
+  "reviewer_notes": "Read all 21 extracted pages, including FP4 encoding and CUDA pseudocode, the theoretical speed/overhead analysis, DGE derivation and proof, and all experimental appendices. Current primary-source competitor versions were checked on arXiv and OpenReview on 2026-08-23."
+}

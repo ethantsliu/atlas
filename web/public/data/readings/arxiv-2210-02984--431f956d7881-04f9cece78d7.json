@@ -1,0 +1,518 @@
+{
+  "stable_id": "arxiv:2210.02984",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2210.02984",
+    "pdf_sha256": "4005c7c31c64497db41073e0987ed096d2cd350a7c91206e63eb895b2a8254df",
+    "text_sha256": "34dadb1c41a044e9c385372f09f368dfa0b2e4d4571609a5d6ef39047ca3b38a",
+    "page_count": 22,
+    "extracted_at": "2026-08-23T20:25:24.929047+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can the infinitesimal equivariance defect of a neural network provide a unified, layer-decomposable metric that reveals whether architecture, training, scale, or aliasing determines the equivariance learned by modern image classifiers?",
+  "key_findings": [
+    {
+      "claim": "LEE is a useful local diagnostic and its strongest original contribution is the output-aware chain-rule decomposition, not the underlying idea of differentiating predictions along transformation tangents.",
+      "evidence": "The paper defines the Lie derivative of a function under a continuous group action and averages its squared output norm over data. Unrolling the chain rule yields output-propagated terms for each layer, which can be estimated by random projections without materializing full Jacobians. This is a practical way to compare heterogeneous intermediate layers through their effect on one shared classifier output, and the 410-checkpoint survey was unusually broad for 2022. However, Tangent Prop already differentiated network outputs along translation, rotation, expansion, and hyperbolic-deformation tangents in 1991; Lenc and Vedaldi later measured learned layer equivariance. The durable novelty is therefore the LEE packaging, stochastic layer attribution, and survey scale.",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "3 Related Work and 4 Lie Derivatives"
+        },
+        {
+          "page": 5,
+          "section": "Equation 4 and Layerwise Decomposition"
+        },
+        {
+          "page": 17,
+          "section": "B.3 Stochastic Trace Estimator"
+        }
+      ]
+    },
+    {
+      "claim": "The released end-to-end implementation does not compute the LEE defined in Equation 4.",
+      "evidence": "Equation 4 defines the mean squared L2 norm divided by output dimension. In public commit ed96788, lee/e2e_lee.py instead takes the absolute value of every output derivative and then mean(-1), producing mean absolute error, or L1 divided by dimension. The plotting notebook directly consumes the resulting trans_x_deriv, trans_y_deriv, rotation, shear, stretch, and saturation columns. L1 and squared L2 can rank heterogeneous 1000-class derivative vectors differently, so the headline correlations are results for an undocumented metric rather than the mathematical LEE stated and analyzed in the paper.",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Equation 4, Local Equivariance Error"
+        },
+        {
+          "page": 7,
+          "section": "6 Methodology and Figure 5"
+        },
+        {
+          "page": 21,
+          "section": "D.4 Alternative End-to-End Metrics"
+        }
+      ]
+    },
+    {
+      "claim": "Softmax-output LEE is scale-degenerate, so heterogeneous checkpoints can appear arbitrarily equivariant without changing their predictions or accuracy.",
+      "evidence": "The appendix explicitly defines every output as softmax probabilities, and the release wraps both end-to-end and layerwise models in softmax. For logits z and any positive scalar alpha, argmax softmax(alpha z) is unchanged, but as alpha approaches zero the predictive distribution becomes uniform and its Lie derivative approaches zero; away from decision boundaries it also approaches zero as alpha grows and softmax saturates. Thus temperature alone can drive LEE toward zero while top-1 accuracy is identical. No logit-norm, entropy, calibration, temperature, or raw-logit control is reported across checkpoints. The discrete top-1 consistency check avoids this particular scaling defect and shows a similar aggregate trend, but the released group-sample probability metric shares it and neither validates the absolute LEE ranking.",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Equation 4, output-dependent norm"
+        },
+        {
+          "page": 7,
+          "section": "Figure 5 and alternative metrics"
+        },
+        {
+          "page": 17,
+          "section": "B.3, outputs defined as softmax probabilities"
+        },
+        {
+          "page": 21,
+          "section": "D.4 Discrete Consistency and Expected Group Sample Equivariance"
+        }
+      ]
+    },
+    {
+      "claim": "The implemented image action is not differentiable at the identity in the sense required by a Lie derivative.",
+      "evidence": "The theory treats an image as a smooth band-limited continuous signal and differentiates a smooth group flow at identity. The release instead reconstructs transformations with a custom bilinear grid sampler: at identity, output coordinates lie on pixel knots where generic piecewise-linear interpolation has different left and right slopes. The code freezes floor and reflection-index operations under no_grad, so autograd returns an implementation-selected one-sided derivative rather than a two-sided mathematical derivative. Reflection padding adds boundary cusps. No interpolation, padding, resolution, direction, or finite-difference convergence ablation is provided, even though these choices define the measured tangent and conflict with the paper's claim of minimal design decisions.",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Continuous Signals and Aliasing"
+        },
+        {
+          "page": 4,
+          "section": "Equation 3, derivative at the identity"
+        },
+        {
+          "page": 5,
+          "section": "Figure 3, second-order grid sampling implementation"
+        },
+        {
+          "page": 7,
+          "section": "6 Methodology, bilinear interpolation with reflection padding"
+        }
+      ]
+    },
+    {
+      "claim": "The appendix stretch measurement is invalid in the released code, and the claimed brightness transformation is mislabeled.",
+      "evidence": "For x-stretch, the public transform initializes a 2-by-3 affine matrix to zero and sets only the x diagonal to 1+t; at t=0 the y diagonal remains zero, so the image is collapsed to a horizontal line rather than left unchanged. The y-stretch analog collapses x. Its derivative is therefore taken around a degenerate projection, not the identity of a stretch group, invalidating the stretch points in Figure 9. The function used for 'brightening' is named saturate and merely multiplies the already normalized input tensor by 1+t; that is contrast about the normalization origin, not additive brightness and not color saturation. The paper text also says no significant brightness correlation while the adjacent caption says a limited correlation.",
+      "anchors": [
+        {
+          "page": 21,
+          "section": "D.5 LEE for Additional Transformations"
+        },
+        {
+          "page": 22,
+          "section": "Figure 9, Hyperbolic Rotation, Brighten, and Stretch"
+        }
+      ]
+    },
+    {
+      "claim": "Layerwise term norms are sensitivity diagnostics, not additive or parameterization-invariant causal contributions to total equivariance error.",
+      "evidence": "The vector terms C_i sum to the total derivative, but the plotted quantities are their individual norms and the paper acknowledges that the sum of norms can differ from the norm of the sum. Opposing terms may cancel, aligned terms may reinforce, and splitting, fusing, or reparameterizing a computation changes the attribution granularity. The released hook implementation instruments selected leaf torch modules rather than the full autograd DAG, omitting functional operations such as positional-embedding additions and other non-module graph nodes that can themselves break equivariance. Stacked 'cumulative equivariance error' bars therefore cannot establish that a large layer norm causes the end-to-end defect or that all defect has been allocated.",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Equations 5-6 and norm non-additivity caveat"
+        },
+        {
+          "page": 6,
+          "section": "Figure 4, cumulative layer contributions"
+        },
+        {
+          "page": 17,
+          "section": "B.3 Stochastic Trace Estimator"
+        },
+        {
+          "page": 20,
+          "section": "D.2 Subnetwork Equivariance Analysis"
+        }
+      ]
+    },
+    {
+      "claim": "The evidence does not identify aliasing as the primary causal mechanism of equivariance failure across modern networks.",
+      "evidence": "Theorem 1 correctly motivates that an explicit Fourier aliasing operator can create translation defect, but its appendix simplification assumes factor-two downsampling so each output frequency has only one nonzero aliased contributor; the theorem statement does not delimit that case, and general alias collisions introduce cross terms. More importantly, similar percentages of large layer norms across transforms are correlational and can also reflect padding, patch boundaries, positional encodings, normalization, attention, and the chosen interpolation action. Apart from one BlurPool checkpoint comparison, there is no spectral intervention, mediation analysis, or controlled removal of each suspected alias source showing that the overall LEE and accuracy trends follow. The result supports 'aliasing is one important source,' not the paper's primary-mechanism conclusion.",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Figure 4 and Theorem 1"
+        },
+        {
+          "page": 8,
+          "section": "Figure 6, BlurPool and training-scale case studies"
+        },
+        {
+          "page": 9,
+          "section": "7 Conclusion, primary-mechanism claim"
+        },
+        {
+          "page": 19,
+          "section": "C.2 Translation LEE and Aliasing, factor-two simplification"
+        }
+      ]
+    },
+    {
+      "claim": "The 410-checkpoint accuracy relationship is an exploratory model-zoo correlation, not evidence that greater scale or accuracy produces equivariance or that architecture has no effect.",
+      "evidence": "The checkpoints jointly vary architecture, input resolution and preprocessing, parameters, training data, pretraining, augmentation, distillation, label smoothing, optimizer, and calibration. Marker size and a few family slices do not adjust these covariates. The released notebook applies an undocumented greater-than-70% ImageNet-accuracy filter, fits simple one-variable linear regressions for some plots, and provides no architecture-by-accuracy regression, coefficient uncertainty, cluster correction, model-family random effect, or p-value supporting the paper's 'no significant difference when conditioning on accuracy' language. Error bars are over input images, not independently trained checkpoints or seeds, and family members are statistically dependent.",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "6 Methodology and Equivariance Across Architectures"
+        },
+        {
+          "page": 8,
+          "section": "Effects of Training and Scale and Figure 6"
+        },
+        {
+          "page": 20,
+          "section": "D.3 Model List"
+        }
+      ]
+    },
+    {
+      "claim": "The OOD experiment conflates learned equivariance with the classifier's confidence and the input dataset's own spatial spectrum.",
+      "evidence": "An ImageNet softmax is differentiated on CIFAR-100 and on histology and retinopathy images whose classes are not the model's output classes. Its derivative can change because probabilities become uniform, become spuriously saturated, or because resampling and image frequency content differ, even if the network's decision mechanism has not become less equivariant. The paper does not measure domain distance, task correctness, logits, calibration, matched image spectra, paired semantic orbits, or a normalized change relative to input sensitivity. Calling the monotone dataset ordering a growing distance from the training manifold and comparing CNN/ViT gaps is therefore underidentified.",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "Equivariance Out of Distribution"
+        },
+        {
+          "page": 9,
+          "section": "Figure 7, ImageNet/CIFAR/medical datasets"
+        },
+        {
+          "page": 17,
+          "section": "B.3, softmax output definition"
+        }
+      ]
+    },
+    {
+      "claim": "The rotated-MNIST comparison does not show that learned equivariance matches an architectural guarantee.",
+      "evidence": "The fine-tuned MAE reaches 1.14% error, behind RotEqNet at 1.09% and E(2)-CNN at 0.68%, after large-scale ImageNet pretraining and 100 epochs. The older equivariant baselines are copied from a benchmark table and are not matched for parameters, pretraining data, image resolution, augmentation, optimization, compute, or repeated seeds. Accuracy on independently rotated digits measures task performance under a rotation-rich distribution, not whether the same digit receives consistent predictions along its orbit; a model can be accurate yet locally non-invariant. No LEE, orbit-consistency, extrapolation, or sample-efficiency result is reported for the MAE despite those being the claims at issue.",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "Learning Rotation Equivariance and Table 1"
+        },
+        {
+          "page": 21,
+          "section": "D.6 Rotated MNIST Finetuning"
+        }
+      ]
+    },
+    {
+      "claim": "A small local derivative on sampled points does not by itself control finite or global equivariance.",
+      "evidence": "The paper's zero-defect equivalence requires every Lie-algebra direction, every input in the domain, smoothness, and a suitable connected group/exponential-map condition. Experiments instead measure a few named generators at finitely many natural images with nonzero defect. Turning that into a finite-transformation guarantee requires path coverage and regularity bounds on how the defect changes; none are supplied. The alternative metrics show a similar average accuracy trend for selected translations, but do not test worst-case group elements, compositions, loops, boundary behavior, or path dependence. Current holonomy work explicitly targets this missing global/pathwise information.",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Local versus global equivariance caveat"
+        },
+        {
+          "page": 7,
+          "section": "Figure 5, finite group-sample comparison"
+        },
+        {
+          "page": 16,
+          "section": "B.1 Lie Groups and Local/Global Notions"
+        },
+        {
+          "page": 21,
+          "section": "D.4 Versus LEE"
+        }
+      ]
+    },
+    {
+      "claim": "LEE still contains consequential normalization and representation choices despite being advertised as nearly hyperparameter-free.",
+      "evidence": "Its magnitude depends on the units and scale of the Lie-algebra generator, the input coordinate convention, output representation and temperature, output norm, dataset distribution, interpolation, padding, preprocessing, and how intermediate tokens are mapped to a spatial grid. Dividing by output dimension does not make translations, radians, shear, intensity scaling, resolutions, or class heads commensurate. Computing basis directions characterizes linear combinations only after a basis and its metric are chosen. These choices are often reasonable, but they must be calibrated and reported rather than treated as automatically normalized.",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Lie algebra basis and Equation 3"
+        },
+        {
+          "page": 5,
+          "section": "Equation 4, output-dimension normalization"
+        },
+        {
+          "page": 7,
+          "section": "Bilinear interpolation and reflection padding"
+        },
+        {
+          "page": 21,
+          "section": "D.4 Versus LEE, basis and resolution claims"
+        }
+      ]
+    },
+    {
+      "claim": "The public artifacts are unusually helpful for audit but do not provide a pinned, end-to-end reproducible experiment package.",
+      "evidence": "The authors release source, model sweeps, raw plotting notebook, submodule commits, and core metric code, enabling the metric mismatch and transform bugs to be located. But requirements specify broad lower bounds rather than exact versions, the code depends on old timm internals and deprecated backward hooks, OOD loaders are commented in the released runner, the RotMNIST script is absent, statistical aggregation and figure datasets live outside the repository, and no tests check identity transforms, analytic equivariant nulls, Equation-4 agreement, temperature invariance, or full attribution reconstruction. This is valuable research code, not a self-validating executable specification of all paper results.",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "Public code statement"
+        },
+        {
+          "page": 5,
+          "section": "Figure 3 implementation note"
+        },
+        {
+          "page": 7,
+          "section": "6 Methodology"
+        },
+        {
+          "page": 21,
+          "section": "D.6 Rotated MNIST details"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Measure a neural function's infinitesimal failure to commute with a continuous symmetry by differentiating its transformed-input/inverse-transformed-output path at the identity, then use the chain rule to propagate each layer's local defect to a common output space.",
+    "mechanism": "For a Lie-group generator X, the method forms the induced action rho_2(g)^-1 f(rho_1(g)x), differentiates at identity with autograd, and averages the squared output norm divided by output dimension over data. For a composed network, it writes the total derivative as a vector sum of downstream-Jacobian-weighted layer defects. Gaussian random projections estimate the squared norm of each term with 100 probes, and results are averaged over images. The study applies this machinery and finite-translation baselines to timm ImageNet classifiers, case-study checkpoint families, OOD image sets, and an ImageNet-pretrained MAE fine-tuned on rotated MNIST.",
+    "assumptions": [
+      "The implemented input and hidden-state transformations are smooth group actions at the identity.",
+      "Bilinear interpolation and reflection padding approximate the intended continuous physical transformation without dominating its derivative.",
+      "Softmax probability scale and calibration are comparable across heterogeneous pretrained models.",
+      "Dividing by output dimension makes derivative magnitudes meaningfully comparable across models and transformations.",
+      "The selected Lie-algebra generator basis and units express the notion of equivariance relevant to the task.",
+      "Norms of layerwise vector terms can be interpreted as useful contributions despite cancellation and parameterization dependence.",
+      "The hook-based released implementation captures all graph operations that materially introduce equivariance error.",
+      "ImageNet accuracy and LEE checkpoint correlations are not primarily caused by resolution, training recipe, calibration, or other shared confounders.",
+      "Medical and small-image datasets form an ordered notion of distance from the ImageNet training manifold for this metric.",
+      "A low local average on sampled natural images predicts useful finite-transformation behavior and generalizes beyond those samples.",
+      "Similar layerwise profiles across transformations identify aliasing rather than another shared mechanism or the transform implementation.",
+      "Rotated-MNIST accuracy is a strong proxy for orbit invariance and can fairly compare a pretrained MAE to specialized equivariant networks."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "local-equivariance-error",
+      "role": "Summarizes an infinitesimal commutation defect as a data-averaged output derivative norm."
+    },
+    {
+      "id": "autograd-lie-derivative",
+      "role": "Computes derivatives of transformed model outputs at the identity using Jacobian-vector products."
+    },
+    {
+      "id": "chain-rule-layer-attribution",
+      "role": "Propagates each layer's local defect through downstream Jacobians to the final output space."
+    },
+    {
+      "id": "gaussian-trace-estimation",
+      "role": "Estimates squared norms of high-dimensional layer terms from 100 random output projections."
+    },
+    {
+      "id": "continuous-affine-image-actions",
+      "role": "Implements translation, rotation, shear, scaling, hyperbolic rotation, and nominal stretch through differentiable resampling."
+    },
+    {
+      "id": "model-zoo-equivariance-survey",
+      "role": "Compares learned equivariance across 410 CNN, ViT, and Mixer checkpoints."
+    },
+    {
+      "id": "finite-group-sample-baselines",
+      "role": "Checks whether local LEE trends persist for top-1 consistency and sampled multi-pixel transformations."
+    },
+    {
+      "id": "fourier-aliasing-analysis",
+      "role": "Relates translation defect from an explicit downsampling alias operator to high-frequency energy."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "A timm collection of 410 pretrained CNN, vision-transformer, and MLP/Mixer ImageNet classifiers.",
+      "metric": "Translation, rotation, and shear output-derivative error plotted against ImageNet test accuracy, with image-level standard errors.",
+      "result": "More accurate checkpoints generally show lower reported error; the paper claims no significant CNN/ViT/Mixer difference after conditioning on accuracy.",
+      "baseline": "Architecture labels, parameter-count marker size, and finite discrete/group-sampled transformation metrics, without a reported multivariable statistical model."
+    },
+    {
+      "setting": "Selected pretrained CNN, ViT, and Mixer architectures on ImageNet images.",
+      "metric": "Norms of downstream-propagated per-layer Lie-derivative terms using 100 random probes and 20 images for final layerwise plots.",
+      "result": "Downsampling, initial patch embedding, activations, normalization, MLP, and attention modules receive large cumulative attribution norms.",
+      "baseline": "Integer and fractional EQ-T layer scores under several activation-size normalizations."
+    },
+    {
+      "setting": "ResNet-50 under translation, rotation, scale, and hyperbolic-rotation transformations.",
+      "metric": "Percentage of summed layer-attribution norms assigned to operation types.",
+      "result": "Similar operation-type profiles across transformations are interpreted as evidence for aliasing as a shared cause.",
+      "baseline": "No causal intervention that removes each frequency source while holding all other computation fixed."
+    },
+    {
+      "setting": "BlurPool ResNet-50 and checkpoint slices varying XCiT/EfficientNet scale, ResMLP training data, and ResNeXt training recipe.",
+      "metric": "Translation derivative error versus ImageNet accuracy.",
+      "result": "Scale, data, and recipe changes often coincide with larger error reductions than the one BlurPool architectural comparison.",
+      "baseline": "Within-family observational checkpoint comparisons, not matched training runs or factorial interventions."
+    },
+    {
+      "setting": "ImageNet train/validation, CIFAR-100, colorectal histology, and diabetic-retinopathy images fed to ImageNet-pretrained classifiers.",
+      "metric": "Translation softmax-derivative error versus each checkpoint's ImageNet accuracy.",
+      "result": "Reported error is higher off the training distribution and CNN/ViT gaps are described as comparable.",
+      "baseline": "Dataset identity as an informal OOD ordering, without task-aligned outputs, calibration, spectral matching, or measured manifold distance."
+    },
+    {
+      "setting": "A base masked autoencoder pretrained on ImageNet and fine-tuned for 100 epochs on rotated MNIST.",
+      "metric": "Classification test error.",
+      "result": "The MAE obtains 1.14% error, worse than RotEqNet at 1.09% and E(2)-CNN at 0.68% but better than several older table entries.",
+      "baseline": "Published specialized equivariant models with unmatched pretraining, scale, data, compute, and optimization."
+    }
+  ],
+  "limitations": [
+    "The released end-to-end implementation computes mean absolute derivative rather than Equation 4's mean squared L2 derivative norm.",
+    "Softmax LEE can be driven toward zero by temperature scaling without changing argmax predictions or accuracy.",
+    "The bilinear group action is generically nondifferentiable at the identity pixel knots where the Lie derivative is evaluated.",
+    "The released stretch transform is not identity at zero and collapses the orthogonal image axis.",
+    "The brightness result actually multiplies normalized tensors and is neither additive brightness nor saturation.",
+    "Layerwise norms do not add to total defect, can cancel, depend on graph parameterization, and omit unhooked functional operations.",
+    "The aliasing-primary conclusion is not established by a controlled spectral intervention or mediation analysis.",
+    "The model-zoo analysis confounds architecture with checkpoint resolution, data, recipe, pretraining, calibration, and family dependence.",
+    "The claimed conditioned architecture insignificance has no reported regression, coefficient, p-value, or checkpoint-level uncertainty.",
+    "Image-level error bars do not capture checkpoint training variance; most checkpoints have one available run.",
+    "OOD softmax derivatives on unrelated medical classes are not a calibrated measure of representation equivariance or distance from ImageNet.",
+    "The rotated-MNIST comparison is unmatched and uses accuracy, not direct orbit-invariance or LEE evaluation.",
+    "Small average local error has no supplied bound on finite, worst-case, composed, or path-dependent transformations.",
+    "Generator units, basis, output norm, interpolation, padding, and dataset remain material metric design choices.",
+    "Dependencies and figure-generation data are not pinned into a tested end-to-end reproduction package."
+  ],
+  "failure_modes": [
+    "A model is temperature-scaled toward uniform probabilities and receives near-zero LEE while its learned representation and predictions are unchanged.",
+    "An overconfident model away from its decision boundaries also receives small softmax derivative even though finite transformations cross a nearby boundary.",
+    "Changing bilinear interpolation, floating-point rounding, reflection behavior, or resolution changes the selected subgradient at identity and reorders models.",
+    "The invalid stretch matrix measures sensitivity around a vertically or horizontally collapsed image and is interpreted as scale-like equivariance.",
+    "Two large layer defect vectors cancel, but the stacked attribution chart reports both as large cumulative error and invites a false causal intervention.",
+    "A positional embedding or functional graph operation breaks equivariance but is not assigned because only selected leaf modules are hooked.",
+    "Higher ImageNet accuracy, sharper softmax, larger input resolution, and a modern augmentation recipe move together and are misread as a scale-caused equivariance law.",
+    "A medical image elicits uniformly uncertain ImageNet outputs and looks artificially equivariant, or a spuriously confident output looks artificially stable.",
+    "A classifier has high rotated-MNIST accuracy over the marginal test distribution but changes class on transformations of the same digit.",
+    "A network is locally stable at sampled images but fails under a finite rotation, a composition of small motions, a boundary-crossing translation, or an unseen orbit.",
+    "Multiple Fourier components alias to one output frequency and interfere, violating the theorem's factor-two single-contributor simplification.",
+    "An old unpinned timm or PyTorch dependency changes model preprocessing, hooks, or checkpoints and silently changes the reported survey."
+  ],
+  "reusable_insights": [
+    "Infinitesimal symmetry diagnostics are computationally attractive, but validate the transform identity, smoothness, sign symmetry, and finite-difference convergence before interpreting them geometrically.",
+    "Test metric implementations against the exact paper equation on analytic toy functions and exact equivariant/non-equivariant null models.",
+    "Report probability, raw-logit, decision-consistency, and calibrated/temperature-normalized equivariance together; no single output metric identifies genuine invariance.",
+    "Treat chain-rule layer terms as signed vectors and report total reconstruction, cancellation/alignment matrices, and granularity sensitivity rather than only stacked norms.",
+    "Instrument the full computation graph or explicitly quantify residual unassigned defect, especially for positional encodings, skips, concatenations, and functional operations.",
+    "Distinguish an aliasing mechanism theorem from causal evidence by intervening on frequency content while matching architecture, resolution, training, and accuracy.",
+    "Analyze checkpoint zoos with predeclared inclusion rules, multivariable/within-family models, clustered uncertainty, seeds where available, and sensitivity to calibration and resolution.",
+    "For OOD equivariance, use paired semantic group orbits, task-aligned heads, input-spectrum controls, calibration, and a declared domain-distance measure.",
+    "Compare learned and hard-coded symmetry under matched parameters, compute, pretraining, seeds, orbit coverage, worst-case error, and sample efficiency.",
+    "Bridge local to global behavior with path-integrated bounds or empirical sweeps over magnitude, composition, loops, boundaries, and adversarial group elements.",
+    "Pin code, submodules, weights, preprocessing, raw per-example results, aggregation scripts, and identity/equation regression tests in one immutable artifact."
+  ],
+  "open_questions": [
+    "Do the 410-checkpoint rankings survive replacement of the released L1 score by Equation 4, and survive raw-logit and temperature-calibrated variants?",
+    "How much of the accuracy correlation remains after controlling within model families for input resolution, parameter count, training data, augmentation, distillation, and calibration?",
+    "Does a smooth sinc, Fourier-shift, spline, or antialiased transformation yield the same local derivative ranking as the custom bilinear subgradient?",
+    "Can layer attributions reconstruct total derivative exactly when every autograd node is covered, and how much cancellation occurs between layer terms?",
+    "Which attribution conclusions are invariant to module fusion, residual-block grouping, basis changes, and positional-encoding treatment?",
+    "Does selectively suppressing measured high-frequency energy reduce LEE in proportion to the proposed layer attribution while preserving accuracy?",
+    "Can a path-integrated LEE with Lipschitz control predict worst-case finite transformations and representation holonomy?",
+    "What OOD conclusions remain when models have task-specific heads and datasets are matched for frequency content, resolution, and calibration?",
+    "Under matched pretraining and compute, when does learned approximate symmetry beat exact equivariant architecture on accuracy, robustness, and sample efficiency?",
+    "How should Lie-algebra bases and norms be standardized so derivative scores are comparable across physical transformations and domains?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "neurips:1991:65658fde58ab3c2b6e5132a39fae7cb9",
+      "title": "Tangent Prop - A Formalism for Specifying Selected Invariances in an Adaptive Network",
+      "url": "https://proceedings.neurips.cc/paper/1991/hash/65658fde58ab3c2b6e5132a39fae7cb9-Abstract.html",
+      "relationship": "A direct 1991 predecessor differentiating network outputs along infinitesimal transformation directions, including translations, rotations, scale, and hyperbolic deformations.",
+      "difference": "Tangent Prop uses directional derivatives as a training regularizer; LEE repackages the defect with Lie-group language, averages it as a diagnostic, propagates per-layer terms to the output, and surveys modern pretrained models. It makes the broad 'new metric' claim substantially narrower."
+    },
+    {
+      "canonical_id": "arxiv:1411.5908",
+      "title": "Understanding Image Representations by Measuring Their Equivariance and Equivalence",
+      "url": "https://arxiv.org/abs/1411.5908",
+      "relationship": "A foundational empirical framework for testing equivariance, invariance, and equivalence at different CNN layers through learned transformation and stitching maps.",
+      "difference": "Lenc-Vedaldi accommodates transformations represented by learned feature-space maps and finite samples; LEE fixes a known continuous group action, focuses on its infinitesimal defect, and offers output-aware layer decomposition at far larger model-zoo scale."
+    },
+    {
+      "canonical_id": "arxiv:1805.12177",
+      "title": "Why do deep convolutional networks generalize so poorly to small image transformations?",
+      "url": "https://arxiv.org/abs/1805.12177",
+      "relationship": "A direct empirical and signal-processing precursor linking small-translation instability to sampling and showing learned invariance is concentrated near the training distribution.",
+      "difference": "Azulay-Weiss probes finite transformed predictions and mechanisms in CNNs; LEE supplies a local differential score across CNNs and transformers, but inherits the need to distinguish interpolation, distribution, and aliasing effects."
+    },
+    {
+      "canonical_id": "arxiv:1904.11486",
+      "title": "Making Convolutional Networks Shift-Invariant Again",
+      "url": "https://arxiv.org/abs/1904.11486",
+      "relationship": "The BlurPool architecture and discrete consistency metric used as a main intervention and baseline in the LEE paper.",
+      "difference": "Zhang directly inserts low-pass filters before downsampling and evaluates finite shift consistency and robustness; LEE diagnoses infinitesimal defects and argues training/scale can exceed this architectural intervention."
+    },
+    {
+      "canonical_id": "arxiv:2106.05121",
+      "title": "Grounding inductive biases in natural images: invariance stems from variations in data",
+      "url": "https://arxiv.org/abs/2106.05121",
+      "relationship": "The closest preceding CNN-versus-ViT study concluding that training data and augmentation dominate architecture in learned ImageNet invariance.",
+      "difference": "It studies a small number of architectures and finite, data-grounded transformations; LEE scales to hundreds of checkpoints and adds layerwise derivatives, but does not independently originate the data-over-architecture conclusion."
+    },
+    {
+      "canonical_id": "arxiv:2106.12423",
+      "title": "Alias-Free Generative Adversarial Networks",
+      "url": "https://arxiv.org/abs/2106.12423",
+      "relationship": "A primary signal-processing precursor that formalizes continuous feature maps, removes aliasing around nonlinearities, and supplies EQ-T/EQ-R metrics used as LEE baselines.",
+      "difference": "StyleGAN3 engineers subpixel equivariance with explicit filtered operations and finite transforms in generators; LEE generalizes diagnosis to classifier checkpoints and output-propagated layer attribution without guaranteeing alias-free computation."
+    },
+    {
+      "canonical_id": "arxiv:2108.03489",
+      "title": "Impact of Aliasing on Generalization in Deep Convolutional Networks",
+      "url": "https://arxiv.org/abs/2108.03489",
+      "relationship": "A preceding component-level audit and architectural intervention showing where CNNs cannot learn away aliasing and how low-pass filters improve IID and OOD performance.",
+      "difference": "Vasconcelos et al. use controlled filtering modifications and downstream generalization; LEE provides a broader measurement framework but its aliasing-primary inference is less causally isolated."
+    },
+    {
+      "canonical_id": "arxiv:2210.03773",
+      "title": "In What Ways Are Deep Neural Networks Invariant and How Should We Measure This?",
+      "url": "https://arxiv.org/abs/2210.03773",
+      "relationship": "A nearly simultaneous metric paper defining finite-group empirical equivariance deviation for channels, latent spaces, and softmax predictions, with repeated models and OOD tests.",
+      "difference": "G-EED is global over sampled finite groups and explicitly shows metric choice can reverse conclusions—including random networks looking highly invariant at softmax—whereas LEE is local and layer-decomposable but especially vulnerable to softmax scale and interpolation choices."
+    },
+    {
+      "canonical_id": "arxiv:2304.02628",
+      "title": "What Affects Learned Equivariance in Deep Image Recognition Models?",
+      "url": "https://arxiv.org/abs/2304.02628",
+      "relationship": "A direct successor proposing activation-normalized intermediate-feature measures and studying accuracy, augmentation, capacity, CNNs, ViTs, and Mixers on 2,000 ImageNet images.",
+      "difference": "It finds convolutions and reduced capacity increase intermediate translation equivariance and shows conclusions vary by depth and transformation; LEE instead emphasizes output-conditioned local defect and claims architecture disappears after accuracy conditioning."
+    },
+    {
+      "canonical_id": "arxiv:2308.03904",
+      "title": "On genuine invariance learning without weight-tying",
+      "url": "https://arxiv.org/abs/2308.03904",
+      "relationship": "A later audit separating predictive-distribution, raw-logit, and saliency invariance and showing augmentation-learned invariance may rely on generic sensitivity suppression and fail under shift.",
+      "difference": "Its multi-level metrics directly address LEE's softmax ambiguity and distinguish genuine architectural invariance from input-conditioned behavior; LEE offers continuous local and layerwise resolution but only one output representation."
+    },
+    {
+      "canonical_id": "arxiv:2311.02922",
+      "title": "Truly Scale-Equivariant Deep Nets with Fourier Layers",
+      "url": "https://arxiv.org/abs/2311.02922",
+      "relationship": "A later architecture paper arguing that continuous-domain equivariance claims fail after discrete sampling unless anti-aliasing is built into the actual down-scaling operator.",
+      "difference": "It targets exact discrete scale equivariance with Fourier layers and zero measured defect; LEE is architecture-agnostic and approximate, but its invalid released stretch action illustrates the implementation gap this work emphasizes."
+    },
+    {
+      "canonical_id": "arxiv:2506.03550",
+      "title": "Local Equivariance Error-Based Metrics for Evaluating Sampling-Frequency-Independent Property of Neural Network",
+      "url": "https://arxiv.org/abs/2506.03550",
+      "relationship": "A direct domain extension of LEE to sampling-frequency changes in audio source-separation components, with three task-specific metrics correlated to degradation at unseen rates.",
+      "difference": "It demonstrates that LEE can be reusable outside vision when the action and component semantics are explicit; its task-specific variants also underscore that output representation and validation target must be designed rather than assumed universal."
+    },
+    {
+      "canonical_id": "openreview:czJqKToDGq",
+      "title": "Gauge-Invariant Representation Holonomy",
+      "url": "https://openreview.net/forum?id=czJqKToDGq",
+      "relationship": "A current ICLR 2026 diagnostic that explicitly positions local LEE as unable to measure global path dependence and instead estimates gauge-invariant transport around transformation loops.",
+      "difference": "Holonomy adds whitening, shared-neighbor subspaces, Procrustes transport, loop-radius studies, and finite-sample perturbation analysis; LEE is simpler and cheaper for a specified infinitesimal symmetry but cannot detect nontrivial loop composition."
+    },
+    {
+      "canonical_id": "arxiv:2606.26273",
+      "title": "Equivariance and Augmentation for Bayesian Neural Networks",
+      "url": "https://arxiv.org/abs/2606.26273",
+      "relationship": "A current theoretical treatment deriving conditions and bounds under which augmentation yields exact or approximate equivariance in variational Bayesian networks.",
+      "difference": "It supplies training-distribution conditions, explicit equivariance bounds, and symmetrization interventions; LEE offers an empirical post-hoc local diagnostic across arbitrary differentiable models but no causal or generalization guarantee."
+    }
+  ],
+  "novelty_assessment": "Reviewer inference after full-text, source, release-code, plotting-notebook, and primary-literature audit: LEE was a useful 2022 synthesis. Its genuine contribution is an output-aware chain-rule decomposition with stochastic norm estimates and an unusually broad modern model-zoo survey. The central mathematical act—differentiating network outputs along infinitesimal translations, rotations, scale, and hyperbolic deformations—was already operational in Tangent Prop in 1991, while learned layer equivariance and data-versus-architecture effects had substantial prior work. The strongest empirical claims are less durable than the method: released end-to-end code computes L1/d rather than the paper's squared L2/d; softmax temperature can make any fixed classifier arbitrarily low-LEE; bilinear sampling is nonsmooth at the identity; the stretch appendix differentiates around a collapsed image; layer norms are non-additive and incompletely hooked; and the 410-checkpoint correlations do not statistically isolate architecture, scale, training, calibration, or aliasing. Later work supplies competing finite-group, raw-logit, normalized-feature, pathwise-holonomy, and theoretically bounded views. LEE remains worth reimplementing as one member of a calibrated diagnostic suite, not as a hyperparameter-free scalar proof that scale learns genuine equivariance or that aliasing is the primary cause.",
+  "confidence": 0.997,
+  "reviewer_notes": "Read all 22 pages, including background, related work, definitions, every main result, all references, local/global proof sketch, trace estimator, alias theorem, baselines, model list, additional transforms, and RotMNIST appendix. Audited public repository commit ed96788a6606135d215849e8bab29c0250c25067 and the authors' public plotting notebook. Code-level contradictions are exact: lee/e2e_lee.py uses abs().mean(-1), not Equation 4's squared L2 norm; transforms.py leaves the orthogonal stretch diagonal at zero; saturate multiplies normalized input; the custom grid sampler freezes floor/reflection indices at nondifferentiable pixel knots; layer hooks cover selected leaf modules rather than the full DAG. The notebook takes square roots of per-probe layer estimates before averaging and uses simple accuracy regressions/hand-coded architecture labels, but contains no reported conditioned significance model. Softmax degeneracy is an analytic reviewer inference: positive logit temperature preserves argmax while alpha->0 makes the derivative vanish. Competitors were checked against official NeurIPS proceedings, arXiv, PMLR, and OpenReview primary sources through 2026-08-23."
+}

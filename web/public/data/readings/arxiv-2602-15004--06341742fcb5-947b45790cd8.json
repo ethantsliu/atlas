@@ -1,0 +1,494 @@
+{
+  "stable_id": "arxiv:2602.15004",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2602.15004",
+    "pdf_sha256": "10edb2112c04037911607a6c184a8d79a28d1d1410546e52a099986c7eee5a85",
+    "text_sha256": "c7cf1a8b38cfba93dbf53cc72cbdb6043dfd0e75c654c18d2e2a0eb1dc1f7cc4",
+    "page_count": 11,
+    "extracted_at": "2026-08-23T12:56:37.249092+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a two-dimensional PDE foundation model pretrained on generic simulated fluid equations be adapted, extended vertically, and fine-tuned into an accurate data- and compute-efficient emulator of the three-dimensional Martian atmosphere, including when most initial-condition columns are missing?",
+  "method": {
+    "core_idea": "Reuse Poseidon-B's pretrained two-dimensional scOT layers independently at each Martian sigma level, insert randomly initialized axial-attention blocks that exchange information only along the vertical, learn a continuous sigma-coordinate embedding, and fine-tune the mixed model on a short OpenMARS reanalysis record.",
+    "mechanism": "The method reshapes a B x D x H x W x C atmospheric tensor to B*D x H x W x C for every pretrained two-dimensional layer, then rolls H x W into the batch dimension for newly added attention along D after each Swin layer. This adds about 100M vertical parameters to the 158M-parameter Poseidon-B backbone. OpenMARS T, u, and v are spline-interpolated from 36x72 to 128x128, mapped to Poseidon's density, u, and v channels, standardized per channel and level, and trained with normalized L1 loss. Full-column models see a random adjacent block of 9 of 18 sigma levels per step but run inference on all 18. Sparse experiments replace Poseidon's unused pressure channel with a binary observation mask and randomly drop complete vertical columns.",
+    "assumptions": [
+      "Generic Navier-Stokes and compressible-Euler pretraining learns local dynamics that remain useful after density is replaced by temperature and after the domain changes from planar PDE simulations to a spherical planetary atmosphere.",
+      "Applying pretrained two-dimensional layers independently at each level preserves their useful information, while randomly initialized vertical attention can learn all cross-level coupling needed from four training years.",
+      "Training on random adjacent 9-level slabs is sufficient to learn interactions used when all 18 levels are present at inference.",
+      "A learned MLP of sigma coordinate generalizes vertical positional information, including to levels not sampled together or not seen in training, although this extrapolation claim is not evaluated directly.",
+      "A randomly initialized scOT of the same configuration is an adequate generic AI-weather baseline; alternative architectures, explicit physics, and regularization do not change the transfer conclusion.",
+      "One-step normalized loss and selected single-level physical errors are adequate proxies for forecast skill and autoregressive stability.",
+      "Spline upsampling from 36x72 to 128x128 and the inherited planar, periodic, zero-padded architecture do not introduce comparison-changing geometry or boundary artifacts.",
+      "Uniformly random missing columns that change on every sample represent the operational sparse-observation problem of interest.",
+      "The reported 13 GPU-hour adaptation budget is the relevant compute denominator even though it excludes the cost of Poseidon pretraining and data generation.",
+      "The sequential Mars-Year-32 validation period is sufficiently independent for both model selection and final performance claims without a separate test year."
+    ]
+  },
+  "key_findings": [
+    {
+      "claim": "Author-reported main result: mixed initialization lowers full-column validation loss by 34.4% relative to training the same vertically extended architecture from scratch.",
+      "evidence": "Across 18 sigma levels after 20,000 updates, Table 2 reports normalized validation loss 0.093776 for pretrained two-dimensional layers plus random vertical layers versus 0.142879 for fully random initialization. The relative reduction is 34.37%, consistent with the displayed 34.4% and the abstract.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 1,
+          "section": "Abstract"
+        },
+        {
+          "page": 5,
+          "section": "4.1 Efficacy of multi-PDE pretraining / Table 2 and 4.1.2 Full vertical"
+        }
+      ]
+    },
+    {
+      "claim": "Contradiction audit: the single-level improvement stated in prose is arithmetically inconsistent with Table 2.",
+      "evidence": "Table 2 gives random loss 0.078625 and PDE-FM loss 0.062886 and explicitly lists a 20.0% improvement; direct calculation gives 20.02%. Section 4.1.1 instead calls the same result a 30.1% improvement. The table, not the prose, is arithmetically consistent.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Table 2 and 4.1.1 Single sigma level"
+        }
+      ]
+    },
+    {
+      "claim": "Author method contribution: the paper converts a pretrained two-dimensional PDE transformer into a vertically coupled model without discarding its original weights.",
+      "evidence": "Pretrained layers process D levels as B*D independent images, and newly initialized attention layers operate along D after each Swin layer. A two-layer GELU MLP maps continuous sigma coordinates to vertical position embeddings. The extension raises the parameter count from about 158M to about 258M.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "3.4 Extension to three dimensions / Figure 1"
+        },
+        {
+          "page": 5,
+          "section": "3.4 continuation"
+        }
+      ]
+    },
+    {
+      "claim": "Author-reported longer-training negative result: doubling training from 20,000 to 40,000 steps does not let the random model close the transfer gap and instead produces apparent overfitting.",
+      "evidence": "Figure 2 shows the scratch model's validation curve separating from its training curve while the mixed pretrained configuration stays comparatively stable. This is a single displayed training trajectory with no replicate variability or numerical endpoint table, so it supports the observed run but not a general impossibility of catching up.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "4.1.2 Full vertical"
+        },
+        {
+          "page": 6,
+          "section": "Figure 2 and 4.1.2 continuation"
+        }
+      ]
+    },
+    {
+      "claim": "Author-reported sparse-input result: pretrained initialization retains a large advantage when 80% or 95% of vertical columns are removed.",
+      "evidence": "At 80% masking, Table 3 reports loss 0.098258 for PDE-FM initialization versus 0.161899 from scratch, a 39.3% reduction. At 95% masking it reports 0.118802 versus 0.179392, a 33.8% reduction. Masks are resampled per sample and loss is computed on both observed and missing pixels.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "3.5 Sparsity"
+        },
+        {
+          "page": 6,
+          "section": "4.1.3 Sparsification / Table 3"
+        },
+        {
+          "page": 7,
+          "section": "Figure 3"
+        }
+      ]
+    },
+    {
+      "claim": "Author-reported trade-off: vertical coupling improves wind errors at one lower-atmosphere level but worsens temperature, so the three-dimensional extension is not uniformly beneficial.",
+      "evidence": "At sigma=0.87007517, the paper reports approximately 14.8% and 14.1% improvements in eastward and northward wind speed, respectively, but a 9.4% degradation in temperature for the vertical model relative to its two-dimensional counterpart. The curves are plotted rather than tabulated.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.2 Physical variables"
+        },
+        {
+          "page": 8,
+          "section": "Figure 4"
+        },
+        {
+          "page": 11,
+          "section": "Appendix A / Figure 9"
+        }
+      ]
+    },
+    {
+      "claim": "Contradiction audit: Section 4.2 calls Figure 4's physical errors MSE, while the figure axes label them MAE.",
+      "evidence": "The surrounding prose says it shows MSEs for temperature and winds, but Figure 4's y-axes are explicitly labeled MAE in m/s and K. This changes the metric's mathematical interpretation and prevents an unambiguous reconstruction of the reported 14.8%, 14.1%, and -9.4% comparisons.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.2 Physical variables"
+        },
+        {
+          "page": 8,
+          "section": "Figure 4"
+        }
+      ]
+    },
+    {
+      "claim": "Reviewer assessment: the evidence establishes one-step emulation loss, not operational or autoregressive Martian weather skill.",
+      "evidence": "The background describes autoregressive rollout as the route to longer lead times, but the methods never state the target time interval or evaluated forecast horizon, and the experiments report only fixed-step validation loss and single-step spatial fields. There is no multi-step rollout curve, stability horizon, anomaly correlation, climatology comparison, extreme-event metric, or numerical Mars forecast baseline.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "2.1 AI models for atmospheric physics and 2.2 PDE FMs"
+        },
+        {
+          "page": 4,
+          "section": "3.3 Training and fine-tuning / Equation 1"
+        },
+        {
+          "page": 5,
+          "section": "4 Experiments"
+        },
+        {
+          "page": 8,
+          "section": "4.2 Physical variables"
+        }
+      ]
+    },
+    {
+      "claim": "Reviewer assessment: the held-out-year result is a validation result without a separately protected test set or uncertainty estimate.",
+      "evidence": "Mars Years 28-31 are used for training and Mars Year 32 for validation; no test year is designated even though OpenMARS includes years through 35. The paper gives no seeds, error bars, confidence intervals, significance tests, or checkpoint-selection protocol, so variability across initialization, masking, and adjacent-level sampling is unknown.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "3.1 The OpenMARS dataset"
+        },
+        {
+          "page": 4,
+          "section": "3.3 Training and fine-tuning"
+        },
+        {
+          "page": 5,
+          "section": "Table 2"
+        }
+      ]
+    },
+    {
+      "claim": "Reviewer assessment: the sparse experiment measures random spatiotemporal inpainting rather than a fixed observing network.",
+      "evidence": "Every repeated training sample receives a new uniformly random latitude-longitude mask, the entire vertical column is removed, and loss remains dense over all pixels. The authors explicitly distinguish this from fixed weather stations. Consequently, the 80% and 95% results do not test structured orbital tracks, geographically fixed instruments, retrieval noise, irregular levels, or observation error.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "3.5 Sparsity"
+        },
+        {
+          "page": 6,
+          "section": "4.1.3 Sparsification"
+        }
+      ]
+    },
+    {
+      "claim": "Author-identified and reviewer-extended failure analysis: missing forcings and inherited planar boundary choices plausibly explain level-dependent and edge errors.",
+      "evidence": "The authors report lowest errors at lower but not lowest levels, admit the reason is unknown, and note the absence of orography, radiation, latitude, longitude, and time. Error maps show boundary artifacts in the random model attributed to ConvNeXt zero padding and probable tokenization artifacts. Poseidon was pretrained periodic in both axes, effectively starting from a toroidal rather than spherical prior.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "4.2 Physical variables / Figures 3-7"
+        },
+        {
+          "page": 9,
+          "section": "Figures 6-8 and 5 Discussion"
+        },
+        {
+          "page": 10,
+          "section": "5 Discussion continuation"
+        }
+      ]
+    },
+    {
+      "claim": "Reviewer assessment: the claimed compute efficiency is an adaptation-cost result, not an end-to-end foundation-model compute comparison.",
+      "evidence": "The median 13 GPU hours and minimum 11.8 GPU hours cover an 18-level fine-tuning run, including validation and checkpoint overhead. They exclude Poseidon's pretraining and pretraining-data simulation, while the scratch baseline is charged all task learning within the comparison. No FLOPs, energy, amortization count, or full lifecycle cost is reported.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 1,
+          "section": "Abstract"
+        },
+        {
+          "page": 4,
+          "section": "3.3 Training and fine-tuning / footnote c"
+        },
+        {
+          "page": 10,
+          "section": "Future work"
+        }
+      ]
+    },
+    {
+      "claim": "Reviewer assessment: baseline coverage does not isolate whether PDE pretraining is preferable to atmospheric transfer, stronger regularization, physics-aware models, or smaller architectures.",
+      "evidence": "The only learned baseline is randomly initialized scOT, plus persistence for plotted physical errors. The authors themselves note that a leaner architecture, dropout, or other regularization might change the conclusion. No direct comparison is run against ClimaX, Prithvi WxC, Aurora, AtmoRep, NeuralGCM, another planetary emulator, or a three-dimensional PDE foundation model.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "3.6 Baselines"
+        },
+        {
+          "page": 8,
+          "section": "4.2 Physical variables"
+        },
+        {
+          "page": 9,
+          "section": "5 Discussion"
+        }
+      ]
+    },
+    {
+      "claim": "Reviewer assessment: upsampling and channel reassignment create unresolved information and geometry confounds.",
+      "evidence": "OpenMARS is spline-interpolated from a 36x72 five-degree latitude-longitude grid to a square 128x128 grid to satisfy Poseidon, and temperature is placed in a channel pretrained as density while pressure is zero or used as a mask. Upsampling adds no independent spatial information, changes aspect ratio, and does not correct pole or spherical-area distortions; no native-grid or spherical control is shown.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "3.1 The OpenMARS dataset and 3.2 Data processing"
+        },
+        {
+          "page": 4,
+          "section": "3.2 Data processing and 3.3 Training"
+        },
+        {
+          "page": 9,
+          "section": "5 Discussion"
+        }
+      ]
+    }
+  ],
+  "techniques": [
+    {
+      "id": "poseidon-pde-foundation-model",
+      "role": "Provides the 158M-parameter pretrained two-dimensional scOT backbone and generic fluid-dynamics prior."
+    },
+    {
+      "id": "vertical-axial-attention",
+      "role": "Adds information flow across sigma levels while preserving all pretrained horizontal layers."
+    },
+    {
+      "id": "continuous-sigma-coordinate-embedding",
+      "role": "Uses a two-layer GELU MLP to map physical sigma coordinates into vertical positional embeddings."
+    },
+    {
+      "id": "mixed-initialization-transfer-learning",
+      "role": "Initializes horizontal blocks from Poseidon and vertical blocks randomly to test cross-domain PDE pretraining."
+    },
+    {
+      "id": "random-adjacent-level-sampling",
+      "role": "Trains on 9 adjacent levels per update to reduce activation memory while evaluating on all 18 levels."
+    },
+    {
+      "id": "random-column-masking",
+      "role": "Tests dense reconstruction and forecasting after removing 80% or 95% of complete atmospheric columns."
+    },
+    {
+      "id": "normalized-l1-loss",
+      "role": "Averages channelwise absolute error normalized by target magnitude over batch and spatial coordinates."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Single sigma level 0.87007517, OpenMARS years 28-31 training and year 32 validation, 20,000 steps",
+      "metric": "Normalized L1 validation loss in model units",
+      "result": "PDE-FM initialization reaches 0.062886 versus 0.078625 from scratch, a 20.0% reduction; the adjacent prose incorrectly reports 30.1%.",
+      "baseline": "The same Poseidon-B/scOT configuration initialized randomly."
+    },
+    {
+      "setting": "Eighteen-level model with randomly sampled 9-level training slabs and full 18-level inference",
+      "metric": "Mean normalized L1 validation loss across levels",
+      "result": "Mixed initialization reaches 0.093776 versus 0.142879 from scratch, a 34.4% relative reduction.",
+      "baseline": "The same approximately 258M-parameter vertically extended architecture initialized fully at random."
+    },
+    {
+      "setting": "Full-column Mars model with 80% of latitude-longitude columns independently masked per sample",
+      "metric": "Dense normalized L1 validation loss over observed and missing pixels",
+      "result": "PDE-FM initialization reaches 0.098258 versus 0.161899 from scratch, a reported 39.3% improvement.",
+      "baseline": "Random initialization under the identical 80% masking process."
+    },
+    {
+      "setting": "Full-column Mars model with 95% of latitude-longitude columns independently masked per sample",
+      "metric": "Dense normalized L1 validation loss over observed and missing pixels",
+      "result": "PDE-FM initialization reaches 0.118802 versus 0.179392 from scratch, a reported 33.8% improvement.",
+      "baseline": "Random initialization under the identical 95% masking process."
+    },
+    {
+      "setting": "Physical-variable curves at sigma=0.87007517 after 20,000 training steps",
+      "metric": "Figure-axis MAE for eastward wind, northward wind, and temperature; prose inconsistently calls it MSE",
+      "result": "The vertical model reportedly improves eastward and northward wind by about 14.8% and 14.1% but degrades temperature by about 9.4% relative to the two-dimensional model.",
+      "baseline": "Corresponding single-level two-dimensional configuration with matched initialization type; persistence is also plotted."
+    },
+    {
+      "setting": "Eighteen-level fine-tuning on one A100 or H100 with 20,000 optimization steps",
+      "metric": "Reported end-to-end wall-clock adaptation time including validation, testing loops, startup, and checkpointing",
+      "result": "Median runtime is 13 GPU hours and the observed minimum is 11.8 GPU hours; no pretraining cost or random-run timing distribution is included.",
+      "baseline": "No end-to-end compute baseline; the number characterizes the downstream adaptation run only."
+    },
+    {
+      "setting": "Scratch versus mixed initialization extended from 20,000 to 40,000 gradient steps",
+      "metric": "Training and validation normalized-loss trajectories",
+      "result": "The displayed scratch run fails to close the gap and its validation loss turns upward, while the mixed run remains stable; exact final values and replicate uncertainty are not supplied.",
+      "baseline": "Mixed pretrained-horizontal/random-vertical initialization under the same longer schedule."
+    },
+    {
+      "setting": "Cross-domain contextual comparison to WeatherBench 2 at 32x64 and six-hour lead time on Earth",
+      "metric": "850-hPa temperature error",
+      "result": "The cited Earth persistence and IFS HRES errors are 1.16 K and 0.24 K, an approximately 79% reduction. The Mars model's corresponding numeric error is not tabulated, so this is an order-of-magnitude analogy rather than a direct benchmark.",
+      "baseline": "WeatherBench 2 Earth persistence and IFS HRES, not a matched Martian forecast baseline."
+    }
+  ],
+  "limitations": [
+    "Author-stated: Poseidon was pretrained with periodic boundaries, the Mars data are forced to 128x128, temperature is crudely mapped to density, and the pretraining data contain no vertical dimension.",
+    "Author-stated: the model has no orography, incoming radiation, latitude, longitude, clock, or season inputs from which to infer forcings and boundary conditions.",
+    "Author-stated: the cause of the vertical error profile is unknown, and interpretations of the high- and low-level behavior should be taken with caution.",
+    "Author-stated: the Earth WeatherBench comparison is rough and is not a claim of peak Martian atmospheric performance.",
+    "Author-stated: a leaner architecture, dropout, or other conventional regularization might alter the conclusion that scratch training cannot match transfer.",
+    "Author-stated: in the limit of infinite task data and compute, the advantage attributable to pretraining should vanish.",
+    "Reviewer-identified: the evaluated time increment is not stated, and no autoregressive rollout or multi-lead forecast skill is measured.",
+    "Reviewer-identified: Mars Year 32 is called validation and no independent test year is reserved despite later OpenMARS years being available.",
+    "Reviewer-identified: no seeds, confidence intervals, significance tests, or numerical variability accompany any learned-model comparison.",
+    "Reviewer-identified: Table 2's 20.0% single-level improvement contradicts the 30.1% value in Section 4.1.1.",
+    "Reviewer-identified: Section 4.2 calls the plotted physical metric MSE while Figure 4 labels its axes MAE.",
+    "Reviewer-identified: only random initialization and persistence are run; there is no atmospheric foundation-model, PDE-FM, physical simulator, regularized-small-model, or planetary-emulator head-to-head baseline.",
+    "Reviewer-identified: the 13 GPU-hour efficiency claim excludes generic PDE pretraining and synthetic pretraining-data generation, so it is not a lifecycle compute comparison.",
+    "Reviewer-identified: the random masking task omits fixed station geometry, observation noise, nonuniform coverage, missing levels, and retrieval uncertainty.",
+    "Reviewer-identified: interpolation from 36x72 to 128x128 changes aspect ratio and spherical sampling without a native-grid or area-weighted control.",
+    "Reviewer-identified: training on only 9 adjacent levels and evaluating all 18 is not ablated against full-level training, alternative vertical operators, or nonadjacent sampling.",
+    "Reviewer-identified: the claimed ability to infer on unseen sigma coordinates is architectural speculation; no held-out-level interpolation or extrapolation experiment is reported.",
+    "Reviewer-identified: the loss averages over levels and channels after normalization and can conceal poor performance in scientifically consequential regions or variables.",
+    "Reviewer-identified: no conservation, energy balance, mass balance, dust-event, polar, extreme-weather, or calibration diagnostic is provided."
+  ],
+  "failure_modes": [
+    "Autoregressive errors compound even when one-step validation loss is low.",
+    "Random scratch training overfits the four-year record before matching the pretrained model.",
+    "Vertical attention trained on 9-level slabs fails on dependencies spanning more than 9 adjacent levels.",
+    "The sigma-coordinate MLP interpolates poorly near the top and bottom boundaries or extrapolates to unseen levels incorrectly.",
+    "Strong temperature dynamics are misrepresented because temperature occupies a channel pretrained for density.",
+    "The mask channel is interpreted through weights pretrained for pressure, producing mask-specific shortcuts rather than physical reconstruction.",
+    "Random masks encourage interpolation from nearby columns but fail under fixed, clustered, orbital-track, or hemisphere-biased observations.",
+    "Zero padding causes artificial longitudinal or latitudinal edges, while periodic pretraining imposes a toroidal prior inconsistent with polar geometry.",
+    "Spline upsampling creates smooth high-resolution-looking fields whose effective information content remains five-degree resolution.",
+    "Missing radiation, time, topography, and dust forcing cause systematic boundary-layer, polar, seasonal, and dust-storm errors.",
+    "Averaged normalized loss improves while rare but operationally important extremes worsen.",
+    "The pretraining advantage disappears when a properly regularized smaller scratch model is used.",
+    "Adaptation is inexpensive only because costly generic PDE pretraining is amortized over an unspecified number of downstream tasks."
+  ],
+  "reusable_insights": [
+    "Preserve pretrained lower-dimensional operators by folding a new axis into the batch, then insert new axial mixers only where cross-axis communication is required.",
+    "Use continuous physical-coordinate embeddings when downstream grids may change, but validate interpolation and extrapolation explicitly.",
+    "Separate transfer benefit from architecture benefit by comparing identical extended architectures under mixed and random initialization.",
+    "When memory prevents full-volume training, sample adjacent slabs but include a full-volume training ablation and test long-range cross-slab dependence.",
+    "Report both dimensionless training loss and physical-variable errors; ensure the prose, figures, and metric definitions agree on MAE versus MSE.",
+    "Treat a pretrained model's compute advantage as adaptation compute unless pretraining cost and amortization are explicitly accounted for.",
+    "Sparse-observation studies should distinguish random inpainting, fixed networks, structured tracks, noisy sensors, and missing variables or levels.",
+    "Reserve a chronologically later test period when a held-out validation year can influence checkpoint or method selection.",
+    "A negative variable-specific result can reveal where a new dimension mixer helps and where it introduces bias; do not collapse it into an averaged loss.",
+    "Audit percentage claims directly from table entries before using them in abstracts or novelty arguments."
+  ],
+  "open_questions": [
+    "What forecast interval is learned, and how do all models behave over autoregressive rollouts spanning hours, sols, seasons, and a full Martian year?",
+    "Does the 34.4% validation-loss advantage reproduce across seeds and on Mars Years 33-35 as untouched tests?",
+    "How does mixed Poseidon transfer compare with Walrus, MORPH, ClimaX, Prithvi WxC, Aurora, or an Earth-to-Mars atmospheric transfer model at matched parameters and task compute?",
+    "Would a smaller regularized scratch model match or surpass the 258M-parameter mixed model on four Martian years?",
+    "Which part of the gain comes from generic PDE pretraining versus a fluid-specific local prior, periodic boundaries, or simple weight-scale initialization?",
+    "Do full-18-level training, nonadjacent level sampling, 3D convolutions, or graph-based spherical vertical operators improve temperature without sacrificing wind?",
+    "Can the continuous sigma embedding predict genuinely held-out vertical levels and different vertical discretizations?",
+    "How does the model perform with fixed lander locations, orbital swaths, irregular masks, observation noise, and variables missing independently?",
+    "What are area-weighted, latitude-stratified, altitude-stratified, seasonal, polar, dust-storm, and extreme-event errors?",
+    "Does native 36x72 or spherical-mesh training remove the boundary and token artifacts seen after square-grid interpolation?",
+    "What fraction of end-to-end compute and energy is saved after including Poseidon pretraining, PDE simulation, and the number of downstream tasks over which those costs are amortized?",
+    "Do predictions conserve relevant mass, momentum, and energy quantities or remain stable when coupled to downstream Martian science workflows?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2405.19101",
+      "title": "Poseidon: Efficient Foundation Models for PDEs",
+      "url": "https://arxiv.org/abs/2405.19101",
+      "relationship": "direct-backbone-and-pde-foundation-model-antecedent",
+      "difference": "Poseidon pretrains scOT on two-dimensional Navier-Stokes and compressible-Euler solution operators and evaluates transfer across 15 PDE tasks with lead-time conditioning. The Mars paper reuses Poseidon-B, adds a vertical axis, and evaluates a real atmospheric reanalysis, but does not compare its extension against other three-dimensional PDE operators.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2405.19101v2, last revised 2024-11-05"
+    },
+    {
+      "canonical_id": "arxiv:2511.15684",
+      "title": "Walrus: A Cross-Domain Foundation Model for Continuum Dynamics",
+      "url": "https://arxiv.org/abs/2511.15684",
+      "relationship": "closest-current-multidimensional-pde-foundation-model",
+      "difference": "Walrus natively handles two- and three-dimensional continuum dynamics, pretrains on 19 scenarios, and evaluates short- and long-horizon stability with compute-adaptive tokenization. The Mars work instead retrofits a two-dimensional model with vertical axial attention and is far smaller in task data and compute, but lacks Walrus-style rollout and native-3D controls.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2511.15684v2, last revised 2026-07-05"
+    },
+    {
+      "canonical_id": "arxiv:2509.21670",
+      "title": "MORPH: Shape-agnostic PDE Foundation Models",
+      "url": "https://arxiv.org/abs/2509.21670",
+      "relationship": "direct-data-scarce-pde-transfer-competitor",
+      "difference": "MORPH is designed for heterogeneous 1D-3D grids, fields, and resolutions and reports data- and compute-scarce fine-tuning plus autoregressive rollouts against Poseidon and DPOT. The Mars paper targets one real planetary dataset and a bespoke 2D-to-3D adaptation, but does not run MORPH or an equivalent native multidimensional transfer baseline.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2509.21670v4, last revised 2026-01-29"
+    },
+    {
+      "canonical_id": "arxiv:2301.10343",
+      "title": "ClimaX: A Foundation Model for Weather and Climate",
+      "url": "https://arxiv.org/abs/2301.10343",
+      "relationship": "atmospheric-foundation-model-transfer-competitor",
+      "difference": "ClimaX pretrains directly on heterogeneous Earth climate data and supports unseen variables and spatiotemporal tasks through variable encoders and aggregation. The Mars study instead asks whether generic PDE simulation pretraining can substitute when long atmospheric histories are unavailable; a matched Earth-FM-to-Mars transfer would distinguish domain versus equation-level pretraining.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2301.10343v5, last revised 2023-12-18"
+    },
+    {
+      "canonical_id": "arxiv:2409.13598",
+      "title": "Prithvi WxC: Foundation Model for Weather and Climate",
+      "url": "https://arxiv.org/abs/2409.13598",
+      "relationship": "same-team-weather-foundation-model-alternative",
+      "difference": "Prithvi WxC is a 2.3B-parameter atmospheric foundation model pretrained on 160 MERRA-2 variables and tested on rollouts, downscaling, parameterization, and extremes. It supplies atmospheric forcings and topology-aware design absent from the Mars model, while requiring vastly more pretraining data and compute; no cross-planet transfer comparison is made.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2409.13598v1, submitted 2024-09-20"
+    },
+    {
+      "canonical_id": "arxiv:2405.13063",
+      "title": "A Foundation Model for the Earth System",
+      "url": "https://arxiv.org/abs/2405.13063",
+      "relationship": "large-scale-earth-system-foundation-model-competitor",
+      "difference": "Aurora pretrains on more than a million hours of heterogeneous Earth-system data and fine-tunes across weather, air quality, waves, and cyclone tracks with operational baselines. The Mars paper probes the opposite low-data regime using physics-simulation pretraining, but its claim of skill lacks Aurora's multi-task, operational, and rollout evaluation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2405.13063v3, last revised 2024-11-21"
+    },
+    {
+      "canonical_id": "arxiv:2308.13280",
+      "title": "AtmoRep: A Stochastic Model of Atmosphere Dynamics Using Large Scale Representation Learning",
+      "url": "https://arxiv.org/abs/2308.13280",
+      "relationship": "task-independent-atmospheric-representation-competitor",
+      "difference": "AtmoRep learns a stochastic atmospheric representation from historical Earth trajectories and evaluates nowcasting, interpolation, correction, counterfactuals, and downscaling. The Mars model uses deterministic normalized-L1 transfer from generic PDEs and evaluates one-step reconstruction; comparing calibration and uncertainty would test whether generic PDE priors compensate for limited atmospheric data.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2308.13280v2, last revised 2023-09-07"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "This is the first application of a PDE foundation model to a complex real-world atmospheric-physics problem; it introduces a way to extend a two-dimensional pretrained model into a third spatial dimension, demonstrates data and compute efficiency, and retains the advantage under sparse initial conditions.",
+    "evidence": "The paper supplies a controlled mixed-versus-random initialization comparison on four OpenMARS training years, a 34.4% full-column validation-loss reduction, 80% and 95% masking experiments, an axial vertical extension that preserves Poseidon weights, physical-variable curves, and a 40,000-step scratch-overfitting trace.",
+    "reviewer_inference": "The most credible novelty is the pragmatic preservation of a two-dimensional PDE-FM while learning vertical coupling for a genuinely data-limited planetary reanalysis, plus an unusually severe sparse-column test. The evidence does not establish broad weather skill or superiority to current native 3D PDE/weather foundation models: there is no independent test year, rollout, uncertainty, direct competitor, native-grid control, or lifecycle compute accounting. The categorical 'first' claim should remain author-attributed because the paper does not conduct a systematic priority survey, and the architectural pattern is closely related to prior axial and temporal model extensions."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "The complete 11-page arXiv v1 artifact was read, including all figures, tables, footnotes, references, and Appendix A; plot pages were also inspected against the local PDF. The reading is pinned to the exact indexed PDF and extracted-text hashes above. Numerical claims are copied from Tables 2-3 or explicitly labeled as plotted/reported approximations. The single-level percentage and MAE/MSE conflicts are treated as contradictions rather than silently repaired. Seven current primary competitor records were checked at exact versions on 2026-08-23. Confidence is high in what the artifact reports and in the omissions audit, but lower in any claim of operational Martian forecast skill because forecast cadence, rollout horizon, test-set protocol, and uncertainty are absent."
+}

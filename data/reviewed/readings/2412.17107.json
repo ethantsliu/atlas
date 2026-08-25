@@ -1,0 +1,107 @@
+{
+  "stable_id": "arxiv:2412.17107",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2412.17107",
+    "pdf_sha256": "de21affeaafdb44d7675c2b204229ee5261f4dca81200b097c0f42101194d109",
+    "text_sha256": "3562d7e6990845520c9b6bd48ce0f15b29430f7198e530c4fc585feeb53de8a5",
+    "page_count": 31,
+    "extracted_at": "2026-08-23T17:34:21.228236+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can an Adam-style optimizer use the current gradient only for update direction and momentum only for coordinate-wise magnitude, improving descent and practical training?",
+  "key_findings": [
+    {
+      "claim": "Grams is AdamW with the normalized momentum's sign replaced by the current gradient's sign while retaining its absolute coordinate-wise magnitude.",
+      "evidence": "After the usual biased-corrected first and second moments form u_t, the update is sign(g_t) element-wise multiplied by |u_t|. This guarantees every updated coordinate is locally aligned with the current gradient, unlike C-Adam, which masks disagreeing coordinates to zero.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 9, "section": "4.1 Definition 4.1"}, {"page": 10, "section": "Algorithm 1"}]
+    },
+    {
+      "claim": "The one-step descent comparison is conditional and local, not a proof that a Grams training trajectory always dominates another optimizer's trajectory.",
+      "evidence": "For an L-smooth loss and a step-size bound depending on the current gradient and Adam direction, Theorem 4.3 compares a Grams and cautious update starting from the same parameter vector and obtains no-worse immediate loss decrease. It does not compare iterates after the algorithms have reached different points or establish better minima/generalization.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 10, "section": "Theorem 4.3 and Remark 4.4"}, {"page": 23, "section": "Appendix B formal proof"}]
+    },
+    {
+      "claim": "The stated global convergence proof appears to make an unsupported cross-trajectory substitution.",
+      "evidence": "Appendix D introduces an Adam trajectory w'_t and a Grams trajectory w_t, then uses the same-point one-step comparison theorem to replace every Adam loss increment along w'_t with a Grams increment along w_t. The theorem does not justify comparing updates evaluated at different states, so Equation 17 and the ensuing last-iterate claim require an additional coupling argument or a different proof.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 12, "section": "Theorem 4.15"}, {"page": 28, "section": "Appendix D, Equations 16-17"}]
+    },
+    {
+      "claim": "Small-scale experiments report gains in early LLM pretraining, vision training, and full fine-tuning, but parity in parameter-efficient fine-tuning.",
+      "evidence": "After only 1,000 steps on a 60M Llama/C4 setup, validation perplexity is 38.60 for Grams versus 49.83 Adam and 43.21 C-Adam. Ten-epoch CIFAR-10 WideResNet accuracy is 90.55% versus 87.56% Adam and 89.42% C-Lion. Llama-3.2-1B MetaMathQA full fine-tuning reaches 51.02% GSM8K versus 48.90% Adam, while the 3B SORSA run ties Adam at 17.80% MATH.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 13, "section": "5.1 and Table 1"}, {"page": 14, "section": "Tables 2-4"}, {"page": 15, "section": "PEFT discussion"}]
+    },
+    {
+      "claim": "The evaluation does not establish large-scale training efficiency or robust optimizer superiority.",
+      "evidence": "The largest full model is 1B and the only from-scratch language model is 60M for 1,000 steps. Tables report endpoint quality without wall-clock, tokens-to-target, update-kernel cost, optimizer-state memory, learning-rate sweeps, uncertainty, seed counts, or long-horizon stability. Different optimizer families use prescribed 10x learning-rate differences rather than an equal-budget tuning protocol.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 13, "section": "5 Empirical experiments"}, {"page": 29, "section": "Appendix E.1 hyperparameters"}, {"page": 30, "section": "Tables 6-7"}, {"page": 31, "section": "Table 8"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Force the update direction to agree with the instantaneous gradient while preserving Adam's momentum-derived adaptive step magnitudes.",
+    "mechanism": "Maintain Adam first and second moments, calculate u=m_hat/(sqrt(v_hat)+epsilon), replace u by sign(g) multiplied by |u|, then apply decoupled weight decay.",
+    "assumptions": [
+      "Current-gradient signs are more reliable directions than momentum signs even when stochastic gradients are noisy.",
+      "Momentum magnitudes remain useful after discarding their signs.",
+      "Theory assumes smoothness, bounded gradients, lower-bounded loss, restrictive step sizes, and for the global claim a Polyak-Lojasiewicz condition.",
+      "Short, small-model experiments predict long-horizon large-model behavior."
+    ]
+  },
+  "techniques": [
+    {"id": "gradient-sign-momentum-magnitude-decoupling", "role": "Uses current gradients for direction and adaptive momentum for update scale."},
+    {"id": "coordinatewise-descent-alignment", "role": "Ensures a nonnegative gradient-update inner product without zeroing disagreeing coordinates."},
+    {"id": "hamiltonian-descent-analysis", "role": "Compares continuous-time energy decay with cautious momentum methods."}
+  ],
+  "evaluations": [
+    {"setting": "60M Llama pretraining on a 2.048M-row C4 subset for 1,000 steps", "metric": "Validation perplexity", "result": "38.60", "baseline": "Adam 49.83; C-Adam 43.21; Lion 50.25; C-Lion 53.21"},
+    {"setting": "WideResNet-50-2 on CIFAR-10 for 10 epochs", "metric": "Final accuracy", "result": "90.55%", "baseline": "Adam 87.56%; best listed non-Grams baseline C-Lion 89.42%"},
+    {"setting": "Llama-3.2-1B full fine-tuning on MetaMathQA", "metric": "GSM8K accuracy", "result": "51.02%", "baseline": "Adam 48.90%; C-Adam 49.81%"},
+    {"setting": "Llama-3.2-3B SORSA parameter-efficient fine-tuning", "metric": "MATH accuracy", "result": "17.80%", "baseline": "Adam 17.80%; C-Adam 16.62%"}
+  ],
+  "limitations": [
+    "Reviewer-identified: the global convergence proof contains a likely invalid comparison between distinct optimizer trajectories.",
+    "Reviewer-identified: no seed variance, statistical tests, tuning budget, wall-clock, or tokens-to-quality results are reported.",
+    "Reviewer-identified: the LLM evidence is short-horizon and small relative to the paper's large-scale-training framing.",
+    "Reviewer-identified: the theory's smoothness, bounded-gradient, PL, and step-size conditions are not connected empirically to the neural-network runs.",
+    "Author-stated future work focuses on combinations with ADOPT, schedule-free optimization, and SOAP/Muon rather than documenting negative regimes."
+  ],
+  "failure_modes": [
+    "Noisy current-gradient signs can cause coordinate-wise zigzagging and erase useful momentum direction.",
+    "Near a stationary point, unstable gradient signs can keep flipping while historical magnitudes remain large.",
+    "A single learning rate can favor Grams over baselines if each optimizer is not independently tuned.",
+    "The early-training perplexity gap may close or reverse over a full token budget.",
+    "The claimed convergence theorem may not hold without repairing its cross-trajectory proof."
+  ],
+  "reusable_insights": [
+    "Direction and magnitude are independently ablatable optimizer components; sign agreement should be tested separately from adaptivity.",
+    "Optimizer evaluations need learning-rate/decay sweeps, multiple seeds, tokens-to-target, wall-clock, and full-budget terminal quality.",
+    "Same-point one-step descent comparisons cannot be telescoped across different trajectories without a coupling or potential argument."
+  ],
+  "open_questions": [
+    "Does Grams retain an advantage in billion-parameter pretraining over a complete compute-optimal schedule?",
+    "How does gradient-sign noise interact with batch size, clipping, and beta values?",
+    "Can the global theorem be reproved directly for Grams without importing a separate Adam trajectory?",
+    "Are gains preserved under equally thorough hyperparameter searches and modern Muon/SOAP/ADOPT baselines?",
+    "Which parameter groups benefit from sign replacement, and should embeddings or normalization parameters use a different rule?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2411.16085", "title": "Cautious Optimizers: Improving Training with One Line of Code", "url": "https://arxiv.org/abs/2411.16085", "relationship": "closest direct predecessor", "difference": "Cautious optimization zeros momentum coordinates that disagree with the current gradient; Grams instead flips those coordinates to the current-gradient sign while retaining their momentum magnitude."},
+    {"canonical_id": "arxiv:2302.06675", "title": "Symbolic Discovery of Optimization Algorithms", "url": "https://arxiv.org/abs/2302.06675", "relationship": "sign-momentum baseline introducing Lion", "difference": "Lion uses the sign of a momentum/current-gradient blend with uniform coordinate magnitude; Grams uses the current-gradient sign and Adam-normalized, coordinate-specific momentum magnitude."},
+    {"canonical_id": "arxiv:2411.02853", "title": "ADOPT: Modified Adam Can Converge with Any beta2 with the Optimal Rate", "url": "https://arxiv.org/abs/2411.02853", "relationship": "convergence-focused Adam competitor", "difference": "ADOPT changes normalization/update ordering to obtain an O(1/sqrt(T)) nonconvex rate without bounded noise; Grams changes update signs and invokes stronger PL-style assumptions for its global claim."},
+    {"canonical_id": "arxiv:2409.11321", "title": "SOAP: Improving and Stabilizing Shampoo using Adam", "url": "https://arxiv.org/abs/2409.11321", "relationship": "strong large-scale optimizer competitor", "difference": "SOAP performs Adam-like adaptation in a Shampoo eigenbasis and reports hundreds-of-millions-parameter pretraining wall-clock gains; Grams retains diagonal Adam state and offers a cheaper sign substitution but much smaller evidence."},
+    {"canonical_id": "arxiv:2502.16982", "title": "Muon is Scalable for LLM Training", "url": "https://arxiv.org/abs/2502.16982", "relationship": "later scalable optimizer competitor", "difference": "Muon orthogonalizes matrix updates and validates scaling behavior in language-model training; it tests a geometry-changing matrix rule rather than coordinate-wise momentum sign correction."
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Grams is a new direction-magnitude decoupling that descends faster than cautious and momentum optimizers and improves deep-learning training.",
+    "evidence": "The update is a crisp one-line distinction from Adam and cautious masking, with favorable same-point descent bounds and four small empirical settings.",
+    "reviewer_inference": "The sign(g) times |Adam update| rule is simple and plausibly novel, but evidence for broad or large-scale superiority is preliminary, and the advertised global guarantee is weakened by a proof gap."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Read all 31 pages, including formal proofs and every experimental table. Competitive records were checked on primary arXiv pages on 2026-08-23."
+}

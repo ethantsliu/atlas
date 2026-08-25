@@ -1,0 +1,83 @@
+{
+  "stable_id": "arxiv:2202.11749",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2202.11749",
+    "pdf_sha256": "676c7a1a40634267a9dcf8a80b7ab06cdbccb18784cedf8f990de3d79ad1ed1f",
+    "text_sha256": "3f83eaac51bf5263dd71d88d89a421fce3ce3b2e68e21567121c4d31332cd61a",
+    "page_count": 18,
+    "extracted_at": "2026-08-23T21:21:13.463336+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Does counting a ReLU network's linear regions along data-relevant paths capture learned functional complexity, or must a useful measure also account for region size and the affine functions on those regions?",
+  "key_findings": [
+    {
+      "claim": "The paper replaces uniform path sampling with an adaptive procedure that locates activation boundaries up to a numerical sensitivity threshold.",
+      "evidence": "Within the current activation pattern, the network is affine. The algorithm propagates the path direction through the active maps, solves each neuron’s candidate zero-crossing displacement, moves to the nearest positive crossing, and repeats; experiments use sensitivity tau=1e-6.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "2.1 An adaptive method for finding linear regions"}, {"page": 14, "section": "A.1 Adaptive linear region discovery"}]
+    },
+    {
+      "claim": "Absolute deviation is a path-wise functional measure that uses region lengths, slopes, and biases rather than only the number of regions.",
+      "evidence": "For each output, it integrates the absolute gap between the network's piecewise-affine output and the straight interpolation of the two endpoint outputs, evaluates the integral region by region, and takes an L2 norm over logits.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 5, "section": "2.2 Measuring nonlinearity using absolute deviation"}, {"page": 16, "section": "A.2 Calculation of absolute deviation"}]
+    },
+    {
+      "claim": "Absolute deviation distinguishes several training interventions that linear-region density misses or orders inconsistently.",
+      "evidence": "Across CIFAR-10/100 VGG8 and ResNet18 runs on 1,024 fixed closed data paths, deviation changes consistently with clean versus noisy labels and augmentation, while density can be insensitive or reverse direction; Table 1 also reports weak and sometimes negative rank correlations between the two measures.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 6, "section": "3.1 Linear region density vs. absolute deviation"}, {"page": 7, "section": "Figures 3--5 and Table 1"}]
+    },
+    {
+      "claim": "In the reported double-descent experiment, deviation follows the test-error peak while region density grows monotonically with width.",
+      "evidence": "For ResNet18 variants trained for 400 epochs on CIFAR-10 with 20% label noise, deviation rises to the interpolation threshold at base width 16 and falls during the second descent; density continues to increase.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 7, "section": "3.2 Understanding double descent"}, {"page": 8, "section": "Figure 2"}]
+    },
+    {
+      "claim": "The experiments support deviation as a better descriptor of these learned functions, but do not establish it as a causal or architecture-independent generalization measure.",
+      "evidence": "The evidence is correlational, path dependent, and restricted to one-dimensional circular paths, CIFAR-10/100, two convolutional families, and three seeds; the authors describe the measure as a baseline for richer notions of nonlinearity.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 5, "section": "2.3 Experimental setup"}, {"page": 9, "section": "4 Discussion"}]
+    },
+    {
+      "claim": "Adaptive discovery can be expensive when the path crosses many regions.",
+      "evidence": "The appendix analyzes roughly O(DL) forward-style work for D discovered regions and L layers, and its CIFAR timing comparison shows that enumerating regions along the full path is not a negligible diagnostic cost.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 15, "section": "A.1 Computational complexity and runtime"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Measure the magnitude of a trained ReLU network's departures from affine behavior along compact data-relevant paths, not merely how often its activation pattern changes.",
+    "mechanism": "Construct closed piecewise-linear paths through augmented examples, adaptively enumerate activation boundaries along every segment, express each output as an affine function within each region, and integrate its absolute deviation from endpoint interpolation before aggregating across logits.",
+    "assumptions": ["The selected one-dimensional paths are representative of function behavior relevant to the data", "The ReLU network is piecewise affine and numerical crossings smaller than tau can be ignored", "Endpoint interpolation is an informative affine reference", "Comparisons use the same paths and compatible output scaling", "Observed associations across width and training conditions are meaningful despite few seeds"]
+  },
+  "techniques": [
+    {"id": "adaptive-activation-boundary-tracing", "role": "Finds consecutive linear-region boundaries without a dense uniform grid."},
+    {"id": "path-integrated-absolute-deviation", "role": "Weights nonlinearity by region extent and affine output behavior."},
+    {"id": "data-driven-closed-paths", "role": "Constrains analysis to paths passing through augmented training examples."},
+    {"id": "double-descent-diagnostic", "role": "Tests whether a functional complexity statistic tracks interpolation-threshold behavior."}
+  ],
+  "evaluations": [
+    {"setting": "CIFAR-10 and CIFAR-100, VGG8 and ResNet18, clean/noisy labels and with/without augmentation", "metric": "linear-region density, absolute deviation, and Spearman correlation", "result": "deviation orders the reported interventions consistently; density can fail or reverse, and the two statistics correlate weakly", "baseline": "linear regions per unit path length"},
+    {"setting": "pairwise path comparisons between initialization and trained models under several label conditions", "metric": "fraction of paths whose statistic identifies the trained network as more nonlinear", "result": "absolute deviation is reliable across comparisons whereas density misorders a nontrivial fraction, reaching about 20% in one trained-versus-initialized comparison", "baseline": "linear-region density on the same fixed paths"},
+    {"setting": "ResNet18 width sweep on CIFAR-10 with 20% label noise", "metric": "test error, interpolation, density, and deviation", "result": "deviation peaks near base width 16 and then declines with test error; density rises monotonically", "baseline": "region-density account of increasing expressivity"}
+  ],
+  "limitations": ["The statistic is one-dimensional and changes with the location, direction, radius, and ordering of chosen paths.", "A sensitivity threshold can skip extremely short regions or become unstable near coincident boundaries.", "The empirical scope is limited to CIFAR-10/100 and VGG8/ResNet18 variants with three seeds.", "Association with test error does not show that absolute deviation causes or universally predicts generalization.", "Output scale and calibration can affect deviation even when class decisions are unchanged.", "Exact adaptive enumeration scales with the number of crossed regions."],
+  "failure_modes": ["A network may be highly nonlinear in unsampled directions while appearing nearly affine on the chosen paths.", "Very small or simultaneous activation crossings may be merged or missed numerically.", "Logit rescaling can change the measure without changing the classifier's decision boundary.", "A low integral deviation can hide localized high curvature whose support is short.", "Cross-model comparisons become misleading if preprocessing, path construction, or output parameterization differs."],
+  "reusable_insights": ["Complexity measures should weight the behavior and extent of pieces, not treat all partition cells as equivalent.", "Holding diagnostic paths fixed makes intervention comparisons substantially more interpretable.", "A measure that tracks an interpolation transition is a useful stress test, but it still needs out-of-distribution and causal validation.", "Adaptive boundary tracing can provide exact-up-to-tolerance ground truth for benchmarking cheaper region estimators."],
+  "open_questions": ["Can deviation be generalized to multidimensional cells without exponential enumeration?", "Which path distribution best predicts robustness or generalization on unseen data?", "How invariant can the measure be made to benign output rescalings and parameter symmetries?", "Does deviation retain its double-descent behavior across transformers, larger datasets, and alternative nonlinearities?", "Can stochastic estimators provide error bars when exact region tracing is too costly?"],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:1802.08760", "title": "Sensitivity and Generalization in Neural Networks: an Empirical Study", "url": "https://arxiv.org/abs/1802.08760", "relationship": "direct empirical precursor using data-driven paths, Jacobian sensitivity, and linear-region density", "difference": "It samples paths uniformly and emphasizes density/sensitivity across fully connected networks; this paper adaptively traces boundaries and introduces a region-size-and-affine-output-sensitive deviation measure on convolutional and residual networks.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv v3, revised 2018-06-18"},
+    {"canonical_id": "arxiv:1905.11639", "title": "Implicit Rugosity Regularization via Data Augmentation", "url": "https://arxiv.org/abs/1905.11639", "relationship": "competing functional-variation account of smoothness and augmentation", "difference": "Rugosity is based on tangent/Hessian variation and an implicit-regularization analysis; absolute deviation is a finite path integral computed on the trained piecewise-affine function and is directly contrasted with region density and double descent.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv v3, revised 2019-10-10"},
+    {"canonical_id": "openreview:IqtonxWI0V3", "title": "TropEx: An Algorithm for Extracting Linear Terms in Deep Neural Networks", "url": "https://openreview.net/forum?id=IqtonxWI0V3", "relationship": "alternative method for extracting and analyzing data-relevant linear pieces of ReLU networks", "difference": "TropEx uses a tropical-algebra-inspired extraction of linear terms and their coefficients; this paper traces ordered boundaries on explicit paths and integrates output departure from affine interpolation.", "source_kind": "openreview", "checked_at": "2026-08-23", "source_version": "ICLR 2021 published forum, record checked 2026-08-23"}
+  ],
+  "novelty_assessment": {
+    "author_claim": "Not all linear regions contribute equally to learned nonlinearity, and absolute deviation is a more informative empirical complexity measure than region density.",
+    "evidence": "The paper supplies adaptive boundary discovery, a closed-form region-wise path integral, controlled training comparisons, and a width-sweep in which deviation but not density mirrors double descent.",
+    "reviewer_inference": "The strongest novelty is the operational combination of exact-up-to-tolerance path tracing and a magnitude-weighted functional statistic. The experiments convincingly refute equal weighting for these settings, but they do not validate a universal generalization measure or remove dependence on path and logit scale."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Read the complete 18-page cached extraction, including both appendices and the path-level comparison table. Competitors were checked against primary arXiv/OpenReview records on 2026-08-23. Numerical claims are scoped to the authors' fixed-path experiments; causal and architecture-general claims are intentionally not inferred."
+}

@@ -1,0 +1,159 @@
+{
+  "stable_id": "arxiv:2505.11972",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2505.11972",
+    "pdf_sha256": "3069b15f4e647772d80702aec64fb12a4de29fe67620cff413f93cf584055fb3",
+    "text_sha256": "cf215b0f4f206fa52e8efbaf576f25d1165bdb076d3ea6ae3587c1d52a34d408",
+    "page_count": 11,
+    "extracted_at": "2026-08-23T16:48:50.034411+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can projecting SGD updates away from the top Hessian eigenspace accelerate learning along flatter directions, and can an interpolation with sharp-direction updates recover the stability and generalization that pure Bulk-SGD loses?",
+  "key_findings": [
+    {
+      "claim": "Bulk-SGD often matches or modestly exceeds SGD on the small image tasks when it remains stable, despite discarding the gradient component aligned with the top Hessian eigenspace.",
+      "evidence": "On CIFAR10-5k, the MLP reaches 41.12% at learning rate 0.1, k=1, holdout 500 versus SGD's 40.84%; the CNN reaches 42.43% at learning rate 0.001, k=10, holdout 500 versus 41.98%. Many other configurations underperform, showing sensitivity rather than uniform improvement.",
+      "anchors": [
+        {"page": 3, "section": "3.1 Bulk-SGD as a Standalone Optimizer, Tables 1-2"},
+        {"page": 4, "section": "Ablation and stability discussion"}
+      ]
+    },
+    {
+      "claim": "The finding that bulk-only updates continue reducing loss and dominant-only updates saturate holds for most tested switch points after the earliest training phase.",
+      "evidence": "MNIST-5k checkpoint experiments show Dom-SGD making brief progress when switched near step 30 and then saturating around step 50, while Bulk-SGD reaches lower final loss than SGD for most switches and is best for early switches at steps 0-30.",
+      "anchors": [
+        {"page": 4, "section": "3.2 Switch Point Sensitivity of Dom/Bulk-SGD"},
+        {"page": 5, "section": "Bulk-SGD loss smoothness"}
+      ]
+    },
+    {
+      "claim": "Removing sharp directions permits faster initial descent at larger learning rates but drives an unsaturated increase in sharpness and gradient norm that eventually destabilizes training.",
+      "evidence": "Across the reported architectures, activations, cross-entropy and MSE settings, Bulk-SGD's leading Hessian eigenvalues continue growing rather than plateauing. In the 6000-step switch experiment, increasing the bulk learning rate gives an immediate loss acceleration followed by late spikes or divergence.",
+      "anchors": [
+        {"page": 5, "section": "3.3 Instability of Bulk-SGD at Larger Learning Rates"},
+        {"page": 6, "section": "4 Toward Accelerated Optimization via the Bulk Subspace"}
+      ]
+    },
+    {
+      "claim": "Interpolated updates expose a training-generalization trade-off rather than a demonstrated optimizer win: bulk-heavy settings achieve lower training loss, whereas relatively dominant-heavy settings often have higher test accuracy.",
+      "evidence": "The CIFAR10-5k heatmaps vary separate scale factors on dominant and bulk projected gradients. Lower losses cluster with stronger bulk contributions, while the best test-accuracy regions place more relative weight on dominant directions; some extreme combinations diverge.",
+      "anchors": [
+        {"page": 6, "section": "4.1 Interpolated Steps"},
+        {"page": 7, "section": "Figure 4 and Phenomenon 5"},
+        {"page": 11, "section": "Full interpolation heatmaps"}
+      ]
+    },
+    {
+      "claim": "The top Hessian subspace is empirically dominated by generalized Gauss-Newton curvature, while the functional Hessian has much smaller energy and weak alignment with those directions.",
+      "evidence": "For MSE/tanh, cross-entropy/tanh, and MSE/ReLU experiments, the Frobenius energy of the full Hessian and outer-product/GGN term concentrates in the top-k subspace after early training; the functional term contributes negligibly to the plotted dominant-subspace energy.",
+      "anchors": [
+        {"page": 7, "section": "5 Bulk Subspaces and Hessian Decompositions"},
+        {"page": 8, "section": "Figures 5-6 and energy definitions"},
+        {"page": 9, "section": "Figure 7 and component-alignment analysis"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Split each stochastic gradient into its projection on the top-k loss-Hessian eigenvectors and its orthogonal complement, ablate the two components, then independently scale them to study acceleration, stability, and generalization.",
+    "mechanism": "Lanczos-style leading-eigenvector estimates define a periodically refreshed dominant projector. Bulk-SGD removes that component; Dom-SGD retains only it; an interpolated update uses distinct inverse scale parameters for the two projections. Hessian chain-rule decomposition diagnoses which curvature term occupies each subspace.",
+    "assumptions": [
+      "The top-k Hessian eigenspace estimated from a held-out subset is sufficiently stable between projection refreshes of 10-100 steps.",
+      "The number of classes is a useful default for dominant-subspace dimension.",
+      "Small MLP/CNN results on 5,000-example MNIST and CIFAR-10 subsets reflect mechanisms relevant to broader training.",
+      "Training-loss Hessian eigenvectors and their projected stochastic gradients are computed accurately enough for causal intervention."
+    ]
+  },
+  "techniques": [
+    {"id": "hessian-eigenspace-gradient-projection", "role": "Separates sharp dominant and flat bulk components of every update."},
+    {"id": "switch-point-intervention", "role": "Tests whether each projected update remains effective from different points on an SGD trajectory."},
+    {"id": "subspace-specific-step-scaling", "role": "Interpolates continuously between dominant-only, ordinary, and bulk-only descent."},
+    {"id": "ggn-functional-hessian-energy-audit", "role": "Attributes dominant-subspace curvature to the loss-output versus model-nonlinearity Hessian terms."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Three-layer 100-unit MLP and three-layer 32-channel CNN on CIFAR10-5k, batch size 50, 200 epochs; dominant dimension k in {1,5,10,20}, multiple learning rates and Hessian holdout sizes.",
+      "metric": "Final test accuracy and whether loss diverges.",
+      "result": "Stable Bulk-SGD can match or slightly beat SGD, but several larger-k or larger-rate combinations collapse, and no setting dominates uniformly.",
+      "baseline": "Vanilla SGD with matched architecture and nominal learning rate."
+    },
+    {
+      "setting": "MLP on MNIST-5k, switching an SGD checkpoint to Dom-SGD or Bulk-SGD at multiple early and later steps.",
+      "metric": "Training-loss trajectory and final training loss.",
+      "result": "Dominant-only progress quickly saturates; bulk-only descent usually continues and early switches reach the lowest loss.",
+      "baseline": "Continuation with SGD from each checkpoint."
+    },
+    {
+      "setting": "CIFAR10-5k interpolation grid and MNIST-5k higher-learning-rate Bulk-SGD switch after 6000 SGD steps.",
+      "metric": "Training loss, test accuracy, gradient norm, top Hessian spectrum, and divergence.",
+      "result": "Greater bulk weight accelerates training loss but raises instability; relatively greater dominant weight is associated with higher test accuracy.",
+      "baseline": "Equal component scaling, equivalent to ordinary SGD, plus pure Dom-SGD and pure Bulk-SGD limits."
+    }
+  ],
+  "limitations": [
+    "All main results use small networks and 5,000-example subsets; there is no modern large-scale benchmark.",
+    "Computing and refreshing top Hessian eigenvectors is expensive, and end-to-end wall-clock acceleration is not reported.",
+    "The interpolation study is a heatmap, not an adaptive optimizer with a selection rule tested against strong baselines.",
+    "The paper offers empirical hypotheses but no convergence or stability theorem for Bulk-SGD.",
+    "Generalization claims are based on test accuracy from limited configurations without confidence intervals or multiple-seed summaries in the main text."
+  ],
+  "failure_modes": [
+    "Bulk-only updates can increase curvature in directions that were previously outside top-k, causing the projector to chase a moving unstable spectrum.",
+    "Increasing k can remove useful descent directions and substantially degrade accuracy.",
+    "Noisy or stale eigenvectors can make the projected update neither truly dominant nor truly bulk.",
+    "A lower training loss from stronger bulk steps may worsen test accuracy.",
+    "Hessian projection overhead can exceed any reduction in optimizer steps."
+  ],
+  "reusable_insights": [
+    "Large gradient alignment with a subspace is not evidence that the subspace causes learning; projected-update interventions are needed.",
+    "Sharp directions can be dynamically stabilizing even when they carry little useful loss-decreasing signal.",
+    "Curvature-aware acceleration should report both optimizer-step savings and the cost of estimating curvature.",
+    "Decomposing Hessian energy can distinguish output-loss geometry from nonlinear model curvature before designing a preconditioner."
+  ],
+  "open_questions": [
+    "Can a Hessian-free proxy identify bulk directions cheaply enough to yield real wall-clock gains?",
+    "What feedback controller should adjust component scales before sharpness explodes?",
+    "Do bulk/dominant roles persist in transformers, normalization layers, large datasets, and adaptive optimizers?",
+    "Why does dominant weighting correlate with test accuracy, and does that survive reparameterization-aware sharpness measures?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1812.04754",
+      "title": "Gradient Descent Happens in a Tiny Subspace",
+      "url": "https://arxiv.org/abs/1812.04754",
+      "relationship": "Foundational observation that gradients align with a few top loss-Hessian eigenvectors.",
+      "difference": "Gur-Ari et al. infer that optimization may occur in the dominant subspace; the target adopts causal projections and instead emphasizes bulk descent plus a stabilizing dominant component."
+    },
+    {
+      "canonical_id": "arxiv:2405.16002",
+      "title": "Does SGD really happen in tiny subspaces?",
+      "url": "https://arxiv.org/abs/2405.16002",
+      "relationship": "Immediate direct predecessor introducing Dom-SGD/Bulk-SGD and demonstrating suspicious gradient alignment.",
+      "difference": "Song et al. establish that dominant-only updates stall and bulk-only updates retain learning across SGD, edge-of-stability, and SAM regimes; the target adds hyperparameter/switch ablations, instability analysis, interpolation, and Hessian-component diagnostics."
+    },
+    {
+      "canonical_id": "pmlr:v313-deng26a",
+      "title": "Suspicious Alignment of SGD: A Fine-Grained Step Size Condition Analysis",
+      "url": "https://proceedings.mlr.press/v313/deng26a.html",
+      "relationship": "Current closest theoretical explanation of dominant alignment and bulk loss reduction.",
+      "difference": "Deng et al. derive step-size regimes in an ill-conditioned high-dimensional quadratic model; the target is empirical on neural networks and proposes component-wise interpolation without a theorem."
+    },
+    {
+      "canonical_id": "pmlr:v267-shin25d",
+      "title": "Sassha: Sharpness-aware Adaptive Second-order Optimization with Stable Hessian Approximation",
+      "url": "https://proceedings.mlr.press/v267/shin25d.html",
+      "relationship": "Practical curvature-aware optimizer competitor explicitly targeting stability, flatness, efficiency, and generalization.",
+      "difference": "Sassha uses stable approximate second-order preconditioning and broad benchmarks; the target explicitly projects exact leading Hessian directions on small models to isolate mechanisms and does not yet deliver a compute-efficient optimizer."
+    },
+    {
+      "canonical_id": "pmlr:v97-ghorbani19b",
+      "title": "An Investigation into Neural Net Optimization via Hessian Eigenvalue Density",
+      "url": "https://proceedings.mlr.press/v97/ghorbani19b.html",
+      "relationship": "Prior empirical evidence that outlier Hessian directions contain most gradient energy while flat directions contain important remaining loss and path-to-solution components.",
+      "difference": "Ghorbani et al. diagnose full spectral density and optimization hardness; the target turns the sharp/bulk split into direct update interventions and a two-scale gradient family."
+    }
+  ],
+  "novelty_assessment": "Reviewer inference after checking the direct dominant/bulk lineage and current theory: the paper's incremental novelty is the systematic Bulk-SGD stability ablation, explicit component interpolation, and empirical link between the dominant eigenspace and GGN rather than functional-Hessian energy. The central discovery that bulk-only updates can learn while dominant-only updates stall belongs to Song et al.; the proposed method remains a diagnostic prototype, not yet a competitive scalable optimizer.",
+  "confidence": 0.94,
+  "reviewer_notes": "Read all 11 extracted pages, including numerical tables and appendix heatmaps. The scaling notation in the PDF uses inverse component parameters; interpretations follow the text's stated limiting cases. Primary competitor records were checked on 2026-08-23."
+}

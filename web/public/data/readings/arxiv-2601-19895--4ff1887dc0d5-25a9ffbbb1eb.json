@@ -1,0 +1,526 @@
+{
+  "stable_id": "arxiv:2601.19895",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2601.19895",
+    "pdf_sha256": "27e510a5504d458828270fc9b310ca88b4212f4da5249a14e696f0b9fec1bc07",
+    "text_sha256": "b3c9fda62042b170240849e1fda6077916058ce101f8f06c87f84488a4b613bf",
+    "page_count": 23,
+    "extracted_at": "2026-08-23T13:30:24.191225+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a decoder-only Transformer recover Post-LN's depth utilization while remaining trainable beyond 1,000 sublayers by scaling every shortcut with total depth and normalizing both before the transformation and after residual addition?",
+  "key_findings": [
+    {
+      "claim": "Author contribution: Keel uses an outer post-residual RMS normalization, an inner pre-transformation RMS normalization, and a fixed shortcut multiplier α=L.",
+      "evidence": "Each ordinary sublayer computes LN_outer(αx+F(LN_inner(x))), where L counts total attention and FFN sublayers. The first attention sublayer omits outer Post-LN, and both first attention and first FFN omit α, so the implemented stack has explicit input exceptions. All normalizers have learned multiplicative γ and no additive bias. The footnote calls α=L critical for large/deep models but permits α>1 tuning for smaller ones.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "3 Keel / Equation 8 and footnote 2"
+        },
+        {
+          "page": 5,
+          "section": "3.1 implementation details and Equation 9"
+        },
+        {
+          "page": 23,
+          "section": "C Table 8 RMSNorm model configuration"
+        }
+      ]
+    },
+    {
+      "claim": "Author gradient argument: α=L changes the product of shortcut-path Jacobian magnitudes from exponential decay toward one as depth grows.",
+      "evidence": "For the paper's RMS-style LN(x)=x/||x||₂⊙γ, standard Post-LN shortcut flow is approximated as O(γ_l/(√2γ_{l-1})) per sublayer and O(2^{-L/2}) across L sublayers at γ=1. Keel's shortcut factor is approximated as α/√(α²+1), so with α=L the product (1+1/L²)^{-L/2} tends to one. This is an asymptotic norm calculation for the explicit shortcut path, not a theorem about the complete Jacobian, loss, optimizer, or trained γ values.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "3.2 Post-LN gradient setup / Equations 9-13"
+        },
+        {
+          "page": 6,
+          "section": "Equations 14-19 shortcut-Jacobian calculation"
+        }
+      ]
+    },
+    {
+      "claim": "Contradiction audit: preserving the shortcut-path product does not prove that transformation blocks receive depth-independent learning signal, despite the paper's broader stability language.",
+      "evidence": "Equation 13 explicitly drops ∂F/∂x to focus on the shortcut. Equation 27's own expression for the gradient through F retains an outer denominator dominated by α; at unit γ and α=L, that path can scale like O(1/L) times the transformation Jacobian even after the extra normalizer cancels the learnable input scale. No bound covers correlations, full singular-value spectra, parameter gradients, AdamW, or evolution of γ. The empirical layer-ablation results suggest trained blocks matter, but the derivation alone does not identify Post-LN's 'central failure mode' or guarantee stability throughout training.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Residual-only Jacobian focus / Equations 13-19"
+        },
+        {
+          "page": 7,
+          "section": "4.1 claimed gradient-flow advantage over DeepNorm"
+        },
+        {
+          "page": 8,
+          "section": "Equation 27 transformation-branch gradient"
+        },
+        {
+          "page": 21,
+          "section": "Appendix A layer-removal experiment"
+        }
+      ]
+    },
+    {
+      "claim": "Author-reported design negatives: shortcut scaling alone and a learnable residual-input scale both remained inferior to Pre-LN, motivating the second normalizer.",
+      "evidence": "Attempt 1 applies LN(Lx+F(x)) without DeepNorm initialization and is said to be more stable than vanilla DeepNorm on LLMs but worse than Pre-LN in stability and convergence. Attempt 2 adds β⊙x inside F; β learns to shrink input variance but also attenuates the block gradient. Attempt 3 places LN before β and then absorbs β into LN's γ to obtain Keel. These are informative failures, but Section 4.2 supplies no loss curves, numerical ablation table, model sizes, seeds, or protocol for the three attempts.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "4.2 Attempts 1-3 and final Equation 28"
+        }
+      ]
+    },
+    {
+      "claim": "Author stability result: Keel tolerates the highest learning rate in the 64- and 512-layer warmup stress tests.",
+      "evidence": "With a linear warmup toward 5×10^-2 over 5,000 steps, Table 1 reports MaxLR 1.01×10^-2 for 64-layer Keel versus 7.65×10^-3 Pre-LN, 8.6×10^-4 Mix-LN, 4.9×10^-4 HybridNorm, 3.5×10^-4 DeepNorm, and 3.0×10^-4 Post-LN. At 512 layers, Keel reaches 6.31×10^-3 versus 4.67×10^-3 Pre-LN and 2.8-3.5×10^-4 for the others. Divergence includes subjective 'earlier than expected' plateaus and anomalously slow optimization, and no run counts or uncertainty are reported.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "5.1 MaxLR protocol and divergence criteria"
+        },
+        {
+          "page": 10,
+          "section": "Table 1 stability limits and Figure 3"
+        }
+      ]
+    },
+    {
+      "claim": "Author matched-learning-rate result: at 512 layers and 250B private-data tokens, Keel's average improves as peak rate rises and exceeds Pre-LN at every tested rate.",
+      "evidence": "Across peak rates 1.5/3.0/6.0×10^-3, average benchmark scores are 50.5/52.7/55.5 for Keel and 49.5/49.4/52.3 for Pre-LN. At 6.0×10^-3, Keel scores 43.8 GSM-8K versus Pre-LN 38.1. This panel gives a useful same-rate architectural comparison, although the claim of monotonic improvement on every benchmark is false: Keel ARC-Challenge is 45.1→44.5→48.9, PIQA 76.3→75.8→76.7, and CommonsenseQA 53.2→52.3→61.3.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 10,
+          "section": "5.2 250B-token matched learning-rate sweep"
+        },
+        {
+          "page": 11,
+          "section": "Textual monotonicity claim"
+        },
+        {
+          "page": 12,
+          "section": "Table 2 per-task learning-rate results"
+        }
+      ]
+    },
+    {
+      "claim": "Author depth-scaling result: Keel's average advantage over Pre-LN grows to 3.8 points at 512 layers and remains 3.0 points at 1,024 layers, with large reasoning gains.",
+      "evidence": "After 190B general and 60B continued-pretraining tokens, Table 3 reports average Keel-versus-Pre-LN scores of 39.6 versus 37.9 at 64 layers, 46.5 versus 45.3 at 128, 58.1 versus 54.3 at 512, and 60.9 versus 57.9 at 1,024. GSM-8K at 1,024 layers is 58.6 versus 49.8. However, the 1,024-layer comparison uses peak learning rates 4.5×10^-3 for Keel and 3.0×10^-3 for Pre-LN because Pre-LN is unstable at 4.5×10^-3, so that endpoint measures the attainable architecture-plus-optimization package rather than architecture alone; several shallow per-task scores also regress.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 11,
+          "section": "5.3 depth-scaling setup and unequal 1,024-layer rates"
+        },
+        {
+          "page": 12,
+          "section": "Depth-scaling summary"
+        },
+        {
+          "page": 13,
+          "section": "Table 3 full 64-1,024 layer benchmark panel"
+        }
+      ]
+    },
+    {
+      "claim": "Author data-scaling result and negative boundary: Keel's advantage is modest at 10B FineWeb-EDU tokens, grows slightly at 40B, and includes task-level regressions.",
+      "evidence": "For the reported 3B, width-1024 setup, tuned peak rates are 3.0×10^-3 for Keel and 1.5×10^-3 for Pre-LN. Average scores are 61.5 versus 60.3 at 10B and 68.2 versus 66.7 at 40B. At 10B Keel is worse on LAMBADA (49.6 versus 50.0), and at 40B it is worse on ARC-Easy (64.1 versus 64.4). Keel begins with higher training loss before overtaking Pre-LN. These negatives agree with the authors' statement that gains are less pronounced in low-data regimes.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 12,
+          "section": "5.4 FineWeb-EDU 10B/40B setup"
+        },
+        {
+          "page": 13,
+          "section": "Data-scaling interpretation and low-data caveat"
+        },
+        {
+          "page": 14,
+          "section": "Figure 5 and Table 4"
+        }
+      ]
+    },
+    {
+      "claim": "Author fixed-parameter result: a 512-layer, width-1,024 Keel model beats both deep and wide Pre-LN 3B models on the reported downstream average, although its lower training loss is not the explanation.",
+      "evidence": "After 250B private-data tokens, Table 5 gives averages 55.5 for deep Keel, 52.3 for 512-layer deep Pre-LN, and 52.2 for 128-layer width-2,048 Pre-LN. Keel reaches GSM-8K 43.8 versus 38.1/35.3. The wide Pre-LN model has lower training loss than deep Pre-LN yet a similar downstream average, and Appendix B also reports Pre-LN lower loss than Keel at 1.5×10^-3 while Keel scores better downstream. Thus lower language-model loss is explicitly not a monotonic proxy for the claimed depth benefit.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 13,
+          "section": "5.5 deeper-versus-wider setup"
+        },
+        {
+          "page": 14,
+          "section": "Fixed-budget interpretation"
+        },
+        {
+          "page": 15,
+          "section": "Table 5 fixed-3B comparison"
+        },
+        {
+          "page": 22,
+          "section": "Appendix B training-loss/downstream mismatch"
+        }
+      ]
+    },
+    {
+      "claim": "Author flagship result: after 1T private-data tokens, the 512-layer Keel model outperforms a 512-layer Pre-LN model before and after supervised fine-tuning.",
+      "evidence": "Table 6 reports a pretraining benchmark average of 62.5 versus 58.7, including GSM-8K 60.9 versus 51.0 and MBPP 40.6 versus 35.0. Table 7 reports an SFT average of 54.8 versus 49.3, including MMLU-Pro 35.6 versus 26.6 and GSM-8K 68.8 versus 58.7. Keel is trained at peak rate 4.5×10^-3 while Pre-LN is capped at 3.0×10^-3 after loss spikes, and each receives a best-of-grid SFT configuration; therefore the result validates a trainable recipe but does not isolate the normalization topology.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 15,
+          "section": "5.6 1T-token private-data and SFT protocol"
+        },
+        {
+          "page": 16,
+          "section": "Table 6 pretraining results and 5.7 interpretation"
+        },
+        {
+          "page": 17,
+          "section": "Table 7 supervised fine-tuning results"
+        }
+      ]
+    },
+    {
+      "claim": "Author effective-depth evidence: removing later layers hurts perplexity more than removing most shallow layers, and Keel shallow layers are more deletion-sensitive than Pre-LN's.",
+      "evidence": "Appendix A defines ΔPPL_i from deleting one layer and evaluates matched 250B-token Pre-LN/Keel models plus Qwen2.5-72B-Instruct and LLaMA-3.3-70B-Instruct on C4. The first layer is exceptional—deletion raises perplexity above 10^4—then deletion cost generally grows with depth. Keel has a larger shallow-region ΔPPL than Pre-LN. A deletion intervention establishes dependence, but larger damage can also reflect architectural brittleness or scale disruption and is not by itself a measure of unique representation or expressivity.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 21,
+          "section": "Appendix A layer-redundancy protocol and Figures 6-7"
+        },
+        {
+          "page": 22,
+          "section": "Layer-removal interpretation"
+        }
+      ]
+    },
+    {
+      "claim": "Contradiction audit: layer-count reporting conflicts in three places, preventing an exact reconstruction of several experimental panels.",
+      "evidence": "Table 1 labels Configuration B as 512 layers, but its caption says stability improves as depth reaches 256. Section 5.4 calls the FineWeb-EDU models 256 layers, while Figure 5's caption calls the same 10B/40B curves 512 layers. Section 5.5/Table 5 defines wide/deep Pre-LN as 128/512 layers, but Appendix B describes the loss curves linked to Table 5 as 64/256 layers. These may be caption or cross-reference errors, yet they materially affect depth, parameter-count, and compute interpretation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 10,
+          "section": "Table 1 configuration/caption mismatch"
+        },
+        {
+          "page": 12,
+          "section": "5.4 256-layer data-scaling description"
+        },
+        {
+          "page": 14,
+          "section": "Figure 5 512-layer caption and Table 4"
+        },
+        {
+          "page": 15,
+          "section": "Table 5 128/512 configurations"
+        },
+        {
+          "page": 22,
+          "section": "Appendix B 64/256 loss-curve description"
+        }
+      ]
+    },
+    {
+      "claim": "Reviewer inference: the 'depth-wise test-time training' section is an analogy, not an optimization equivalence demonstrated for Keel.",
+      "evidence": "The paper writes a Pre-LN residual update as a gradient step on -⟨x_lW_o,G(x_l)⟩ and compares depth to recurrent test-time training. Differentiating that objective with respect to x_l generally also differentiates G(x_l), and ordinary Transformer layers have different parameters across depth rather than repeated online updates to a shared state objective. No experiment tests a TTT prediction or infinite-depth limit. The section is useful intuition but does not add evidence for stability or expressivity.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "4.3 sequence-wise TTT setup / Equations 29-30"
+        },
+        {
+          "page": 9,
+          "section": "Depth-wise analogy / Equations 31-34"
+        }
+      ]
+    },
+    {
+      "claim": "Reviewer novelty boundary: Keel is not a conventional Highway Network gate, and DeepNorm already introduced depth-scaled Post-LN residuals and thousand-layer Transformers.",
+      "evidence": "The paper's own Section 2.1 defines Highway Networks with learned, input-dependent transform and carry gates T(x),C(x). Keel instead uses the same fixed scalar L on every ordinary shortcut. Section 2.3 also writes DeepNorm as LN(αx+F(x)) and cites its 1,000-layer result. Keel's differentiating design is therefore the particular α=L scaling plus an inner bias-free RMSNorm and decoder-only LLM evidence without DeepNorm's scaled initialization—not the invention of gated highways, residual scaling, stable Post-LN, or thousand-layer depth.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "2.1 Highway equation and 2.3 DeepNorm equation"
+        },
+        {
+          "page": 4,
+          "section": "3 fixed Highway-style scaling"
+        },
+        {
+          "page": 7,
+          "section": "4.1 Keel versus DeepNorm"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Turn Post-LN's shortcut into an asymptotically norm-preserving path by multiplying it by total sublayer depth, while using a second RMSNorm to control the transformation input.",
+    "mechanism": "For most attention and FFN sublayers Keel computes RMSNorm_outer(Lx+F(RMSNorm_inner(x))). The outer normalization removes forward scale, while L makes the residual shortcut dominate enough that the product of shortcut Jacobian norms approaches one in a unit-scale heuristic. The inner bias-free learned RMSNorm avoids uncontrolled F input and replaces a failed learnable β gate. The first attention/FFN sublayers receive special treatment. Stability is evaluated with an aggressive maximum-tolerable-learning-rate warmup; capability is evaluated in 3B, width-1,024 decoder-only models over matched-rate, depth-, data-, fixed-parameter-, 1T-token-, and SFT panels, with individual-layer deletion as an effective-depth probe.",
+    "assumptions": [
+      "The RMS-based operation x/||x||₂⊙γ is treated throughout as LayerNorm, so conclusions transfer from this bias-free RMS configuration to the broader Post-LayerNorm label.",
+      "Residual and transformed signals have the norm and independence relationships needed to produce the √2 and √(α²+γ²) denominators in the Jacobian heuristic.",
+      "The maximum γ norm adequately summarizes the normalization Jacobian and gradients can be compared by products of scalar magnitudes rather than singular-value distributions.",
+      "Shortcut-path gradient preservation is the decisive criterion for complete model trainability even though transformation paths and parameter gradients are not bounded.",
+      "γ remains sufficiently well behaved during training for an initialization-style residual calculation to describe the whole trajectory.",
+      "The same fixed α=L is appropriate across attention and FFN sublayers, data regimes, widths, and optimization stages, aside from the first-layer exceptions.",
+      "Removing outer Post-LN and α in the first sublayers does not undermine the classification or theory of the remaining architecture.",
+      "A fixed scalar shortcut multiplier is meaningfully Highway-style despite lacking the learned input-dependent transform/carry gates in Equation 1.",
+      "The subjective loss-stagnation and optimization-degradation criteria identify a unique MaxLR consistently across methods.",
+      "Private training mixtures and reported benchmark prompts are sufficiently matched across architectures to attribute differences to Keel.",
+      "At the 1,024-layer and 1T-token scales, comparing each architecture at its own stable learning rate is the relevant measure of architectural quality.",
+      "Single-layer deletion ΔPPL measures useful representation and effective depth rather than brittleness or off-manifold distribution shift.",
+      "Zero/few-shot benchmark averages meaningfully summarize depth expressivity despite task variance and no uncertainty estimates.",
+      "Depth labels consistently refer to the intended count of blocks or total attention/FFN sublayers despite conflicting captions."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "depth-scaled-post-rmsnorm-shortcut",
+      "role": "Multiplies each ordinary shortcut by total sublayer depth before the outer normalization."
+    },
+    {
+      "id": "dual-rmsnorm-sublayer",
+      "role": "Normalizes the transformation input and the residual sum with separate learned multiplicative scales."
+    },
+    {
+      "id": "first-sublayer-exception",
+      "role": "Removes selected outer normalization and scaling operations at the embedding interface."
+    },
+    {
+      "id": "shortcut-jacobian-product",
+      "role": "Provides the asymptotic argument that α=L makes the residual-path gradient product approach one."
+    },
+    {
+      "id": "maximum-tolerable-learning-rate-stress-test",
+      "role": "Operationalizes stability as the last warmup rate before one of three divergence behaviors."
+    },
+    {
+      "id": "matched-learning-rate-sweep",
+      "role": "Separates architecture effects from learning-rate capacity at 512 layers and 250B tokens."
+    },
+    {
+      "id": "depth-data-and-shape-scaling-panels",
+      "role": "Tests the recipe across 64-1,024 layers, 10B-1T tokens, and deep-versus-wide fixed-parameter shapes."
+    },
+    {
+      "id": "single-layer-deletion-ppl",
+      "role": "Uses perplexity damage from removing each layer as a proxy for effective depth and redundancy."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "64- and 512-layer warmup toward peak 5×10^-2 over 5,000 steps",
+      "metric": "Maximum tolerable learning rate before stagnation, irrecoverable spike, or optimization degradation",
+      "result": "Keel 1.01×10^-2 at 64 layers and 6.31×10^-3 at 512; Pre-LN 7.65×10^-3 and 4.67×10^-3; all Post-LN/hybrid baselines ≤8.6×10^-4 and ≤3.5×10^-4",
+      "baseline": "Post-LN, DeepNorm, HybridNorm, Mix-LN, and Pre-LN"
+    },
+    {
+      "setting": "512 layers, width 1,024, 250B private-data tokens, peak rates 1.5/3.0/6.0×10^-3",
+      "metric": "Fourteen-task average and per-task zero/few-shot accuracy",
+      "result": "Keel averages 50.5/52.7/55.5 versus Pre-LN 49.5/49.4/52.3; Keel is not monotonic on ARC-Challenge, PIQA, or CommonsenseQA",
+      "baseline": "Pre-LN at exactly matched learning rates"
+    },
+    {
+      "setting": "64, 128, 512, and 1,024 layers after 190B pretraining plus 60B continued-pretraining tokens",
+      "metric": "Fourteen-task average and reasoning/coding scores",
+      "result": "Average gains are +1.7/+1.2/+3.8/+3.0 points; 1,024-layer GSM-8K is 58.6 versus 49.8",
+      "baseline": "Same-depth Pre-LN, except unequal stable peak rates at 1,024 layers"
+    },
+    {
+      "setting": "Reported 3B FineWeb-EDU models at 10B and 40B tokens",
+      "metric": "Six-task average and training-loss curves",
+      "result": "Keel 61.5 versus 60.3 at 10B and 68.2 versus 66.7 at 40B; it starts with higher loss and loses individual LAMBADA/ARC-Easy comparisons",
+      "baseline": "Learning-rate-tuned Pre-LN"
+    },
+    {
+      "setting": "Fixed 3B parameter budget, 250B private-data tokens: deep-narrow and shallow-wide shapes",
+      "metric": "Fourteen-task average and training loss",
+      "result": "512-layer Keel 55.5 versus 512-layer Pre-LN 52.3 and 128-layer wide Pre-LN 52.2; wide Pre-LN has lower loss than deep Pre-LN",
+      "baseline": "Deep and wide Pre-LN"
+    },
+    {
+      "setting": "512-layer 3B models after 750B general plus 250B continued-pretraining private-data tokens",
+      "metric": "Fourteen-task pretraining benchmark average",
+      "result": "Keel 62.5 versus Pre-LN 58.7; GSM-8K 60.9 versus 51.0 and AGI-Eval 46.5 versus 37.9",
+      "baseline": "Pre-LN at 3.0×10^-3 versus Keel at 4.5×10^-3"
+    },
+    {
+      "setting": "Best-of-grid supervised fine-tuning after the 1T-token runs",
+      "metric": "Eight hard/reasoning/multilingual benchmarks",
+      "result": "Keel average 54.8 versus 49.3; MMLU-Pro 35.6 versus 26.6 and GSM-8K 68.8 versus 58.7",
+      "baseline": "SFT of the corresponding Pre-LN checkpoint"
+    },
+    {
+      "setting": "Individual-layer deletion on 250B-token Keel/Pre-LN and two open 70B models, evaluated on C4",
+      "metric": "Perplexity increase ΔPPL_i",
+      "result": "First-layer removal exceeds 10^4 perplexity; later deletion cost generally grows with depth; Keel shallow layers have larger deletion damage than Pre-LN",
+      "baseline": "Matched Pre-LN and Qwen2.5-72B-Instruct/LLaMA-3.3-70B-Instruct layer profiles"
+    },
+    {
+      "setting": "Low-rate and deep-versus-wide loss/downstream comparisons",
+      "metric": "Training loss versus benchmark average",
+      "result": "Pre-LN can have lower loss while Keel or a deeper shape has equal or better downstream scores",
+      "baseline": "Architecture ordering predicted by training loss"
+    }
+  ],
+  "limitations": [
+    "Author-stated: the work focuses on depth scaling; increasing hidden size, experts, or FFN width can require a larger α or stronger stabilization.",
+    "Author-stated: when width relative to depth is already high, Pre-LN's effective-depth problem may be weaker and Keel's gains may be smaller.",
+    "Author-stated: Keel typically requires substantial training data and is not recommended for low-data regimes.",
+    "Reviewer-identified: the mathematical section is a scalar shortcut-norm heuristic, not a formal gradient, convergence, or stability guarantee for the complete network.",
+    "Reviewer-identified: the residual calculation assumes activation-scale relationships and unit γ without stating a probabilistic model or verifying them across training.",
+    "Reviewer-identified: α=L preserves the shortcut product but can suppress per-block transformation gradients and forward contributions by O(1/L); this trade-off is not theoretically resolved.",
+    "Reviewer-identified: the operation is bias-free RMS normalization rather than mean-centering LayerNorm, so the title and architectural claims are broader than the evaluated normalizer.",
+    "Reviewer-identified: the first attention and FFN sublayers are architectural exceptions not covered by the uniform Keel equation or asymptotic product.",
+    "Reviewer-identified: MaxLR divergence includes subjective stagnation and anomalously slow convergence criteria with no numerical thresholds, seeds, or uncertainty.",
+    "Reviewer-identified: the ablation path from naive scaling through learnable β to Keel is qualitative and reports no controlled numerical results.",
+    "Reviewer-identified: the flagship 1T and 1,024-layer comparisons use higher learning rates for Keel, confounding topology with the optimization regime it enables.",
+    "Reviewer-identified: all large-scale 250B/1T results use undisclosed internal data, preventing exact replication or contamination auditing.",
+    "Reviewer-identified: no run counts, confidence intervals, significance tests, total compute, throughput, wall-clock time, or activation-memory costs are reported.",
+    "Reviewer-identified: layer/block/sublayer terminology and captions conflict at 256/512 and 64/128/256/512, obstructing exact protocol reconstruction.",
+    "Reviewer-identified: the paper compares DeepNorm, Mix-LN, and HybridNorm only in the MaxLR panel, not in the central downstream depth-scaling or 1T-token panels.",
+    "Reviewer-identified: several Keel task scores regress at matched rates or low data, contradicting claims of consistent or per-benchmark monotonic gains.",
+    "Reviewer-identified: single-layer deletion can measure fragility and distribution shift as well as useful representation; no retraining, paired-layer, or activation-replacement control is provided.",
+    "Reviewer-identified: the depth-wise TTT analogy omits derivatives through G and is not tested empirically, so it does not support infinite-depth claims.",
+    "Reviewer-identified: a fixed α is not the learned input-dependent transform/carry gating that defines the cited Highway Network.",
+    "Reviewer-identified: depths 'exceeding 1,000 layers' are tested only up to the reported 1,024 count, whose meaning as blocks versus attention/FFN sublayers is ambiguous."
+  ],
+  "failure_modes": [
+    "If learned γ drifts or differs sharply by layer, the unit-scale shortcut product can vanish or explode despite α=L.",
+    "A fixed α chosen from depth can over-dampen F at very large L, leaving a stable but nearly identity stack.",
+    "The first unscaled or differently normalized sublayers can remain a bottleneck even when later shortcuts are stable.",
+    "Wider FFNs or MoE activations can change residual variance enough that α=L no longer balances the branches.",
+    "Low-data training can end before the initially higher-loss Keel trajectory overtakes Pre-LN.",
+    "A learning rate within Keel's MaxLR can still harm individual tasks even when average score rises.",
+    "Subjective optimization-degradation rules can classify a slower but recoverable run as divergent and inflate MaxLR differences.",
+    "Deleting one Keel layer may cause a larger scale or normalization discontinuity than deleting one Pre-LN layer, exaggerating apparent effective depth.",
+    "Private-data benchmark overlap can mimic architecture gains, particularly on reasoning and code tasks targeted by continued pretraining.",
+    "The extra normalization increases operations and state; without throughput results, ultra-depth can be impractical despite optimization stability.",
+    "A 1,024-layer network may be pipeline- or latency-limited compared with a wider model at equal FLOPs even if parameter counts match.",
+    "Applying the recipe to standard mean-centering LayerNorm may not reproduce results obtained with RMSNorm.",
+    "Tuning α for small models while fixing it for deep models can introduce an unreported hyperparameter-selection advantage.",
+    "Training loss and downstream scores can order models differently, making early stopping or scaling-law extrapolation unreliable for this architecture."
+  ],
+  "reusable_insights": [
+    "Separate shortcut-path gradient preservation from transformation-path and parameter-gradient preservation; a stable identity path is necessary but not sufficient for learning useful blocks.",
+    "Report both matched-learning-rate comparisons and each method's best stable rate because they answer architecture-only and deployable-recipe questions respectively.",
+    "A maximum-tolerable-learning-rate metric needs numeric divergence thresholds, repeated runs, and step-size resolution to be auditable.",
+    "Depth-scaling studies should keep block, attention/FFN sublayer, and normalization counts explicit and consistent in every caption.",
+    "Pair layer deletion with activation replacement, scale-matched bypass, or recovery training before interpreting damage as effective representation depth.",
+    "Preserve genuine negative panels—higher early loss, low-data regressions, and nonmonotonic task scores—because averages can hide architectural trade-offs.",
+    "When a method enables a higher learning rate, treat the rate as part of the recipe in headline results and retain a same-rate ablation for causal attribution.",
+    "A residual scaling design should be compared directly with DeepNorm/Admin and normalization-placement methods on the same downstream protocol, not only a warmup stress test.",
+    "Use 'Highway-style' cautiously when the mechanism is a fixed scalar rather than an adaptive transform/carry gate.",
+    "Training-loss scaling laws may not transfer unchanged across depth/width topologies; downstream checkpoints can be necessary during architecture search."
+  ],
+  "open_questions": [
+    "Can the full Keel block Jacobian and parameter gradients be bounded with realistic random weights, learned γ, attention, and FFNs rather than only the shortcut norm?",
+    "Does α=L make transformation updates or outputs too small as L grows, and what depth-dependent α optimizes both shortcut and residual learning?",
+    "Which part of the gain comes from α, the inner RMSNorm, the first-layer exceptions, or the higher stable learning rate in a fully quantitative factorial ablation?",
+    "Do the results reproduce with public data, multiple seeds, matched compute, matched tokens, and contamination-controlled benchmarks?",
+    "How does Keel compare with DeepNorm, Peri-LN, Mix-LN, HybridNorm, LayerNorm Scaling, and Admin on the same 512/1,024-layer decoder-only panel?",
+    "Are the reported depths counts of Transformer blocks or attention/FFN sublayers, and what are the exact parameter/FLOP counts of every configuration?",
+    "Does Keel preserve its advantage under wider hidden states, MoE FFNs, longer context, and standard mean-centering LayerNorm?",
+    "What throughput, activation-memory, pipeline-bubble, and inference-latency costs accompany 512-1,024 layers at fixed parameters and FLOPs?",
+    "Can effective depth be confirmed through representation change, gradient contribution, and recoverable ablations rather than deletion PPL alone?",
+    "Why do training loss and downstream accuracy disagree, and is that effect robust outside the private mixture and selected benchmark suite?",
+    "Can a shared-weight or continuous-depth version make the TTT analogy mathematically exact and empirically useful?",
+    "What single α and learning-rate policy works when stream length, width, and data budget are unknown in advance?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2203.00555",
+      "title": "DeepNet: Scaling Transformers to 1,000 Layers",
+      "url": "https://arxiv.org/abs/2203.00555v1",
+      "relationship": "closest-depth-scaled-post-ln-predecessor",
+      "difference": "DeepNorm already modifies Post-LN to LN(αx+F(x)), derives depth-dependent α and initialization scaling, and trains Transformers beyond 1,000 layers. Keel's defensible difference is α=L plus an inner RMSNorm and first-layer exceptions, with decoder-only 3B LLM evidence and no DeepNorm weight rescaling; therefore thousand-layer Post-LN and residual scaling themselves are prior art.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2203.00555v1"
+    },
+    {
+      "canonical_id": "arxiv:2502.02732",
+      "title": "Peri-LN: Revisiting Normalization Layer in the Transformer Architecture",
+      "url": "https://arxiv.org/abs/2502.02732v3",
+      "relationship": "direct-dual-normalization-competitor",
+      "difference": "Peri-LN also places normalization around Transformer sublayers and analyzes activation variance and gradient propagation, with experiments up to 3.2B parameters. It preserves an unscaled residual topology rather than Keel's L-multiplied shortcut; Keel offers much deeper decoder-only runs, while Peri-LN supplies a broader variance analysis and a more standard peripheral-normalization interpretation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2502.02732v3"
+    },
+    {
+      "canonical_id": "arxiv:2412.13795",
+      "title": "Mix-LN: Unleashing the Power of Deeper Layers by Combining Pre-LN and Post-LN",
+      "url": "https://arxiv.org/abs/2412.13795v2",
+      "relationship": "direct-effective-depth-normalization-competitor",
+      "difference": "Mix-LN addresses ineffective deep layers by using Post-LN in an early fraction and Pre-LN later, reporting models through 7B plus SFT/RLHF transfer. Keel instead applies a common dual-normalized Post-LN-style equation through most sublayers and targets 512-1,024 depth; it removes Mix-LN's layer-transition ratio but introduces fixed α=L and first-layer exceptions.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2412.13795v2"
+    },
+    {
+      "canonical_id": "arxiv:2503.04598",
+      "title": "HybridNorm: Towards Stable and Efficient Transformer Training via Hybrid Normalization",
+      "url": "https://arxiv.org/abs/2503.04598v4",
+      "relationship": "direct-intralayer-normalization-competitor",
+      "difference": "HybridNorm combines QKV normalization in attention with Post-Norm in FFNs and evaluates dense and sparse large models, retaining a uniform intralayer hybrid without depth-scaled shortcuts. Keel normalizes the entire F input and post-residual output for both attention and FFN and adds α=L; its extreme-depth evidence is stronger, but the reviewed paper only compares HybridNorm on subjective MaxLR, not downstream quality.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2503.04598v4"
+    },
+    {
+      "canonical_id": "arxiv:2502.05795",
+      "title": "The Curse of Depth in Large Language Models",
+      "url": "https://arxiv.org/abs/2502.05795v5",
+      "relationship": "direct-pre-ln-effective-depth-competitor",
+      "difference": "This NeurIPS work diagnoses Pre-LN variance growth and near-identity deep blocks, then scales LayerNorm output inversely with depth to improve layer use while keeping a Pre-LN residual path. Keel shares the effective-depth motivation but returns to Post-LN and scales the shortcut upward; its 1,024-layer/1T-token panels extend scale, while LayerNorm Scaling is a simpler alternative that the Keel experiments do not directly compare.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2502.05795v5"
+    },
+    {
+      "canonical_id": "arxiv:2004.08249",
+      "title": "Understanding the Difficulty of Training Transformers",
+      "url": "https://arxiv.org/abs/2004.08249v3",
+      "relationship": "direct-post-ln-stability-and-initialization-prior",
+      "difference": "Admin attributes Post-LN instability to amplification from residual-branch dependence and uses adaptive initialization to stabilize early training, rather than treating vanishing shortcut gradients as the sole central failure. Keel replaces an initialization remedy with a permanent α=L plus inner RMSNorm topology; a direct controlled comparison would test these competing diagnoses, but Admin is absent from Keel's reported panels.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2004.08249v3"
+    },
+    {
+      "canonical_id": "arxiv:2510.22026",
+      "title": "Normalization in Attention Dynamics",
+      "url": "https://arxiv.org/abs/2510.22026v2",
+      "relationship": "current-normalization-dynamics-theory",
+      "difference": "This NeurIPS theory unifies Post-LN, Pre-LN, Mix-LN, Peri-LN, nGPT, and LN Scaling as speed regulators and analyzes token clustering/representation collapse, identifying Peri-LN as a favorable balance under its assumptions. It omits MLPs and parameter-gradient training, but highlights a representational axis absent from Keel's shortcut-only derivation. Keel contributes an actual ultra-deep architecture and training runs rather than that paper's idealized attention ODE.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2510.22026v2"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Keel replaces the unstable ResNet-style Post-LN pathway with a Highway-style connection that preserves gradients, needs no specialized initialization, trains decoder-only LLMs beyond 1,000 layers, restores effective depth, and improves reasoning and scaling over Pre-LN.",
+    "evidence": "The paper gives a shortcut-Jacobian asymptotic calculation, a qualitative three-attempt design history, MaxLR comparisons against five normalizers, a matched-rate 512-layer sweep, 64-1,024-layer and 10B-1T-token panels, a fixed-3B deep-versus-wide comparison, SFT transfer, and individual-layer deletion profiles.",
+    "reviewer_inference": "DeepNorm already established depth-scaled Post-LN and thousand-layer training, Highway Networks use adaptive gates rather than Keel's fixed scalar, and Peri-LN/Mix-LN/HybridNorm/LayerNorm Scaling/Admin already target the stability-effective-depth trade-off. Keel's credible novelty is the specific combination LN_outer(Lx+F(LN_inner(x))) with first-layer exceptions, deployed in unusually deep 3B decoder-only LLM experiments. The empirical recipe is promising—especially the matched-rate Table 2 and negative loss/task results—but the causal story is narrower than claimed: the math preserves only a scalar shortcut path, the ablation evolution is unquantified, central results confound learning rate, private data blocks reproduction, competitor downstream panels are missing, and multiple depth captions conflict."
+  },
+  "confidence": 0.95,
+  "reviewer_notes": "Complete primary full-text review of the pinned arXiv:2601.19895v2 extraction: all 23 pages were read end to end, including every equation, Tables 1-8, Figures 1-8, references, Appendix A's C4 layer-deletion study, Appendix B's training-loss/downstream mismatch, and Appendix C's model configuration. The indexed PDF SHA-256 27e510a5504d458828270fc9b310ca88b4212f4da5249a14e696f0b9fec1bc07 and text SHA-256 b3c9fda62042b170240849e1fda6077916058ce101f8f06c87f84488a4b613bf were checked verbatim against data/generated/fulltext_index.jsonl. A fresh official download of arXiv:2601.19895v2 independently matched that PDF hash; arXiv:2601.19895v1 did not, establishing the exact source pin. Seven current direct primary arXiv competitors were researched at exact revisions on 2026-08-23. The review explicitly retains author-stated low-data/width limits; genuine negative results from failed design attempts, higher early/training loss, task regressions, and nonmonotonic learning-rate sweeps; the shortcut-versus-transformation gradient gap; the fixed-scalar-versus-Highway distinction; unequal-learning-rate and private-data confounds; and the 256/512 plus 64/128/256/512 reporting contradictions."
+}

@@ -1,0 +1,152 @@
+{
+  "stable_id": "arxiv:2505.13447",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2505.13447",
+    "pdf_sha256": "322ba9244ad2c72382038e421fe0ffa92510c51d4f9c740bd7282b36bfc25206",
+    "text_sha256": "57304802769b1c37795d43e0e51ee493095bd995a7dfa35bb373cb9f0e39872e",
+    "page_count": 16,
+    "extracted_at": "2026-08-23T16:52:27.024663+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a model learn the time-interval average velocity of a probability flow directly from conditional flow-matching samples, enabling high-quality generation in one network evaluation without distillation or a discretization curriculum?",
+  "key_findings": [
+    {
+      "claim": "Average velocity is a well-defined field whose displacement over an interval exactly composes, and its time derivative yields a trainable identity involving only instantaneous velocity and a Jacobian-vector product.",
+      "evidence": "Defining u(z_t,r,t)=(t-r)^-1 integral_r^t v(z_tau,tau)d tau gives the MeanFlow identity u=v-(t-r)d_t u. Expanding the total derivative produces a JVP with tangent (v,0,1); replacing marginal by conditional velocity provides stochastic regression targets without numerically integrating a teacher trajectory.",
+      "anchors": [
+        {"page": 3, "section": "4.1 Average Velocity"},
+        {"page": 4, "section": "MeanFlow Identity"},
+        {"page": 5, "section": "Training with Average Velocity"}
+      ]
+    },
+    {
+      "claim": "The method is genuinely sensitive to its derived objective rather than merely benefiting from extra time conditioning.",
+      "evidence": "On the B/4 ImageNet ablation, ordinary flow matching with no nonzero interval has FID 328.91 at one NFE, while the default MeanFlow setting obtains 61.06. Using the mathematically incorrect JVP tangents degrades FID to 137.96-329.22, and sampling only same-time pairs degrades it to 67.32.",
+      "anchors": [
+        {"page": 7, "section": "5.1 Ablation Study"},
+        {"page": 8, "section": "Table 1"}
+      ]
+    },
+    {
+      "claim": "A from-scratch 676M MeanFlow reaches 3.43 ImageNet-256 FID with one function evaluation and 2.20 with two evaluations.",
+      "evidence": "The one-NFE XL/2 result improves over Shortcut's 10.60 and the two-evaluation guided IMM result of 7.77. At two NFE the XL/2+ variant is near the paper's 250-step DiT/SiT references, while the same method on CIFAR-10 is competitive rather than clearly best at 2.92 FID.",
+      "anchors": [
+        {"page": 8, "section": "5.2 Comparisons"},
+        {"page": 9, "section": "Table 2 and Table 3"}
+      ]
+    },
+    {
+      "claim": "Classifier-free guidance can be folded into the learned average field so inference remains one NFE, but its scale is fixed during original-model training.",
+      "evidence": "The guided target mixes conditional and unconditional velocities before the JVP, and the ablation improves one-NFE FID from 61.06 without guidance to 15.53 at scale 3 on the small model. This removes the usual second inference pass but couples the original checkpoint to the training-time guidance configuration.",
+      "anchors": [
+        {"page": 6, "section": "4.2 Mean Flows with Guidance"},
+        {"page": 8, "section": "Table 1f"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Predict interval-averaged flow velocity rather than local instantaneous velocity, so a single prediction directly specifies the endpoint displacement.",
+    "mechanism": "The network is conditioned on noisy state, start time, and interval. A conditional flow-matching sample supplies v; forward-mode automatic differentiation computes the JVP needed by the MeanFlow identity; the resulting network-dependent target is stop-gradient. Generation evaluates u(noise,0,1) once, with optional guidance incorporated during training.",
+    "assumptions": [
+      "Conditional flow-matching velocity is an unbiased substitute for the inaccessible marginal velocity in the derived target.",
+      "The stop-gradient fixed-point regression reaches a solution close enough to the exact MeanFlow identity.",
+      "FID-50K is a suitable primary measure of sample quality for the compared ImageNet configurations.",
+      "Training compute and large Transformer backbones are available even though sampling compute is minimized."
+    ]
+  },
+  "techniques": [
+    {"id": "meanflow-identity", "role": "Relates average displacement velocity to instantaneous velocity without an explicit path integral."},
+    {"id": "forward-mode-jvp", "role": "Computes the total derivative target efficiently without materializing a full Jacobian."},
+    {"id": "stop-gradient-fixed-point-regression", "role": "Avoids double backpropagation through a target that depends on the current network."},
+    {"id": "interval-conditioned-transformer", "role": "Lets one model predict displacements for variable step sizes."},
+    {"id": "guidance-in-target", "role": "Amortizes conditional/unconditional guidance into a single sampling evaluation."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Class-conditional ImageNet 256x256, XL/2, 240 epochs",
+      "metric": "FID-50K at one NFE",
+      "result": "3.43 FID from scratch",
+      "baseline": "Shortcut 10.60 at one NFE and IMM 7.77 with two guidance evaluations"
+    },
+    {
+      "setting": "ImageNet 256x256, XL/2+ at two NFE",
+      "metric": "FID-50K",
+      "result": "2.20",
+      "baseline": "DiT 2.27 and SiT 2.06 using 250 steps with two guidance evaluations per step"
+    },
+    {
+      "setting": "Unconditional CIFAR-10 with a shared 55M U-Net family",
+      "metric": "FID-50K at one NFE",
+      "result": "2.92 without EDM preconditioning",
+      "baseline": "iCT 2.83, sCT 2.97, IMM 3.20"
+    },
+    {
+      "setting": "ImageNet B/4 objective ablations",
+      "metric": "One-NFE FID",
+      "result": "Correct JVP and mixed nonzero intervals are necessary; default small-model FID is 61.06.",
+      "baseline": "328.91 for ordinary flow matching under one Euler-sized step"
+    }
+  ],
+  "limitations": [
+    "The stop-gradient target depends on the current network, so training is not ordinary supervised regression to a fixed ground-truth field.",
+    "ImageNet gains require large models and extensive from-scratch training; the paper emphasizes sampling cost rather than total training cost.",
+    "Evaluation is dominated by FID on ImageNet and CIFAR-10, without likelihood, precision/recall, human preference, or diverse modalities.",
+    "The original guidance construction fixes guidance behavior during training rather than offering arbitrary test-time scale.",
+    "Comparisons mix differences in training duration, conditioning, preconditioning, and evaluation count, although the tables disclose them."
+  ],
+  "failure_modes": [
+    "Errors in a whole-interval displacement cannot be corrected by later solver steps during one-NFE generation.",
+    "A self-referential stop-gradient target can produce unstable or biased fixed-point optimization.",
+    "The learned mean field may fit common intervals but violate composition consistency off the training sampler.",
+    "Amortized classifier-free guidance overfits one scale and loses controllability at deployment.",
+    "Low FID masks reduced diversity or class-conditional artifacts."
+  ],
+  "reusable_insights": [
+    "Learn a coarse-grained integral quantity directly when numerical integration is the deployment bottleneck.",
+    "Derive local differential identities for inaccessible integral targets and audit every automatic-differentiation tangent.",
+    "Include the desired resolution or interval as an input so one model supports multiple compute budgets.",
+    "Use ablations that deliberately break the mathematical identity to show where performance comes from.",
+    "Report function evaluations separately from steps when guidance doubles network calls."
+  ],
+  "open_questions": [
+    "Can a fixed-target or jointly estimated velocity formulation improve optimization stability?",
+    "How well does interval composition hold empirically for unseen partitions of the same path?",
+    "Can guidance remain continuously adjustable at test time without extra evaluations?",
+    "Do one-step gains persist under likelihood, coverage, memorization, and human-evaluation audits?",
+    "How does the method scale to text, video, audio, molecules, and conditional inverse problems?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2410.12557",
+      "title": "One Step Diffusion via Shortcut Models",
+      "url": "https://arxiv.org/abs/2410.12557",
+      "relationship": "direct competitor",
+      "difference": "Shortcut Models learn step-size-conditioned flows with self-consistency; MeanFlow derives a continuous average-velocity identity and reports substantially lower one-NFE ImageNet FID in its setup."
+    },
+    {
+      "canonical_id": "arxiv:2406.07507",
+      "title": "Flow Map Matching",
+      "url": "https://arxiv.org/abs/2406.07507",
+      "relationship": "closely related formulation",
+      "difference": "Flow Map Matching learns interval displacement maps through matching objectives; MeanFlow normalizes displacement by interval and uses the differentiated average/instantaneous identity with a JVP target."
+    },
+    {
+      "canonical_id": "arxiv:2512.02012",
+      "title": "Improved Mean Flows: On the Challenges of Fastforward Generative Models",
+      "url": "https://arxiv.org/abs/2512.02012",
+      "relationship": "later corrective successor",
+      "difference": "iMF explicitly identifies the original network-dependent target and fixed-guidance limitations, recasts learning as velocity regression with an average-velocity parameterization, and improves one-NFE ImageNet FID to 1.72."
+    },
+    {
+      "canonical_id": "arxiv:2602.00849",
+      "title": "RMFlow: Refined Mean Flow by a Noise-Injection Step for Multimodal Generation",
+      "url": "https://arxiv.org/abs/2602.00849",
+      "relationship": "later competing extension",
+      "difference": "RMFlow adds a tailored stochastic refinement and balances probability-path Wasserstein distance with likelihood across multiple modalities, trading the reviewed paper's pure deterministic one-shot formulation for improved refinement."
+    }
+  ],
+  "novelty_assessment": "The average-velocity identity is a crisp, useful reformulation of one-step flow generation and the original ImageNet result was a large empirical jump over from-scratch one-step peers. Later work confirms the paradigm while also exposing two central weaknesses—the self-dependent target and fixed guidance—and materially improves the headline result, so the enduring contribution is the formulation more than the current state of the art.",
+  "confidence": 0.95,
+  "reviewer_notes": "Read the full 16-page extracted paper, including derivation, algorithm, ablations, benchmark tables, and implementation appendix. Comparisons were normalized to network-function evaluations where disclosed. Primary arXiv records for direct predecessors and post-publication successors were checked on 2026-08-23."
+}

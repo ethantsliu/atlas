@@ -1,0 +1,122 @@
+{
+  "stable_id": "arxiv:2510.08450",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2510.08450",
+    "pdf_sha256": "eef27cc7fffa12ded3d38b82a98c9655be3506d8f57b041473450cde2aeb3825",
+    "text_sha256": "e950e47fb373cfc6107cc8d884e2fa92b44e8526e46e00639a3b0bbe5969f5c9",
+    "page_count": 23,
+    "extracted_at": "2026-08-23T14:42:28.391987+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can graph over-squashing be separated into storage-capacity and sensitivity failures, measured without depth confounds, and mitigated by giving message-passing nodes an associative matrix memory?",
+  "key_findings": [
+    {
+      "claim": "Neighbor Associative Recall isolates a shallow storage bottleneck that common long-range transfer tasks do not isolate.",
+      "evidence": "NAR uses only two message-passing layers: the central node must first store all neighboring key-value pairs and then retrieve the value selected by a later query. RingTransfer contains only one informative distant node, while Tree-NeighborsMatch mixes capacity loss with depth-dependent sensitivity and gradient loss.",
+      "anchors": [{"page": 4, "section": "3.1"}, {"page": 5, "section": "3.2"}]
+    },
+    {
+      "claim": "gLSTM's associative matrix state delays capacity saturation to approximately its memory dimension.",
+      "evidence": "Across NAR neighbor counts, gLSTM retains perfect recall until the number of neighbors reaches its memory dimension and then degrades gradually; the largest tested GCN begins degrading at only eight neighbors despite parameter-count choices that favor GCN.",
+      "anchors": [{"page": 7, "section": "5.1 and Figure 5"}]
+    },
+    {
+      "claim": "Aggregate Jacobian magnitude does not diagnose the measured capacity failure, but selective sensitivity does track it.",
+      "evidence": "GCN Jacobian norms recover as neighbor count rises without an accuracy recovery, and gLSTM norms continue rising after accuracy falls. In contrast, selected-to-background Jacobian ratios fall toward one near each architecture's saturation point, while a query-value mixed Hessian collapses above eight neighbors for GCN and remains larger for gLSTM.",
+      "anchors": [{"page": 7, "section": "5.2"}, {"page": 8, "section": "5.2 and Figures 6-7"}]
+    },
+    {
+      "claim": "The architecture is strong but not uniformly best on long-range graph benchmarks, and k-hop aggregation is the dominant ablated component.",
+      "evidence": "gLSTM obtains log10 MSE -0.715 on Diameter and -4.036 on Eccentricity, and Peptides-Func AP 0.7250, but Peptides-Struct MAE 0.2527 trails several simpler baselines. Removing k-hop changes Diameter to 0.042 and Peptides-Func AP to 0.6030, whereas removing all gates has much smaller or mixed effects.",
+      "anchors": [{"page": 9, "section": "5.3 and Tables 1-2"}, {"page": 16, "section": "C.2 and Tables 3-5"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Reframe over-squashing by its observable failure mode, build a two-layer associative-recall benchmark for storage saturation, and replace each node's vector-only state with xLSTM-style matrix memory.",
+    "mechanism": "Each gLSTM node keeps a matrix C updated by gated outer products of value and key projections and retrieves from it with a query derived separately from the node and its neighbors. Residual/norm blocks support gradients, and layer-specific exact-distance k-hop neighborhoods prevent previously stored information from being repeatedly mixed back into later messages.",
+    "assumptions": [
+      "NAR accuracy is an informative operational proxy for node storage-and-retrieval capacity.",
+      "Two-layer NAR removes enough depth-related sensitivity and optimization effects to attribute degradation mainly to capacity.",
+      "Matrix memory and vector baselines can be compared meaningfully despite different state geometry and aggregation choices.",
+      "GPP and LRGB performance provide evidence that the synthetic capacity mechanism transfers to useful graph tasks."
+    ]
+  },
+  "techniques": [
+    {"id": "neighbor-associative-recall", "role": "Varies the number of key-value neighbors while a later query chooses which stored value the center must output."},
+    {"id": "node-matrix-associative-memory", "role": "Stores neighbor information as gated value-key outer products rather than compressing it immediately into one vector."},
+    {"id": "selective-sensitivity-audit", "role": "Compares Jacobians for queried and background neighbors and a restricted mixed Hessian, rather than relying only on total sensitivity."},
+    {"id": "exact-distance-k-hop-aggregation", "role": "Feeds each layer nodes at exactly that graph distance, separating write and recall phases and shortening long-range paths."},
+    {"id": "component-and-budget-ablations", "role": "Removes gates, positional encodings, or k-hop aggregation with both fixed architecture and fixed parameter-budget comparisons."}
+  ],
+  "evaluations": [
+    {"setting": "Two-layer Neighbor Associative Recall over increasing neighborhood size", "metric": "Test accuracy", "result": "gLSTM stays perfect until neighbor count reaches memory dimension and then saturates gradually", "baseline": "Largest GCN begins capacity degradation at N=8"},
+    {"setting": "Graph Property Prediction, four initializations", "metric": "Mean log10 MSE", "result": "gLSTM: Diameter -0.715, Eccentricity -4.036, SSSP -2.836", "baseline": "Best listed non-gLSTM values: A-DGN -0.546/0.305/-3.402"},
+    {"setting": "LRGB under 500k parameters, four initializations", "metric": "Peptides-Func AP / Peptides-Struct MAE", "result": "0.7250 / 0.2527", "baseline": "GatedGCN 0.6765 / 0.2477; kGCN-SSM 0.6902 / 0.2581"},
+    {"setting": "Architecture ablations", "metric": "GPP error and LRGB AP/MAE", "result": "Removing k-hop sharply hurts two GPP tasks and both peptide tasks; removing gates is usually modest or mixed", "baseline": "Full gLSTM and parameter-matched no-gate variants"}
+  ],
+  "limitations": [
+    "NAR is deliberately synthetic and its key-value recall structure favors an associative-memory architecture.",
+    "The headline NAR comparison couples gLSTM with k-hop aggregation and GCN with standard aggregation; appendices separate them, but the main curve is not a one-factor architectural intervention.",
+    "Capacity lacks the paper's requested mathematical definition or bound, so attribution relies on benchmark construction and diagnostic correlations.",
+    "Real-world evidence covers a small benchmark set, and the method is weaker on Peptides-Struct and slightly weaker than A-DGN on SSSP.",
+    "Matrix states and xLSTM operations lose the sequence model's efficient parallel training; compute and memory scaling are not established for large graphs.",
+    "Four-seed means support benchmark comparisons but do not establish that NAR saturation thresholds or ablation ordering are universal."
+  ],
+  "failure_modes": [
+    "A model can have a large total input Jacobian yet lose the ability to distinguish the queried neighbor from background neighbors.",
+    "K-hop neighborhoods may improve recall by hard-coding the benchmark's write/read separation rather than by enlarging intrinsic memory capacity alone.",
+    "Outer-product memory degrades once keys exceed matrix dimension and can suffer interference when learned keys are non-orthogonal.",
+    "Tasks driven mainly by local geometry may pay the method's complexity cost without benefiting from long-range memory."
+  ],
+  "reusable_insights": [
+    "Define representation bottlenecks through separable behavioral failure modes before choosing a proxy metric.",
+    "Test memory with a delayed-query design: force storage before revealing which item matters.",
+    "Measure selective sensitivity or interaction-conditioned derivatives when total gradient magnitude can conceal indiscriminate mixing.",
+    "Include aggregation policy as an explicit factor in architectural capacity studies, since routing can dominate memory-cell ablations."
+  ],
+  "open_questions": [
+    "Can graph storage capacity be bounded in terms of state dimension, key geometry, topology, and retrieval error?",
+    "Does matrix memory still outperform strong attention, graph-transformer, state-space, and rewiring baselines under matched FLOPs and memory?",
+    "How does NAR performance change with distractor distributions, repeated keys, noisy queries, and distribution shift beyond trained neighbor counts?",
+    "Can a parallel or low-rank gLSTM retain selective recall while scaling to million-node graphs?",
+    "Which real tasks are demonstrably capacity-limited rather than sensitivity-, optimization-, or topology-limited?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "openreview:i80OPhOCVH2",
+      "title": "On the Bottleneck of Graph Neural Networks and its Practical Implications",
+      "url": "https://openreview.net/forum?id=i80OPhOCVH2",
+      "relationship": "Foundationally defines over-squashing as exponentially growing information compressed through fixed-width node states and proposes fully adjacent layers.",
+      "difference": "Its Tree-NeighborsMatch study mixes depth, sensitivity, and capacity; gLSTM constructs a two-layer delayed-query task and changes node storage rather than only connectivity."
+    },
+    {
+      "canonical_id": "arxiv:2111.14522",
+      "title": "Understanding over-squashing and bottlenecks on graphs via curvature",
+      "url": "https://arxiv.org/abs/2111.14522",
+      "relationship": "Formalizes topology-dependent sensitivity with node Jacobians and mitigates it through curvature-based rewiring.",
+      "difference": "It targets sensitivity loss along graph bottlenecks; gLSTM argues storage saturation can occur even when aggregate Jacobian norms remain high."
+    },
+    {
+      "canonical_id": "arxiv:2502.10818",
+      "title": "On Vanishing Gradients, Over-Smoothing, and Over-Squashing in GNNs: Bridging Recurrent and Graph Learning",
+      "url": "https://arxiv.org/abs/2502.10818",
+      "relationship": "Uses recurrent/state-space analysis to connect deep-GNN sensitivity, over-smoothing, over-squashing, and gradient flow.",
+      "difference": "It improves deep propagation through gradient control and rewiring, whereas gLSTM isolates shallow storage capacity and imports associative matrix memory."
+    },
+    {
+      "canonical_id": "arxiv:2505.15547",
+      "title": "Oversmoothing, 'Oversquashing', Heterophily, Long-Range, and more: Demystifying Common Beliefs in Graph Machine Learning",
+      "url": "https://arxiv.org/abs/2505.15547",
+      "relationship": "A contemporaneous position paper separating commonly conflated graph-learning pathologies with counterexamples.",
+      "difference": "It supplies a conceptual taxonomy and critique; gLSTM operationalizes one split with a benchmark, an architecture, and empirical selective-sensitivity diagnostics."
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims the first synthetic task to measure capacity over-squashing in isolation and the first graph architecture to increase capacity directly with associative memory.",
+    "evidence": "The full text contrasts NAR with RingTransfer and Tree-NeighborsMatch, and contrasts gLSTM with rewiring and information-flow controls in Sections 3-4.",
+    "reviewer_inference": "The clearest novelty is the delayed-query shallow graph benchmark plus a selective-sensitivity diagnosis. The broader capacity framing descends directly from the original over-squashing account, and the architectural novelty is a graph adaptation of established fast-weight/xLSTM memory combined with k-hop routing."
+  },
+  "confidence": 0.91,
+  "reviewer_notes": "Read all 23 extracted pages, including NAR regression, sensitivity diagnostics, benchmark ablations, and reproducibility appendix. Competitors were checked against primary arXiv/OpenReview records on 2026-08-23; this remains a first-pass reading rather than independent verification."
+}

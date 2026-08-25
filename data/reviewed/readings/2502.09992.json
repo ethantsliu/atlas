@@ -1,0 +1,119 @@
+{
+  "stable_id": "arxiv:2502.09992",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2502.09992",
+    "pdf_sha256": "18942f14544d696bef711acd43c84017e51b8428b15edc74130761218e66f73b",
+    "text_sha256": "cb0fc7d887531789ff5e3a0d659105de7da6c0a485cb63e14781b48d9ec79f7a",
+    "page_count": 33,
+    "extracted_at": "2026-08-23T17:19:38.899144+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a masked discrete-diffusion model trained from scratch at LLM scale exhibit scaling, in-context learning, instruction following, and reasoning competitive with autoregressive language models?",
+  "key_findings": [
+    {
+      "claim": "LLaDA defines language generation as iterative reversal of independent token masking and trains one bidirectional Transformer to predict every masked token under a likelihood-bound objective.",
+      "evidence": "The forward process masks each token with probability t; Equation 3 weights cross-entropy on masked tokens by 1/t. At generation, the response begins fully masked and multiple tokens can be filled or remasked at each reverse step, while SFT masks only response tokens.",
+      "anchors": [{"page": 3, "section": "2.1 Probabilistic Formulation"}, {"page": 4, "section": "2.2 Pre-training"}, {"page": 5, "section": "2.3 SFT and 2.4 Inference"}]
+    },
+    {
+      "claim": "Controlled 1B-scale comparisons show downstream performance improving with compute similarly to autoregressive baselines, but the largest 8B comparison is not fully controlled.",
+      "evidence": "At 1B the architectures and data are matched, and six-task curves improve through roughly 10^23 FLOPs. At larger scales the paper uses slightly different sizes because of resource limits and declines to fit curves due to outliers, so 'strong scalability' is supported qualitatively rather than by a reported exponent.",
+      "anchors": [{"page": 6, "section": "3.1 Scalability of LLaDA"}, {"page": 10, "section": "Limitations"}]
+    },
+    {
+      "claim": "The 8B base model is competitive on several standard tasks and especially strong on bidirectional or reversal evaluations, while remaining weaker than autoregressive peers on other tasks.",
+      "evidence": "Table 1 reports LLaDA 8B at 65.9 MMLU versus 65.4 for LLaMA3 8B, but 45.9 versus 53.1 on ARC-C and 73.6 versus 80.6 on PIQA. On 496 Chinese poem pairs, pure diffusion has balanced forward/reverse completion and exceeds GPT-4o on the reverse direction; the task is narrow and may reflect bidirectional training fit.",
+      "anchors": [{"page": 7, "section": "Tables 1 and 2"}, {"page": 8, "section": "3.3 Reversal Reasoning"}, {"page": 9, "section": "Table 4 and sampling ablation"}]
+    },
+    {
+      "claim": "Diffusion sampling offers a tunable quality-throughput tradeoff but lacks the autoregressive KV-cache advantage and is not uniformly faster.",
+      "evidence": "On one A100, selected step counts give comparable GSM8K and Math performance at 1.5x and 1.8x LLaMA3 throughput; HumanEval is comparable at matched throughput and MBPP lags. Memory is comparable without KV cache and slightly higher than LLaMA3 with it.",
+      "anchors": [{"page": 27, "section": "B.7 Analysis of Sampling Efficiency and Table 11"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Scale a bidirectional masked discrete-diffusion language model using ordinary pretraining and supervised fine-tuning recipes rather than autoregressive factorization.",
+    "mechanism": "Random masking rates train a full-attention Transformer to reconstruct masked tokens with a likelihood-bound loss. Generation reverses the masking process with configurable steps and confidence-based remasking; conditional likelihood is estimated by Monte Carlo when needed. The 8B model is trained on 2.3 trillion tokens and fine-tuned on 4.5 million instruction pairs.",
+    "assumptions": [
+      "The masked-diffusion likelihood bound is a useful optimization target at LLM scale.",
+      "Downstream task scores are meaningful despite incompletely matched large-model data and architecture.",
+      "Confidence-based remasking improves samples without introducing benchmark-specific bias.",
+      "A fixed initial response length and repeated full-sequence passes are acceptable deployment costs."
+    ]
+  },
+  "techniques": [
+    {"id": "masked-discrete-diffusion", "role": "Defines a forward token-masking process and learned reverse reconstruction."},
+    {"id": "bidirectional-denoising-transformer", "role": "Conditions each masked-token prediction on visible context on both sides."},
+    {"id": "confidence-remasking", "role": "Trades sampling steps for quality by revisiting low-confidence token predictions."}
+  ],
+  "evaluations": [
+    {"setting": "Controlled compute scaling at 1B and partially controlled larger models", "metric": "six downstream benchmark scores over training FLOPs", "result": "LLaDA broadly tracks autoregressive improvement and narrows gaps on some tasks, but no scaling curve is fitted.", "baseline": "Autoregressive Transformers trained on the same data at 1B and related-data baselines at larger scale."},
+    {"setting": "8B base-model benchmark suite", "metric": "MMLU, ARC-C, PIQA, math, code, and related scores", "result": "LLaDA matches LLaMA3 8B on MMLU (65.9 versus 65.4) but trails it on ARC-C (45.9 versus 53.1) and PIQA (73.6 versus 80.6), with task-dependent wins and losses.", "baseline": "LLaMA2 7B, LLaMA3 8B, Qwen, Mistral, and DeepSeek models."},
+    {"setting": "Chinese poem reversal and iGSM", "metric": "exact completion or accuracy", "result": "LLaDA is more symmetric than autoregressive models on 496 forward/reverse poem pairs and scores 64/41/44 on four/five/six-step iGSM versus LLaMA3's 38/35/34.", "baseline": "GPT-4o, Qwen2.5, and LLaMA3 8B."}
+  ],
+  "limitations": [
+    "Author-stated: response length is a user-specified hyperparameter and sampling algorithms remain preliminary.",
+    "Author-stated: the largest LLaDA and autoregressive baselines could not be trained at fully matched scale.",
+    "Author-stated: there is no KV-cache-like optimization or reinforcement-learning alignment.",
+    "Reviewer inference: a narrow reversal benchmark cannot establish a general reasoning advantage, and proprietary data differences confound many model comparisons."
+  ],
+  "failure_modes": [
+    "Repeated full-sequence denoising loses its parallel advantage for long outputs or many sampling steps.",
+    "Low-confidence remasking commits early to a globally inconsistent set of high-confidence tokens.",
+    "A fixed generation canvas truncates answers or wastes computation on padding.",
+    "Monte Carlo likelihood estimates add substantial evaluation cost and variance for long candidates."
+  ],
+  "reusable_insights": [
+    "Bidirectional generation changes which conditional directions are learned and can target reversal-style failures of causal models.",
+    "Non-autoregressive models should report matched-data scaling and quality-throughput frontiers, not a single decoding speed.",
+    "Sampling schedule, remasking policy, and response-length control are first-class language-model design choices."
+  ],
+  "open_questions": [
+    "Can diffusion language models retain quality with logarithmic or adaptive numbers of denoising steps on long outputs?",
+    "What is the compute-optimal scaling law under exactly matched data, architecture, and total training FLOPs?",
+    "How should preference or reinforcement-learning alignment operate over iterative denoising trajectories?",
+    "Do bidirectional advantages persist on contamination-resistant causal and compositional reversal tasks?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2205.14217",
+      "title": "Diffusion-LM Improves Controllable Text Generation",
+      "url": "https://arxiv.org/abs/2205.14217",
+      "relationship": "continuous-diffusion-prior",
+      "difference": "Diffusion-LM denoises continuous word embeddings and emphasizes controllable generation at much smaller scale. LLaDA uses a discrete mask process, a likelihood-bound objective, and billion-parameter from-scratch language pretraining.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2310.16834",
+      "title": "Score Entropy Discrete Diffusion",
+      "url": "https://arxiv.org/abs/2310.16834",
+      "relationship": "discrete-diffusion-prior",
+      "difference": "SEDD develops a score-matching formulation for general discrete corruption processes and strong perplexity at smaller language-model scales. LLaDA chooses simple masking and focuses on LLM-scale capabilities, SFT, and downstream comparisons.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2406.07524",
+      "title": "Simple and Effective Masked Diffusion Language Models",
+      "url": "https://arxiv.org/abs/2406.07524",
+      "relationship": "direct-method-prior",
+      "difference": "MDLM derives a simplified masked-diffusion objective and demonstrates competitive likelihood with far smaller models. LLaDA scales this family to 8B, adds supervised instruction tuning, and evaluates emergent LLM capabilities and throughput.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2606.25331",
+      "title": "Improved Large Language Diffusion Models",
+      "url": "https://arxiv.org/abs/2606.25331",
+      "relationship": "subsequent-scaling-competitor",
+      "difference": "iLLaDA keeps the same from-scratch bidirectional diffusion direction but scales to 12 trillion pretraining tokens and a much larger instruction corpus, reporting broad benchmark gains. It directly tests how much of LLaDA's gap was data and post-training rather than factorization.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": "Reviewer inference after comparison: masked diffusion itself predates LLaDA; the paper's distinctive achievement is an 8B, 2.3T-token from-scratch demonstration with ordinary LLM pretraining and SFT, plus matched smaller-scale evidence that core capabilities need not require causal factorization. Benchmark and efficiency superiority remain task- and protocol-dependent.",
+  "confidence": 0.95,
+  "reviewer_notes": "Full-text pass included objective derivation, data and compute details, scaling plots, benchmark tables, reversal and iGSM controls, sampling/memory analysis, related work, and limitations. Competitor primary records, including the 2026 iLLaDA follow-up, were checked on 2026-08-23."
+}

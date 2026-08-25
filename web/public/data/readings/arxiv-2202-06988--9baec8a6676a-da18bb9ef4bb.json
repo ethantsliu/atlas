@@ -1,0 +1,137 @@
+{
+  "stable_id": "arxiv:2202.06988",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2202.06988",
+    "pdf_sha256": "2238e1c5a9790c14794c256ef88c940d223eca65acbfda85f8f49337bd4542d5",
+    "text_sha256": "067c370b956a7e02028b5a8577e69af9ed66d4694e380f9370424f6d7f775474",
+    "page_count": 40,
+    "extracted_at": "2026-08-23T21:22:41.846795+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "How should a neural turbulence closure be trained inside a differentiable coarse solver so that it remains stable and accurate over long rollouts rather than matching one-step DNS targets only?",
+  "key_findings": [
+    {
+      "claim": "The closure is optimized a posteriori through an unrolled PISO fluid solver, so its forcing is judged by the future coarse trajectory it actually induces.",
+      "evidence": "A convolutional network predicts a subgrid forcing field at each solver step. Automatic differentiation propagates velocity-, vorticity-, strain-, spectral-, or turbulence-statistic losses backward through multiple finite-volume/PISO steps, exposing numerical-solver interactions absent from supervised stress fitting.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 5, "section": "Figure 1 differentiable solver coupling"}, {"page": 6, "section": "Neural forcing and PISO step"}, {"page": 8, "section": "Physics-based losses"}]
+    },
+    {
+      "claim": "Longer optimization horizons substantially improve rollout stability and long-time statistics up to a problem-dependent saturation point.",
+      "evidence": "On decaying turbulence, temporal mixing layers, and a statistically steady spatial mixing layer, 10–60-step models outperform one-step/supervised closures in later-time MSE, spectra, momentum thickness, and Reynolds stresses. Very long horizons yield diminishing benefit and diffuse gradients.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 9, "section": "Isotropic turbulence / Table 1"}, {"page": 14, "section": "Temporal mixing layer / Tables 2-3"}, {"page": 20, "section": "Horizon comparison"}, {"page": 27, "section": "Cross-case horizon conclusion"}]
+    },
+    {
+      "claim": "Loss choice controls which physical statistics are recovered; matching the resolved field alone does not guarantee the right energy transfer.",
+      "evidence": "The paper compares direct L2 with turbulence, strain-rate, spectral, and combined losses. Energy spectra and network work analyses show some low-MSE models inject/dissipate energy incorrectly, while physics-informed terms improve selected statistics and long-time behavior.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 11, "section": "Energy spectra"}, {"page": 12, "section": "Network work and SGS energy"}, {"page": 40, "section": "Loss-function comparison table"}]
+    },
+    {
+      "claim": "Stable extrapolation beyond the training horizon is demonstrated in three two-dimensional regular-grid flows, but scaling to three-dimensional industrial CFD is unresolved.",
+      "evidence": "Reported learned simulations remain stable for far more steps than were differentiated and can be up to roughly fourteen times faster than comparably accurate fine-grid solvers. Memory grows with unroll length; all main cases use 2D Cartesian grids, a compact CNN, and expensive DNS-derived targets.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 4, "section": "Contribution and speed claim"}, {"page": 28, "section": "Conclusion and limitations"}, {"page": 34, "section": "Backpropagation through unrolled solver"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Train a neural subgrid closure on the coarse solver's own multi-step dynamics and physical statistics, not an offline pointwise surrogate target.",
+    "mechanism": "Downsampled DNS states initialize a finite-volume PISO solver. At each step a CNN supplies closure forcing; the solver advances while preserving numerical constraints. Several future steps are unrolled, trajectory/statistic losses are accumulated, and adjoint/autodiff gradients update the CNN. Horizon and truncated-gradient variants control cost.",
+    "assumptions": [
+      "The differentiable PISO implementation faithfully represents deployment numerics.",
+      "DNS trajectories and downsampling define a physically appropriate target coarse dynamics.",
+      "Two-dimensional test flows capture key stability mechanisms of turbulent closure learning.",
+      "The selected finite horizon is long enough to expose instability but short enough for useful gradients and memory."
+    ]
+  },
+  "techniques": [
+    {"id": "differentiable-piso-solver", "role": "Carries closure effects through pressure correction and future states."},
+    {"id": "cnn-subgrid-forcing", "role": "Parameterizes unresolved turbulence influence on the coarse velocity field."},
+    {"id": "multi-step-unrolled-optimization", "role": "Optimizes a posteriori trajectory behavior and mitigates deployment distribution shift."},
+    {"id": "physics-statistic-losses", "role": "Targets strain, energy spectra, turbulent kinetic energy, and flow thickness beyond pointwise MSE."},
+    {"id": "truncated-backprop-horizon", "role": "Trades gradient relevance against memory and vanishing/diffuse long-horizon signal."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Two-dimensional isotropic decaying turbulence.",
+      "metric": "Velocity MSE, resolved kinetic-energy spectra, stability, and closure work at early/late times.",
+      "result": "Multi-step differentiable models track DNS spectra and remain stable much longer than one-step supervised/no-model baselines; a 30-step setting is especially strong in reported comparisons.",
+      "baseline": "No closure, classical LES, supervised one-step CNN, and shorter-horizon differentiable models."
+    },
+    {
+      "setting": "Temporal mixing layer with varying horizon and turbulence losses.",
+      "metric": "Late-time field MSE, vorticity, energy spectra, and momentum thickness.",
+      "result": "Ten- and thirty-step physics-aware models greatly reduce late error; longer horizons improve far rollout until returns saturate.",
+      "baseline": "No-model solver, one-step/supervised training, and alternate horizon/loss combinations."
+    },
+    {
+      "setting": "Statistically steady spatial mixing layer and gradient truncation studies.",
+      "metric": "Long-run stability, downstream vorticity thickness, Reynolds statistics, and training cost.",
+      "result": "Long-horizon closures remain stable and reproduce key statistics; truncated gradients retain much benefit at lower memory than full very-long unrolling.",
+      "baseline": "No closure and shorter/full versus truncated horizon variants."
+    }
+  ],
+  "limitations": [
+    "Main demonstrations are two-dimensional on regular Cartesian meshes, not three-dimensional wall-bounded industrial turbulence.",
+    "Differentiating long solver trajectories is memory- and compute-intensive and requires an editable differentiable solver.",
+    "Training targets depend on expensive DNS and a particular filter/downsampling/discretization.",
+    "Generalization to new Reynolds numbers, geometries, grids, and numerical schemes is limited.",
+    "A learned stable rollout has no formal conservation or stability guarantee."
+  ],
+  "failure_modes": [
+    "One-step supervised closures can be accurate off-solver yet destabilize the coupled rollout.",
+    "Long unrolls can produce vanishing, exploding, or temporally diffuse gradients.",
+    "A pointwise loss can reward visually close fields while learning the wrong energy transfer.",
+    "Changing discretization changes the implicit filter and can invalidate the learned forcing."
+  ],
+  "reusable_insights": [
+    "Validate learned dynamics a posteriori inside the deployment solver and far beyond the training horizon.",
+    "Optimization horizon is a core modeling hyperparameter, not just a memory setting.",
+    "Use physical-statistic losses and energy-budget audits alongside field MSE.",
+    "Truncated long-horizon gradients can capture solver interaction without storing the full rollout."
+  ],
+  "open_questions": [
+    "Can adjoint/checkpointing or surrogate sensitivities make solver-aware training practical in 3D?",
+    "How can closures generalize across discretizations, meshes, Reynolds numbers, and geometries?",
+    "What stability and conservation constraints can be imposed without blocking needed backscatter?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2307.03683",
+      "title": "Differentiable Turbulence: Closure as a partial differential equation constrained optimization",
+      "url": "https://arxiv.org/abs/2307.03683",
+      "relationship": "Formulates turbulence-closure learning explicitly as PDE-constrained optimization through differentiable simulation.",
+      "difference": "It develops a broader optimization formulation; this paper provides detailed horizon/loss studies in a differentiable PISO solver across three 2D flows.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2104.04821",
+      "title": "End-to-end differentiable learning of turbulence models from indirect observations",
+      "url": "https://arxiv.org/abs/2104.04821",
+      "relationship": "Learns turbulence models through differentiable RANS/flow solvers using indirect observable losses.",
+      "difference": "It emphasizes inference from indirect observations in a RANS setting; this work emphasizes LES-like subgrid forcing, physical losses, and multi-step horizon stability.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2604.23874",
+      "title": "Deep Learning of Solver-Aware Turbulence Closures from Nudged LES Dynamics",
+      "url": "https://arxiv.org/abs/2604.23874",
+      "relationship": "Targets solver-aware stable closures and discretization generalization using nudged LES trajectories.",
+      "difference": "It avoids differentiating/modifying the LES solver and conditions on numerical scheme, directly addressing the cost and solver-specificity of unrolled differentiable training.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Embedding the closure in a differentiable PISO solver and optimizing multi-step physics-based losses produces stable, accurate learned turbulence models with a controllable optimal horizon.",
+    "evidence": "Three flows, extensive horizon/loss ablations, long extrapolative rollouts, physical spectra/statistics, and supervised comparisons support the claim in 2D.",
+    "reviewer_inference": "The horizon study and physical diagnostics are unusually thorough; differentiable-solver cost and discretization specificity remain decisive barriers to broad CFD use."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Read all 40 cached pages, including solver, gradient, architecture, and loss appendices. Direct differentiable and current solver-aware closure competitors were checked at primary arXiv pages on 2026-08-23."
+}

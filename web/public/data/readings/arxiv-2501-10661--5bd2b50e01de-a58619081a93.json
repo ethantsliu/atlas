@@ -1,0 +1,168 @@
+{
+  "stable_id": "arxiv:2501.10661",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2501.10661",
+    "pdf_sha256": "8bed4db9e661b5a6d9038747771fd305391f878aa54709c728a918b7facf21f2",
+    "text_sha256": "2c30e0de17308285d6e65433a481ae8e83b3d5e62ce347398bbb18d5e5317f02",
+    "page_count": 41,
+    "extracted_at": "2026-08-23T17:29:06.265383+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Do foundation-model parameter matrices and fine-tuning deltas behave like i.i.d. Gaussian noise, and can that hypothesis yield useful low-parameter adaptation and outlier-aware model merging methods?",
+  "key_findings": [
+    {
+      "claim": "Most inspected parameter histograms are roughly zero-centered and symmetric after removing values outside three standard deviations, but the analysis does not establish Gaussianity or independence.",
+      "evidence": "Across nine language, vision, and multimodal checkpoints, reported retained fractions are 99.18%-99.73%, skewness rounds to 0.00, and kurtosis ranges from 2.83 to 3.33 on the truncated values. The paper does not report Q-Q plots, distributional distances, autocorrelation/covariance tests, or comparisons to symmetric non-Gaussian alternatives; filtering the very tails also removes the region most diagnostic of Gaussianity.",
+      "anchors": [
+        {"page": 3, "section": "2.1 Observation"},
+        {"page": 4, "section": "2.2 Validation, Table 1"},
+        {"page": 36, "section": "Appendix C.2 Evaluation Metrics"}
+      ]
+    },
+    {
+      "claim": "The paper's inference from pooled Gaussian-looking histograms to i.i.d. coordinates is not justified, and its M-estimator argument conflates sampling variation across fitted models with the within-matrix distribution of coordinates.",
+      "evidence": "Equation 1 assumes coordinate independence from citations and then asserts that a pooled Gaussian histogram forces identical marginals, which does not follow. Equations 4-5 invoke asymptotic normality of an estimator around W*, but a general M-estimator has structured sandwich covariance over repeated datasets—not necessarily sigma-squared times identity—and this theorem does not say entries of one trained matrix are i.i.d. Gaussian.",
+      "anchors": [
+        {"page": 4, "section": "3.1 i.i.d Properties of Weights, Equations 1-2"},
+        {"page": 5, "section": "3.3 Revisiting the Transformation Weight Distribution, Equations 4-5"}
+      ]
+    },
+    {
+      "claim": "A frozen random Gaussian perturbation with one learned scalar per matrix is a surprisingly effective adaptation direction, but it remains far below full fine-tuning and does not show that task-specific deltas are noise.",
+      "evidence": "On GLUE with DeBERTaV3-base, 72 learned scalars applied to fixed Gaussian matrices average 78.62 versus 71.69 for head-only, 73.87 for SVDiff, and 88.24 for full fine-tuning. Five random runs are averaged. A useful random high-dimensional direction plus learned layer scales is compatible with overparameterization and does not imply equivalence between learned transformations and i.i.d. noise.",
+      "anchors": [
+        {"page": 5, "section": "3.2 Validation"},
+        {"page": 6, "section": "Table 2"}
+      ]
+    },
+    {
+      "claim": "Adding a learned global weight-scaling/Gaussian component to LoRA improves the reported commonsense benchmark averages, although the study does not compare against equally tuned modern PEFT alternatives or provide uncertainty.",
+      "evidence": "For ranks 16 and 32 on LLaMA-7B, LLaMA2-7B, and LLaMA3-8B, the augmentation improves the eight-task average by 0.9 to 7.8 points at the same listed trainable-parameter percentage. The construction W'=(s+1)W+AB is effectively a learned scale on each pretrained weight matrix plus LoRA when W initializes the perturbation.",
+      "anchors": [
+        {"page": 7, "section": "5.1 Parameter Efficient Fine-tuning, Equation 6 and Table 3"}
+      ]
+    },
+    {
+      "claim": "Outlier-preserving averaging beats naive averaging for one two-expert multimodal merge, but the evidence is too narrow to establish a general model-merging advantage.",
+      "evidence": "Merging instruction-tuned LLaVA-1.6-13B and Math-LLaVA, preserving task-delta entries beyond 2 sigma and averaging the rest raises the seven-benchmark average from 42.5 to 44.5. No TIES, task-arithmetic, low-rank, sign-conflict, or learned-merging baseline is evaluated, and only one pair of closely related experts is tested.",
+      "anchors": [
+        {"page": 8, "section": "5.2 Model Merging, Table 4"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Characterize elementwise histograms of pretrained and fine-tuning weight matrices, hypothesize an optimal sparse signal hidden by additive Gaussian training noise, and turn the hypothesis into learned per-matrix perturbation scales and magnitude-thresholded merging.",
+    "mechanism": "The analysis truncates each matrix to mean plus or minus three standard deviations and summarizes skewness/kurtosis. Adaptation freezes a sampled Gaussian matrix or the pretrained matrix and learns scalar amplitudes, optionally alongside LoRA. Merging classifies task-vector entries beyond a multiple of the minimum per-group standard deviation as outliers, preserves them, and averages the remaining entries.",
+    "assumptions": [
+      "Element histograms pooled within a matrix are informative about joint coordinate structure.",
+      "Asymptotic M-estimator normality applies to deep-network weights with an isotropic covariance and can be interpreted coordinatewise within a single model.",
+      "Magnitude relative to a matrix-wide standard deviation reliably separates task signal from Gaussian noise.",
+      "The optimal parameter vector is sparse, symmetric, zero-mean, truncated-Gaussian, and contains a few outliers.",
+      "Benchmark gains from scalar random perturbations validate the proposed distributional mechanism rather than a more generic weight-rescaling or random-subspace effect."
+    ]
+  },
+  "techniques": [
+    {"id": "truncated-weight-moment-audit", "role": "Summarizes central weight histograms using retained ratio, skewness, and kurtosis after 3-sigma filtering."},
+    {"id": "scalar-gaussian-delta-tuning", "role": "Adapts each frozen weight matrix along a fixed random Gaussian direction using one learned scalar."},
+    {"id": "pretrained-weight-rescaling-lora", "role": "Adds per-matrix scaling of the base weights to the usual low-rank update."},
+    {"id": "sigma-thresholded-outlier-merge", "role": "Keeps large task-vector entries separate while averaging presumed Gaussian central entries."},
+    {"id": "synthetic-signal-plus-noise-histograms", "role": "Illustrates how a hypothesized sparse truncated-Gaussian signal could be obscured by increasing Gaussian perturbations."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Layer/module parameter histograms from nine NLP, vision, and multimodal foundation checkpoints plus LoRA-Dash/DoRA transformation weights.",
+      "metric": "Three-sigma retained fraction, skewness, kurtosis, and visual histogram shape.",
+      "result": "Central histograms are near symmetric and mesokurtic on average, with some sharp, inverted-T, or near-linear exceptions.",
+      "baseline": "Theoretical skewness 0 and non-Fisher kurtosis 3 of a Gaussian."
+    },
+    {
+      "setting": "DeBERTaV3-base GLUE adaptation using 72 learned scalar amplitudes over fixed Gaussian delta matrices, averaged over five runs.",
+      "metric": "Mean of eight development-set task metrics and trainable parameter count.",
+      "result": "78.62 average with 72 scalars, above head-only 71.69 and SVDiff 73.87, but below full fine-tuning 88.24.",
+      "baseline": "Head-only tuning, full fine-tuning, and SVDiff."
+    },
+    {
+      "setting": "Rank-16/32 LoRA on LLaMA-7B, LLaMA2-7B, and LLaMA3-8B over eight commonsense tasks, with or without pretrained-weight scaling.",
+      "metric": "Average task accuracy.",
+      "result": "The proposed augmentation improves all six listed configurations by 0.9-7.8 points.",
+      "baseline": "Matched-rank standalone LoRA."
+    },
+    {
+      "setting": "Merge of one instruction and one math LLaVA-13B expert over seven vision-language benchmarks.",
+      "metric": "Unweighted mean benchmark score.",
+      "result": "Sigma-2 outlier preservation reaches 44.5 versus naive averaging's 42.5.",
+      "baseline": "Plain weight averaging; no strong contemporary merging baselines."
+    }
+  ],
+  "limitations": [
+    "Gaussianity is assessed after tail truncation using only two low-order moments; this cannot distinguish many symmetric distributions and biases the tail conclusion.",
+    "No empirical independence test is performed, and pooled element histograms cannot reveal correlations, low-rank structure, row/column heterogeneity, or spectral organization.",
+    "The asymptotic-normality argument is applied with an unjustified isotropic covariance and to the wrong sampling object.",
+    "The hypothesized optimal sparse truncated-Gaussian W* is illustrated synthetically rather than identified from trained models.",
+    "PEFT comparisons omit modern random-subspace, scaling, and Gaussian-noise alternatives, and uncertainty/significance reporting is limited.",
+    "Model merging is evaluated on only two related experts with naive averaging as the sole baseline.",
+    "Elementwise distribution is not invariant to reparameterization, channel permutations, normalization folding, or matrix rescaling, limiting claims of intrinsic weight mechanisms."
+  ],
+  "failure_modes": [
+    "A non-Gaussian symmetric central distribution passes skewness/kurtosis checks after its informative tails are removed.",
+    "Strong row, column, or spectral correlations coexist with a Gaussian-looking marginal histogram, invalidating an i.i.d. interpretation.",
+    "Large-magnitude entries reflect scale conventions or normalization rather than semantic task outliers.",
+    "Random perturbation gains disappear under stronger weight-scaling, intrinsic-dimension, or PEFT baselines.",
+    "Outlier-preserving merge accumulates conflicting large entries as the number or diversity of experts grows."
+  ],
+  "reusable_insights": [
+    "Weight-distribution studies should combine marginals with correlation, spectral, reparameterization, and functional perturbation tests.",
+    "A learned scalar per matrix is a useful ultra-low-parameter baseline for PEFT because it tests whether simple layerwise rescaling explains purported structure.",
+    "Claims about Gaussianity should be tested on held-out tails and against matched-moment alternatives, not inferred from skewness and kurtosis alone.",
+    "Outlier-aware merging needs sign-conflict and multi-expert stress tests before magnitude can be treated as importance.",
+    "Exact distinctions among randomness over training runs, posterior uncertainty, and within-tensor coordinate distributions are essential in statistical arguments about weights."
+  ],
+  "open_questions": [
+    "How much of the reported PEFT gain is reproduced by deterministic per-matrix scaling, random orthogonal directions, or intrinsic-subspace tuning?",
+    "Do weight entries remain approximately Gaussian under rigorous goodness-of-fit tests without truncation and after conditioning on row, column, head, and layer roles?",
+    "Which functionally invariant statistics—spectra, activation covariances, or Fisher geometry—best predict adaptation and merge success?",
+    "Can outlier thresholds be learned or calibrated using conflict and curvature rather than a global standard deviation?",
+    "Does the proposed merging rule remain competitive for many experts, heterogeneous architectures, and non-local merges?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "openreview:xkjqJYqRJy",
+      "title": "Bayesian Neural Network Priors Revisited",
+      "url": "https://openreview.net/forum?id=xkjqJYqRJy",
+      "relationship": "Direct empirical counterpoint studying summary statistics of weights learned by SGD to design realistic priors.",
+      "difference": "Fortuin et al. report strong spatial correlations in convolutional weights and heavy-tailed fully connected weights, explicitly rejecting a simple independent isotropic Gaussian description; the target relies mainly on pooled central histograms."
+    },
+    {
+      "canonical_id": "pmlr:v97-mahoney19a",
+      "title": "Traditional and Heavy Tailed Self Regularization in Neural Network Models",
+      "url": "https://proceedings.mlr.press/v97/mahoney19a.html",
+      "relationship": "Established weight-matrix analysis that uses empirical spectral densities to expose trained correlations and heavy-tailed structure invisible to entry histograms.",
+      "difference": "Mahoney and Martin characterize matrix-level spectral universality and its relation to training/generalization; the target asserts coordinatewise Gaussian noise from marginal moments."
+    },
+    {
+      "canonical_id": "arxiv:2408.15300",
+      "title": "GIFT-SW: Gaussian noise Injected Fine-Tuning of Salient Weights for LLMs",
+      "url": "https://arxiv.org/abs/2408.15300",
+      "relationship": "Prior practical competitor combining Gaussian perturbations with parameter-efficient fine-tuning of salient LLM weights.",
+      "difference": "GIFT-SW selects sensitive columns and injects noise into nonsalient ones under a compute budget; the target learns scalar amplitudes for whole random matrices and ties this to a global Gaussian-weight hypothesis."
+    },
+    {
+      "canonical_id": "arxiv:2306.01708",
+      "title": "TIES-Merging: Resolving Interference When Merging Models",
+      "url": "https://arxiv.org/abs/2306.01708",
+      "relationship": "Strong direct model-merging baseline that also trims small deltas but explicitly resolves sign conflicts.",
+      "difference": "TIES validates across modalities, architectures, task counts, and sizes; the target uses a sigma magnitude split without sign election and tests one two-model merge."
+    },
+    {
+      "canonical_id": "arxiv:2105.06990",
+      "title": "BERT Busters: Outlier Dimensions that Disrupt Transformers",
+      "url": "https://arxiv.org/abs/2105.06990",
+      "relationship": "Functional study showing that a tiny set of structured high-magnitude Transformer parameters can be causally important.",
+      "difference": "Kovaleva et al. locate recurring LayerNorm dimensions and ablate them to establish causal importance; the target classifies outliers by global magnitude and infers their role from merging performance."
+    }
+  ],
+  "novelty_assessment": "Reviewer inference after checking trained-weight priors, spectral heavy-tail work, Gaussian-noise PEFT, outlier studies, and TIES merging: the paper's useful novelty is the extremely small scalar-over-random-matrix adaptation baseline and the simple sigma-thresholded LLaVA merge. Its broad claims that LFM weights are i.i.d. Gaussian noise and that optimal weights have a specific sparse truncated-Gaussian form are not supported by the reported tests and conflict with matrix-level correlation/heavy-tail evidence. The applications merit controlled follow-up independently of the proposed statistical mechanism.",
+  "confidence": 0.97,
+  "reviewer_notes": "Read all 41 extracted pages, including full per-layer histograms, synthetic W-star construction, standard-deviation analyses, algorithms, and experiment details. The review distinguishes observed central marginal shape from the paper's much stronger independence, isotropy, and optimal-weight claims. Competitor records were checked on primary OpenReview, PMLR, and arXiv pages on 2026-08-23."
+}

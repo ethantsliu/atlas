@@ -1,0 +1,470 @@
+{
+  "stable_id": "arxiv:2602.04884",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2602.04884",
+    "pdf_sha256": "b9c6799e698e45964eee1f68c7c35d263a6dc27fa040c73850c7d2203b5412ce",
+    "text_sha256": "25149e32158f74030a07583ffcb587ba6a5c81fdae1cbc1a4226a56f6183080b",
+    "page_count": 13,
+    "extracted_at": "2026-08-23T13:25:12.040195+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Does augmenting GRPO and on-policy knowledge distillation with reward- or teacher-weighted alignment of an MLLM's internal causal attention distributions improve image and long-video question answering, and do the reported results support the stronger claim that attention itself is a policy and a causal grounding mechanism?",
+  "key_findings": [
+    {
+      "claim": "RAL does not replace token-sequence policy optimization; it adds an attention-divergence regularizer to the standard token-level RL objective.",
+      "evidence": "The abstract and introduction repeatedly describe a shift from 'what to generate' to 'where to attend' and say attention is optimized rather than output token sequences. Equation (4), however, defines L_total=L_RL+lambda_attn L_AttnRL, and all experiments are implemented on top of GRPO. The controlled interpretation is therefore GRPO plus an internal attention term, not an alternative policy space trained without token policy gradients.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 1,
+          "section": "Abstract and Figure 1"
+        },
+        {
+          "page": 2,
+          "section": "1 Introduction, method framing"
+        },
+        {
+          "page": 4,
+          "section": "3.3 Combined Optimization Objective, Eq. (4)"
+        },
+        {
+          "page": 5,
+          "section": "4 Experiments, GRPO implementation statement"
+        }
+      ]
+    },
+    {
+      "claim": "The proposed latent policy is the last language-model layer's head-averaged causal attention over all prior prompt and generated positions, reinforced by signed divergence from the rollout policy.",
+      "evidence": "For each generated token t, the method averages final-layer attention across heads, renormalizes weights over positions i<t, and calls this p^t_theta. It multiplies JSD(p^t_theta || p^t_old) by a sequence-level advantage: positive-reward trajectories minimize divergence to their old pattern; negative-reward trajectories maximize divergence away from theirs. The same rollout-level advantage is broadcast to every generated token, and the final objective weights the term by lambda_attn.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "3 Reinforced Attention Learning and 3.1 policy definition"
+        },
+        {
+          "page": 4,
+          "section": "3.1-3.4, Eqs. (2)-(4) and gradient derivation"
+        },
+        {
+          "page": 5,
+          "section": "3.4 total parameter update"
+        }
+      ]
+    },
+    {
+      "claim": "The written objective has unresolved mathematical sign and terminology inconsistencies that prevent exact reproduction from the equations alone.",
+      "evidence": "Equation (1) writes the usual positive importance-ratio-times-advantage surrogate, which is maximized, whereas Equation (3) is described as minimized so positive advantages reduce divergence and negative advantages increase it. Equation (4) simply adds both terms without negating one or declaring a maximize/minimize convention; no single direction produces both stated behaviors as written. The text also calls D an 'asymmetric, bounded divergence measure, such as JSD,' but Jensen-Shannon divergence is symmetric. The displayed derivative of JSD with respect to the current distribution is otherwise compatible with fixed p_old.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "3 Reinforced Attention Learning, Eq. (1)"
+        },
+        {
+          "page": 4,
+          "section": "3.2-3.4, Eqs. (3)-(4) and JSD gradient"
+        }
+      ]
+    },
+    {
+      "claim": "Calling the attention term a policy gradient is heuristic: it is not shown to be an unbiased gradient of expected reward with respect to an attention-action distribution.",
+      "evidence": "The term directly differentiates a divergence between two deterministic internal attention maps produced along a token trajectory; it contains no sampling probability or likelihood ratio for an attention action. Broadcasting one sequence reward to all token-position weights gives dense credit but does not establish which attention edge caused the reward. For negative trajectories, maximizing bounded JSD only says 'be different' and supplies no direction toward a better information-allocation pattern. No theorem or causal intervention connects this update to reward improvement.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "3.2 Advantage-Weighted Attention Divergence"
+        },
+        {
+          "page": 5,
+          "section": "3.4 total parameter update"
+        }
+      ]
+    },
+    {
+      "claim": "On-policy attention distillation adds teacher-student JSD over attention maps on student-generated trajectories to the existing RL and output-logit distillation losses.",
+      "evidence": "For each student rollout, the teacher evaluates the same token trajectory and supplies a final-layer attention distribution. Equation (5) sums JSD(p^t_theta || p^t_phi) without an advantage, and Equation (6) combines L_RL, reverse-KL generalized knowledge distillation, and gamma_attn L_AttnDistill. The construction targets exposure bias by supervising states the student actually visits, but it assumes teacher and student attention over their shared preceding token positions is a meaningful transferable object.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "3.5 On-Policy Attention Distillation, Eqs. (5)-(7)"
+        }
+      ]
+    },
+    {
+      "claim": "The main comparison is a single Qwen-2.5-VL-7B language-backbone fine-tune on Video-R1 data with the visual encoder and projector frozen.",
+      "evidence": "All methods use Qwen-2.5-VL-7B; the distillation teacher is Qwen-2.5-VL-32B. The 165k Video-R1-CoT subset supplies about 10 hours of SFT on 8 H100s, followed by one RL epoch over the first 51.2k Video-R1-260k instances with 8 rollouts per prompt, taking about 120 hours on 8 H100s. Only the language-model backbone is updated. Rewards are 0.9 exact-answer match plus 0.1 strict-format match.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.1 Experimental Setup and 4.2 Implementation Details"
+        },
+        {
+          "page": 7,
+          "section": "Table 1 and Baselines, Eq. (8)"
+        }
+      ]
+    },
+    {
+      "claim": "RAL beats GRPO on all eight reported image benchmarks and the unfine-tuned base on all eight, with exact gains that are broad but mostly modest outside MME.",
+      "evidence": "Table 3 reports RAL versus GRPO: Vstar 73.3 vs 68.6 (+4.7), MMMU-Pro 37.8 vs 36.8 (+1.0), MME 2352.8 vs 2258.7 (+94.1), MuirBench 47.4 vs 43.9 (+3.5), ChartQA 86.4 vs 81.7 (+4.7), VizWiz 71.7 vs 67.9 (+3.8), Blink 57.2 vs 54.9 (+2.3), and CVBench 79.0 vs 78.1 (+0.9). RAL also exceeds the base vector 70.7/36.4/2309.3/44.9/84.0/71.2/56.3/77.6, although that comparison conflates shared SFT and RL with the attention term.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "Table 3 Image VQA results"
+        }
+      ]
+    },
+    {
+      "claim": "Several prose deltas in the image-results discussion do not match Table 3.",
+      "evidence": "The text claims RAL-over-GRPO gains of +5.8 on Vstar and +2.8 on ChartQA, but the displayed table gives +4.7 for each. For attention distillation it claims +3.6 on Vstar and +1.8 on MuirBench, while Table 3 gives 72.3-68.1=+4.2 and 43.4-39.9=+3.5. MME +94.1 and VizWiz +3.8 do match. The table values were used for this reading because they are internally complete and directly visible in the PDF.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "Table 3 and Image VQA narrative"
+        }
+      ]
+    },
+    {
+      "claim": "RAL improves six of seven video benchmarks over GRPO, with a clear negative result on VideoMMMU.",
+      "evidence": "Table 2 reports RAL versus GRPO: LongVideoBench 60.1 vs 57.9 (+2.2), NExTQA 74.1 vs 70.7 (+3.4), VideoMME 63.4 vs 62.0 (+1.4), VideoMMMU 48.6 vs 49.7 (-1.1), LVBench 44.2 vs 43.9 (+0.3), MVBench 65.5 vs 64.0 (+1.5), and TempCompass 70.0 vs 68.3 (+1.7). RAL exceeds the base model on all seven, but the paper correctly acknowledges GRPO's VideoMMMU lead rather than a uniform win.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "Table 2 and Video VQA narrative"
+        }
+      ]
+    },
+    {
+      "claim": "Attention distillation improves most metrics over output-only on-policy distillation, but produces two video ties and one image regression.",
+      "evidence": "On video, attention distillation versus knowledge distillation is 59.7=59.7 on LongVideoBench, 75.3 vs 70.9, 63.9 vs 61.3, 48.5 vs 47.3, 44.7 vs 43.7, 65.5=65.5 on MVBench, and 70.3 vs 69.2. On images it improves seven of eight but lowers CVBench from 78.7 to 78.4 (-0.3). These null/negative cells temper the conclusion that latent attention transfer uniformly yields stronger alignment.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "Tables 2-3, On-Policy Distillation rows"
+        },
+        {
+          "page": 9,
+          "section": "Distillation discussion"
+        }
+      ]
+    },
+    {
+      "claim": "RAL's margin persists as visual context grows and widens on the high-resolution Vstar sweep, but this ablation covers only two benchmarks and shows no uncertainty.",
+      "evidence": "Figure 3 compares 32, 64, and 128 video frames on LongVideoBench and 512, 1024, and 2048 image tokens on Vstar. RAL is above GRPO at every plotted point; the authors report the Vstar gap growing from +1.6 at 512 tokens to +6.3 at 2048. The bars have no error bars, numeric labels, repeated-seed report, or compute-matched memory/throughput measurement.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "Figure 3 and 4.5 resolution/frame ablation"
+        }
+      ]
+    },
+    {
+      "claim": "RAL-zero shows that verbose rationale generation is unnecessary for several gains, but it is not a clean isolation of the attention objective.",
+      "evidence": "Removing think blocks from both SFT and RL yields video scores 58.8/76.2/65.1/49.2/45.9/62.7/68.5: above the base and GRPO on five of seven, with the best table values on NExTQA, VideoMME, and LVBench. On images it beats the base on four of eight and GRPO on seven of eight. However, RAL-zero changes SFT targets and format reward, still includes answer-token RL, and has no matched GRPO-zero row, so it cannot attribute the delta specifically to attention policy gradients.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "Tables 2-3 RAL-zero rows"
+        },
+        {
+          "page": 9,
+          "section": "4.5 Is an Explicit Thinking Process Necessary for VQA?"
+        },
+        {
+          "page": 10,
+          "section": "RAL-zero results"
+        }
+      ]
+    },
+    {
+      "claim": "Downstream VQA gains do not by themselves establish improved visual grounding or faithful attention allocation.",
+      "evidence": "The paper reports no localization metric, attention-map visualization, counterfactual masking, causal attention intervention, perception-error taxonomy, or comparison to human/object evidence. It averages away head specialization and uses only the last language-model layer while the visual encoder/projector stay frozen. Because attention weights need not identify causal evidence, stronger answer accuracy supports the regularizer's utility but not the stronger mechanism claim that RAL isolates salient visual information.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "3.1 Aggregated causal Attention Distribution Policy"
+        },
+        {
+          "page": 6,
+          "section": "4.1 Model Configurations and 4.2 Visual Processing"
+        },
+        {
+          "page": 8,
+          "section": "4.4 Main Results"
+        },
+        {
+          "page": 10,
+          "section": "5 Conclusion"
+        }
+      ]
+    },
+    {
+      "claim": "The experimental design lacks the controls and uncertainty needed to separate the attention term from tuning, shared SFT, or stochastic training variation.",
+      "evidence": "Only one 7B backbone and one data pipeline are tested. The paper does not report an SFT-only baseline, seeds, confidence intervals, significance tests, checkpoint-selection rule, per-run variation, chosen lambda_attn/gamma_attn for each table, or results across the listed coefficient grids. Using the first 51.2k rather than a described random sample also leaves order bias unaudited. The base-model comparison especially cannot assign improvements to RAL because all trained variants receive SFT and RL.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.1 Experimental Setup and 4.2 Implementation Details"
+        },
+        {
+          "page": 7,
+          "section": "Table 1 hyperparameter ranges and Baselines"
+        },
+        {
+          "page": 8,
+          "section": "Tables 2-3"
+        }
+      ]
+    },
+    {
+      "claim": "The paper contains a sampling-temperature contradiction and does not quantify the substantial systems overhead of materializing eager attention maps.",
+      "evidence": "Section 4.2 says sampling temperature tau=0.9, whereas Table 1 on the next page says tau=1. Training already costs about 960 H100-hours for the RL phase plus about 80 H100-hours for SFT. RAL patches eager attention, retains last-layer attention over long multimodal sequences with up to 128 frames, and uses eight rollouts, yet reports no memory, throughput, or runtime comparison with GRPO or attention distillation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.1 compute and 4.2 Hyperparameters"
+        },
+        {
+          "page": 7,
+          "section": "Table 1"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Augment output-token RL or on-policy logit distillation with dense supervision over the model's own final-layer causal attention distributions, using reward advantage to retain or repel rollout attention patterns and teacher attention to transfer internal allocation patterns.",
+    "mechanism": "Given a student-generated response, RAL extracts each generated token's final-language-layer attention to all preceding prompt, visual, and response positions, averages heads, and renormalizes the vector. A frozen old policy supplies a reference map. The sequence's GRPO relative advantage multiplies JSD between current and old maps; minimizing the signed term pulls positive trajectories toward their rollout maps and drives negative trajectories away. This term is added to ordinary GRPO. In distillation, a 32B teacher evaluates the 7B student's trajectory, and per-token student-teacher attention JSD is added to RL plus reverse-KL GKD. Training freezes the vision encoder/projector and updates only the language backbone.",
+    "assumptions": [
+      "Final-layer, head-averaged attention is a stable and semantically meaningful proxy for multimodal information allocation despite discarding layer/head specialization.",
+      "The old policy's attention on a high-reward response contributed causally to success, so imitating that map helps; conversely, any bounded-JSD direction away from a low-reward map is useful exploration.",
+      "A sequence-level GRPO advantage can be broadcast to every generated token and every preceding position without token- or evidence-level credit assignment.",
+      "Attention distributions can be treated as a policy even though they are deterministic internal activations rather than sampled actions in the reported objective.",
+      "Teacher and student attention over a student-generated token sequence are positionally comparable after head averaging, despite different model sizes and internal representations.",
+      "Exact answer matching plus strict think/answer formatting is an adequate training reward for general image/video perception and grounding.",
+      "The Video-R1 first-51.2k subset and one training epoch are representative, with no material order, seed, or checkpoint-selection effects.",
+      "Freezing the visual encoder and projector does not prevent language-backbone attention changes from improving cross-modal perception.",
+      "The unstated implementation sign convention resolves the incompatibility between maximizing the written RL surrogate and minimizing the written signed divergence term.",
+      "A single Qwen-2.5-VL-7B backbone and the chosen lambda/gamma settings generalize to other MLLM architectures and sizes.",
+      "Benchmark accuracy gains reflect grounding rather than answer priors, SFT effects, benchmark contamination, or tuning to the evaluation suite."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "last_layer_head_averaged_attention_policy",
+      "role": "Converts each generated token's causal attention vector into the latent distribution optimized by RAL."
+    },
+    {
+      "id": "advantage_weighted_jsd_regularization",
+      "role": "Pulls successful current attention toward old-policy maps and repels it from low-reward maps."
+    },
+    {
+      "id": "grpo_exact_match_format_reward",
+      "role": "Provides group-relative sequence advantages from 0.9 answer correctness and 0.1 output-format rewards."
+    },
+    {
+      "id": "on_policy_attention_distillation",
+      "role": "Aligns the 7B student's attention to a 32B teacher on the student's own trajectories."
+    },
+    {
+      "id": "gkd_reverse_kl",
+      "role": "Supplies the output-distribution distillation baseline and companion loss to attention distillation."
+    },
+    {
+      "id": "frozen_vision_language_backbone_tuning",
+      "role": "Restricts all learned changes to the Qwen language backbone while holding the visual encoder/projector fixed."
+    },
+    {
+      "id": "rationale_free_ral_zero",
+      "role": "Removes think blocks to test whether attention-augmented learning can improve VQA without verbose rationales."
+    },
+    {
+      "id": "visual_context_density_sweep",
+      "role": "Tests RAL/GRPO margins across video frame counts and image-token budgets."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Qwen-2.5-VL-7B after common Video-R1 SFT and one-epoch RL; eight image benchmarks",
+      "metric": "Official benchmark scores in Table 3",
+      "result": "RAL scores 73.3 Vstar, 37.8 MMMU-Pro, 2352.8 MME, 47.4 MuirBench, 86.4 ChartQA, 71.7 VizWiz, 57.2 Blink, and 79.0 CVBench, winning all eight pairwise comparisons.",
+      "baseline": "GRPO scores 68.6/36.8/2258.7/43.9/81.7/67.9/54.9/78.1; base Qwen scores 70.7/36.4/2309.3/44.9/84.0/71.2/56.3/77.6."
+    },
+    {
+      "setting": "Same trained 7B models; seven long-video benchmarks",
+      "metric": "Official benchmark scores in Table 2",
+      "result": "RAL scores 60.1 LongVideoBench, 74.1 NExTQA, 63.4 VideoMME, 48.6 VideoMMMU, 44.2 LVBench, 65.5 MVBench, and 70.0 TempCompass; it wins six of seven against GRPO and all seven against base Qwen.",
+      "baseline": "GRPO scores 57.9/70.7/62.0/49.7/43.9/64.0/68.3; VideoMMMU is the negative cell at -1.1. Base Qwen is 57.0/73.7/61.6/47.6/40.5/63.4/69.5."
+    },
+    {
+      "setting": "7B student distilled on-policy from Qwen-2.5-VL-32B across eight image benchmarks",
+      "metric": "Table 3 score difference from output-only on-policy distillation",
+      "result": "Attention distillation scores 72.3/38.4/2345.1/43.4/83.6/72.1/57.2/78.4, improving seven metrics but lowering CVBench by 0.3.",
+      "baseline": "Output-only on-policy distillation scores 68.1/37.8/2344.7/39.9/81.7/71.2/56.3/78.7."
+    },
+    {
+      "setting": "Same teacher-student distillation on seven long-video benchmarks",
+      "metric": "Table 2 benchmark scores",
+      "result": "Attention distillation scores 59.7/75.3/63.9/48.5/44.7/65.5/70.3, improving five benchmarks and tying LongVideoBench and MVBench.",
+      "baseline": "Output-only distillation scores 59.7/70.9/61.3/47.3/43.7/65.5/69.2."
+    },
+    {
+      "setting": "RAL-zero with think blocks removed from both SFT and RL",
+      "metric": "Image and video benchmark scores",
+      "result": "On video it scores 58.8/76.2/65.1/49.2/45.9/62.7/68.5, beating base and GRPO on five of seven and leading the table on NExTQA, VideoMME, and LVBench. On images it scores 72.3/38.4/2306.2/43.4/82.7/71.9/55.4/78.4, beating base on four and GRPO on seven.",
+      "baseline": "Base Qwen and full GRPO rows; no matched GRPO-zero control, so changing rationale targets and format reward is confounded with attention learning."
+    },
+    {
+      "setting": "Context-density ablation on LongVideoBench at 32/64/128 frames and Vstar at 512/1024/2048 image tokens",
+      "metric": "Benchmark accuracy versus GRPO",
+      "result": "RAL is higher at all six plotted settings; the stated Vstar margin expands from +1.6 at 512 tokens to +6.3 at 2048 tokens.",
+      "baseline": "GRPO at the same frame/token caps; plot supplies no numeric labels, error bars, or repeated-seed uncertainty."
+    },
+    {
+      "setting": "Training-resource report for common SFT and RL pipeline",
+      "metric": "Accelerator time and rollout/data scale",
+      "result": "SFT on 165k examples takes about 10 hours on 8 H100s; one RL epoch on the first 51.2k examples with eight rollouts takes about 120 hours on 8 H100s.",
+      "baseline": "No GRPO-versus-RAL throughput, peak-memory, or total-cost comparison despite eager attention extraction."
+    }
+  ],
+  "limitations": [
+    "Reviewer-inferred: the paper has no explicit limitations section and does not discuss the objective-sign ambiguity, JSD symmetry error, attention faithfulness, or computational overhead.",
+    "Reviewer-inferred: RAL is evaluated only as an additive GRPO regularizer on one 7B Qwen backbone; the 'alternative to output token sequences' framing is not experimentally tested.",
+    "Reviewer-inferred: no seeds, uncertainty intervals, significance tests, raw predictions, or checkpoint-selection procedure accompany the 15 benchmark comparisons.",
+    "Reviewer-inferred: the paper lists lambda_attn in {0.5,1,5} and gamma_attn in {0.05,0.5,1} but does not report which values produced each result or the sweep outcomes/selection set.",
+    "Reviewer-inferred: sampling temperature is 0.9 in prose and 1 in Table 1.",
+    "Reviewer-inferred: no SFT-only baseline separates post-training stages, so improvements over the untouched base model are not attributable to RAL.",
+    "Reviewer-inferred: selecting the first 51.2k Video-R1 instances rather than documenting a random sample leaves order and composition bias unresolved.",
+    "Reviewer-inferred: visual encoder and projector are frozen, and no direct grounding/localization or causal-attention evaluation supports the claim that perception improved through salient visual focus.",
+    "Reviewer-inferred: head averaging and last-layer-only extraction erase specialization; no layer/head choice ablation or alternative attention representation is reported.",
+    "Reviewer-inferred: RAL-zero changes SFT targets and reward format while retaining answer-token RL, so it does not isolate attention or the absence of chain-of-thought cleanly.",
+    "Reviewer-inferred: exact-match reward can be brittle for semantically equivalent answers and supplies only sequence-level credit to a dense token-position objective.",
+    "Reviewer-inferred: the expensive eager-attention implementation has no runtime, memory, or scalability comparison with GRPO, especially at 128 frames and eight rollouts.",
+    "Reviewer-inferred negative results: RAL loses to GRPO on VideoMMMU; attention distillation loses on CVBench and ties two video benchmarks; RAL-zero remains below base on two video and four image benchmarks.",
+    "Reviewer-inferred: claimed prose deltas disagree with the displayed image table, reducing confidence in unchecked aggregate interpretations.",
+    "Reviewer-inferred: Video-R1 is called a strictly fair comparison because it shares the backbone, but its temporal reward and potentially different/full training recipe mean it is not a controlled single-factor baseline."
+  ],
+  "failure_modes": [
+    "If high reward is achieved through language priors, copying its attention map can reinforce shortcut behavior rather than visual grounding.",
+    "For a low-reward rollout, maximizing JSD supplies an arbitrary repulsion direction and can destroy useful parts of the attention pattern along with the harmful part.",
+    "Broadcasting one advantage to all tokens can reinforce irrelevant late-token attention or penalize correct intermediate evidence because final answer credit is coarse.",
+    "Averaging heads can cancel sparse specialist heads and reward a diffuse aggregate that no individual computation actually uses.",
+    "Teacher-student attention alignment can transfer teacher artifacts and can be ill-posed when different architectures tokenize visual context or distribute computation differently.",
+    "Long-context eager attention is quadratic in sequence length and may become infeasible before the claimed high-resolution benefit can be realized.",
+    "An implementation following the written Equation (4) without resolving maximize/minimize signs could update either the token objective or attention objective in the wrong direction.",
+    "Using the table temperature versus the prose temperature can change rollout diversity and GRPO advantages, impairing reproducibility.",
+    "Exact-match training reward can mark a semantically valid answer wrong, pushing attention away from a useful trajectory.",
+    "Without an SFT-only and GRPO-zero control, gains can be misattributed to attention when they arise from rationale removal, formatting, or common SFT.",
+    "Optimizing only last-layer language attention while freezing visual modules may plateau on tasks requiring better visual feature extraction rather than allocation.",
+    "Multiple benchmark tuning without held-out coefficient selection can overfit lambda/gamma to the reported evaluation suite."
+  ],
+  "reusable_insights": [
+    "Internal distributions can provide a dense auxiliary training signal on top of sparse sequence rewards, but should be described as a regularizer unless a valid latent-action policy gradient is derived.",
+    "Separate evidence-selection claims from accuracy claims by adding localization labels, counterfactual token masking, and causal interventions on the learned attention map.",
+    "For negative examples, replace direction-free divergence maximization with a contrastive target or evidence-level critic that says where attention should move.",
+    "Report the complete objective with one unambiguous maximize/minimize convention and unit-test its sign on positive and negative advantages.",
+    "Distilling on student-generated trajectories is a useful way to reduce exposure bias; extending it to internal states requires explicit alignment assumptions and architecture-robust representations.",
+    "Keep per-head or grouped-head structure long enough to test whether averaging is helping, hiding specialization, or merely reducing memory.",
+    "Use an SFT-only row, a zero-rationale GRPO row, and lambda=0/attention-only ablations to attribute gains across the post-training pipeline.",
+    "Preserve negative and tied benchmark cells instead of summarizing only average wins; here VideoMMMU and CVBench locate likely tradeoffs.",
+    "When an auxiliary objective materializes attention matrices, report peak memory, tokens/sec, total GPU-hours, and accuracy per unit compute alongside task scores.",
+    "Audit prose deltas automatically against result tables before using them as mechanistic evidence."
+  ],
+  "open_questions": [
+    "Can attention be formulated as a genuinely sampled latent action with an unbiased or controlled policy-gradient estimator?",
+    "Which layers, heads, modalities, and token subsets carry the useful reward signal, and is head averaging ever optimal?",
+    "Do RAL-trained attention maps improve object localization, evidence recall, counterfactual faithfulness, and perception-error rates under causal tests?",
+    "How much of the gain survives across MLLM families, model sizes, visual tokenizers, and unfrozen visual encoders?",
+    "What are the selected lambda_attn and gamma_attn values, how sensitive are results to them, and what held-out rule chooses them?",
+    "Would token-level or evidence-span advantages outperform broadcasting one sequence-level GRPO advantage?",
+    "Can low-reward attention be redirected toward a positive peer or teacher instead of merely pushed away from its old map?",
+    "Does attention distillation still help when teacher and student have different tokenizations, head counts, layer counts, or modality-fusion designs?",
+    "How do RAL and PAPO compare under the same backbone/data/compute on perception-error and vision-dependency subsets?",
+    "Are the table gains statistically reliable across seeds, and do the VideoMMMU/CVBench regressions reveal systematic knowledge-versus-perception tradeoffs?",
+    "What is the incremental memory and throughput cost of eager attention at 128 frames, and can sparse/low-rank attention statistics retain the benefit?",
+    "Does a matched GRPO-zero baseline reproduce RAL-zero's gains without the attention term?",
+    "Why do the PDF date/author line, official arXiv metadata, temperature descriptions, and prose deltas disagree, and which configuration generated the tables?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2507.06448",
+      "title": "Perception-Aware Policy Optimization for Multimodal Reasoning",
+      "url": "https://arxiv.org/abs/2507.06448v5",
+      "relationship": "closest current policy-gradient competitor adding an internal perception-aware divergence term to multimodal RL",
+      "difference": "PAPO plugs an implicit-perception KL and double-entropy regularizer into GRPO/DAPO without stronger teachers or extra curated data, reports 4.4%-17.5% overall gains and a 30.5% perception-error reduction, and directly stratifies vision-dependent tasks. RAL instead aligns final-layer attention to old-policy maps using signed advantage and adds teacher attention distillation; it covers long video as well as images but provides no perception-error or grounding diagnostic and has less explicit stability analysis.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v5, revised 2026-04-14; first submitted 2025-07-08"
+    },
+    {
+      "canonical_id": "arxiv:2503.21776",
+      "title": "Video-R1: Reinforcing Video Reasoning in MLLMs",
+      "url": "https://arxiv.org/abs/2503.21776v4",
+      "relationship": "direct video-RL predecessor, data source, and same-backbone baseline used by RAL",
+      "difference": "Video-R1 introduces T-GRPO with a temporal-order coherence reward and releases the 165k SFT and 260k RL datasets, reporting 37.1% on VSI-Bench with its 7B model. RAL reuses those data and Qwen-2.5-VL-7B, samples only the first 51.2k RL instances, and replaces the temporal auxiliary signal with general attention divergence. This makes Video-R1 the strongest controlled conceptual comparator, but differing reward and training-data volume prevent single-factor attribution.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4, revised 2025-10-22; first submitted 2025-03-27; NeurIPS 2025"
+    },
+    {
+      "canonical_id": "arxiv:2505.14677",
+      "title": "Visionary-R1: Mitigating Shortcuts in Visual Reasoning with Reinforcement Learning",
+      "url": "https://arxiv.org/abs/2505.14677v3",
+      "relationship": "direct competitor addressing visual shortcut learning during GRPO-style reasoning",
+      "difference": "Visionary-R1 combats shortcuts by enforcing a caption-reason-answer output process and trains on 273k CoT-free visual QA pairs using RL, so supervision remains output-structured and interpretable. RAL instead uses 165k rationale SFT plus 51.2k RL examples and an internal attention regularizer, with RAL-zero arguing captions/rationales are not necessary. A matched comparison would test whether explicit perceptual captioning or latent attention provides better grounding per unit compute.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3, revised 2025-10-26; first submitted 2025-05-20"
+    },
+    {
+      "canonical_id": "arxiv:2503.06749",
+      "title": "Vision-R1: Incentivizing Reasoning Capability in Multimodal Large Language Models",
+      "url": "https://arxiv.org/abs/2503.06749v4",
+      "relationship": "major output-policy multimodal RL reasoning competitor",
+      "difference": "Vision-R1 builds a 200k multimodal-CoT cold start, then uses progressive thinking suppression and GRPO on 10k multimodal math examples; its 7B model reports 73.5% MathVista and larger models reach 76.4/78.2. RAL targets broad perception and video QA rather than math, modifies internal attention instead of rationale length, and keeps one 7B scale. Vision-R1 supplies stronger reasoning/scale evidence, while RAL's value would be complementary perception gains and shorter outputs.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4, revised 2026-02-28; first submitted 2025-03-09; accepted ICLR 2026"
+    },
+    {
+      "canonical_id": "arxiv:2306.13649",
+      "title": "On-Policy Distillation of Language Models: Learning from Self-Generated Mistakes",
+      "url": "https://arxiv.org/abs/2306.13649v3",
+      "relationship": "direct foundation and output-level baseline for RAL's on-policy distillation contribution",
+      "difference": "Agarwal et al.'s GKD trains on student-generated sequences with teacher output feedback, supports alternative divergences and RL integration, and validates summarization, translation, arithmetic, and instruction tuning. RAL retains GKD's output reverse KL and adds teacher-student attention JSD for cross-modal tasks. Its novelty is the internal multimodal transfer channel, but it does not compare broader GKD loss choices or establish architecture-agnostic attention alignment.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3, revised 2024-01-17; first submitted 2023-06-23; ICLR 2024"
+    },
+    {
+      "canonical_id": "arxiv:2002.10957",
+      "title": "MiniLM: Deep Self-Attention Distillation for Task-Agnostic Compression of Pre-Trained Transformers",
+      "url": "https://arxiv.org/abs/2002.10957v2",
+      "relationship": "direct prior art for last-layer self-attention distillation",
+      "difference": "MiniLM distills the teacher's last-layer query-key attention distributions and value-value relations offline, retaining over 99% of teacher accuracy on several text tasks with half the parameters/compute. RAL distills head-averaged causal attention on student-generated multimodal trajectories and combines it with RL/GKD, but omits value relations and cross-layer/head structure. Thus on-policy multimodal use is new relative to MiniLM, while attention-map transfer itself and last-layer selection are established.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2, revised 2020-04-06; first submitted 2020-02-25"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim a new MLLM post-training paradigm that treats internal attention distributions as a policy, directly reinforces where the model attends rather than what it generates, and extends the same idea to on-policy attention distillation, producing consistent gains over GRPO and output-only distillation.",
+    "evidence": "The paper defines per-token causal attention distributions, advantage-weighted current/old JSD, teacher-student attention JSD on student trajectories, and evaluates RAL, RAL-zero, and attention distillation on eight image and seven video benchmarks plus context-density sweeps.",
+    "reviewer_inference": "The defensible novelty is narrower: adding signed old-policy attention divergence to GRPO and adding on-policy teacher attention alignment to GKD for MLLMs. Attention transfer, last-layer attention distillation, on-policy distillation, perception-aware RL regularizers, and multimodal GRPO are all established in verified competitors. The stronger 'attention as policy' and causal-grounding claims are not theoretically or diagnostically established, and RAL remains a token-policy method by Equation (4). Empirical breadth is promising—14 of 15 GRPO wins and mostly positive distillation cells—but confidence is reduced by one model, no variance, table/prose mismatches, missing coefficient choices, and objective-sign ambiguity."
+  },
+  "confidence": 0.82,
+  "reviewer_notes": "Read all 13 extracted pages, including the full reference section; the paper contains no appendix or explicit limitations section. Directly inspected PDF pages 1 and 6-9, including both result tables, the hyperparameter table, and the resolution/frame plot. The local source is pinned exactly and has usable text on all pages; official arXiv marks v2 revised 2026-02-12. Source-level anomaly: the PDF margin says 12 Feb 2026 but its top-right date says 2026-2-16, and the PDF lists Zhong Cheng in addition to the eight authors in official arXiv metadata. Quantitative table cells are high confidence; prose deltas were not trusted where arithmetic disagreed. Negative/null audit preserved VideoMMMU (-1.1 versus GRPO), CVBench (-0.3 under attention distillation), two video distillation ties, and RAL-zero regressions. Contradiction audit preserved the additive-not-replacement objective, incompatible unstated optimization signs, symmetric JSD described as asymmetric, temperature 0.9 versus 1, and four incorrect prose deltas. There are no seeds, error bars, significance tests, grounding metrics, or compute-overhead comparisons. Six current version-pinned primary competitors were checked through official arXiv records on 2026-08-23, including PAPO v5 and Vision-R1 v4 revisions released after RAL's submission."
+}

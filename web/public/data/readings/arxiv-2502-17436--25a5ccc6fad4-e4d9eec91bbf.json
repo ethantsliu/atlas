@@ -1,0 +1,94 @@
+{
+  "stable_id": "arxiv:2502.17436",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2502.17436",
+    "pdf_sha256": "6e5539d61c86a3f23e922752864687595c0a9d62c5928a6617d4a6486c5d9480",
+    "text_sha256": "d4efc1929c79b15dc02b9760f260fb0be306d6cc8aa6d355736b2e746396f3ea",
+    "page_count": 22,
+    "extracted_at": "2026-08-23T17:19:17.270216+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can rectified flow model the full conditional distribution of transport velocities, rather than only its conditional mean, so that sample paths may intersect and remain straighter at a fixed neural-function-evaluation budget?",
+  "key_findings": [
+    {
+      "claim": "Ordinary rectified-flow regression recovers a conditional mean velocity even when the velocity compatible with a space-time point is multimodal.",
+      "evidence": "The authors derive the exact conditional density as the endpoint product rho_0(x_t-tv) rho_1(x_t+(1-t)v), normalized by the interpolation marginal. For mixture targets this is a location- and time-dependent velocity mixture, whereas squared-error regression collapses it to its expectation.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 3, "section": "3.1 Velocity Distribution, Theorem 1 and Corollary 1"}, {"page": 13, "section": "Appendix B proofs"}]
+    },
+    {
+      "claim": "A depth-two hierarchical rectified flow represents the velocity distribution with a second flow whose learned field is an expected acceleration, then nests velocity integration inside location integration.",
+      "evidence": "The training target is x_1-x_0-v_0 along a linear velocity interpolation v_tau=(1-tau)v_0+tau(x_1-x_0). During generation, Algorithm 2 repeatedly solves this velocity-domain ODE and uses its terminal velocity for one location step; Theorem 2 proves the resulting process has the intended interpolation marginals.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "3.2 Modeling Velocity Distribution, Eqs. 7-8"}, {"page": 5, "section": "Algorithm 2 and random-differential-equation interpretation"}, {"page": 6, "section": "Theorem 2"}, {"page": 15, "section": "Appendix C proof"}]
+    },
+    {
+      "claim": "The main image evidence supports a quality-compute tradeoff, not uniformly faster generation.",
+      "evidence": "At 5 total NFEs, HRF2 improves CIFAR-10 FID from 36.209 to 30.884 and ImageNet-32 FID from 69.233 to 48.933; at 100 NFEs it improves 4.588 to 4.334 and 7.873 to 7.679. Yet its nested integration is slower at the same NFE budget, and the CIFAR/ImageNet models have about 1.25 times as many parameters and higher memory use. HRF2 is also slightly worse on ImageNet-32 at 20 and 50 NFEs.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 18, "section": "Appendix F.2 architecture sizes"}, {"page": 21, "section": "Table 5 training resources"}, {"page": 22, "section": "Tables 6-7 inference time and FID"}]
+    },
+    {
+      "claim": "The hierarchy is algebraically extensible beyond velocity, but the empirical case for depth greater than two is limited to low-dimensional examples and depends on step allocation.",
+      "evidence": "Equation 11 defines arbitrary depth over location, velocity, acceleration, and higher derivatives. Synthetic results sometimes favor HRF3, but the paper reports that HRF2 is better on a simpler mixture and explicitly leaves deeper-flow training and integration schedules unresolved; image experiments use only HRF2.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 6, "section": "3.4 Extending Towards Hierarchical Rectified Flow"}, {"page": 8, "section": "4.1-4.2 synthetic results"}, {"page": 10, "section": "6 Discussion and Conclusion"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Lift rectified flow into a hierarchy: learn a conditional flow over velocity at every location/time and, recursively, flows over acceleration and higher-order directional variables.",
+    "mechanism": "Independent source variables are linearly interpolated toward the endpoint displacement at successively nested time coordinates. A single conditioned network learns the highest-level residual with squared error; sampling uses nested Euler integrations, producing a random differential equation whose randomness is in initial conditions rather than a Wiener process.",
+    "assumptions": [
+      "Source location and source velocity variables can be sampled independently from tractable distributions such as standard Gaussians.",
+      "Conditional rectified-flow regression at each hierarchy level is accurate enough that the nested numerical solver approximates the theoretical marginals.",
+      "A total NFE count is a useful quality budget despite different per-evaluation network sizes and nested-integration overheads."
+    ]
+  },
+  "techniques": [
+    {"id": "conditional-velocity-density", "role": "Makes the ambiguity hidden by mean-velocity regression explicit as a conditional distribution."},
+    {"id": "hierarchical-direction-matching", "role": "Applies rectified-flow-style regression in velocity, acceleration, and recursively higher directional domains."},
+    {"id": "nested-rde-sampling", "role": "Samples a local velocity flow before advancing the location, allowing paths from different initial conditions to cross."},
+    {"id": "hrf-density-estimation", "role": "Evaluates the modeled velocity density with a probability-flow trace integral and uses it to estimate endpoint likelihood."}
+  ],
+  "evaluations": [
+    {"setting": "One- and two-dimensional Gaussian-mixture/moons transport", "metric": "Wasserstein distance versus total NFE and visual path curvature", "result": "HRF2 generally reaches lower distance with straighter, intersecting trajectories; HRF3 helps on some but not all settings.", "baseline": "Matched or enlarged classic rectified-flow networks, plus depth ablations."},
+    {"setting": "MNIST, CIFAR-10, and ImageNet-32 generation", "metric": "FID across 5-500 total NFEs", "result": "HRF2 improves most reported points, including CIFAR-10 36.209 to 30.884 and ImageNet-32 69.233 to 48.933 at 5 NFEs, but loses narrowly on ImageNet-32 at 20 and 50 NFEs.", "baseline": "Flow Matching/rectified-flow U-Net following Lipman et al."},
+    {"setting": "1D, moons, CIFAR-10, and ImageNet-32 density estimation", "metric": "Negative log likelihood in bits per dimension", "result": "HRF2 reports 0.261, 2.113, 2.975, and 3.397 BPD versus RF 0.275, 2.119, 2.980, and 3.416.", "baseline": "Classic rectified flow with probability-flow likelihood evaluation."},
+    {"setting": "CIFAR-10 and ImageNet-32 systems comparison", "metric": "Parameters, training memory/time, and inference latency", "result": "HRF2 uses 44.81M/46.21M parameters versus 35.75M/37.06M, 10.6/33.8 GB versus 8.7/27.2 GB, and about 1.32 times the same-NFE inference time.", "baseline": "Classic rectified flow on the same dataset and hardware setup."},
+    {"setting": "Synthetic minibatch optimal-transport conditional flow matching", "metric": "Wasserstein distance versus total NFE", "result": "Adding the hierarchy to OTCFM improves the plotted low-dimensional transport curves.", "baseline": "OTCFM without hierarchical velocity modeling."}
+  ],
+  "limitations": [
+    "Author-stated: sampling uses only Euler integration, schedule selection is a basic grid search, and better solvers and integration schedules remain unexplored.",
+    "Author-stated: deeper hierarchies need better training and allocation of integration steps; depth above two is not evaluated on images.",
+    "Reviewer inference: path intersection is purchased by repeated latent-velocity sampling, a larger conditioned network on CIFAR/ImageNet, and nested solver overhead; total NFE alone understates this cost.",
+    "Reviewer inference: the image evaluation stops at 32 by 32 unconditional benchmarks and does not establish scaling to modern high-resolution or conditional generators."
+  ],
+  "failure_modes": [
+    "Too few inner velocity steps can poorly approximate the local velocity distribution even if the outer location solver has many steps.",
+    "A deeper hierarchy can spend its fixed NFE budget inefficiently and underperform a shallower model, as seen in one synthetic comparison.",
+    "Likelihood estimation requires nested ODE integration, divergence trace estimation, and for higher dimensions Monte Carlo source samples, increasing variance and cost.",
+    "At some moderate ImageNet-32 budgets, extra multimodal velocity capacity does not improve FID over mean-velocity rectified flow."
+  ],
+  "reusable_insights": [
+    "When an MSE target is intrinsically multimodal, inspect its conditional distribution before treating the conditional mean as the complete state.",
+    "Report wall-clock time, memory, network size, and allocation of nested solver steps alongside total function evaluations.",
+    "Treat coupling improvements such as minibatch optimal transport and richer local-field modeling as composable axes rather than mutually exclusive alternatives.",
+    "Validate hierarchy depth separately from capacity by matching parameters and compute at every depth."
+  ],
+  "open_questions": [
+    "Can amortized or adaptive inner solvers retain intersecting-path benefits without the same-NFE latency penalty?",
+    "Which diagnostics predict that a conditional velocity distribution is multimodal enough to justify HRF over ordinary flow matching?",
+    "Does the depth-two advantage survive parameter-, FLOP-, and wall-clock-matched tests at high resolution and under text conditioning?",
+    "Can hierarchy depth and per-level integration budgets be selected automatically with an error estimator?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2502.09616", "title": "Variational Rectified Flow Matching", "url": "https://arxiv.org/abs/2502.09616", "relationship": "direct concurrent competitor", "difference": "Guo and Schwing target the same mean-collapse problem by learning a variational latent representation of multimodal flow directions; HRF instead represents the local velocity law through another rectified ODE and recursively generalizes to higher directional levels.", "source_kind": "arxiv", "checked_at": "2026-08-23"},
+    {"canonical_id": "arxiv:2209.03003", "title": "Flow Straight and Fast: Learning to Generate and Transfer Data with Rectified Flow", "url": "https://arxiv.org/abs/2209.03003", "relationship": "foundational method and primary baseline", "difference": "Liu et al. learn one deterministic conditional-mean velocity field and use iterative reflow to straighten its trajectories; HRF keeps randomly paired endpoints but samples a multimodal local velocity through nested flows so trajectories can intersect.", "source_kind": "arxiv", "checked_at": "2026-08-23"},
+    {"canonical_id": "arxiv:2210.02747", "title": "Flow Matching for Generative Modeling", "url": "https://arxiv.org/abs/2210.02747", "relationship": "foundational simulation-free CNF framework", "difference": "Lipman et al. regress vector fields for conditional Gaussian or optimal-transport paths and scale the approach to ImageNet; HRF changes what is modeled at a point—from one vector to a conditional velocity distribution—while retaining simulation-free regression.", "source_kind": "arxiv", "checked_at": "2026-08-23"},
+    {"canonical_id": "arxiv:2302.00482", "title": "Improving and generalizing flow-based generative models with minibatch optimal transport", "url": "https://arxiv.org/abs/2302.00482", "relationship": "alternative and composable path-straightening method", "difference": "Tong et al. reduce path ambiguity by choosing minibatch optimal-transport endpoint couplings; HRF models the remaining conditional ambiguity explicitly and demonstrates that its hierarchy can be added on top of OTCFM.", "source_kind": "arxiv", "checked_at": "2026-08-23"}
+  ],
+  "novelty_assessment": "Author claim: hierarchical rectified flow is the first rectified-flow hierarchy to model entire random velocity, acceleration, and higher directional fields, enabling intersecting and straighter sample paths. Reviewer inference after primary-source comparison: explicit multimodal velocity modeling was independently pursued by Variational Rectified Flow Matching, while reflow and OT coupling already targeted straightness. HRF's clearest distinctive contribution is the nested-ODE construction and marginal-faithfulness argument; its efficiency claim remains conditional because image models are larger and same-NFE sampling is slower.",
+  "confidence": 0.92,
+  "reviewer_notes": "Read all twenty-two extracted pages, including derivations, theorem proof, density-estimation appendix, implementation details, ablations, resource tables, and every reported image FID point. The direct concurrent competitor and three foundational/alternative methods were checked on primary arXiv or proceedings records on 2026-08-23."
+}

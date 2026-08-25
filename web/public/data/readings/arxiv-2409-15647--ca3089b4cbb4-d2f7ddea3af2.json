@@ -1,0 +1,118 @@
+{
+  "stable_id": "arxiv:2409.15647",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2409.15647",
+    "pdf_sha256": "6207287dd6bef2e9fad57b2d3010a264a196d55c3cb67d8327391fee6440ac00",
+    "text_sha256": "23424afb6a3a6fb2e959bcea751e66978ce3dbc8b6d0dd9310a9d0545a4b921f",
+    "page_count": 19,
+    "extracted_at": "2026-08-23T17:49:08.674280+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a weight-tied decoder block learn a reusable algorithmic step from answer-only supervision at different depths, then extrapolate to longer inputs by running more loops?",
+  "key_findings": [
+    {
+      "claim": "The paper defines n-RASP-L tasks as computations expressible by repeatedly applying one finite RASP-L program a length-dependent number of times, optionally bracketed by fixed preprocessing and postprocessing.",
+      "evidence": "The authors construct iterative programs for copy, parity, and addition and use this class to connect variable-depth computation with a fixed-size decoder block. The definition is a representability condition; it does not prove gradient training will recover the stated program.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 3, "section": "3 n-RASP-L, Definition 3.1"}, {"page": 4, "section": "Propositions 3.3-3.5 and Figure 3"}]
+    },
+    {
+      "claim": "Step-dependent final-answer supervision gives the same block learning signals at multiple depths without revealing intermediate states.",
+      "evidence": "Training examples include input, target, and a known required step count T(n). The same decoder block is unrolled T times, with the loss applied only after the final loop. Because training lengths induce different T values, shared parameters receive terminal supervision after multiple depths; original-input injection and no positional encoding are additional architectural choices.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 5, "section": "4.1-4.2"}, {"page": 6, "section": "Equation 1 and training rationale"}]
+    },
+    {
+      "claim": "Looped full-output prediction substantially length-generalizes across six synthetic tasks, but the evidence does not isolate recurrence from the full-output format, input hints, curriculum, or oracle depth labels.",
+      "evidence": "On parity, copy, addition, multiplication, binary sum, and unique set, the adaptive looped model maintains near-perfect exact match well beyond the training-length boundary and outperforms NTP, pause-token, tied fixed-depth, and full-output variants in Figures 4 and 7. Addition is specially formatted with index hints; every method uses online generated data and a curriculum, and ablations show input injection helps.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 7, "section": "6.1 experimental setup"}, {"page": 8, "section": "Figure 4"}, {"page": 9, "section": "6.2-6.3"}, {"page": 17, "section": "Figure 7"}, {"page": 19, "section": "Training details"}]
+    },
+    {
+      "claim": "The practical stopping rule is reliable mainly for tasks whose hidden state converges after reaching an answer.",
+      "evidence": "Oracle inference uses the known number of loops. The alternative chooses the step with maximum output confidence among a preset maximum. Batch-level selection over a same-length test set reaches near-perfect points in Figure 5, but per-instance selection degrades on non-convergent parity and binary-sum dynamics; batch-level selection is also transductive rather than an independent per-query halting mechanism.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 6, "section": "4.3 Equation 2"}, {"page": 10, "section": "6.4 and Figure 5"}, {"page": 16, "section": "Appendix B"}, {"page": 17, "section": "Figure 6"}]
+    },
+    {
+      "claim": "Longer-input accuracy is purchased with superlinear recurrent attention cost and backpropagation depth.",
+      "evidence": "For test length n' and a(n') loops, oracle inference costs O(k a(n') n'^2); confidence search costs O(k N' n'^2). Fixed-depth NTP/FOP costs O(C n'^2), and the authors state their inference is slower because it uses more loops. Training backpropagates through all loops and is explicitly identified as computationally demanding.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 10, "section": "7 Limitations"}, {"page": 18, "section": "Appendix E inference-time complexity"}]
+    },
+    {
+      "claim": "Results are controlled algorithmic extrapolation, not evidence of open-domain LLM reasoning or universal length generalization.",
+      "evidence": "Models are 256-dimensional GPT-2-style blocks trained for 100k steps on unlimited synthetically sampled strings, with five runs and exact match over 6,400 samples. The task family assumes one repeated RASP-L loop and known training step counts; multi-loop programs, natural language, pretrained models, noisy supervision, and distribution shifts beyond length are not tested.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 10, "section": "7 Limitations and conclusion"}, {"page": 18, "section": "Table 2"}, {"page": 19, "section": "Appendix F training and evaluation details"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Train one decoder block at variable unroll depths so it learns a reusable computation that can be repeated more times on longer inputs.",
+    "mechanism": "Use full-output prediction, weight-tied recurrence, original-input injection, NoPE, and a known example-specific terminal depth; at inference run the length-derived depth or search for maximum confidence.",
+    "assumptions": [
+      "The target algorithm decomposes into repeated applications of one RASP-L step.",
+      "Training examples provide the correct number of loops even though intermediate states are absent.",
+      "Supervision across diverse lengths/depths induces a stable reusable step rather than depth-specific shortcuts.",
+      "The hidden dynamics remain useful when unrolled beyond depths seen in training.",
+      "Confidence is a valid unsupervised proxy for correct halting."
+    ]
+  },
+  "techniques": [
+    {"id": "weight-tied-looped-decoder", "role": "Allocates more sequential compute without increasing parameters."},
+    {"id": "step-dependent-terminal-supervision", "role": "Trains shared computation at different unroll depths using only final answers."},
+    {"id": "full-output-prediction", "role": "Lets every output position update in parallel after internal recurrent computation."},
+    {"id": "original-input-injection", "role": "Prevents recurrent states from losing access to the problem instance."},
+    {"id": "confidence-selected-halting", "role": "Chooses an output from multiple inference depths without a target label."}
+  ],
+  "evaluations": [
+    {"setting": "Parity, copy, addition, multiplication, binary sum, and unique set trained on short synthetic inputs", "metric": "Whole-sequence exact-match accuracy on longer lengths", "result": "Adaptive looped FOP remains near-perfect far beyond the training boundary on most plotted ranges", "baseline": "Vanilla NTP, NTP with pause tokens, tied-layer fixed NTP, FOP variants, and fixed-depth looped FOP"},
+    {"setting": "Oracle versus confidence-selected loop counts", "metric": "Exact-match accuracy across test lengths", "result": "Batch confidence nearly matches oracle; per-instance confidence works on convergent tasks but underperforms on parity and binary sum", "baseline": "Known task-specific step count"},
+    {"setting": "Architecture and supervision ablations", "metric": "Length-generalization curves", "result": "Adaptive depth outperforms fixed depth, no input injection, pause-token compute, and fixed-step supervision", "baseline": "Matched FOP variants"}
+  ],
+  "limitations": [
+    "Author-stated: n-RASP-L cannot express sequential composition of multiple distinct loops.",
+    "Author-stated: backpropagating through many loops is expensive, and training lengths/depths were compute-limited.",
+    "Author-stated: ground-truth step counts are required during training.",
+    "Reviewer-identified: only small synthetic symbolic tasks with online unlimited data are evaluated.",
+    "Reviewer-identified: batch-level confidence halting uses an entire same-length test set and is not deployable for isolated heterogeneous requests.",
+    "Reviewer-identified: no mechanistic extraction verifies that the network learned the constructed n-RASP-L program rather than another extrapolating rule."
+  ],
+  "failure_modes": [
+    "Non-convergent dynamics can become confidently wrong after the correct step and defeat per-instance halting.",
+    "Errors compound when the block is unrolled much farther than trained depths.",
+    "Tasks requiring branch-dependent or multiple-loop structure fall outside the model class.",
+    "Quadratic attention repeated O(n) times makes long-input compute roughly cubic for the studied algorithms.",
+    "Missing or inaccurate step-count labels train the final loss at the wrong hidden state.",
+    "Special input hints or NoPE assumptions may not transfer to natural tokenizations."
+  ],
+  "reusable_insights": [
+    "Variable-depth terminal supervision can teach a recurrent transition without explicit traces when different examples terminate at different depths.",
+    "Length extrapolation should be reported jointly with sequential compute scaling and halting reliability.",
+    "Recurrent solvers need separate tests for answer convergence, overthinking, and per-instance stopping.",
+    "Representability by a concise program is useful task structure, but empirical recovery needs mechanistic verification."
+  ],
+  "open_questions": [
+    "Can loop counts be learned from answer-only data without oracle depth annotations?",
+    "Can multiple learned transition operators be routed to express nested or sequential loops?",
+    "Does truncated or implicit differentiation preserve extrapolation while reducing memory?",
+    "Can a calibrated halting head outperform confidence search on non-convergent tasks?",
+    "Do pretrained language models gain real reasoning robustness from looped blocks under matched inference FLOPs?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "openreview:XpVoUnPuYV", "title": "Looped Transformers are Better at Learning Learning Algorithms", "url": "https://openreview.net/forum?id=XpVoUnPuYV", "relationship": "direct architectural predecessor", "difference": "Shows weight-tied loops learn iterative in-context learning algorithms with fewer parameters; the reviewed paper targets length extrapolation and adds variable-depth terminal supervision and halting."},
+    {"canonical_id": "openreview:AssIuHnmHX", "title": "What Algorithms can Transformers Learn? A Study in Length Generalization", "url": "https://openreview.net/forum?id=AssIuHnmHX", "relationship": "direct RASP-L foundation", "difference": "Links ordinary Transformer length generalization to short single-pass RASP-L programs and scratchpad design; the reviewed work extends the representable class by explicitly looping a RASP-L step."},
+    {"canonical_id": "arxiv:2407.03310", "title": "Universal Length Generalization with Turing Programs", "url": "https://arxiv.org/abs/2407.03310", "relationship": "universal scratchpad competitor", "difference": "Uses explicit Turing-machine-like intermediate text and covers arbitrary algorithms in principle; the reviewed work avoids intermediate supervision but assumes a single repeated operator and oracle training depths."},
+    {"canonical_id": "neurips:2022:7f70331dbe58ad59d83941dfa7d975aa", "title": "End-to-end Algorithm Synthesis with Recurrent Networks: Extrapolation without Overthinking", "url": "https://proceedings.neurips.cc/paper_files/paper/2022/hash/7f70331dbe58ad59d83941dfa7d975aa-Abstract-Conference.html", "relationship": "recurrent extrapolation predecessor", "difference": "Uses recall and progressive training to prevent degradation under extra recurrent steps; the reviewed method uses Transformer recurrence, input injection, variable terminal depths, and confidence halting."},
+    {"canonical_id": "neurips:2024:06297213eca57fa6eadf8d87caa21b3c", "title": "NeuralSolver: Learning Algorithms For Consistent and Efficient Extrapolation Across General Tasks", "url": "https://proceedings.neurips.cc/paper_files/paper/2024/hash/06297213eca57fa6eadf8d87caa21b3c-Abstract-Conference.html", "relationship": "contemporary recurrent solver", "difference": "Supports same- and different-size input/output tasks through a multi-scale recurrent processing architecture; the reviewed work offers a sharper RASP-L characterization and decoder-only full-output formulation."
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Step-dependent supervision lets looped Transformers learn n-RASP-L algorithms without intermediate traces and achieve strong length generalization.",
+    "evidence": "The formal n-RASP-L construction, variable-unroll loss, six-task curves, stopping analysis, and matched FOP ablations support the claim within controlled tasks.",
+    "reviewer_inference": "The combination of RASP-L representability with variable-depth answer-only training is a clear contribution beyond prior looped Transformers. Scope is narrow: it assumes oracle depths and single-loop synthetic algorithms, so it does not yet establish general reasoning gains."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Read all 19 pages, including program listings, task curves, halting appendix, complexity, ablations, and training setup. Competitors were checked against primary OpenReview, arXiv, and NeurIPS records on 2026-08-23."
+}

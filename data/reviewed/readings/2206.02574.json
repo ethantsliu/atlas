@@ -1,0 +1,430 @@
+{
+  "stable_id": "arxiv:2206.02574",
+  "reading_depth": "verified",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2206.02574",
+    "pdf_sha256": "41acddff9c48d4eb5f54021186f0c7eb5177a921fb11e6b8638b10c72afb2c74",
+    "text_sha256": "345c8923455ce2b45f33c14d0ec38aec70237c008e07f908e4933495fad070ed",
+    "page_count": 28,
+    "extracted_at": "2026-08-23T20:59:24.189672+00:00",
+    "review_pass": "secondary-verified-v1"
+  },
+  "question": "Are contrastive sample-decorrelation and non-contrastive dimension-decorrelation losses mathematically dual, can one convert objectives between those families by transposing the representation matrix, and does that conversion preserve ImageNet performance?",
+  "key_findings": [
+    {
+      "claim": "The paper's central Gram-matrix identity is correct, but its advertised exact-equivalence normalization is infeasible in nearly all experimental regimes.",
+      "evidence": "For K in R^{M by N}, expanding both Frobenius losses gives L_nc + sum_j ||K_{j,.}||_2^4 = L_c + sum_i ||K_{.,i}||_2^4, exactly as Theorem 3.3 states. The next sentence claims that unit-normalizing both rows and columns yields L_nc=L_c+N-M. Unit columns require ||K||_F^2=N while unit rows require ||K||_F^2=M, so both conditions can hold only when M=N. The experiments instead pair batches of 1024 or 2048 with embedding dimensions from 256 through 8192. Rescaling rows to norm sqrt(N/M) could satisfy the shared-energy constraint, but would produce a different constant and is not the condition stated or tested.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "3.2 Duality / Theorem 3.3"
+        },
+        {
+          "page": 8,
+          "section": "4.2 Comparison with baselines / Table 1"
+        },
+        {
+          "page": 18,
+          "section": "B Training details"
+        }
+      ]
+    },
+    {
+      "claim": "The norm bounds derived from the identity are valid and useful, but they establish additive inequalities rather than equivalence of the original optimization problems.",
+      "evidence": "Cauchy-Schwarz gives (1/M)||K||_F^4 <= sum_j ||K_{j,.}||_2^4 <= ||K||_F^4 and the analogous column bounds, so a controlled-energy representation relates the two losses through explicit slack terms. Those bounds do not imply identical gradients, minimizers, invariances, or finite-batch dynamics. The paper's strongest family-level language therefore exceeds what its rigorous result proves, while the identity itself remains a reusable diagnostic.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Theorem 3.3"
+        },
+        {
+          "page": 5,
+          "section": "3.2 Duality / norm bounds"
+        }
+      ]
+    },
+    {
+      "claim": "The appendix mappings of Barlow Twins, VICReg, and TCR to the prototype dimension loss are not exact objective equivalences.",
+      "evidence": "For Barlow Twins, Equation 34 replaces the cross-view matrix K K'^T with the within-view matrix K K^T because the augmentations share a marginal distribution and encoder; equal marginals do not make a paired cross-correlation equal an autocorrelation. For example, K=I and a column-swapped K' have the same sample multiset but different cross- and self-Gram matrices. The VICReg rewrite calls raw K K^T a covariance while omitting centering and the 1/(N-1) factor. TCR's log determinant depends on singular values and is invariant to a left orthogonal rotation, whereas the coordinate off-diagonal loss changes under that rotation; rank deficiency when M>N further prevents the claimed diagonal full-rank conclusion.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 13,
+          "section": "A.1 Non-contrastive methods"
+        },
+        {
+          "page": 16,
+          "section": "A.3 Barlow Twins rewrite / Equation 34"
+        },
+        {
+          "page": 17,
+          "section": "A.3 VICReg and TCR"
+        }
+      ]
+    },
+    {
+      "claim": "The claimed shared optimum for squared or absolute SimCLR variants and the sample-decorrelation prototype fails in the common N greater than M regime.",
+      "evidence": "The appendix argues that minimizing a LogSumExp or maximum over nonnegative similarities gives a diagonal sample Gram matrix and therefore the same result as L_c. But N nonzero unit columns in R^M cannot be mutually orthogonal when N>M, including the reported M=256 or 512 with N=1024 or 2048. In that regime, squared frame-potential and minimum-coherence objectives generally have different optimizers. This later family-level claim also conflicts with the paper's earlier acknowledgment that exact sample orthogonality requires M at least N.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "3.1 Contrastive and non-contrastive criteria"
+        },
+        {
+          "page": 15,
+          "section": "A.2 Contrastive methods / DCL"
+        },
+        {
+          "page": 16,
+          "section": "A.2 SimCLR-sq and SimCLR-abs"
+        }
+      ]
+    },
+    {
+      "claim": "The proposed VICReg-exp loss is signed and can prefer perfectly anticorrelated dimensions over decorrelated dimensions.",
+      "evidence": "Equation 11 applies LogSumExp directly to signed off-diagonal covariance entries, without absolute values or squares. With two standardized dimensions, covariance [[1,-1],[-1,1]] contributes -1/tau in each one-entry row, whereas a diagonal covariance contributes zero; minimizing therefore rewards the rank-one anticorrelated representation. More strongly, the full printed VICReg-exp loss is unbounded below: take identical views with centered covariance C_s=s^2(I-11^T/M). Then invariance is zero, the variance hinge is zero for sufficiently large s, every off-diagonal is -s^2/M, and the signed covariance term equals log(M-1)-s^2/(M tau), which tends to negative infinity. The stated mechanism of driving covariance off-diagonals to zero does not follow from this objective. The ImageNet result showing no observed collapse is empirical evidence about the complete training recipe, not a repair of the loss-level claim.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "3.3 Applications / Equation 11"
+        },
+        {
+          "page": 7,
+          "section": "4.1 Dimensionality of the representations / Figure 1"
+        }
+      ]
+    },
+    {
+      "claim": "The paper reports that transposed objectives can approach their parent methods on 100-epoch ImageNet linear evaluation, but the comparison does not causally isolate duality.",
+      "evidence": "Across projector dimensions and loss sweeps, the best reported online linear-probe accuracies are approximately 68.13 for VICReg, 68.00 for VICReg-exp, 67.92 for VICReg-ctr, 66.33 for original SimCLR, and 68.68 for tuned SimCLR. Each family receives different selected learning rates and loss weights, tuned SimCLR uses batch 2048 while VICReg-family runs use 1024, and the paper reports single selected values without seeds, uncertainty, a fixed search budget, or held-out hyperparameter selection. Similar end metrics after unequal searches show that the variants can train, but do not demonstrate equal objectives or mechanisms.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "4.1 Dimensionality / Figure 1"
+        },
+        {
+          "page": 8,
+          "section": "4.2 Comparison with baselines / Table 1"
+        },
+        {
+          "page": 18,
+          "section": "B Training details"
+        },
+        {
+          "page": 26,
+          "section": "J Results / Tables 6-7"
+        }
+      ]
+    },
+    {
+      "claim": "The online linear probe is a plausible compute-saving proxy in the tested slice, but its reported validation and selection protocol are too narrow to support the broad sweep conclusions independently.",
+      "evidence": "The paper detaches backbone features before a supervised online classifier, so labels do not directly update the representation; nevertheless, they are available during each self-supervised run and can guide hyperparameter choices. The offline-versus-online calibration covers only VICReg and VICReg-exp, one projector form, and five output dimensions. A regression over the ten highly clustered points reports slope 0.97, intercept 2.1, and R^2 rounded to 1.0, then the proxy is used across many configurations. The kNN analysis also reports the best result over six neighborhood sizes and six temperatures without stating a held-out tuning split, permitting test-selection optimism.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "4.3 Online evaluation / Equation 14"
+        },
+        {
+          "page": 19,
+          "section": "C Online evaluation / Tables 3-4"
+        },
+        {
+          "page": 20,
+          "section": "D k-NN evaluation / Figure 3"
+        }
+      ]
+    },
+    {
+      "claim": "Equation 14 and the supplied pseudocode contain source-level indexing and scaling errors that prevent literal reproduction.",
+      "evidence": "K is defined as M by N, but Equation 14 standardizes K_{.,i} for i from 1 to M and subtracts a sum of K_{j,i} for j from 1 to N; when N>M those j values index nonexistent rows. The intended operation is row-wise standardization K_{i,.} over N samples. Algorithm 2 starts with an N by D tensor, transposes it to D by N, centers its N columns across D, and then divides k.T@k by N-1; that sample-sample covariance should use D-1 under the code's own layout. Algorithms 1 and 2 also omit optimizer.zero_grad(), so literal repeated execution accumulates gradients, and the printed fragments leave cut_out_diag undefined.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "4.3 Online evaluation / Equation 14"
+        },
+        {
+          "page": 27,
+          "section": "L PyTorch implementation / Algorithm 1"
+        },
+        {
+          "page": 28,
+          "section": "L PyTorch implementation / Algorithm 2"
+        }
+      ]
+    },
+    {
+      "claim": "The representational-similarity evidence is descriptive rather than a controlled run-to-run stability result.",
+      "evidence": "The CKA heat maps compare only three selected configurations whose output dimensions differ (1024, 2048, and 8192) and are not replicated across random seeds. Labeling the panels as different runs therefore conflates objective, dimensionality, and stochastic initialization. Figure 5 additionally captions SimCLR similarity-measure plots as being 'for VICReg,' a source labeling error; its nearby prose and axes identify SimCLR variants.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 20,
+          "section": "E Representations comparison / Figure 4"
+        },
+        {
+          "page": 21,
+          "section": "F Similarity measures / Figure 5"
+        }
+      ]
+    },
+    {
+      "claim": "The paper is not independently reproducible from a complete author artifact.",
+      "evidence": "The exact source supplies equations, tables, training summaries, and two pseudocode fragments, but does not link a paper-specific repository, environment lockfile, checkpoints, run seeds, sweep specification, or per-run results. It refers generically to the VICReg codebase. The natural upstream repository, facebookresearch/vicreg, was independently audited at commit 4e12602fd495af83efd1631fbe82523e6db092e0; it is now archived and contains VICReg training code but no VICReg-exp, VICReg-ctr, or matched SimCLR experiment implementation. Thus the paper's defining variants and selection process cannot be rerun from the cited materials.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 10,
+          "section": "4.3 Reproducibility statement"
+        },
+        {
+          "page": 18,
+          "section": "B Training details"
+        },
+        {
+          "page": 27,
+          "section": "L PyTorch implementation"
+        },
+        {
+          "page": 28,
+          "section": "Algorithm 2"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Represent a batch as a matrix whose columns are samples and rows are embedding dimensions, compare off-diagonal energy in the sample Gram matrix with off-diagonal energy in the dimension Gram matrix, and use transposition to design contrastive/non-contrastive counterparts.",
+    "mechanism": "The paper defines L_c as the squared Frobenius norm of off-diagonal entries of K^T K and L_nc analogously from K K^T. A trace expansion relates these losses plus fourth powers of column and row norms. It classifies existing SSL objectives through those prototypes, replaces squared covariance in VICReg with signed LogSumExp to form VICReg-exp, transposes that term to form VICReg-ctr, and evaluates output dimension, loss variants, linear probes, kNN, and CKA on ImageNet.",
+    "assumptions": [
+      "Sample columns and dimension rows can be normalized in ways that make their fourth-power correction terms constant; simultaneous unit norms are possible only when M=N.",
+      "Prototype off-diagonal Gram penalties adequately represent full practical objectives that also contain invariance, variance, normalization, temperature, and augmentation-pair terms.",
+      "Augmentation views with equal marginals permit replacing cross-view correlations by within-view autocorrelations; this is not generally valid.",
+      "A diagonal sample Gram is realizable when assigning DCL and transformed SimCLR losses the same optimum as the prototype; this requires N no greater than M for nonzero columns.",
+      "Signed LogSumExp of covariance off-diagonals drives every entry toward zero; negative correlations violate this assumption.",
+      "A detached supervised online probe faithfully predicts offline representation quality across objectives, dimensions, and hyperparameters beyond the narrow calibration set.",
+      "The best result from method-specific hyperparameter searches is comparable despite different batches, settings, and unreported search budgets."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "gram-duality",
+      "role": "Relates sample- and dimension-off-diagonal Frobenius losses through row- and column-norm correction terms."
+    },
+    {
+      "id": "loss-taxonomy",
+      "role": "Maps SimCLR, DCL, spectral contrastive learning, Barlow Twins, VICReg, and TCR onto sample- or dimension-contrastive prototypes."
+    },
+    {
+      "id": "vicreg-exp",
+      "role": "Replaces VICReg's squared covariance penalty with a signed LogSumExp aggregation."
+    },
+    {
+      "id": "vicreg-ctr",
+      "role": "Transposes the VICReg-exp decorrelation term to operate across samples."
+    },
+    {
+      "id": "rank-analysis",
+      "role": "Uses covariance singular values and effective rank to diagnose dimensional collapse across output sizes."
+    },
+    {
+      "id": "online-probe",
+      "role": "Trains a detached supervised linear classifier during self-supervised pretraining as a cheaper proxy for offline evaluation."
+    },
+    {
+      "id": "cka-comparison",
+      "role": "Uses centered kernel alignment to compare layer representations from selected trained models."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "ResNet-50 trained without labels for 100 epochs on ImageNet-1K using LARS and 8 V100 GPUs, followed mainly by an online linear probe.",
+      "metric": "Top-1 ImageNet validation accuracy.",
+      "result": "Best reported values are about 68.13 for VICReg, 68.00 for VICReg-exp, 67.92 for VICReg-ctr, 66.33 for original SimCLR, and 68.68 for separately tuned SimCLR; no across-seed uncertainty is reported.",
+      "baseline": "VICReg and SimCLR under method-specific hyperparameters and unequal batch sizes."
+    },
+    {
+      "setting": "VICReg, VICReg-exp, VICReg-ctr, SimCLR, and similarity-transform variants across projector output dimensions 256 through 8192.",
+      "metric": "Online linear accuracy, covariance spectra, singular values, and effective representation rank.",
+      "result": "Variants remain trainable over broad dimension ranges, but methods show distinct rank behavior and the comparison selects different loss weights and learning rates per family.",
+      "baseline": "The parent VICReg or SimCLR objective for each transformed loss."
+    },
+    {
+      "setting": "Ten VICReg or VICReg-exp configurations spanning five projector dimensions.",
+      "metric": "Regression of offline linear-probe accuracy on online accuracy.",
+      "result": "The paper reports slope 0.97, intercept 2.1, and R-squared rounded to 1.0; the configurations are strongly clustered and do not cover all later objectives.",
+      "baseline": "Standard offline linear evaluation."
+    },
+    {
+      "setting": "Frozen representations evaluated by weighted k-nearest neighbors.",
+      "metric": "Best top-1 accuracy over k in {1,5,10,20,50,200} and temperature in {0.05,0.07,0.1,0.2,0.5,1}.",
+      "result": "The ranking broadly tracks linear probing, but the selection split for the 36-setting search is not specified.",
+      "baseline": "Online linear-probe rankings."
+    },
+    {
+      "setting": "Three selected networks with output dimensions 1024, 2048, and 8192.",
+      "metric": "Layerwise linear and RBF centered kernel alignment.",
+      "result": "Heat maps show broad cross-method similarity and expected diagonal structure, but objective, output size, and seed are confounded and no replication is reported.",
+      "baseline": "Pairwise CKA between the three selected configurations."
+    },
+    {
+      "setting": "Ablations replacing similarities with squared or absolute values and changing normalization and variance regularization.",
+      "metric": "Online ImageNet accuracy and effective rank.",
+      "result": "Several variants reach similar selected accuracies, while sample normalization and variance controls materially affect collapse; this supports recipe robustness more directly than exact loss equivalence.",
+      "baseline": "Original SimCLR, VICReg, and the paper's transposed counterparts."
+    }
+  ],
+  "limitations": [
+    "Author-stated: exact orthogonality depends on embedding dimension relative to batch size, and effective dimensional collapse changes the expected row statistics.",
+    "Author-stated: the study uses a shorter 100-epoch ImageNet schedule and an online probe to make the large sweep tractable.",
+    "Reviewer inference: simultaneous unit row and column normalization is infeasible unless embedding dimension equals batch size, making the headline exact-equivalence case empty for most experiments.",
+    "Reviewer inference: several real-method reductions discard cross-view pairing, centering, scaling, or spectral invariances, so the taxonomy is heuristic rather than an equality of objectives.",
+    "Reviewer inference: signed VICReg-exp rewards negative covariance, does not mathematically implement decorrelation, and admits a centered covariance family along which the full printed loss tends to negative infinity.",
+    "Reviewer inference: unequal batches and method-specific tuning without seeds, uncertainty, equal search budgets, or held-out selection prevent causal attribution to duality.",
+    "Reviewer inference: the online proxy is validated on ten correlated settings from only two method families, while labels remain available during model selection.",
+    "Reviewer inference: no complete implementation of the new variants, environment, checkpoints, or sweep results is public."
+  ],
+  "failure_modes": [
+    "A user imposes unit norms on both axes of a nonsquare representation matrix, creating mutually inconsistent constraints.",
+    "A cross-view loss is replaced by a within-view Gram penalty even though augmentation pairing changes the cross-correlation.",
+    "A sample-orthogonality conclusion is invoked for more normalized samples than ambient dimensions permit.",
+    "Signed LogSumExp drives off-diagonal covariances negative, producing rank-one anticorrelation instead of decorrelation.",
+    "Scaling a centered equicorrelated representation makes the printed VICReg-exp objective unbounded below while its invariance and variance terms remain inactive.",
+    "A rotationally invariant spectral objective is classified as equivalent to a coordinate-dependent off-diagonal penalty.",
+    "Raw second moments are treated as covariance without explicit centering and sample-count scaling.",
+    "Hyperparameter and evaluation choices are optimized on the reported validation set, inflating best-of-grid performance.",
+    "A pseudocode transpose changes the population axis, but the covariance denominator is left tied to the original batch size.",
+    "Literal training pseudocode accumulates gradients because it omits gradient clearing.",
+    "Different output dimensions and single seeds are interpreted as evidence about method-level representational similarity."
+  ],
+  "reusable_insights": [
+    "Keep the exact Gram identity: it cleanly decomposes sample-versus-dimension decorrelation into a shared singular-value term and axis-specific fourth-moment corrections.",
+    "Check feasibility by equating total Frobenius energy before asserting simultaneous row and column normalization.",
+    "Separate algebraic relations between prototype penalties from equivalence of complete SSL objectives, gradients, or minimizers.",
+    "Use concrete permutation, rotation, and rank counterexamples to audit claimed reductions of cross-view and spectral losses.",
+    "Apply even functions such as squares, absolute values, or symmetric exponentials when the intended penalty should treat positive and negative correlations alike.",
+    "Match batch size, compute, search spaces, seeds, and selection data before using endpoint accuracy to infer a loss-level mechanism.",
+    "Validate cheap supervised proxies across every objective family and reserve labels not used for hyperparameter selection.",
+    "Publish executable variants and dimension-aware shape tests whenever the scientific contribution depends on transposition."
+  ],
+  "open_questions": [
+    "What is the strongest feasible normalization under which the two prototype losses have identical minimizers for rectangular K?",
+    "Can major SSL objectives be decomposed into a common spectral term plus explicit, controlled differences without replacing cross-view statistics by autocorrelations?",
+    "How do finite-batch frame-potential and minimum-coherence optima differ when N exceeds M?",
+    "Would a sign-symmetric VICReg-exp objective retain the reported optimization benefits without rewarding anticorrelation?",
+    "Do the apparent performance matches survive equal-compute hyperparameter searches, fixed batch size, multiple seeds, and a held-out selection split?",
+    "How well does online linear accuracy predict offline accuracy for contrastive, redundancy-reduction, predictive, and distribution-matching objectives outside the reported ten points?",
+    "Does full-distribution regularization improve on covariance decorrelation when representations are non-Gaussian or rank-deficient?",
+    "Can a public reference implementation reproduce every table and repair the printed axis and denominator errors without changing the reported results?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2002.05709",
+      "title": "A Simple Framework for Contrastive Learning of Visual Representations",
+      "url": "https://arxiv.org/abs/2002.05709",
+      "relationship": "foundational-contrastive-predecessor",
+      "difference": "SimCLR establishes the normalized cross-view InfoNCE baseline whose sample interactions motivate the reviewed contrastive criterion. Its paired positive term, temperature, normalization, and finite negative set are substantive parts of the objective that the prototype off-diagonal Gram loss does not preserve.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2105.04906",
+      "title": "VICReg: Variance-Invariance-Covariance Regularization for Self-Supervised Learning",
+      "url": "https://arxiv.org/abs/2105.04906",
+      "relationship": "foundational-noncontrastive-predecessor",
+      "difference": "VICReg combines cross-view invariance, per-dimension variance floors, and centered covariance decorrelation. The reviewed paper derives its main new variants by changing or transposing that covariance term, but signed VICReg-exp lacks VICReg's symmetric penalty on both covariance signs.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2110.09348",
+      "title": "Understanding Dimensional Collapse in Contrastive Self-supervised Learning",
+      "url": "https://arxiv.org/abs/2110.09348",
+      "relationship": "direct-collapse-theory-predecessor",
+      "difference": "Jing et al. analyze how augmentations and implicit matrix factorization cause dimensional collapse in contrastive learning. The reviewed paper instead relates sample and dimension Gram penalties and empirically tracks effective rank, but does not supply a dynamics-level explanation or guarantee against collapse for its signed loss.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2112.05141",
+      "title": "Exploring the Equivalence of Siamese Self-Supervised Learning via A Unified Gradient Framework",
+      "url": "https://arxiv.org/abs/2112.05141",
+      "relationship": "direct-gradient-unification-predecessor",
+      "difference": "UniGrad compares contrastive, asymmetric, and decorrelation methods through their training gradients and matched experiments. It is a direct alternative unification whose claims concern update directions rather than a static transpose identity between prototype Gram penalties.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "v3; CVPR 2022"
+    },
+    {
+      "canonical_id": "arxiv:2205.11508",
+      "title": "Contrastive and Non-Contrastive Self-Supervised Learning Recover Global and Local Spectral Embedding Methods",
+      "url": "https://arxiv.org/abs/2205.11508",
+      "relationship": "direct-contemporary-unification",
+      "difference": "Balestriero and LeCun derive contrastive and non-contrastive methods as spectral embeddings and provide closed-form solution structure. That work offers a more explicit common optimization target, whereas the reviewed paper's exact result concerns two prototype Gram penalties plus norm corrections and its mappings of full objectives are approximate.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2303.02387",
+      "title": "Towards a Unified Theoretical Understanding of Non-contrastive Learning via Rank Differential Mechanism",
+      "url": "https://arxiv.org/abs/2303.02387",
+      "relationship": "subsequent-rank-theory",
+      "difference": "This work explains non-contrastive learning through rank differentials between predictors and targets, emphasizing optimization dynamics and collapse avoidance. It is narrower across the contrastive/non-contrastive divide but addresses a mechanism left unresolved by the reviewed static Gram identity.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2305.17326",
+      "title": "Matrix Information Theory for Self-Supervised Learning",
+      "url": "https://arxiv.org/abs/2305.17326",
+      "relationship": "direct-matrix-unification-successor",
+      "difference": "Matrix-SSL interprets maximum-entropy encoding through matrix information theory and aligns branch covariance matrices. It supplies a later matrix-level unification and objective that directly competes with the reviewed paper's covariance and Gram-matrix account.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "v7"
+    },
+    {
+      "canonical_id": "arxiv:2511.08544",
+      "title": "LeJEPA: Provable and Scalable Self-Supervised Learning Without the Heuristics",
+      "url": "https://arxiv.org/abs/2511.08544",
+      "relationship": "current-distributional-alternative",
+      "difference": "LeJEPA targets a full isotropic Gaussian representation distribution with a sliced-information regularizer and supplies non-collapse arguments, moving beyond covariance-only redundancy reduction and pairwise negatives. It addresses higher-order distribution shape that both prototype Gram penalties omit.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2606.02572",
+      "title": "VISReg: Variance-Invariance-Sketching Regularization for JEPA training",
+      "url": "https://arxiv.org/abs/2606.02572",
+      "relationship": "current-full-distribution-successor",
+      "difference": "VISReg replaces explicit covariance regularization with projected distribution matching through sketching and sliced Wasserstein structure. It directly responds to the limitation that diagonal covariance controls only second moments and offers a scalable current alternative to coordinate Gram decorrelation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "v1"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Contrastive sample decorrelation and non-contrastive dimension decorrelation are two sides of the same objective; the paper claims a duality theorem, classifies leading SSL losses under it, and obtains competitive transposed variants of VICReg.",
+    "evidence": "The exact trace identity does relate the two prototype squared off-diagonal Gram losses through row- and column-norm fourth moments. The study also performs a broad 100-epoch ImageNet sweep and shows that VICReg-exp and VICReg-ctr can reach selected online linear accuracy close to VICReg under their own tuned recipes.",
+    "reviewer_inference": "The algebraic identity is the durable contribution and offers a useful lens for comparing redundancy along the two axes. The stronger objective-equivalence conclusion is not established: the simultaneous unit-normalization case is infeasible for rectangular matrices, several mappings alter cross-view, centering, scaling, sign, or rotational structure, and the DCL/SimCLR optimum argument violates rank feasibility. The new variants are empirically viable but the signed loss has an explicit anticorrelation counterexample, and unequal tuning plus absent artifacts prevent the experiments from isolating duality. Contemporary spectral and full-distribution approaches provide stronger alternative unifications or more complete distributional control."
+  },
+  "confidence": 0.93,
+  "reviewer_notes": "Two passes audited the exact cached arXiv:2206.02574v3 paper end to end and visually inspected all 28 rendered PDF pages, every equation, proof, table, algorithm, and visual. The paper's inventory is Figures 1-10, Tables 1-7, and Algorithms 1-2; the sections do not use S-prefixed figure or table identifiers. No page is blank or clipped. The cached PDF is 871,822 bytes with SHA-256 41acddff9c48d4eb5f54021186f0c7eb5177a921fb11e6b8638b10c72afb2c74 and has 100% text-page coverage. The exact arXiv source archive is 325,158 bytes with SHA-256 ca83cd6d15cb65649ddbb575b815c88c88981aa0c983018b2694b33eec1869ce and contains two TeX files, three style files, one bibliography output, and 18 PDF visual assets. The current arXiv record is v3, revised 2023-06-26, with v1 submitted 2022-06-03 and v2 on 2022-10-05. Official lineage was verified as ICLR 2023, notable top 5%, at OpenReview forum kDEL91Dufpa. The paper does not link a paper-specific repository; it refers generically to the VICReg codebase. The natural upstream facebookresearch/vicreg was independently audited at commit 4e12602fd495af83efd1631fbe82523e6db092e0; it is archived, has no tagged releases, and contains neither VICReg-exp nor VICReg-ctr nor a matched SimCLR sweep. Figure 5's caption says VICReg although the plot and surrounding text concern SimCLR. The displayed Spectral Contrastive Loss double sums also print j not equal to i while i is unbound, an evident source-index error not material to the main identity. Independent review strengthened the signed-loss defect to an explicit unbounded-below construction and rechecked all competitor records through 2026-08-24.",
+  "verification": {
+    "reviewer_id": "reviewer-8a6b2f898f76",
+    "checked_at": "2026-08-24",
+    "passage_check": "Independently checked all 28 pages, the complete Figures 1-10, Tables 1-7, Algorithms 1-2, source archive, loss formulas, pseudocode, and natural upstream VICReg repository. Confirmed the core Gram-identity audit and strengthened Equation 11 to an explicit centered-covariance family proving the printed full VICReg-exp loss is unbounded below.",
+    "competitor_check": "Rechecked all existing primary records and versions through 2026-08-24 and added the closest omitted gradient-unification and matrix-information alternatives."
+  }
+}

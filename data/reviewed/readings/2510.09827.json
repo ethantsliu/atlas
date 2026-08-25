@@ -1,0 +1,217 @@
+{
+  "stable_id": "arxiv:2510.09827",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2510.09827",
+    "pdf_sha256": "b1a98585413d69ddc12391ba97e38402afc5cd7794316e6c57d8f5b7f9506f66",
+    "text_sha256": "9b856979bcef0b1dfe4b1bd04f8c82321e112ad9f4fa35bc32f2121e6f4c9ded",
+    "page_count": 29,
+    "extracted_at": "2026-08-23T14:41:13.273961+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can practical Muon/Adam hybrids be derived as steepest descent in one norm over all network parameters, and can product-norm and model-truncation choices make Muon less sensitive to learning-rate tuning?",
+  "key_findings": [
+    {
+      "claim": "The paper organizes Muon-family optimizers along three separable choices: per-parameter norms, a product norm over layers, and constrained versus squared-norm-regularized steepest descent.",
+      "evidence": "Lemma 3.3 derives product-space duals and linear-minimization oracles; Propositions 3.4-3.6 then express Adam and the practical Muon-plus-Adam update as steepest descent under adaptive and weighted product norms.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "3.2 Product Norms"}, {"page": 6, "section": "3.4 The Whole Framework"}]
+    },
+    {
+      "claim": "MuonMax is the regularized update for a hybrid norm that takes the maximum spectral norm across hidden matrices and an adaptive Euclidean norm over the remaining parameters.",
+      "evidence": "Equation 17 defines the hybrid norm. Its dual couples layers through the sum of momentum nuclear norms, and the implementation reuses the previous step's scalar norms to avoid storing or recomputing all polar factors.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 6, "section": "Stale dual norms and A New Product Norm"}, {"page": 24, "section": "Proof of Proposition 4.3"}]
+    },
+    {
+      "claim": "Extending MoMo's truncated loss model to arbitrary norms yields adaptive caps for both constrained and regularized steepest-descent steps.",
+      "evidence": "Propositions 4.1 and 4.2 minimize a momentum-weighted affine loss model clipped at a claimed loss lower bound. The closed forms depend on the model gap and the momentum dual norm and lead to MuonMax-Momo.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 7, "section": "4 Model Truncation"}, {"page": 8, "section": "Proposition 4.3"}]
+    },
+    {
+      "claim": "On the reported language-model sweeps, model truncation materially widens the competitive learning-rate region, while MuonMax-Momo usually matches or beats the selected Muon-family baselines.",
+      "evidence": "For GPT-2 Small on FineWeb-1B, the fraction of tested joint learning-rate scalings below 3.65 validation loss rises from 25% for MuonAdam and Scion to 50% for MuonMax-Momo and 62.5% for MuonAdam-Momo. For GPT-2 Large on SlimPajama-1B, MuonMax-Momo remains between 3.13 and 3.24 while its matrix learning rate spans five orders of magnitude; on 6B tokens it beats MuonAdam at all four tested matrix rates.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 9, "section": "5.1 FineWeb Results and 5.2 SlimPajama Results"}]
+    },
+    {
+      "claim": "The one-step-stale nuclear-norm approximation removes most of MuonMax-Momo's measured overhead without a meaningful loss change in the narrow tested setting.",
+      "evidence": "Table 1 reports at most 0.004 higher final validation loss across four tested methods and reduces MuonMax-Momo overhead relative to MuonAdam from 11% to 5% per iteration.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 10, "section": "5.3 Effect of Stale Approximation"}]
+    },
+    {
+      "claim": "Lemma 3.3 is false for an arbitrary outer norm, although the specific absolute product norms used in the experiments avoid the defect.",
+      "evidence": "The proof assumes that applying an arbitrary norm f to coordinatewise inequalities preserves order and that the optimizing radii may have the signs returned by an unconstrained LMO. Neither is true without f being absolute/monotone on the nonnegative orthant; radii g_i(v_i) must be nonnegative. Thus the claimed general product-norm and LMO result needs an unconditional-norm hypothesis.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 4, "section": "Lemma 3.3"}, {"page": 15, "section": "Proof of Lemma 3.3"}]
+    },
+    {
+      "claim": "The displayed MuonMax-Momo pseudocode does not implement its own derivation.",
+      "evidence": "Algorithm 3 line 8 updates the scalar model with the non-matrix inner product <g_t^theta,m_t^theta>, but Equations 100-103 and Algorithm 2 require <g_t^theta,theta_t>. Line 9 subsequently adds <m_t^theta,theta_t>. The rendered PDF confirms this is not extraction noise, so a literal implementation changes the model gap and step cap.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 22, "section": "Algorithm 2 and Equations 100-103"}, {"page": 23, "section": "Algorithm 3 line 8"}]
+    },
+    {
+      "claim": "The strongest robustness claim remains an optimizer-screening result, not evidence of task-general or frontier-scale superiority.",
+      "evidence": "Experiments cover causal language modeling only, use GPT-2 Small/Large up to 774M parameters, select methods and learning rates on related loss sweeps, omit AdamW from the main final comparison, and do not report downstream quality or compute-normalized time-to-target. The 6B-token study reuses the learning-rate ratio tuned at 1B tokens.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 8, "section": "5 Experiments"}, {"page": 9, "section": "5.2 Setup"}, {"page": 25, "section": "C Experimental Details"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Treat every hybrid matrix/vector optimizer as one non-Euclidean steepest-descent update, then search a modular norm design space and add a loss-model-derived step cap.",
+    "mechanism": "Assign spectral norms to hidden matrices and adaptive vector norms to other parameters; aggregate those values with an absolute product norm; derive the dual and layerwise LMO; choose constrained or regularized updates; optionally cap the step with a MoMo model gap; and approximate cross-layer nuclear norms with their previous-step values.",
+    "assumptions": [
+      "The outer product norm is absolute and monotone, despite the paper stating the result for any norm.",
+      "PolarExpress supplies a sufficiently accurate polar factor in bfloat16.",
+      "Momentum and its nuclear norms vary slowly enough that one-step staleness is harmless.",
+      "The supplied F-star is a valid or at least operationally safe lower bound for the loss model.",
+      "Validation loss on the chosen GPT-2 data/scale is a useful proxy for broader optimizer quality.",
+      "Two learning rates and the truncation bound can be compared fairly under the paper's finite tuning grids."
+    ]
+  },
+  "techniques": [
+    {"id": "product-norm-descent", "role": "Turns per-layer geometry and cross-layer scaling into a single optimizer derivation."},
+    {"id": "spectral-lmo", "role": "Uses approximate polar factors as spectral-norm steepest directions for matrix parameters."},
+    {"id": "model-truncation", "role": "Clips a momentum affine loss model at a lower bound to adapt the step magnitude."},
+    {"id": "stale-dual-norm", "role": "Reuses previous nuclear norms so coupled layer scaling needs neither stored polar factors nor a second polar pass."},
+    {"id": "learning-rate-surface", "role": "Evaluates robustness across joint and two-dimensional matrix/base learning-rate sweeps."}
+  ],
+  "evaluations": [
+    {
+      "setting": "GPT-2 Small, 124M parameters, one billion FineWeb tokens",
+      "metric": "Final validation loss across 36 norm/update combinations and joint learning-rate multipliers",
+      "result": "Tuned Muon-Momo reaches 3.551; MuonMax-Momo reaches 3.576 but retains a broader competitive-rate region than MuonAdam and Scion.",
+      "baseline": "MuonAdam, Scion, PolarGrad, MuonMax, and the other factorial norm/update variants."
+    },
+    {
+      "setting": "GPT-2 Large, 774M parameters, SlimPajama with one billion and six billion tokens",
+      "metric": "Final validation loss across matrix/base learning-rate grids",
+      "result": "MuonMax-Momo has the lowest reported 1B loss and beats MuonAdam at every tested 6B matrix learning rate while varying less under rate shifts.",
+      "baseline": "MuonAdam and Scion at 1B; MuonAdam at 6B."
+    },
+    {
+      "setting": "GPT-2 Small stale-norm ablation",
+      "metric": "Final loss and wall-clock time per iteration relative to MuonAdam",
+      "result": "Staleness changes loss by no more than 0.004 and makes MuonMax-Momo 1.05x rather than 1.11x MuonAdam time.",
+      "baseline": "The same algorithms with current-step nuclear norms."
+    }
+  ],
+  "limitations": [
+    "The product-norm lemma lacks the absolute/monotone hypothesis needed by its proof.",
+    "Algorithm 3 uses momentum where the current parameter is required in its loss-model accumulator.",
+    "The chosen positive F-star values are empirical settings, not established global lower bounds of cross-entropy.",
+    "The study tests one task family, two legacy GPT-2 sizes, and at most six billion tokens.",
+    "The main comparison does not establish compute-normalized advantage over a well-tuned AdamW baseline.",
+    "Method selection, lower-bound choice, and learning-rate tuning use overlapping settings and limited seeds.",
+    "Stale-norm evidence covers tuned runs; abrupt gradient-regime changes are not stress-tested.",
+    "No convergence theorem is given for stochastic MuonMax-Momo with adaptive norms, approximate polar factors, and stale duals."
+  ],
+  "failure_modes": [
+    "A literal Algorithm 3 implementation accumulates the wrong model scalar and can clip steps incorrectly.",
+    "An outer norm outside the absolute family invalidates the stated LMO decomposition.",
+    "An overestimated loss lower bound makes the truncated model cap too aggressive or formally nonsensical.",
+    "Nuclear norms can change sharply after a distribution shift, invalidating the stale scaling.",
+    "Cross-layer nuclear-norm sums can make one anomalous layer rescale every matrix update.",
+    "Approximate polar factors may lose useful rank/magnitude information or become numerically unstable.",
+    "A wide loss basin on GPT-2 may fail to transfer to larger architectures, downstream tasks, or different batch/token regimes."
+  ],
+  "reusable_insights": [
+    "Factor optimizer design into local geometry, cross-module aggregation, and magnitude control.",
+    "Measure robustness as a response surface over hyperparameters, not only the best tuned point.",
+    "Cache slowly changing scalar statistics when exact coupled updates would require large tensor storage.",
+    "Audit pseudocode against derivations; a one-symbol state mismatch can change an optimizer materially.",
+    "State monotonicity or unconditionality explicitly whenever composing norms of nonnegative component magnitudes.",
+    "Separate robustness-to-tuning claims from compute-efficiency and scaling claims."
+  ],
+  "open_questions": [
+    "Does corrected MuonMax-Momo retain its advantage at multi-billion-parameter and trillion-token scales?",
+    "Can F-star be estimated conservatively online without becoming another tuned hyperparameter?",
+    "What convergence guarantees survive adaptive vector norms, approximate polar LMOs, and stale nuclear norms together?",
+    "Would per-layer or robust aggregation outperform a global sum when one layer has an anomalous nuclear norm?",
+    "How does MuonMax-Momo compare with AdamW on time-to-target, downstream transfer, and total tuning compute?",
+    "Can the product-norm framework be formalized for exactly the absolute norms under which its LMO formula is valid?",
+    "How quickly can dual norms drift in realistic loss spikes, data transitions, or curriculum boundaries?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2410.21265",
+      "title": "Modular Duality in Deep Learning",
+      "url": "https://arxiv.org/abs/2410.21265",
+      "relationship": "Direct prior whole-network norm framework.",
+      "difference": "Bernstein and Newhouse build compositional modular norms to control network sensitivity and derive architecture-aware updates. This paper instead enumerates general product aggregations, formalizes practical Muon/Adam hybrids, and evaluates the resulting optimizer grid.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2502.07529",
+      "title": "Training Deep Learning Models with Norm-Constrained LMOs",
+      "url": "https://arxiv.org/abs/2502.07529",
+      "relationship": "Direct Muon-family baseline and LMO formulation.",
+      "difference": "Pethick et al.'s Scion emphasizes norm-constrained LMOs and uses sign descent for non-matrix parameters. The reviewed work embeds Scion in a broader product-norm taxonomy and adds regularized and MoMo-capped variants.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2505.21799",
+      "title": "PolarGrad: A Class of Matrix-Gradient Optimizers from a Unifying Preconditioning Perspective",
+      "url": "https://arxiv.org/abs/2505.21799",
+      "relationship": "Concurrent matrix-gradient optimizer family.",
+      "difference": "PolarGrad derives polar updates as matrix preconditioners and retains layer-local gradient magnitude. The reviewed framework recovers its vanilla form as regularized product-norm descent but concentrates on cross-layer aggregation and tuning robustness.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2505.13416",
+      "title": "Gluon: Making Muon & Scion Great Again! (Bridging Theory and Practice of LMO-based Optimizers for LLMs)",
+      "url": "https://arxiv.org/abs/2505.13416",
+      "relationship": "Concurrent theory-practice bridge for layerwise LMOs.",
+      "difference": "Gluon introduces a refined layerwise generalized-smoothness model and theory-aligned stepsizes. The reviewed paper offers a wider empirical norm design space and model-truncation adaptation but no comparable convergence result for MuonMax-Momo.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record"
+    },
+    {
+      "canonical_id": "pmlr:v235:schaipp24a",
+      "title": "MoMo: Momentum Models for Adaptive Learning Rates",
+      "url": "https://proceedings.mlr.press/v235/schaipp24a.html",
+      "relationship": "Direct adaptive-step predecessor.",
+      "difference": "Schaipp et al. derive and test truncated momentum models for SGD-M and Adam across vision, recommendation, translation, and diffusion. The reviewed paper generalizes the closed-form step to arbitrary norms and applies it to Muon product geometry.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2024 PMLR version"
+    },
+    {
+      "canonical_id": "arxiv:2506.15054",
+      "title": "Muon Optimizes Under Spectral Norm Constraints",
+      "url": "https://arxiv.org/abs/2506.15054",
+      "relationship": "Concurrent implicit-regularization account of Muon.",
+      "difference": "Chen, Li, and Liu place Muon with decoupled weight decay in the Lion-K family and show implicit spectral-norm constraints. The reviewed paper derives explicit steepest-descent norms for practical hybrid updates and explores product scaling rather than implicit regularization.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2602.06385",
+      "title": "Uniform Spectral Growth and Convergence of Muon in LoRA-Style Matrix Factorization",
+      "url": "https://arxiv.org/abs/2602.06385",
+      "relationship": "Later mechanistic analysis of spectral descent.",
+      "difference": "Kang et al. analyze equal-rate singular-value growth and convergence in a simplified LoRA factorization. It probes Muon's spectral dynamics, whereas the reviewed paper treats the polar update as a component in a system-level optimizer design space.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The work gives a whole-parameter steepest-descent interpretation of practical Muon/Adam, extends MoMo to any norm, and introduces the robust MuonMax-Momo optimizer with cheap stale dual norms.",
+    "evidence": "The product-geometry taxonomy and systematic factorial sweep are useful, and the stale-scalar engineering tradeoff is concrete. Modular norms, layerwise LMOs, polar optimizers, and MoMo all predate the paper; its contribution is their explicit combination and evaluation. A missing hypothesis in Lemma 3.3 and the Algorithm 3 state-variable error narrow the trustworthy formal claim.",
+    "reviewer_inference": "Novelty is strongest as optimizer design unification and a promising tuning-robust recipe, not as a general product-norm theorem or a demonstrated large-scale replacement for established optimizers. Corrected pseudocode, stronger baselines, and prospective scale tests are required before making that broader claim."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Read all 29 extracted pages, including proofs, algorithms, tables, appendices, and references. Rendered page 23 to verify that Algorithm 3 genuinely prints momentum m_t^theta rather than parameter theta_t in line 8. Audited the product-norm proof's sign/nonnegative-radius assumptions and checked current primary arXiv/PMLR records for direct, concurrent, and later competitors through 2026-08-23."
+}

@@ -1,0 +1,163 @@
+{
+  "stable_id": "arxiv:2512.22768",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2512.22768",
+    "pdf_sha256": "27829da22508fa11db569e7ef5c69d5f4a46828be7ed6b7ef1ef188153af34f4",
+    "text_sha256": "d6f4b3bc16b4cfa994f420f89da0b02878b39046694c48c13be1d0335bbd360e",
+    "page_count": 43,
+    "extracted_at": "2026-08-23T14:12:48.135269+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "When does transferring scale-aware hyperparameters from a small model to a wider model save compute, and what structure in an optimization trajectory can explain the unusually rapid learning-rate transfer observed under maximal-update parameterization?",
+  "key_findings": [
+    {
+      "claim": "The paper separates weak transfer from fast transfer and shows, under its regularity and power-law assumptions, that fast transfer is exactly the condition under which proxy-model grid search is asymptotically more compute-efficient than direct tuning.",
+      "evidence": "It defines the finite-width loss gap a_n, hyperparameter gap b_n, and transfer suboptimality c_n. Local strong convexity gives b_n = O(sqrt(a_n)) and c_n = Theta(b_n squared); fast transfer is c_n = o(a_n). Theorem 2 compares compute-optimal direct and transfer grid searches and makes the useful-transfer inequality equivalent to that rate condition.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "3.1 Convergence Rates of HP Transfer, Definitions 1-2 and Proposition 1"},
+        {"page": 6, "section": "Useful Transfer, Theorem 2"}
+      ]
+    },
+    {
+      "claim": "Maximal-update parameterization is not sufficient for fast transfer; task and training structure can make a width-stable limiting learning rate converge too slowly to be computationally useful.",
+      "evidence": "The random-feature ridge example has loss and hyperparameter gaps proportional to inverse width ratio while transfer suboptimality is quadratic, yielding fast transfer. In contrast, a two-layer ReLU network learning a ball indicator has an abrupt Adam learning-rate shift around width 8192 even though the learning rate is scaled with maximal-update parameterization.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "2 Preliminaries, Figure 2"},
+        {"page": 6, "section": "3.2 Examples of Fast and Slow HP Transfer, Theorem 3"},
+        {"page": 7, "section": "Random-feature and two-layer ReLU examples, Figures 4-5"},
+        {"page": 8, "section": "Slow-transfer interpretation"}
+      ]
+    },
+    {
+      "claim": "The proposed explanation is a trajectory-level spectral decomposition: a rapidly width-stabilizing top-k component determines the hyperparameter optimum while a width-sensitive but locally flat residual supplies most scale-dependent performance gains.",
+      "evidence": "For each matrix update, the method eigendecomposes the symmetrized gradient-update alignment matrix, sums its largest-magnitude eigenvalue contributions, and accumulates them over layers and time along an exponential-moving-average trajectory. An adaptive truncation balances cross-width top-k invariance against residual flatness.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "4 Fast Transfer via Trajectory Decomposition"},
+        {"page": 9, "section": "4.1 Top-k Loss Decomposition, Equations 2-5"},
+        {"page": 10, "section": "Selecting the Truncation Function"}
+      ]
+    },
+    {
+      "claim": "The mechanism receives broad qualitative support for Adam and momentum SGD, but the paper does not establish it as a necessary or quantitatively predictive cause of transfer.",
+      "evidence": "Four-layer Llama models on WikiText-103 with widths 128-2048 show almost overlapping transferred and width-tuned Adam loss curves while reducible loss follows an approximately n^-0.52 fit; GPT-2/FineWeb and CIFAR-10 experiments show similar qualitative structure. Muon instead exhibits a larger optimal-rate shift and weaker top-k invariance. The authors explicitly use the largest tested width as an infinite-width proxy and defer quantitative rate tests and a suitable invariance notion for Muon.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 10, "section": "4.2 Experimental Results and Figure 6"},
+        {"page": 11, "section": "Fast Transfer and Linearization Faithfulness"},
+        {"page": 12, "section": "4.2.2 Llama with Muon, Figure 11"},
+        {"page": 17, "section": "5 Discussion"},
+        {"page": 39, "section": "D.4.1 GPT-2 Adam LR"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Judge hyperparameter transfer by convergence rates relative to the finite-scale performance gap, then look for a low-dimensional, width-stable part of loss reduction that fixes the optimum.",
+    "mechanism": "The theory compares loss, optimizer, and transfer gaps under local curvature assumptions. The empirical diagnostic smooths the trajectory with an EMA, linearizes stepwise loss changes, decomposes each matrix gradient-update alignment spectrally, and searches for a truncation whose top component is invariant across width and whose remainder is flat near the optimum.",
+    "assumptions": [
+      "The family of hyperparameter-loss curves has a well-defined infinite-width limit with convergent minimizers.",
+      "The limiting loss is locally strongly convex around its optimum and the uniform loss gap is locally tight.",
+      "Compute and convergence gaps admit the power-law forms used by the grid-search comparison.",
+      "EMA linearization is faithful and the largest tested width is a meaningful proxy for the inaccessible infinite-width curve."
+    ]
+  },
+  "techniques": [
+    {"id": "relative-transfer-rate", "role": "Defines fast transfer using transfer suboptimality relative to the finite-width loss gap."},
+    {"id": "compute-optimal-grid-search", "role": "Compares direct tuning and small-to-large transfer under a shared FLOP budget."},
+    {"id": "gradient-update-alignment-spectrum", "role": "Attributes linearized loss change to ordered directions for every matrix update."},
+    {"id": "ema-trajectory-linearization", "role": "Suppresses edge-of-stability oscillations so stepwise first-order loss changes closely track smoothed loss."},
+    {"id": "adaptive-top-k-truncation", "role": "Trades top-subspace invariance against residual flatness when diagnosing transfer."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Random-feature regression for a single-index target in a proportional high-dimensional limit.",
+      "metric": "Prediction-risk gap, optimal ridge-penalty gap, and transferred-penalty suboptimality versus width-to-dimension ratio.",
+      "result": "The first two gaps scale at order psi^-1 while the transfer suboptimality is order psi^-2, satisfying the paper's fast-transfer criterion.",
+      "baseline": "Directly tuning ridge regularization at the target width."
+    },
+    {
+      "setting": "Four-layer Llama-style transformers on WikiText-103, Adam under maximal-update scaling, widths 128-2048, with learning-rate sweeps.",
+      "metric": "Validation EMA loss, transferred-versus-width-optimal loss, fitted width exponent, and top-k/residual curves.",
+      "result": "The width-128 rate is essentially optimal at all tested widths while reducible loss is fit near n^-0.52; top-k curves overlap and residual curves are locally flat.",
+      "baseline": "A separately tuned optimal learning rate at each width."
+    },
+    {
+      "setting": "The same Llama/WikiText setup with Muon, plus rank-controlled Dion variants.",
+      "metric": "Optimal-rate drift, transferred loss, and concentration/invariance of top-k loss.",
+      "result": "Muon transfers imperfectly and spreads loss reduction over more directions; bounding the matrix-preconditioner rank improves transfer relative to proportional rank.",
+      "baseline": "Adam and width-dependent optimal learning rates."
+    },
+    {
+      "setting": "Momentum-SGD two-layer MLPs on CIFAR-10 across widths 128-8192.",
+      "metric": "Transferred loss, component-index distribution, and easy-versus-hard sample scaling.",
+      "result": "Transfer is reliable but imperfect; low-index easy samples have more stable rankings and faster transfer than high-index hard samples.",
+      "baseline": "Width-specific learning rates and the hardest-sample subset."
+    }
+  ],
+  "limitations": [
+    "Author-stated: realistic experiments provide qualitative rather than statistically identified convergence-rate evidence because dense hyperparameter sweeps at many larger widths are prohibitive.",
+    "Author-stated: the correct invariance concept for Muon is unresolved and can depend on learning rate and optimizer rank.",
+    "Reviewer inference: strong convexity, tight uniform convergence, and power-law cost assumptions may fail for broad or multi-modal hyperparameter optima.",
+    "Reviewer inference: the adaptive truncation is fitted using a largest-width proxy, so its apparent invariance can be optimistic and is not an out-of-range scaling prediction."
+  ],
+  "failure_modes": [
+    "A proxy width can sit before an abrupt optimum shift, as in the paper's ball-indicator experiment, making otherwise scale-aware transfer misleading.",
+    "A flat loss curve can make transferred performance look good even while the estimated optimal hyperparameter drifts substantially.",
+    "Full-matrix preconditioning can distribute useful descent over width-growing rank, defeating a fixed low-dimensional invariance story.",
+    "EMA smoothing can hide optimizer dynamics that matter to unsmoothed iterate quality or transient stability."
+  ],
+  "reusable_insights": [
+    "Evaluate a proxy not only by whether its optimum converges, but by whether proxy-induced regret shrinks faster than the benefit obtained by increasing scale.",
+    "Separate scale-stable directions that select hyperparameters from scale-sensitive directions that improve attainable performance.",
+    "Use prospective out-of-range widths to test a transfer mechanism; interpolation against a chosen largest-width proxy is not enough.",
+    "Optimizer rank and geometry should be treated as explicit scaling variables in hyperparameter-transfer studies."
+  ],
+  "open_questions": [
+    "Does the top-k diagnostic predict transfer failures prospectively at widths, depths, token budgets, and model families not used to select k?",
+    "What replaces top-k invariance for Muon and other matrix-preconditioned optimizers whose effective update rank grows with width?",
+    "Can one estimate transfer regret without an exhaustive learning-rate sweep or an infinite-width proxy?",
+    "How do stochasticity, multi-dimensional hyperparameter interactions, and non-convex loss curves alter the useful-transfer theorem?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2203.03466",
+      "title": "Tensor Programs V: Tuning Large Neural Networks via Zero-Shot Hyperparameter Transfer",
+      "url": "https://arxiv.org/abs/2203.03466",
+      "relationship": "foundational prior work",
+      "difference": "Introduces maximal-update parameterization and demonstrates zero-shot width transfer, whereas this paper asks when convergence is fast enough to save compute and proposes a trajectory mechanism.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2510.19093",
+      "title": "Weight Decay may matter more than muP for Learning Rate Transfer in Practice",
+      "url": "https://arxiv.org/abs/2510.19093",
+      "relationship": "contemporary competing explanation",
+      "difference": "Attributes practical width transfer after early training primarily to independent weight decay and warmup-like effects, rather than to the paper's width-stable spectral loss component.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2512.05620",
+      "title": "Hyperparameter Transfer Enables Consistent Gains of Matrix-Preconditioned Optimizers Across Scales",
+      "url": "https://arxiv.org/abs/2512.05620",
+      "relationship": "contemporary empirical competitor",
+      "difference": "Derives and tests optimizer-specific width/depth scaling rules for Muon, Shampoo, and SOAP, emphasizing blocking and spectral normalization; the reviewed paper instead formalizes relative transfer rates and diagnoses trajectory subspaces.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims the first framework equating fast relative transfer with compute usefulness and a new trajectory decomposition explaining practical fast transfer.",
+    "evidence": "Theorems connect three convergence gaps to grid-search compute, while experiments contrast top-k/residual structure across Adam, SGD, Muon, architectures, and datasets.",
+    "reviewer_inference": "The formal relative-rate criterion is the strongest novelty. The spectral mechanism is an informative, optimizer-sensitive hypothesis, but remains post-hoc and qualitative beside contemporary causal alternatives involving weight decay and preconditioner scaling."
+  },
+  "confidence": 0.93,
+  "reviewer_notes": "Read all 43 extracted pages, including theoretical assumptions/proofs, truncation algorithm, optimizer definitions, and experimental appendices. Quantitative statements above are author-reported; causal language about the decomposition is intentionally limited because the paper does not prospectively intervene on the proposed mechanism. Competitor records were checked against primary arXiv pages on 2026-08-23."
+}

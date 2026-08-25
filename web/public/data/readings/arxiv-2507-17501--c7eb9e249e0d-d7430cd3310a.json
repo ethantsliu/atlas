@@ -1,0 +1,278 @@
+{
+  "stable_id": "arxiv:2507.17501",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2507.17501",
+    "pdf_sha256": "2ec4b92fbd75353ab5cce4f55272df17501c57447a1b0c580478f856d2bb7ecc",
+    "text_sha256": "7088c8e6d6d54508a09ce66a8a3c092c5a2c5afe2e37650787a20c8ad2a3eead",
+    "page_count": 24,
+    "extracted_at": "2026-08-23T16:16:22.502693+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can strategically placed activation normalizations reshape Transformer Jacobians and gradient distributions enough for momentum SGDW to match AdamW while reducing optimizer-state memory?",
+  "key_findings": [
+    {
+      "claim": "DNT combines existing normalization placements into one architecture intended to remove separate sources of Jacobian scale sensitivity.",
+      "evidence": "The input embedding is normalized once; self-attention receives PreNorm and query/key normalization; attention and FFN outputs receive MidNorm before their residual additions; the second FFN PreNorm is optional; PostNorm is excluded. The paper assigns InputNorm to embedding-scale control, PreNorm to activation-scale control, MidNorm to value/output/FFN weight-scale control, and QKNorm to query-key scale control.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "3.2 Jacobian analysis / Figure 2"},
+        {"page": 7, "section": "3.3 DNT architecture / Figure 3"},
+        {"page": 8, "section": "Figure 4 / comparison with nGPT"}
+      ]
+    },
+    {
+      "claim": "Momentum SGDW on DNT approaches but does not uniformly equal AdamW on the same DNT architecture.",
+      "evidence": "At 124M language scale, DNT+mSGDW reaches 2.849 validation loss versus 2.863 for DNT+AdamW; at 774M and 1.436B it is worse by 0.022 and 0.012 respectively. On ImageNet it trails DNT+AdamW by 0.6 points at 307M and 0.7 points at 632M. All DNT+mSGDW results substantially beat the corresponding conventional Transformer+mSGDW runs.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "4.2 / Table 1 and Figure 5"},
+        {"page": 21, "section": "Appendix D larger-model comparison"},
+        {"page": 22, "section": "Figures 8-9"},
+        {"page": 23, "section": "Figure 10"}
+      ]
+    },
+    {
+      "claim": "The strongest 'SGD matches Adam' comparisons bundle an architectural improvement with an optimizer substitution.",
+      "evidence": "DNT+AdamW itself improves over ViT/GPT2+AdamW in every Table 1 column, so DNT+mSGDW can match or beat conventional Transformer+AdamW even while remaining behind DNT+AdamW. The complete 2x2 table is valuable, but parity with the conventional baseline does not show that normalization eliminated the optimizer gap within a fixed architecture.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "4.2 / Table 1"},
+        {"page": 11, "section": "5 Conclusion"}
+      ]
+    },
+    {
+      "claim": "The demonstrated total-memory saving is modest compared with the optimizer-state saving emphasized by the paper.",
+      "evidence": "For the 1.4B model, the theoretical optimizer memory falls from 11.5 GB for AdamW to 5.7 GB for mSGDW, but observed model-plus-optimizer memory falls only from approximately 67 GB to 61 GB, about nine percent. No maximum trainable batch, throughput, communication, or time-to-loss comparison is reported.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "4.3 / Table 2"},
+        {"page": 19, "section": "Appendix B hardware and training details"}
+      ]
+    },
+    {
+      "claim": "The gradient evidence does not establish that DNT removes heavy-tailed stochastic-gradient noise or that this mechanism causes the optimizer result.",
+      "evidence": "Figure 1 compares histograms of absolute entries for selected ViT and V-DNT parameter gradients and reports concentration near 0-1e-5 versus values spread over 0-1e-4. It gives no fitted tail index, higher moments, stochastic-noise residual relative to a full gradient, layerwise sample size, seed uncertainty, or intervention tying the histogram change to loss. The paper says the same pattern occurs later but only displays an early checkpoint.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "Abstract / Introduction"},
+        {"page": 2, "section": "Figure 1 and heavy-tail motivation"},
+        {"page": 8, "section": "4.1 Gradient visualization"},
+        {"page": 9, "section": "4.1 reported gradient ranges"}
+      ]
+    },
+    {
+      "claim": "Proposition 2's asserted PreNorm Jacobian invariance omits the normalization chain rule and is generally false.",
+      "evidence": "The paper argues that per-token rescaling X'=g⊙X gives identical normalized attention inputs and therefore dY/dX=dY'/dX'. Equal forward values at two scaled points do not imply equal derivatives: for ideal homogeneous RMSNorm, J_RMS(gx)=J_RMS(x)/g, with epsilon further breaking exact scale invariance. Appendix A.1 repeats the equality after deriving an attention Jacobian but never multiplies by the PreNorm Jacobian.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "3.2.2 Proposition 2"},
+        {"page": 15, "section": "Appendix A.1 proof of Proposition 2"},
+        {"page": 16, "section": "Equations 13-15 and conclusion"}
+      ]
+    },
+    {
+      "claim": "The MidNorm proof supports only a narrow random, uniform-scale heuristic and contains inconsistent moment notation.",
+      "evidence": "Proposition 3 assumes high-dimensional random W1, W2, and x, whereas trained Transformer matrices need not remain independent or i.i.d. The appendix writes E[||y||] and E[||y||^2] interchangeably before taking a square root, then substitutes only the largest-singular-value asymptotic. Uniformly scaling a matrix does cancel under normalization, but this does not establish that the complete singular spectrum is controlled under anisotropic training changes.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "3.2.3 Proposition 3"},
+        {"page": 16, "section": "Appendix A.2 proof setup"},
+        {"page": 17, "section": "Equation 16 and conclusion"}
+      ]
+    },
+    {
+      "claim": "The component ablation supports InputNorm and the normalized residual branches, but not the necessity of every proposed normalization.",
+      "evidence": "Adding QKNorm alone to PreNorm changes little on OpenWebText, while adding InputNorm improves it; Settings 4-5 with MidNorm are best there. On ImageNet, Setting 3 (PreNorm+QKNorm+InputNorm, without MidNorm) is best, and the authors acknowledge it can perform well. There is no full factorial ablation, so interactions and the unique contribution of each placement remain unresolved.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "4.4 Ablation study / Figure 6"},
+        {"page": 21, "section": "Appendix C / Figure 7"}
+      ]
+    },
+    {
+      "claim": "Optimizer comparisons use materially different schedules and incomplete tuning, which limits a causal attribution to architecture-induced gradient concentration.",
+      "evidence": "Language AdamW uses peak learning rates 6e-4 to 1.5e-4, 2,000 warmup steps, and weight decay 0.1; mSGDW uses learning rate 1.0, no warmup, and weight decay 1e-4. The authors say AdamW is carefully tuned but mSGDW receives only a rough grid because of compute limits. Vision mSGDW uses learning rates 0.5/0.1 versus AdamW 1e-3, and all ImageNet runs spend 60 of 150 epochs warming up.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "4.2 tuning statement"},
+        {"page": 19, "section": "Appendix B / Table 3 and optimizer details"},
+        {"page": 20, "section": "Tables 4-5"}
+      ]
+    },
+    {
+      "claim": "The empirical scope is large in parameter count but narrow in data, architecture, replication, and efficiency measurement.",
+      "evidence": "Language tests reuse a 9B-token OpenWebText split for 200,000 updates (about 96-102B token presentations depending on model) on GPT-2-style models, and vision tests use ImageNet ViT for 150 epochs. Table values have no seeds, error bars, downstream transfer, alternative corpus, modern Llama block, long-context test, wall-clock comparison, or compute cost for the added normalization operations.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 8, "section": "4 Experiments"},
+        {"page": 9, "section": "Table 1"},
+        {"page": 19, "section": "Appendix B datasets, batches, and hardware"},
+        {"page": 20, "section": "Tables 4-5"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Move part of the burden of coordinatewise optimizer adaptation into the Transformer architecture by normalizing activations at the embedding, sublayer input, query/key, and residual-branch output locations.",
+    "mechanism": "DNT applies InputNorm after token/patch embedding, PreNorm before attention, QKNorm to every query and key, and MidNorm to attention and FFN outputs before residual addition, with an optional second PreNorm before the FFN. The paper uses random-vector and Jacobian-scale arguments to motivate each placement, then trains GPT-2- and ViT-shaped DNTs with decoupled-weight-decay momentum SGD and AdamW.",
+    "assumptions": [
+      "Heavy-tailed stochastic gradients are the principal cause of the Adam-SGD gap in the tested Transformers.",
+      "Controlling activation and weight magnitudes controls the relevant Jacobian singular-value distribution and therefore gradient tails.",
+      "High-dimensional activations and trained weight matrices behave like independent isotropic or i.i.d. random objects in the theoretical approximations.",
+      "Histograms of absolute gradient entries diagnose the stochastic-gradient-noise tail relevant to optimizer convergence.",
+      "GPT-2/OpenWebText and ViT/ImageNet comparisons transfer to modern LLM architectures, corpora, and batch regimes.",
+      "The extra normalization computation does not erase the memory or practical-efficiency benefit of mSGDW."
+    ]
+  },
+  "techniques": [
+    {"id": "inputnorm", "role": "Fixes the embedding-stream scale before it propagates through all residual layers."},
+    {"id": "prenorm", "role": "Bounds token-feature scale at the self-attention input."},
+    {"id": "query-key-normalization", "role": "Removes uniform query/key magnitude from attention logits and their local derivatives."},
+    {"id": "midnorm", "role": "Normalizes attention/FFN branch outputs before residual addition to reduce branch-weight scale sensitivity."},
+    {"id": "momentum-sgdw", "role": "Uses momentum SGD with decoupled weight decay and one velocity state instead of AdamW's two moment states."},
+    {"id": "jacobian-scale-analysis", "role": "Associates normalization positions with embedding, activation, weight, or query-key factors in local Jacobians."}
+  ],
+  "evaluations": [
+    {
+      "setting": "GPT-2-shaped 124M, 774M, and 1.436B models on OpenWebText for 200,000 updates",
+      "metric": "Validation cross-entropy loss",
+      "result": "DNT+mSGDW obtains 2.849, 2.503, and 2.408 versus DNT+AdamW at 2.863, 2.481, and 2.396; it improves substantially over conventional GPT-2+mSGDW at every size.",
+      "baseline": "Conventional GPT-2 and DNT, each trained with AdamW or mSGDW."
+    },
+    {
+      "setting": "307M and 632M ViT-shaped models on ImageNet for 150 epochs",
+      "metric": "Recognition accuracy",
+      "result": "DNT+mSGDW reaches 81.5% and 81.2%, versus DNT+AdamW at 82.1% and 81.9%; conventional ViT+mSGDW reaches only 78.2% and 73.5%.",
+      "baseline": "Conventional ViT and DNT, each trained with AdamW or mSGDW."
+    },
+    {
+      "setting": "Normalization-placement ablation on 124M OpenWebText and 632M ImageNet models with mSGDW",
+      "metric": "Validation-loss and accuracy curves",
+      "result": "InputNorm supplies a major improvement; MidNorm-inclusive Settings 4-5 lead language modeling, while the simpler Setting 3 is best on ImageNet and QKNorm alone changes little on language.",
+      "baseline": "Standard PreNorm, then cumulative QKNorm, InputNorm, MidNorm, and optional second-PreNorm variants."
+    },
+    {
+      "setting": "1.4B DNT optimizer-memory comparison",
+      "metric": "Theoretical optimizer storage and observed total GPU memory",
+      "result": "Optimizer storage falls from 11.5 to 5.7 GB and observed total memory from approximately 67 to 61 GB.",
+      "baseline": "DNT+AdamW versus DNT+mSGDW."
+    },
+    {
+      "setting": "Early ViT/DNT training checkpoints",
+      "metric": "Histogram of absolute entries of Wq, Wk, Wv, Wo, W1, and W2 gradients",
+      "result": "DNT gradients visually concentrate near 0-1e-5 while standard ViT gradients span roughly 0-1e-4, without a quantitative tail or stochastic-noise statistic.",
+      "baseline": "PreNorm ViT under the paper's corresponding training setup."
+    }
+  ],
+  "limitations": [
+    "The PreNorm Jacobian-invariance proposition omits the normalization derivative and is not mathematically valid as stated.",
+    "The remaining theory depends on i.i.d., independent, isotropic, high-dimensional approximations that are not tested on trained weights or activations.",
+    "Heavy-tailed noise is inferred from an absolute-gradient-entry histogram rather than measured with a tail index or noise-versus-full-gradient construction.",
+    "No seed replication, confidence interval, or statistical test accompanies the reported losses and accuracies.",
+    "The optimizer recipes differ in learning rate by orders of magnitude, warmup, and weight decay, and mSGDW receives only a rough grid search.",
+    "The language corpus contains only 9B unique tokens and is traversed repeatedly; only GPT-2-style blocks and ViTs are tested.",
+    "No throughput, wall-clock time-to-loss, FLOP, communication, or energy result accounts for the extra normalization operations.",
+    "Observed end-to-end memory improves by only about nine percent on the sole measured 1.4B configuration.",
+    "The cumulative rather than factorial ablation cannot isolate all normalization components or their interactions.",
+    "The work does not compare against clipping-based SGD, small-batch SGD, nGPT, NormFormer, DyT, Muon, SOAP, or other strong contemporary routes to the same goal."
+  ],
+  "failure_modes": [
+    "Per-token RMS normalization can amplify derivatives when an input norm is small even while suppressing them when it is large.",
+    "MidNorm can erase useful branch-amplitude information and force the residual stream to encode magnitude indirectly.",
+    "Extra normalizers can become a latency bottleneck when memory bandwidth or unfused kernels dominate.",
+    "The very large mSGDW learning rates can become unstable under a different batch size, corpus, precision, or output-layer gradient spike pattern.",
+    "A gradient histogram can look concentrated simply because all gradients are smaller, while anisotropy, signal-to-noise ratio, or optimization progress remains poor.",
+    "Repeated training over a small corpus can favor a normalization recipe that does not transfer to single-pass trillion-token pretraining.",
+    "The architecture may compensate for mSGDW enough to match a weaker conventional AdamW model while still leaving a meaningful within-DNT AdamW advantage.",
+    "Random-matrix Jacobian predictions can fail after training induces correlated, low-rank, or highly anisotropic weights."
+  ],
+  "reusable_insights": [
+    "Architecture and optimizer should be evaluated in a complete factorial design because an architectural gain can mask a remaining optimizer gap.",
+    "Normalization placement can be treated as local Jacobian engineering: separately track embedding scale, attention-input scale, query-key scale, and residual-branch scale.",
+    "Gradient-tail claims should distinguish gradient entries, mini-batch gradient norms, and stochastic noise around a reference gradient.",
+    "Scale invariance of a forward normalization does not imply scale invariance of its Jacobian; always propagate the normalization chain rule.",
+    "Optimizer-state savings should be reported as total peak memory and achievable batch/model scale, not only bytes per parameter.",
+    "A normalization recipe needs kernel-aware time-to-quality measurement because parameter-free operations can still be bandwidth-expensive.",
+    "Test optimizer-gap explanations against batch size, clipping, and effective learning rate before treating gradient tails as the unique cause.",
+    "Full factorial or removal ablations are needed when multiple normalizers are introduced cumulatively."
+  ],
+  "open_questions": [
+    "Does DNT retain its mSGDW result on modern Llama/MoE blocks, diverse corpora, longer contexts, and single-pass data at 7B or larger scale?",
+    "What tail index, gradient-noise scale, Hessian anisotropy, and Jacobian spectrum does each normalization placement actually change over training?",
+    "Does a corrected Jacobian analysis predict the empirical success of InputNorm and the limited language effect of QKNorm alone?",
+    "Can clipping or small batches close the same Adam gap on conventional Transformers without DNT's extra normalization operations?",
+    "How much of the result is explained by InputNorm alone, and what is the full interaction matrix among InputNorm, PreNorm, QKNorm, and MidNorm?",
+    "What are matched time-to-loss, energy, throughput, and maximum-batch results with fused DNT kernels versus AdamW, Adafactor, Muon, and SOAP?",
+    "Do the reported small loss gaps replicate across seeds and translate to downstream accuracy, calibration, and instruction tuning?",
+    "Can an optimizer-independent architecture comparison be made after equal-budget tuning of both AdamW and mSGDW schedules?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2110.09456",
+      "title": "NormFormer: Improved Transformer Pretraining with Extra Normalization",
+      "url": "https://arxiv.org/abs/2110.09456",
+      "relationship": "Closest prior architecture that inserts normalization inside Transformer sublayers to correct gradient-magnitude imbalance.",
+      "difference": "NormFormer adds post-attention normalization, head-wise scaling, and an FFN-interior LayerNorm and reports faster/better causal and masked pretraining from 125M to 2.7B with Adam-family optimization. DNT adds embedding, query/key, and residual-branch normalization specifically to make mSGDW viable, but does not compare against NormFormer's placements or scale its language data as broadly.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2110.09456v2"
+    },
+    {
+      "canonical_id": "openreview:se4vjm7h4E",
+      "title": "nGPT: Normalized Transformer with Representation Learning on the Hypersphere",
+      "url": "https://openreview.net/forum?id=se4vjm7h4E",
+      "relationship": "Closest contemporary deeply normalized Transformer and explicitly discussed architectural alternative.",
+      "difference": "nGPT constrains embeddings, matrix-vector directions, and hidden states to unit hyperspheres with learned residual step sizes and reports 4-20x step reductions. DNT leaves weights unconstrained, normalizes selected activations, and targets Adam-free momentum training with a Jacobian/heavy-tail explanation; its gains are much smaller and its theory contains an omitted normalization chain rule.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2025 poster, last modified 2025-03-01"
+    },
+    {
+      "canonical_id": "arxiv:2506.12543",
+      "title": "Is your batch size the problem? Revisiting the Adam-SGD gap in language modeling",
+      "url": "https://arxiv.org/abs/2506.12543",
+      "relationship": "Direct pre-existing investigation of the same Adam-SGD language-model gap and its proposed heavy-tail explanation.",
+      "difference": "Sreckovic et al. extensively tune momentum, clipping, and batch size and find momentum SGD can approach Adam at small batch; they report that heavy-tailed class imbalance, directional sharpness, and Hessian heterogeneity do not directly explain the gap. DNT changes architecture at large effective batches and assumes gradient tails are the main cause without testing batch-size controls.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2506.12543v2"
+    },
+    {
+      "canonical_id": "arxiv:2507.07101",
+      "title": "Small Batch Size Training for Language Models: When Vanilla SGD Works, and Why Gradient Accumulation Is Wasteful",
+      "url": "https://arxiv.org/abs/2507.07101",
+      "relationship": "Near-concurrent competing route to stable state-free SGD language-model training without modifying Transformer normalization.",
+      "difference": "Marek et al. use very small batches and token-time scaling of Adam moments, showing even vanilla SGD without momentum can train stably and efficiently. DNT instead preserves large accumulated batches, modifies the architecture, and uses momentum SGDW; comparing the two at matched tokens, FLOPs, and wall time would separate architectural from noise-scale effects.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2507.07101v2"
+    },
+    {
+      "canonical_id": "arxiv:2503.10622",
+      "title": "Transformers without Normalization",
+      "url": "https://arxiv.org/abs/2503.10622",
+      "relationship": "Contemporary architectural counterpoint showing that widespread normalization is not necessary for competitive Transformer training.",
+      "difference": "Zhu et al. replace normalization with elementwise Dynamic Tanh across vision, language, supervised, self-supervised, and generative settings. DNT argues that several carefully placed normalizers are precisely what make simple momentum optimization possible; a DyT+mSGDW control would test whether bounded nonlinearities rather than normalization-specific Jacobians are sufficient.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2503.10622v2"
+    },
+    {
+      "canonical_id": "arxiv:2605.17787",
+      "title": "Revisiting the Adam-SGD Gap in LLM Pre-Training: The Role of Large Effective Learning Rates",
+      "url": "https://arxiv.org/abs/2605.17787",
+      "relationship": "Later direct explanation and intervention for the same optimizer gap at approximately 1B-parameter Llama scale.",
+      "difference": "Glentis et al. attribute much of the gap to SGD's inability to sustain Adam-like effective learning rates because of output-class imbalance and gradient spikes, then recover most performance with clipping while retaining the conventional architecture. DNT reaches large raw mSGDW learning rates through normalization but neither isolates effective update size nor compares against the simpler clipping intervention.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2605.17787v1"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims the first demonstration that vanilla momentum SGDW can train a properly modified Transformer to Adam-comparable performance, with a new DNT architecture and theoretical explanations linking normalization placement, Jacobian conditioning, concentrated gradients, and optimizer viability.",
+    "evidence": "Extra internal normalization already appears in NormFormer, query-key normalization and PreNorm are established, and nGPT more extensively normalizes Transformer geometry. Prior and near-concurrent work also closes the SGD gap through clipping or batch size. DNT's distinctive contribution is the particular InputNorm+PreNorm+QKNorm+MidNorm package evaluated in a full architecture-by-optimizer table up to 1.436B, together with a position-by-position Jacobian narrative.",
+    "reviewer_inference": "The empirical architecture is a useful competing recipe, especially because mSGDW substantially improves and saves one optimizer state. The mechanistic and priority claims should be narrowed: the gradient-tail diagnostic is incomplete, a central PreNorm proposition is false as written, some components are unnecessary in the best vision ablation, and contemporary work obtains SGD viability without architectural normalization. The evidence supports 'DNT makes mSGDW competitive in these GPT-2/ViT settings,' not a demonstrated universal heavy-tail cure or exact Adam equivalence."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Read all 24 extracted pages, including the five Jacobian propositions, three appendix proofs, optimizer schedules, memory table, cumulative normalization ablation, and larger-model curves. Algebra was checked directly at the normalization chain-rule level; the Proposition 2 contradiction and Proposition 3 notation/assumption limitations are document-grounded rather than replication claims. Related work was checked against primary arXiv, OpenReview, and official NeurIPS records current through 2026-08-23, with particular attention to pre-existing, concurrent, and later explanations of the Adam-SGD gap. No code or training reproduction was performed."
+}

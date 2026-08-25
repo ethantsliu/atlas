@@ -1,0 +1,100 @@
+{
+  "stable_id": "arxiv:2203.07404",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2203.07404",
+    "pdf_sha256": "ac6bae92b77a01e8a291c7fd532171b6e734fce74c5b2b1cb353ff7df58eb964",
+    "text_sha256": "8d72e290490de3dcb87f139208e77ac84f10987c6976ed17ac9683346c0a20d1",
+    "page_count": 35,
+    "extracted_at": "2026-08-23T21:15:44.771661+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Why do continuous-time physics-informed neural networks fail on strongly transient, chaotic, or turbulent dynamics, and can enforcing temporal precedence in their residual loss repair training?",
+  "key_findings": [
+    {
+      "claim": "A conventional continuous-time PINN can minimize later-time residuals before resolving its initial condition and thereby converge to a physically wrong solution.",
+      "evidence": "On Allen-Cahn, the baseline reaches a 49.87% relative L2 error despite 200,000 Adam iterations. The temporal residual is already near zero after t=0.5 while remaining large near the initial state, and the empirical NTK trace is larger at later times, indicating faster optimization there.",
+      "anchors": [{"page": 4, "section": "2, PINNs can violate physical causality"}, {"page": 5, "section": "2, An undesirable implicit bias and Figures 1-2"}]
+    },
+    {
+      "claim": "Exponentially gating each time slice by the accumulated earlier residual turns temporal precedence into a differentiable training curriculum.",
+      "evidence": "The proposed weight w_i=exp(-epsilon sum_{k<i} L_r(t_k)) keeps a later residual inactive until earlier losses are small. On Allen-Cahn, changing the residual weighting alone reduces error to 1.43e-3; with the modified MLP it reaches 1.39e-4, versus 1.68e-2 for the best listed time-marching baseline.",
+      "anchors": [{"page": 6, "section": "3, A simple re-formulation and Table 1"}, {"page": 8, "section": "Algorithm 1"}]
+    },
+    {
+      "claim": "The minimum causal weight supplies a useful but empirical convergence signal.",
+      "evidence": "Weights activate progressively from early to late time, and the authors stop once min_i w_i exceeds 0.99. In the Lorenz experiment, continuing for a fixed number of iterations attains slightly lower training loss but less accurate trajectories, suggesting that loss alone is not a reliable stopping signal.",
+      "anchors": [{"page": 7, "section": "3, A stopping criterion for assessing training convergence"}, {"page": 11, "section": "5.1, Lorenz system"}]
+    },
+    {
+      "claim": "Causal weighting combined with time marching and several implementation enhancements can fit difficult chaotic and turbulent benchmarks without solution data.",
+      "evidence": "Reported relative L2 errors are 1.139e-2, 1.656e-2, and 7.038e-3 for Lorenz x/y/z; 3.49e-4 for regular Kuramoto-Sivashinsky; approximately 2.3e-2 for its short chaotic case; and 3.90e-2, 2.61e-2, and 3.53e-2 for turbulent Navier-Stokes u/vorticity-related fields over the full domain.",
+      "anchors": [{"page": 11, "section": "5.1, Lorenz system"}, {"page": 12, "section": "5.2, Kuramoto-Sivashinsky equation"}, {"page": 14, "section": "5.3, Navier-Stokes equation"}]
+    },
+    {
+      "claim": "Respecting local temporal order does not solve long-horizon chaotic error growth.",
+      "evidence": "For a longer Kuramoto-Sivashinsky rollout, the learned solution captures the transition to chaos near t=0.4 but loses accuracy after t=0.8 and exceeds 10% relative error at the final state.",
+      "anchors": [{"page": 12, "section": "5.2, Case II (chaotic)"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Order a PINN's learning signal in physical time by suppressing later residual terms until the initial condition and earlier residuals are sufficiently resolved.",
+    "mechanism": "Discretize the residual by time slice, multiply slice i by an exponential of the negative cumulative loss at all earlier slices, stop gradients through those weights, anneal epsilon from 1e-2 to 1e2, and optionally stop when every weight exceeds 0.99. Experiments also use time windows, hard periodic Fourier features, a gated modified MLP, Taylor-mode differentiation, and multi-GPU data parallelism.",
+    "assumptions": [
+      "Forward initial-value dynamics have a monotone temporal information order that is adequately represented by cumulative residuals.",
+      "A small residual at earlier collocation points indicates an accurate enough local solution to release later points.",
+      "Reference solvers and relative L2 error accurately capture solution quality on the selected benchmarks.",
+      "The causal gate remains helpful when combined with architecture, boundary encoding, optimizer, batch-size, and time-window choices."
+    ]
+  },
+  "techniques": [
+    {"id": "cumulative-causal-residual-weighting", "role": "Imposes a soft early-to-late curriculum within every time window."},
+    {"id": "causality-parameter-annealing", "role": "Avoids committing to one problem-sensitive exponential-gate steepness."},
+    {"id": "minimum-weight-stopping-rule", "role": "Uses release of all temporal gates as a convergence diagnostic."},
+    {"id": "empirical-ntk-temporal-audit", "role": "Diagnoses the conventional PINN's preference for reducing later-time losses."},
+    {"id": "taylor-mode-automatic-differentiation", "role": "Reduces the cost of fourth-order PDE derivatives."},
+    {"id": "hard-periodic-fourier-embedding", "role": "Removes periodic boundary-condition penalties from the optimization problem."}
+  ],
+  "evaluations": [
+    {"setting": "Allen-Cahn equation", "metric": "Relative L2 error", "result": "1.43e-3 with causal MLP and 1.39e-4 with causal modified MLP", "baseline": "4.98e-1 original PINN; 2.33e-2 adaptive time sampling; 2.10e-2 self-attention; 1.68e-2 time marching"},
+    {"setting": "Chaotic Lorenz system to T=20 over 40 windows", "metric": "Component-wise relative L2 error", "result": "1.139e-2, 1.656e-2, and 7.038e-3 for x, y, and z", "baseline": "Reference trajectory from scipy.integrate.odeint; fixed-iteration ablation is visually less accurate"},
+    {"setting": "Regular and chaotic Kuramoto-Sivashinsky", "metric": "Spatiotemporal relative L2 error and derivative-computation time", "result": "3.49e-4 regular; about 2.3e-2 short chaotic; Taylor mode gives a reported 3-5x training speedup", "baseline": "Spectral reference solutions and conventional reverse-mode differentiation"},
+    {"setting": "2D decaying turbulence at Re=100", "metric": "Relative L2 errors and kinetic-energy spectrum", "result": "3.90e-2, 2.61e-2, and 3.53e-2 for u, v, and vorticity, with qualitatively aligned spectra", "baseline": "High-resolution JAX-CFD reference simulation"}
+  ],
+  "limitations": [
+    "Causal weighting is evaluated together with time marching, a modified architecture, exact Fourier boundary encoding, large batches, and specialized differentiation, so the hard benchmarks do not isolate its contribution.",
+    "The study covers forward periodic initial-value problems; inverse problems, non-periodic constraints, control problems with backward adjoints, and irregular causal structures are left open.",
+    "Hyperparameters were tuned manually and the epsilon gate is explicitly sensitive to problem scale and network capacity.",
+    "Classical numerical solvers handle these benchmarks more quickly; the authors acknowledge that PINNs remain substantially more expensive as forward solvers.",
+    "The chaotic Kuramoto-Sivashinsky error is internally reported as 2.46e-2 in prose and 2.26e-2 in Figure 9, weakening numerical auditability.",
+    "There are no repeated-run uncertainty estimates, broad architecture ablations, or matched wall-clock comparisons against classical solvers."
+  ],
+  "failure_modes": [
+    "A later gate can open because residuals are small at sparse collocation points even when the solution between them is inaccurate.",
+    "Exponential weights saturate near zero under a large epsilon, starving later time slices and making optimization brittle.",
+    "Errors transferred between time windows compound, particularly after a chaotic system's predictability horizon.",
+    "Stopping when all weights approach one may halt at a low-residual but inaccurate approximation.",
+    "Optimal-control or boundary-value problems have forward and backward dependencies that a single chronological ordering misrepresents."
+  ],
+  "reusable_insights": [
+    "Audit when each localized loss term becomes small; simultaneous aggregate-loss reduction can conceal invalid information flow.",
+    "Turn known partial orders in a problem into differentiable gates rather than relying only on a global loss.",
+    "Validate a learning signal against held-out solution error, not residual magnitude alone.",
+    "Separate causal scheduling, model architecture, constraint encoding, numerical differentiation, and domain decomposition in ablations."
+  ],
+  "open_questions": [
+    "Can causal release be calibrated by rigorous residual-to-solution error bounds rather than a fixed weight threshold?",
+    "How should the gate represent spatial cones of influence, bidirectional constraints, stochastic dynamics, or multiple coupled time scales?",
+    "Which gains persist under matched compute and one-factor-at-a-time ablations across modern PINN benchmarks?",
+    "Can operator learning or correction models control window-to-window error beyond the chaotic predictability horizon?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:1711.10561", "title": "Physics Informed Deep Learning (Part I): Data-driven Solutions of Nonlinear Partial Differential Equations", "url": "https://arxiv.org/abs/1711.10561", "relationship": "foundational continuous-time PINN formulation", "difference": "Raissi et al. optimize physics and data constraints over the domain without the reviewed paper's explicit cumulative temporal gate."},
+    {"canonical_id": "arxiv:2109.01050", "title": "Characterizing possible failure modes in physics-informed neural networks", "url": "https://arxiv.org/abs/2109.01050", "relationship": "contemporaneous diagnosis and competing remedy", "difference": "Krishnapriyan et al. attribute failures to difficult PDE-induced loss landscapes and use coefficient curricula or sequence-to-sequence training; the reviewed paper isolates temporal precedence and gates residual slices."},
+    {"canonical_id": "arxiv:2007.14527", "title": "When and why PINNs fail to train: A neural tangent kernel perspective", "url": "https://arxiv.org/abs/2007.14527", "relationship": "direct optimization-pathology precursor", "difference": "The NTK study analyzes convergence-rate imbalance among PINN loss components and adaptive reweighting; the reviewed paper applies a temporally ordered weighting derived from cumulative earlier residuals."},
+    {"canonical_id": "arxiv:2302.14227", "title": "A unified scalable framework for causal sweeping strategies for Physics-Informed Neural Networks (PINNs) and their temporal decompositions", "url": "https://arxiv.org/abs/2302.14227", "relationship": "later extension and systems-level competitor", "difference": "Penwarden et al. unify causal collocation sweeping, temporal decomposition, transfer initialization, and stacked subnetworks to improve scalability beyond the reviewed paper's within-window exponential gate."}
+  ],
+  "novelty_assessment": "The central contribution is a particularly simple causal residual gate plus a gate-based stopping diagnostic, supported by an informative temporal NTK audit. Its strongest benchmark claims bundle several additional techniques, and later causal-sweeping work broadens the same principle. The paper establishes a compelling training heuristic, not a guarantee that low causal loss implies an accurate or long-horizon-stable physical solution.",
+  "confidence": 0.97,
+  "reviewer_notes": "Read all 35 extracted pages, including benchmark appendices and implementation notes. Primary arXiv records for foundational PINNs, NTK failure analysis, curriculum/sequence remedies, and later causal sweeping were checked on 2026-08-23. The reviewed PDF's 2.46e-2 prose value versus 2.26e-2 Figure 9 value for chaotic Kuramoto-Sivashinsky was retained as an internal-reporting limitation."
+}

@@ -1,0 +1,226 @@
+{
+  "stable_id": "arxiv:2409.01308",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2409.01308",
+    "pdf_sha256": "c6205b2126f746a98a016a8fbda4cc341a5cb8d4cfb4826daa230a73e53bc6c8",
+    "text_sha256": "0fc13ba8970935dfc10c5dc9247aa95b50ed00409743f5456dd9b380c87d485f",
+    "page_count": 10,
+    "extracted_at": "2026-08-23T17:51:07.596671+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can dynamic mode decomposition with delay-coordinate observables approximate the input-output map of an individual nonlinear MLP layer closely enough to preserve classifier accuracy?",
+  "key_findings": [
+    {
+      "claim": "The best hybrid retains most of the original classifier accuracy when replacing the final hidden transformation, but earlier layers are materially harder to approximate.",
+      "evidence": "On Yin-Yang, replacing the first, second, or final hidden layer gives 91.3%, 75.8%, and 97.3% versus 98.4% for the original. On MNIST, the best h=10, r=500 configurations give 92.04%, 94.81%, and 95.80% for hidden layers one through three versus 97.20% for the original.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Figure 3: Yin-Yang decision boundaries"
+        },
+        {
+          "page": 7,
+          "section": "Network Performance After Layer Replacement / Figure 6"
+        }
+      ]
+    },
+    {
+      "claim": "Delay embedding is the dominant empirical ingredient: longer delays consistently simplify the reported temporal modes and improve replacement accuracy.",
+      "evidence": "With r fixed at 500, increasing h from 1 to 10 raises MNIST first-layer accuracy from 66.66% to 92.04% and final-layer accuracy from 28.22% to 95.80%. Right singular vectors change from noisy shapes to more regular sinusoidal patterns; h=10 is the best tested value available for actual replacement.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Exploring the Singular Vectors / Figure 5"
+        },
+        {
+          "page": 7,
+          "section": "Network Performance After Layer Replacement"
+        }
+      ]
+    },
+    {
+      "claim": "The method does not replace a nonlinear layer with a standalone linear map of its original input; it first trains ten new nonlinear ReLU layers and needs their delay trajectory at inference.",
+      "evidence": "Layer scaling inserts G0 through G9, each Linear+ReLU, into a frozen network and trains them to bridge the original layer endpoints. The hybrid then Hankelizes activations from this learned chain and uses DMD for the final step. Thus the fitted operator is linear only in a lifted history produced by added nonlinear computation, so the paper's plain-language 'replace the nonlinear layer with a finite-dimensional linear operator' wording is incomplete.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Layer Scaling and Delay Coordinates as Observables"
+        },
+        {
+          "page": 4,
+          "section": "Figure 1 workflow summary"
+        },
+        {
+          "page": 9,
+          "section": "Appendix A-B: scaling details"
+        }
+      ]
+    },
+    {
+      "claim": "The learned trajectory is an auxiliary interpolation chosen for DMD rather than the natural temporal evolution of a shared neural transformation.",
+      "evidence": "Ordinary feed-forward layers are different maps with changing widths and no repeated time evolution. The paper manufactures additional steps by optimizing separately parameterized layers solely to preserve endpoints, then interprets their activations as a dynamical trajectory. No semigroup consistency, shared transition rule, or out-of-sample multi-step forecast test shows that these steps form the original layer's Koopman dynamics.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Reformulating Layers and Layer Scaling"
+        },
+        {
+          "page": 7,
+          "section": "Conclusion"
+        }
+      ]
+    },
+    {
+      "claim": "The spectral visualizations are correlational diagnostics, not evidence that the identified DMD modes explain classifier computation.",
+      "evidence": "Some outward movement of eigenvalues toward the unit circle accompanies higher accuracy, but the authors explicitly note the relationship fails when comparing other panels. Regular singular-vector curves likewise correlate with larger h; neither modes nor eigenvalues are linked to class features, causal interventions, or a prediction of replacement success on held-out architectures.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Exploring the Eigenvalues of DMD"
+        },
+        {
+          "page": 6,
+          "section": "Exploring the Singular Vectors"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Create an activation trajectory between the input and output of a target MLP layer, lift that trajectory with Hankel delay coordinates, fit DMD, and use a one-step DMD prediction in place of the target layer's activation.",
+    "mechanism": "Freeze a trained MLP, insert ten trainable Linear+ReLU layers before the layer of interest, optimize the inserted chain with a Huber endpoint-matching loss, and collect its intermediate activations for r examples. Pad dimension-reducing outputs with negative constants, form a block Hankel matrix with delay h, fit a finite DMD operator, and reconstruct the next state from learned eigenmodes, eigenvalues, and coefficients during hybrid-model inference.",
+    "assumptions": [
+      "The artificial inserted-layer sequence can be treated as samples from one meaningful dynamical system.",
+      "Endpoint matching makes the scaled network a faithful path through activation space, not merely an arbitrary interpolation.",
+      "A finite delay-coordinate subspace is sufficiently Koopman-invariant for held-out inputs.",
+      "Padding decoder outputs with negative constants does not distort the learned spectral structure.",
+      "Accuracy retention is a sufficient measure of layer-map fidelity and mechanistic usefulness.",
+      "Results on small ReLU MLPs transfer to convolutional, residual, attention, or normalization-rich architectures."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "nonlinear-layer-scaling",
+      "role": "Inserts ten trainable ReLU transformations to manufacture enough intermediate snapshots for DMD."
+    },
+    {
+      "id": "hankel-delay-lifting",
+      "role": "Concatenates activation history so a finite linear operator can predict the target endpoint in an expanded observable space."
+    },
+    {
+      "id": "dynamic-mode-decomposition",
+      "role": "Fits eigenvalues and modes for a least-squares linear evolution of lifted activation snapshots."
+    },
+    {
+      "id": "negative-dimension-padding",
+      "role": "Keeps state width constant when the target layer reduces dimensionality and distinguishes padding from nonnegative ReLU activations."
+    },
+    {
+      "id": "spectral-and-svd-diagnostics",
+      "role": "Visualizes DMD eigenvalues and right singular vectors across trajectory count and delay choices."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Binary Yin-Yang MLP with hidden widths 8, 6, 4, 3",
+      "metric": "Classification accuracy after one hidden-layer replacement",
+      "result": "91.3%, 75.8%, and 97.3% for the three replaceable hidden layers.",
+      "baseline": "98.4% original MLP"
+    },
+    {
+      "setting": "MNIST MLP with hidden widths 256, 128, 64, 32",
+      "metric": "Test accuracy at h=10 and r=500",
+      "result": "92.04%, 94.81%, and 95.80% when replacing hidden layers one, two, and three.",
+      "baseline": "97.20% original MLP"
+    },
+    {
+      "setting": "MNIST first and final hidden-layer hybrids",
+      "metric": "Accuracy sensitivity to delay embedding",
+      "result": "First layer improves from 66.66% at h=1 to 92.04% at h=10; final layer improves from 28.22% to 95.80%.",
+      "baseline": "No Hankelization, h=1, with r=500"
+    },
+    {
+      "setting": "DMD hyperparameter sweep",
+      "metric": "Hybrid accuracy versus trajectory count and delay",
+      "result": "Increasing r and h generally helps, with smaller gains from r=50 to 500 than from r=10 to 50; h=10, r=500 is best among reported replacement settings.",
+      "baseline": "Smaller r and h configurations"
+    }
+  ],
+  "limitations": [
+    "Only two small classification datasets and fully connected ReLU networks are tested; there are no convolutional, residual, attention, normalization, regression, or generative models.",
+    "The hybrid retains ten newly trained nonlinear layers, so parameter count, inference cost, and end-to-end linearity are not compared with the original.",
+    "No direct activation error, class-conditional error, robustness, calibration, latency, memory, or compression metric accompanies classification accuracy.",
+    "The inserted layers are separately parameterized rather than iterations of a common map, weakening the dynamical-system and Koopman interpretation.",
+    "The paper reports one training seed and no intervals or stability analysis for MLP training, scaling, or DMD sampling.",
+    "Hyperparameters are selected on the same named datasets without a clearly separated validation protocol for the final reported test comparisons.",
+    "The negative padding convention is heuristic and its effect is not ablated.",
+    "Eigenvalue and singular-vector interpretations remain qualitative and do not yield a validated mechanistic explanation or control operation."
+  ],
+  "failure_modes": [
+    "An endpoint-preserving inserted chain takes arbitrary off-manifold paths, allowing DMD to fit the bridge while revealing nothing about the original layer.",
+    "The history lift memorizes training trajectories and fails on shifted inputs even when in-distribution test accuracy appears high.",
+    "Padding coordinates dominate singular vectors or DMD modes for strongly dimension-reducing layers.",
+    "Replacing an early layer compounds small activation errors through many downstream transformations.",
+    "Spectral modes change under innocuous rescaling or reparameterization, defeating claims of model-intrinsic interpretation.",
+    "Added nonlinear scaling layers cost more than the layer they nominally replace and eliminate any practical speed or control advantage."
+  ],
+  "reusable_insights": [
+    "Always account for the nonlinear lifting and history-generation cost when calling a lifted linear model a layer replacement.",
+    "Evaluate approximation fidelity directly at the activation level in addition to downstream accuracy.",
+    "Later layers can tolerate or hide larger local approximation error than early layers; replacement studies should report depth-wise error propagation.",
+    "Delay coordinates are a simple, high-value baseline for operator learning, but should be compared with learned observables at matched dimension and compute.",
+    "A genuine layer-dynamics claim needs a shared transition rule, semigroup tests, and multi-step forecasts rather than only a learned interpolation between endpoints."
+  ],
+  "open_questions": [
+    "Can a DMD or Koopman approximation replace a layer without retaining auxiliary nonlinear scaling layers at inference?",
+    "Do learned modes remain stable under neuron permutations, ReLU rescaling symmetries, and function-preserving reparameterizations?",
+    "Can activation reconstruction error predict downstream hybrid accuracy before fitting every layer and hyperparameter?",
+    "What happens under distribution shift, adversarial perturbation, calibration tests, and architectures with residual branches or attention?",
+    "Can a controlled spectral edit produce a predictable behavioral change without retraining the nonlinear lifting path?",
+    "Does a tied-weight inserted flow yield a more defensible Koopman system than ten independently parameterized layers?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2402.11740",
+      "title": "Extraction of nonlinearity in neural networks with Koopman operator",
+      "url": "https://arxiv.org/abs/2402.11740",
+      "relationship": "closest direct prior",
+      "difference": "Sugishita, Kinjo, and Ohkubo already replace nonlinear middle layers in classifiers using extended DMD with monomial observables and tensor-train compression, and study pruning. The target's main distinction is individual-layer replacement with learned scaling trajectories and simple delay-coordinate observables, not the first Koopman replacement of neural nonlinearity.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3 / J. Stat. Mech. 073401, 2024-06-27"
+    },
+    {
+      "canonical_id": "arxiv:2006.02361",
+      "title": "Optimizing Neural Networks via Koopman Operator Theory",
+      "url": "https://arxiv.org/abs/2006.02361",
+      "relationship": "training-dynamics antecedent",
+      "difference": "Dogra and Redman fit Koopman evolution in weight-and-bias space to forecast training and report a greater-than-tenfold speed window. The target instead models within-inference activation sequences and substitutes a selected hidden transformation after training.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3 / NeurIPS 2020, 2020-10-22"
+    },
+    {
+      "canonical_id": "arxiv:2006.11765",
+      "title": "Applications of Koopman Mode Analysis to Neural Networks",
+      "url": "https://arxiv.org/abs/2006.11765",
+      "relationship": "spectral-analysis antecedent",
+      "difference": "This work treats optimizer epochs as a weight-space dynamical system and uses spectra and modes for initialization diagnosis, stopping, depth choice, pruning, and noise rejection. The target transfers spectral analysis to activation-space layer approximation but does not validate comparable diagnostic or control uses.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1, 2020-06-21"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The work is the first application of Koopman theory with delay-coordinate embedding to linearize individual neural-network layers, retaining most MLP accuracy and opening a route to mechanistic understanding and linear control.",
+    "evidence": "It introduces a scaling-and-Hankel workflow, reports layer-wise Yin-Yang and MNIST accuracy sweeps, and inspects DMD eigenvalues and SVD modes as h and trajectory count change.",
+    "reviewer_inference": "The specific use of delay coordinates for individual-layer DMD approximation is a plausible incremental contribution over the direct monomial/EDMD prior. The stronger claim of replacing a nonlinear layer with a finite-dimensional linear operator needs qualification because ten trainable nonlinear layers produce the required history and remain part of the hybrid computation. Accuracy retention is demonstrated; standalone linearization, interpretability, control, efficiency, and architectural generality are not."
+  },
+  "confidence": 0.91,
+  "reviewer_notes": "Read all ten pages of the exact indexed arXiv v1 artifact, including the Koopman/DMD derivation, dimensional padding, inserted-layer objective, Hankel construction, both datasets, every accuracy plot, spectral interpretations, conclusion, full references, and hyperparameter appendices. The source hashes and page count match fulltext_index.jsonl. Three direct official arXiv antecedents were version-checked on 2026-08-23. The central audit preserves the reported accuracies while distinguishing a linear final prediction in a nonlinear lifted/scaled pipeline from a standalone linear replacement of the original layer."
+}

@@ -1,0 +1,645 @@
+{
+  "stable_id": "arxiv:2403.17887",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2403.17887",
+    "pdf_sha256": "f8b9df7088c7432e5b94acf0bfedb350cd28fb94ba613ea60e8deed9599d97f1",
+    "text_sha256": "e3fb092135c529156edfb7ac630bd349b13ab7368cd1c14b427ceb676aa9ef7a",
+    "page_count": 24,
+    "extracted_at": "2026-08-23T18:14:01.736089+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "How much transformer depth can be removed from pretrained decoder-only language models without losing measured knowledge or language-model quality, can representation similarity identify the removable contiguous block, what does short QLoRA healing restore, and do benchmark plateaus justify claims about where knowledge and reasoning are stored?",
+  "key_findings": [
+    {
+      "claim": "The main algorithm deletes the contiguous n-layer block whose endpoints have the smallest final-token angular distance, then optionally heals the resulting interface with QLoRA on C4.",
+      "evidence": "For each block length n, the method averages a normalized arccosine distance between the residual-stream input to layer l and the input to layer l+n, selects the minimizing start l*, removes layers l* through l*+n-1, and reconnects the residual stream. Similarity is estimated on C4 validation examples; healing runs 5,000 steps at global batch 16 on 164M or 328M C4 training tokens. This is a structured post-training depth-pruning recipe, not unstructured sparsity, dynamic depth, or a training-time layer-drop method.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "Figure 1 overview"},
+        {"page": 4, "section": "3.2 Layer-pruning algorithms"},
+        {"page": 5, "section": "3.2 Healing and simple strategy"},
+        {"page": 19, "section": "B.1 Model and healing details"}
+      ]
+    },
+    {
+      "claim": "Across seven 2.7B-to-70B models, MMLU and BoolQ exhibit model-dependent plateaus followed by sharp collapse, rather than a universal removable fraction.",
+      "evidence": "The reported transition occurs at roughly 45%-55% removed layers for the Llama-2 family, 35% for Mistral-7B, 25% for Phi-2, and 20% for Qwen-7B/14B. Healing modestly preserves MMLU and is more important for BoolQ, while larger/deeper Llama models tolerate more pruning. These curves support substantial redundancy for the evaluated prompts and tasks but do not support the title-level implication that deeper layers are generally ineffective.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "4.1 Accuracy on QA benchmarks"},
+        {"page": 6, "section": "Figure 2 and transition thresholds"},
+        {"page": 20, "section": "B.2 Evaluation details"},
+        {"page": 21, "section": "Figure 7 BoolQ"}
+      ]
+    },
+    {
+      "claim": "Next-token loss is damaged continuously even where healed QA accuracy remains flat, so task accuracy and language-model quality are materially decoupled by pruning.",
+      "evidence": "Without healing, normalized C4 validation loss rises sharply near the QA collapse points. After healing, it remains near the unpruned level but increases slowly and approximately linearly through those points, including at pruning fractions far beyond the task plateau. This is important negative evidence against treating unchanged MMLU/BoolQ as evidence that the removed computation is globally unnecessary.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "Figure 1d"},
+        {"page": 6, "section": "4.2 Loss on next-token predictions"},
+        {"page": 7, "section": "Figure 3"}
+      ]
+    },
+    {
+      "claim": "Layer-pair heatmaps reveal a useful but imperfect depth pattern: later internal blocks are often directionally similar, while the final layer is usually highly dissimilar and should be retained.",
+      "evidence": "Distances averaged over a nominal 10,000 C4 validation samples tend to be smallest for deeper blocks, with exceptions for Phi-2, large blocks in Llama-2-7B, and unusual shallow similarity islands in Qwen. Blocks including the final layer lie on a mostly high-distance outer diagonal. The result motivates a deepest-block heuristic, but row normalization hides absolute differences across block lengths and models.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "4.3 Angular distances between representations"},
+        {"page": 8, "section": "Figure 4"}
+      ]
+    },
+    {
+      "claim": "After QLoRA healing, removing a fixed deepest internal block nearly matches the similarity search on Llama-2-70B, reducing the practical value of the search criterion in that tested setting.",
+      "evidence": "The simple heuristic is much worse without healing, but after healing its MMLU, BoolQ, and C4-loss curves are close to the angularly selected block; the similarity method retains a slight accuracy and loss advantage. This is one-model evidence and does not establish the heuristic across the other six models, different pruning budgets, or reasoning-heavy tasks.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "4.4 A simpler pruning strategy"},
+        {"page": 8, "section": "4.4 Results"},
+        {"page": 9, "section": "Figure 5"}
+      ]
+    },
+    {
+      "claim": "The printed indexing for the simple heuristic is off by one and contradicts its stated requirement to preserve the final block.",
+      "evidence": "The paper defines transformer blocks with zero-based indices 0 through L-1 and says the final block must be kept, yet twice instructs the reader to delete layers L-n through L-1 inclusive, which removes n layers including the final block. The intended n-block interval is L-n-1 through L-2. The author-associated implementation uses range(first_layer_dropped, depth-1), confirming the preserve-final intent rather than the printed formula.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "3.1 Residual indexing, Equation 2"},
+        {"page": 5, "section": "3.2 Simple pruning strategy"},
+        {"page": 7, "section": "4.4 Simple heuristic"},
+        {"page": 8, "section": "Figure 4 final-layer observation"}
+      ]
+    },
+    {
+      "claim": "The manuscript gives irreconcilable 5-shot and 0-shot descriptions of its primary MMLU experiment, and its Figure 3 prose reverses the visual panels.",
+      "evidence": "Section 4.1, Figure 2, and Figure 10 label MMLU as 5-shot, while Appendix B.2 explicitly says the experiments use zero few-shot examples; no released raw tables or final evaluation code resolve which protocol generated the curves. Separately, page 6 says healed loss is in the left panel and unhealed loss in the right, while Figure 3's panel labels and caption on page 7 show before healing left and after healing right. These are reporting errors, not merely stylistic ambiguities.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "4.1 MMLU protocol"},
+        {"page": 6, "section": "Figure 2 and Figure 3 prose"},
+        {"page": 7, "section": "Figure 3 caption"},
+        {"page": 20, "section": "B.2 MMLU evaluation details"},
+        {"page": 23, "section": "Figure 10"}
+      ]
+    },
+    {
+      "claim": "Angular endpoint similarity does not supply the small-perturbation or causal-disposability guarantee used to motivate pruning.",
+      "evidence": "Angular distance is invariant to vector scale: two residual states can have identical direction but arbitrarily different norms and therefore need not satisfy the Euclidean closeness x(l)=x(l-n)+epsilon invoked in Equations 4-5. Similar endpoints also do not prove that the intervening computation is causally unused. Subsequent arXiv:2605.14075 constructs cases with arbitrarily low cosine-based relevance but catastrophic ablation and reports only weak-to-moderate correlation between cosine similarity and actual layer importance.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "3.1 Residual intuition"},
+        {"page": 4, "section": "Equations 4-7"},
+        {"page": 7, "section": "4.3 Angular-distance interpretation"}
+      ]
+    },
+    {
+      "claim": "Surviving QA accuracy after deletion does not localize factual knowledge to shallow layers or prove that removed weights were unnecessary for storage.",
+      "evidence": "The same behavior is compatible with redundant or distributed storage, task-insensitive knowledge loss, readout compensation by retained layers, or re-acquisition/reconfiguration during healing. MMLU and BoolQ cover a small, contamination-prone slice of stored information; C4 healing contributes 164M-328M tokens and the study performs no contamination audit, fact-level causal localization, frozen-data control, or before/after knowledge inventory. The defensible claim is benchmark-specific functional redundancy.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract and Introduction"},
+        {"page": 5, "section": "4 Experimental setup"},
+        {"page": 8, "section": "4.4 Healing interpretation"},
+        {"page": 10, "section": "5 Discussion questions"},
+        {"page": 18, "section": "A.4 Depth-dependent studies"}
+      ]
+    },
+    {
+      "claim": "The claim that healing repairs only the pruning interface rather than acquiring knowledge is not established by the presented ablation.",
+      "evidence": "Similarity-selected and deepest-block models converging after C4 QLoRA is consistent with interface repair, but it is also consistent with broad representation reorganization, relearning benchmark-relevant statistics, or regularized adaptation. The study lacks a direct interface-only intervention, fact-disjoint healing corpora, frozen lower/upper-layer controls, activation matching, knowledge acquisition tests, or causal tracing before and after healing. Equation 8 proposes an activation-matching loss but does not evaluate it.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "4.4 Healing conclusion"},
+        {"page": 10, "section": "Footnote 8, proposed auxiliary loss"},
+        {"page": 19, "section": "B.1 Healing details"}
+      ]
+    },
+    {
+      "claim": "The exploratory reasoning results falsify broad task robustness but are too narrow to establish a clean knowledge-versus-reasoning depth separation.",
+      "evidence": "For one Llama-2-70B pruning series, GSM8K and HellaSwag decline immediately while CoT-MMLU retains a plateau. The paper supplies no uncertainty, seed sweep, other model family, code benchmark, long-form generation suite, or mechanistic measure; HellaSwag is a commonsense completion benchmark rather than a pure reasoning intervention, and the text does not clearly identify healing status for Figure 6. The result is a valuable warning about benchmark dependence, not a localization theorem.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "5 Discussion hypotheses"},
+        {"page": 9, "section": "Reasoning evaluation details"},
+        {"page": 10, "section": "Figure 6 and future directions"}
+      ]
+    },
+    {
+      "claim": "Dividing cross-entropy by log vocabulary size does not make loss directly comparable across models with different tokenizers.",
+      "evidence": "The normalization sets each model's uniform-token predictor to one, but cross-entropy is still measured per model-specific token. Vocabulary size, segmentation length, byte coverage, and tokenizer-induced sequence length differ substantially, especially for Qwen versus Llama/Mistral. A bits-per-byte or matched-text likelihood comparison would better support cross-model claims; the within-model pruning trend is less affected.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "4.2 Loss normalization"},
+        {"page": 19, "section": "B.1 Vocabulary table"},
+        {"page": 20, "section": "B.2 C4 validation loss"}
+      ]
+    },
+    {
+      "claim": "The healing results are benchmark-tuned and understate uncertainty because LoRA rank is selected by MMLU and most plotted configurations appear to be single runs.",
+      "evidence": "For models harmed by rank 64, the authors sweep ranks and pick the one with best MMLU accuracy, then reuse it for other evaluations. No held-out selection split, exact selection pruning fraction, correction for repeated comparisons, or uncertainty intervals are given. The three-seed ablation is limited to Llama-2-13B, prompting ablations use the same model, and the rank study itself shows opposite MMLU and C4-loss preferences, indicating selection-sensitive conclusions.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 19, "section": "B.1 LoRA ranks"},
+        {"page": 21, "section": "C.1 Prompting"},
+        {"page": 22, "section": "C.2-C.3 Seed and LoRA rank"},
+        {"page": 23, "section": "Figure 10 and overfitting interpretation"}
+      ]
+    },
+    {
+      "claim": "The release source reconstructs the paper layout, but the manuscript does not provide a fully regenerable scientific artifact.",
+      "evidence": "The arXiv source has 18 files: 11 flattened one-page PDF figures, three STY files, two TEX files, one BBL, and one BST. All 11 includegraphics references resolve and compiling with the supplied BBL reproduces a clean 24-page document, but the BibTeX database, plotting scripts, raw measurements, and figure-generation data are absent. The 11 figure environments and three tabular environments can be audited visually, not regenerated from results.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 11, "section": "References"},
+        {"page": 15, "section": "End of references"},
+        {"page": 24, "section": "Figure 11"}
+      ]
+    },
+    {
+      "claim": "An author-associated public repository corroborates part of the method but cannot reproduce the final paper and contains material implementation defects.",
+      "evidence": "Hassan Shapourian's repository explicitly says its results appear in arXiv:2403.17887, although neither paper nor arXiv metadata links it. At commit 923f213ccce62b55f5c1342744614e0111747a7b it has 1,117 files, 32 Python files, 30 notebooks, no tests, license, CI, environment lock, tags, or releases. Every one of 1,009 JSON files is a Git LFS pointer; representative result, average, and dataset OIDs each return Git LFS 404, so core artifacts are publicly unavailable. The BoolQ simple-pruning code preserves the final block, but has a likely case-sensitive Mistral branch miss, computes negative elapsed time, and uses brittle/destructive path handling. Angular scripts hard-code site paths/configs and a private Transformers helper. Static parsing passed for all Python; one notebook cell did not parse as standalone Python. No expensive GPU runs were attempted.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "3.2 Algorithm"},
+        {"page": 7, "section": "4.3 Angular-distance sampling"},
+        {"page": 19, "section": "B.1 Model paths and healing"},
+        {"page": 20, "section": "B.2 Evaluation details"}
+      ]
+    },
+    {
+      "claim": "The direct priority landscape substantially narrows novelty: decoder depth pruning, contiguous blocks, similarity scoring, and post-pruning retraining all predate this manuscript.",
+      "evidence": "Before the target's 2024-03-26 v1, Just CHOP/LayerChop, Shortened LLaMA, SLEB, and LaCo already pruned whole transformer blocks, used retraining or similarity/redundancy criteria, and evaluated decoder-only LLMs. ShortGPT was submitted on 2024-03-06 and uses input-output cosine similarity for layer deletion. The final v2 cites ShortGPT but still omits Shortened LLaMA, SLEB, and LaCo. The target's distinctive combination is multi-layer endpoint distance, a broad 2.7B-70B seven-model sweep, QLoRA healing, the deepest-block comparison, and QA/loss/reasoning contrasts; the basic redundancy and layer-pruning thesis is not new.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "2 Literature review"},
+        {"page": 12, "section": "References, ShortGPT and Just CHOP"},
+        {"page": 16, "section": "A.1 Pruning"},
+        {"page": 17, "section": "A.1 Closest GPT-layer work"}
+      ]
+    },
+    {
+      "claim": "The practical efficiency case is incomplete because structural parameter reduction is not accompanied by actual latency, throughput, memory, energy, or quality-at-equal-cost measurements.",
+      "evidence": "Deleting complete blocks should reduce parameters and nominal transformer FLOPs, and the authors report that each healing run fits one 40GB A100. They do not report wall-clock healing time, end-to-end generation latency, tokens per second, peak inference memory, batch-size dependence, kernel utilization, model-loading cost, or comparison with quantization, speculative decoding, distillation, width pruning, and early exit at matched quality. The paper demonstrates compressibility more directly than deployed acceleration.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract"},
+        {"page": 5, "section": "4 Experimental resources"},
+        {"page": 17, "section": "A.2 Model distillation"},
+        {"page": 18, "section": "A.3 Efficient finetuning and inference acceleration"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Treat a transformer residual stream as slowly varying with depth, use final-token endpoint direction similarity to choose one removable contiguous block, and adapt the shortened model with a small QLoRA run so retained layers tolerate the new interface.",
+    "mechanism": "For a model with L transformer blocks, collect layer-input residual states on C4 validation sequences. For each requested block size n and feasible start l, average d(x_l,x_(l+n)) = arccos(cosine(x_l,x_(l+n)))/pi at the final sequence token; select the minimum-distance start and physically delete the intervening n blocks. Optionally quantize the model to four bits and train FFN LoRA adapters for 5,000 C4 steps. Compare this similarity-selected model with an intended deepest-internal-block heuristic, random blocks, and shallow blocks on MMLU, BoolQ, C4 loss, and a small reasoning suite.",
+    "assumptions": [
+      "Residual representations evolve slowly enough with depth that endpoint similarity predicts a safe reconnection.",
+      "Direction-only final-token angular distance captures the aspects of a residual state needed by all later layers.",
+      "Endpoint similarity is a useful causal importance proxy rather than a correlation created by residual geometry or normalization.",
+      "A contiguous deletion creates less harmful mismatch than the non-contiguous alternatives relevant to deployment.",
+      "C4 validation is neutral and sufficiently representative for selecting blocks across all downstream tasks.",
+      "The nominal C4 sample average is stable across sampling seeds, sequence lengths, domains, and token positions.",
+      "The final token summarizes layer similarity for generation, classification, and multi-token reasoning.",
+      "QLoRA on C4 repairs the pruning interface without materially adding or selecting benchmark-relevant knowledge.",
+      "C4 train and evaluated benchmark content do not create a contamination or knowledge-reacquisition confound.",
+      "MMLU and BoolQ accuracy adequately measure retention of the knowledge implicated by the paper's storage claims.",
+      "The evaluator prompt protocol is fixed, despite conflicting zero-shot and five-shot descriptions.",
+      "MMLU-selected LoRA ranks do not materially bias the same MMLU curves or favor one pruning configuration.",
+      "A single or small number of healing seeds represents the variance of every model and pruning fraction.",
+      "Dividing per-token loss by log vocabulary makes model families with different tokenizers meaningfully comparable.",
+      "Removing whole blocks yields practical hardware gains proportional to parameter/FLOP reduction.",
+      "The behavior of seven 2019-2023-era open-weight base models extrapolates to instruction-tuned, mixture-of-experts, multimodal, long-context, and newer architectures.",
+      "Reasoning benchmark degradation isolates reasoning computation rather than format, calibration, generation length, knowledge mix, or evaluator sensitivity.",
+      "A benchmark capability surviving an ablation implies that the deleted weights did not store information necessary to that capability, rather than redundancy or compensation."
+    ]
+  },
+  "techniques": [
+    {"id": "depth-prune", "role": "Deletes complete transformer blocks to obtain a smaller dense model."},
+    {"id": "block-search", "role": "Searches every feasible start for a requested contiguous pruning length."},
+    {"id": "angle-dist", "role": "Scores endpoint residual states with normalized arccosine of cosine similarity."},
+    {"id": "last-token", "role": "Uses the final token as the sequence-wide activation summary under causal attention."},
+    {"id": "c4-calib", "role": "Uses C4 validation sequences to estimate layer similarity."},
+    {"id": "qlora-heal", "role": "Combines 4-bit loading and low-rank FFN adapters to adapt the pruned interface."},
+    {"id": "deep-rule", "role": "Tests an intended deepest-internal-block heuristic that avoids similarity calibration."},
+    {"id": "rand-rule", "role": "Uses random-layer deletion as an alternative pruning baseline."},
+    {"id": "shallow-rule", "role": "Uses shallow-layer deletion as an intentionally difficult baseline."},
+    {"id": "qa-phase", "role": "Tracks flat-then-collapse benchmark accuracy over pruning fraction."},
+    {"id": "loss-track", "role": "Measures next-token cross-entropy on held-out C4 sequences."},
+    {"id": "vocab-norm", "role": "Divides loss by log vocabulary size to align each model's uniform-token baseline."},
+    {"id": "rank-sweep", "role": "Selects lower LoRA ranks when rank 64 harms MMLU."},
+    {"id": "prompt-ablate", "role": "Varies MMLU demonstration order and count on Llama-2-13B."},
+    {"id": "seed-ablate", "role": "Repeats selected Llama-2-13B healing runs under three finetuning seeds."},
+    {"id": "reason-probe", "role": "Tests CoT-MMLU, GSM8K, and HellaSwag on pruned Llama-2-70B."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Llama-2 7B, 13B, and 70B under similarity-selected contiguous pruning.",
+      "metric": "MMLU accuracy over fraction of layers removed, with and without healing.",
+      "result": "Accuracy remains near baseline until an approximately 45%-55% model-dependent transition, then collapses toward 25%; healing modestly extends the plateau.",
+      "baseline": "Unpruned model, random guessing, and the same pruned model without healing."
+    },
+    {
+      "setting": "Qwen-7B/14B, Mistral-7B, and Phi-2 under similarity-selected pruning.",
+      "metric": "MMLU accuracy over normalized pruning fraction.",
+      "result": "Transitions appear much earlier than Llama: about 20% for Qwen, 35% for Mistral, and 25% for Phi-2.",
+      "baseline": "Unpruned and unhealed curves plus random guessing."
+    },
+    {
+      "setting": "All seven models on BoolQ.",
+      "metric": "Zero-shot accuracy across pruning fraction.",
+      "result": "Flat-then-collapse behavior broadly recurs, with healing contributing more than on MMLU.",
+      "baseline": "Unpruned, unhealed, and random-guess performance."
+    },
+    {
+      "setting": "All seven models on 60,000 fixed C4 validation sequences.",
+      "metric": "Next-token cross-entropy divided by log vocabulary size.",
+      "result": "Unhealed loss approaches the uniform baseline near QA collapse; healed loss rises smoothly and remains far lower through aggressive pruning.",
+      "baseline": "Original unpruned loss and uniform-token loss."
+    },
+    {
+      "setting": "All seven models' layer inputs on nominally 10,000 C4 validation samples.",
+      "metric": "Row-normalized angular distance for every block start and multiple block sizes.",
+      "result": "The lowest-distance blocks generally occur deep in the model while blocks including the final layer are usually maximally dissimilar; Qwen and several large-block cases are exceptions.",
+      "baseline": "Every alternative contiguous start for the same block length."
+    },
+    {
+      "setting": "Llama-2-70B under the similarity search and deepest-block heuristic.",
+      "metric": "MMLU, BoolQ, and C4 loss before and after healing.",
+      "result": "The heuristic is much worse before healing but nearly matches the search after healing, with a small remaining advantage for similarity selection.",
+      "baseline": "The similarity-informed block and unpruned/random reference lines."
+    },
+    {
+      "setting": "Llama-2-70B on CoT-MMLU, GSM8K, and HellaSwag.",
+      "metric": "Task accuracy or GSM8K pass@1 across pruning fraction.",
+      "result": "CoT-MMLU retains a QA-like plateau while GSM8K and HellaSwag degrade from the first pruning increments.",
+      "baseline": "The unpruned model and task-specific random performance where applicable."
+    },
+    {
+      "setting": "Llama-2-13B prompt and finetuning-seed ablations.",
+      "metric": "MMLU curve under demonstration order/count changes and three healing seeds.",
+      "result": "The qualitative plateau and transition are visually stable, with minor accuracy changes from more demonstrations.",
+      "baseline": "The default prompt ordering/count and seed zero."
+    },
+    {
+      "setting": "Mistral-7B and Llama-2 7B/70B LoRA rank sweeps.",
+      "metric": "MMLU and, for Mistral, C4 validation loss across rank.",
+      "result": "Lower ranks often improve MMLU but worsen Mistral C4 loss, motivating model-specific ranks and exposing a benchmark-selection tradeoff.",
+      "baseline": "The default QLoRA rank 64."
+    },
+    {
+      "setting": "Llama-2-7B similarity, random-layer, and shallow-layer pruning.",
+      "metric": "MMLU accuracy over pruning fraction.",
+      "result": "Similarity-selected contiguous blocks outperform the random and shallow alternatives shown.",
+      "baseline": "Random-layer and shallow-layer deletion."
+    },
+    {
+      "setting": "ArXiv source artifact for the ICLR 2025 v2 manuscript.",
+      "metric": "Page rebuild, visual resolution, and raw-result regenerability.",
+      "result": "The supplied BBL and all 11 graphics rebuild 24 pages, but the BibTeX database, plotting code, and raw figure data are absent.",
+      "baseline": "A source-complete artifact that regenerates bibliography and plots from raw results."
+    },
+    {
+      "setting": "Author-associated llm-benchmarks repository at commit 923f213ccce62b55f5c1342744614e0111747a7b.",
+      "metric": "Static syntax, result availability, paper coverage, configuration portability, and implementation consistency.",
+      "result": "Python parses and the code corroborates final-layer preservation, but all committed JSON artifacts are unavailable LFS pointers, final-v2 experiments are incomplete, and multiple correctness/portability defects remain.",
+      "baseline": "A tagged, tested, licensed, pinned, data-complete reproduction of every final-paper curve."
+    }
+  ],
+  "limitations": [
+    "Author-stated: QA robustness does not extend to every task; GSM8K and HellaSwag degrade immediately.",
+    "Author-stated: next-token loss worsens continuously even when QA accuracy stays flat.",
+    "Author-stated: LoRA-rank sweeps were not exhaustive because of compute limits.",
+    "Author-stated: the original pretraining corpora are unknown and C4 may be lower quality.",
+    "Author-stated: the Qwen family behaves anomalously and tolerates substantially less pruning.",
+    "Author-stated: some model/large-block exceptions violate the general deepest-is-most-similar pattern.",
+    "Reviewer inference: seven base decoder models from a narrow generation do not cover instruction tuning, RLHF, MoE, multimodality, long context, or current architectures.",
+    "Reviewer inference: MMLU and BoolQ are too narrow to support general claims about stored knowledge.",
+    "Reviewer inference: the reasoning study uses only Llama-2-70B and three heterogeneous benchmarks with no uncertainty.",
+    "Reviewer inference: no output-quality, toxicity, calibration, factuality, long-form generation, coding, multilingual, retrieval, or tool-use evaluation is reported.",
+    "Reviewer inference: final-token angular distance discards norm, position-wise, token-wise, head-wise, and feature-wise information.",
+    "Reviewer inference: no causal validation compares the similarity score with true marginal ablation damage across all candidate blocks.",
+    "Reviewer inference: row-normalized heatmaps suppress absolute distance scale and uncertainty.",
+    "Reviewer inference: nominal 10,000-sample distance estimates have no convergence curve, confidence interval, or seed repeat.",
+    "Reviewer inference: healing uses 164M-328M web tokens, so interface repair and knowledge/statistical reacquisition are confounded.",
+    "Reviewer inference: no C4-to-benchmark contamination or domain-overlap audit is supplied.",
+    "Reviewer inference: MMLU-selected LoRA ranks create selection bias, especially because the paper reports the same metric as a headline result.",
+    "Reviewer inference: most model/pruning points lack seed variation and all headline curves omit uncertainty bars.",
+    "Reviewer inference: loss divided by log vocabulary is not tokenizer-invariant.",
+    "Reviewer inference: performance is plotted against fraction of layers rather than matched parameters, FLOPs, latency, or memory.",
+    "Reviewer inference: the paper does not evaluate width pruning, distillation, quantization, early exit, or trained small models at matched deployment cost.",
+    "Reporting audit: MMLU is described as both 5-shot and 0-shot, and the Figure 3 panel order is reversed in prose.",
+    "Algorithm audit: the simple-strategy interval deletes the final layer as printed, contradicting the narrative and code.",
+    "Source audit: the BIB, raw measurements, plotting scripts, and editable figure sources are absent.",
+    "Artifact audit: the author-associated repository is not linked by the manuscript and cannot reproduce the final revision.",
+    "Artifact audit: all 1,009 committed JSON result/data files are LFS pointers, with representative objects unavailable from the server.",
+    "Artifact audit: there are no tests, license, CI, release, dependency lock, environment manifest, or exact paper-to-commit mapping.",
+    "Artifact audit: hard-coded site paths, private-library imports, a case-sensitive Mistral condition, and a negative-runtime bug impede trustworthy reuse."
+  ],
+  "failure_modes": [
+    "Two residual states align directionally while differing greatly in norm, so angular distance predicts safe deletion but the next retained block receives an out-of-scale input.",
+    "Endpoint states are similar because the intervening block performs a computation that is later inverted or canceled; deleting it breaks a downstream capability despite high cosine similarity.",
+    "A block is safe on C4 calibration text but critical on code, math, another language, retrieval, or long-context inputs.",
+    "The final-token statistic misses important position-specific changes needed for multi-token generation or attention to earlier context.",
+    "A row-normalized heatmap makes a weak minimum look decisive even when all candidate blocks have similar absolute scores.",
+    "A deepest-block formula copied literally removes the final transformer block because of the printed off-by-one error.",
+    "A practitioner follows the main text's five-shot MMLU protocol while the original curves used zero-shot, or vice versa, and cannot reconcile results.",
+    "QLoRA relearns benchmark-relevant patterns from C4, making restored accuracy look like pure interface healing.",
+    "MMLU-based rank selection overfits the reported benchmark and masks degradation in C4 likelihood or other tasks.",
+    "A single-seed phase transition shifts under data order or adapter initialization but the plot has no interval to reveal it.",
+    "QA multiple-choice accuracy stays flat because answer margins remain above threshold while calibration, likelihood, generation, or rare facts steadily degrade.",
+    "A model passes MMLU after deletion through distributed redundancy, leading the reviewer to incorrectly infer that removed layers stored no knowledge.",
+    "A pruning fraction that is safe for a deeper model removes too few or too many absolute computation stages in a shallower model.",
+    "Cross-tokenizer normalized loss suggests Qwen and Llama are directly comparable even though token units and sequence lengths differ.",
+    "A pruned checkpoint has fewer parameters but realizes little latency improvement because the deployment batch, memory bandwidth, compilation, or generation regime differs.",
+    "An evolved downstream task rewards the same benchmark shortcut that survives pruning and thereby certifies a degraded model as equivalent.",
+    "The public repository appears data-rich because it contains 1,009 JSON paths, but each is an unresolved Git LFS pointer.",
+    "The Mistral evaluation branch fails to bind its intended first layer because model-path capitalization differs from the hard-coded check.",
+    "A notebook or script silently depends on site-specific absolute paths, mutable model/data revisions, or a private Transformers helper.",
+    "A reader regenerates the bibliography or figures from source and cannot because the BIB, raw arrays, and plotting scripts were not released."
+  ],
+  "reusable_insights": [
+    "Separate functional redundancy on a named benchmark from claims about parameter usefulness, causal computation, and knowledge localization.",
+    "Validate every cheap layer-importance proxy against actual ablation damage over candidate blocks, tasks, domains, and model scales.",
+    "Measure residual norm ratio and Euclidean/whitened distance alongside cosine or angular similarity.",
+    "Aggregate layer-similarity statistics across token positions, sequence lengths, data domains, and prompt types rather than only the final token.",
+    "Report absolute similarity, uncertainty, and calibration stability before row-normalizing a heatmap.",
+    "Treat pruning selection and healing as separate interventions with factorial controls.",
+    "Use activation matching, data-disjoint healing, frozen-module controls, and fact-level probes to distinguish interface repair from relearning.",
+    "Choose healing hyperparameters on a held-out validation suite and report the full selection surface, not only the best MMLU curve.",
+    "Test capability retention with likelihood, calibrated accuracy, free generation, factual recall, code, math, multilingual, long-context, safety, and distribution-shift suites.",
+    "Pair benchmark plateaus with continuous metrics because thresholded accuracy can hide steadily worsening margins and probabilities.",
+    "Express depth changes in layers, parameters, FLOPs, critical-path latency, memory, and energy; fractions alone confound architectures.",
+    "Benchmark a pruned-and-healed model against a natively smaller trained model and other compression routes at matched inference cost.",
+    "Use bits per byte or matched-text log likelihood for cross-tokenizer loss comparisons.",
+    "Make indexing conventions executable tests, especially when preserving a special first or final block.",
+    "Tag the exact artifact revision and store raw arrays, plotting code, manifests, checksums, and non-dangling large-file objects.",
+    "For evolutionary RL-environment search, do not score an environment using one representation proxy; require causal learning-progress tests across agent sizes and held-out tasks.",
+    "Validate a synthetic RL environment with random, scripted, exploit-seeking, small learned, and larger learned agents so reward validity is not confused with learnability.",
+    "Use train/validation environment families and cross-scale rank correlations to test whether a cheap small-agent signal predicts larger-agent learning.",
+    "Keep humans in the loop for semantic validity, safety, and novelty while automating reward-hacking searches, determinism checks, solvability bounds, and regression tests.",
+    "An environment can be useful even if a small model never masters it, but it should exhibit measurable progress, skill transfer, policy diversity, or curriculum value under an explicit compute ladder.",
+    "A small-model gain is scaling evidence only when it persists across several sizes/seeds with prespecified extrapolation checks; it is not itself a scaling claim."
+  ],
+  "open_questions": [
+    "Which causal layer-importance metric best predicts true multi-task damage while remaining cheaper than exhaustive ablation?",
+    "Can norm-aware, whitened, task-conditioned, or Jacobian-weighted endpoint distances outperform angular similarity across architectures?",
+    "How many calibration tokens and domains are needed for a stable pruning decision, and how should that uncertainty enter selection?",
+    "When does contiguous pruning dominate non-contiguous pruning after controlling for the number of interfaces and healing compute?",
+    "What information is lost continuously beneath an apparently flat multiple-choice accuracy curve?",
+    "Can factual knowledge loss be measured at the item level before and after healing without conflating retrieval and storage?",
+    "How much of healing is local activation alignment, global representation reorganization, domain adaptation, or knowledge reacquisition?",
+    "Would fact-disjoint synthetic healing data preserve the QA plateau as well as C4?",
+    "Do instruction-tuned, RLHF, MoE, recurrent-depth, state-space, multimodal, and very long-context models exhibit the same depth pattern?",
+    "How do pruning tolerance and optimal block location evolve across pretraining checkpoints and token budgets?",
+    "Is there a scaling law for critical retained depth in absolute layers, effective depth, parameters, or compute rather than fraction removed?",
+    "Can training-time layer dropout, intermediate supervision, early-exit objectives, or depth-balanced regularization make every layer causally useful?",
+    "Which reasoning components are depth-sensitive: search, arithmetic, working memory, error correction, answer formatting, or generation length?",
+    "Does CoT-MMLU remain robust under matched base accuracy, self-consistency, longer chains, and adversarial reasoning items?",
+    "How do pruned models compare with natively smaller models at equal latency, memory, energy, and data exposure?",
+    "Can an activation-matching healing loss restore reasoning without retaining an unpruned teacher at deployment?",
+    "What artifact checks should automatically reject unresolved LFS results, mutable dependencies, and paper-code protocol mismatches?",
+    "For evolutionary RL-environment generation, what cheap environment descriptors predict later learning progress better than a single small-policy training run?",
+    "Can cross-size learning-curve rank correlation, transfer to held-out environment mutations, and mechanistic skill probes identify environment signals that scale?",
+    "How should environment evolution balance solvability, novelty, curriculum slope, behavioral diversity, exploit resistance, safety, and compute cost?",
+    "Which reward-hacking and specification-gaming tests can be fully automated, and where is human semantic review indispensable?",
+    "Can we validate a generated environment without fully training an agent by combining reachability analysis, oracle policies, reward sensitivity, adversarial policies, and short learning probes?",
+    "When a small agent fails but a larger agent succeeds, what intermediate behavioral or representation signals forecast that threshold rather than merely retrospectively explaining it?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1909.11556",
+      "title": "Reducing Transformer Depth on Demand with Structured Dropout",
+      "url": "https://arxiv.org/abs/1909.11556",
+      "relationship": "Foundational pre-v1 work training one Transformer to operate at multiple depths through structured layer dropout.",
+      "difference": "It changes training and focuses on flexible encoder/sequence models; the target post-hoc prunes already pretrained decoder LLMs and heals one shortened model.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2004.03844",
+      "title": "On the Effect of Dropping Layers of Pre-trained Transformer Models",
+      "url": "https://arxiv.org/abs/2004.03844",
+      "relationship": "Direct early study of removing layers from pretrained Transformers and retraining the shortened model.",
+      "difference": "It studies smaller BERT-style encoders and finds final-layer deletion effective; the target tests 2.7B-70B autoregressive decoders and emphasizes retaining the final block.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2305.11627",
+      "title": "LLM-Pruner: On the Structural Pruning of Large Language Models",
+      "url": "https://arxiv.org/abs/2305.11627",
+      "relationship": "Pre-v1 structural LLM pruning with gradient-based dependency discovery and low-rank recovery.",
+      "difference": "It removes coupled heads/channels rather than choosing one contiguous depth block, enabling finer ratios but producing less uniformly dense architecture reduction.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2305.14864",
+      "title": "Just CHOP: Embarrassingly Simple LLM Compression",
+      "url": "https://arxiv.org/abs/2305.14864",
+      "relationship": "Strict pre-v1 decoder-LLM depth compression by progressively removing layers and continuing language-model training.",
+      "difference": "It modifies pretraining/continued training and studies smaller custom models; the target starts from released 2.7B-70B checkpoints, selects a block by activations, and uses QLoRA healing.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2310.06694",
+      "title": "Sheared LLaMA: Accelerating Language Model Pre-training via Structured Pruning",
+      "url": "https://arxiv.org/abs/2310.06694",
+      "relationship": "Pre-v1 structured pruning and dynamic data loading for producing smaller dense LLaMA models.",
+      "difference": "It learns target architecture masks over layers, heads, and dimensions during continued pretraining; the target uses a fixed contiguous block and lightweight adapter healing.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2402.02834",
+      "title": "Shortened LLaMA: Depth Pruning for Large Language Models with Comparison of Retraining Methods",
+      "url": "https://arxiv.org/abs/2402.02834",
+      "relationship": "Direct pre-v1 depth-pruning study comparing ways to select layers and retrain shortened LLaMA models.",
+      "difference": "It foregrounds retraining alternatives and layer choices; the target adds multi-layer endpoint angular search, a seven-model sweep, and task/loss phase-transition interpretation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2402.09025",
+      "title": "SLEB: Streamlining LLMs through Redundancy Verification and Elimination of Transformer Blocks",
+      "url": "https://arxiv.org/abs/2402.09025",
+      "relationship": "Direct pre-v1 method that verifies block redundancy, removes whole LLM blocks, and measures actual inference improvement.",
+      "difference": "SLEB greedily eliminates individual blocks using perplexity change and reports hardware efficiency; the target removes one contiguous block using endpoint geometry and emphasizes healing and scientific interpretation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2402.11187",
+      "title": "LaCo: Large Language Model Pruning via Layer Collapse",
+      "url": "https://arxiv.org/abs/2402.11187",
+      "relationship": "Direct pre-v1 decoder-layer compression using similarity to collapse adjacent LLM layers.",
+      "difference": "LaCo iteratively merges/removes layers under a task-adaptive threshold; the target searches a single contiguous endpoint-matched block and repairs it with QLoRA.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2403.03853",
+      "title": "ShortGPT: Layers in Large Language Models are More Redundant Than You Expect",
+      "url": "https://arxiv.org/abs/2403.03853",
+      "relationship": "Closest concurrent-priority work, posted twenty days before the target, using input-output cosine similarity to rank and delete LLM layers.",
+      "difference": "ShortGPT scores individual block influence and can remove non-contiguous layers; the target measures multi-layer endpoints, favors one contiguous block, and studies QLoRA healing and task transitions.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2403.19135",
+      "title": "Streamlining Redundant Layers to Compress Large Language Models",
+      "url": "https://arxiv.org/abs/2403.19135",
+      "relationship": "Near-concurrent LLM layer-compression work submitted two days after the target's v1.",
+      "difference": "It supplies another redundancy-driven layer removal and recovery design; the target's differentiators are contiguous endpoint angular distance and broad healed-versus-unhealed curves.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2406.10594",
+      "title": "BlockPruner: Fine-grained Pruning for Large Language Models",
+      "url": "https://arxiv.org/abs/2406.10594",
+      "relationship": "Later direct competitor pruning transformer and sub-block units by importance.",
+      "difference": "It searches attention/MLP sub-blocks at finer granularity to improve the quality-compression frontier; the target's whole contiguous blocks are simpler and hardware regular.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2406.15786",
+      "title": "What Matters in Transformers? Not All Attention is Needed",
+      "url": "https://arxiv.org/abs/2406.15786",
+      "relationship": "Later systematic component-importance study separating the roles and redundancy of transformer attention and feed-forward computation.",
+      "difference": "It prunes or analyzes attention components rather than entire depth intervals, offering a finer causal picture than the target's layer-level similarity proxy.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2407.16286",
+      "title": "A Deeper Look at Depth Pruning of LLMs",
+      "url": "https://arxiv.org/abs/2407.16286",
+      "relationship": "Later direct re-evaluation of depth-pruning criteria, retraining, and downstream quality.",
+      "difference": "It systematically tests where depth pruning succeeds and fails and sharpens the evaluation protocol; the target provides the earlier angular-block recipe and knowledge/reasoning interpretation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2410.09982",
+      "title": "Self-Data Distillation for Recovering Quality in Pruned Large Language Models",
+      "url": "https://arxiv.org/abs/2410.09982",
+      "relationship": "Later recovery method for structurally pruned LLMs using the original model's generated supervision.",
+      "difference": "It targets post-pruning quality recovery through self-distillation rather than neutral-corpus QLoRA, directly addressing the target's under-isolated healing mechanism.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2411.15558",
+      "title": "Reassessing Layer Pruning in LLMs: New Insights and Methods",
+      "url": "https://arxiv.org/abs/2411.15558",
+      "relationship": "Later direct reassessment of layer-pruning assumptions, metrics, and recovery.",
+      "difference": "It revisits criterion reliability and proposes updated methods after the first wave of redundancy claims; the target relies principally on angular similarity and selected QA curves.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2502.04348",
+      "title": "Prompt-based Depth Pruning of Large Language Models",
+      "url": "https://arxiv.org/abs/2502.04348",
+      "relationship": "Later method making depth selection input- or prompt-dependent rather than globally fixed.",
+      "difference": "Prompt-conditioned pruning can retain different layers for different tasks and examples; the target chooses one global contiguous block from a neutral corpus.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2505.24680",
+      "title": "A Simple Linear Patch Revives Layer-Pruned Large Language Models",
+      "url": "https://arxiv.org/abs/2505.24680",
+      "relationship": "Later direct recovery competitor that learns a small mapping across the missing layer interface.",
+      "difference": "Its linear patch directly targets endpoint mismatch with far less adaptation scope; the target uses FFN QLoRA and only proposes, rather than tests, an activation-alignment loss.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2510.02091",
+      "title": "Demystifying the Roles of LLM Layers in Retrieval, Knowledge, and Reasoning",
+      "url": "https://arxiv.org/abs/2510.02091",
+      "relationship": "Later depth analysis directly separating retrieval, knowledge, and reasoning behavior.",
+      "difference": "It uses a more capability-specific layer-role taxonomy; the target infers a shallow-knowledge/deep-reasoning split from a small benchmark set.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2510.14444",
+      "title": "A Free Lunch in LLM Compression: Revisiting Retraining after Pruning",
+      "url": "https://arxiv.org/abs/2510.14444",
+      "relationship": "Later work reassessing when post-pruning retraining supplies gains and what controls make the comparison fair.",
+      "difference": "It centers recovery protocol and compute accounting; the target treats a fixed C4 QLoRA recipe as healing and makes a stronger mechanistic interpretation than its controls warrant.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2510.22228",
+      "title": "When Fewer Layers Break More Chains: Layer Pruning Harms Test-Time Scaling in LLMs",
+      "url": "https://arxiv.org/abs/2510.22228",
+      "relationship": "Later direct evidence that layer-pruned models lose benefits from longer test-time reasoning.",
+      "difference": "It evaluates inference-time scaling and multi-step chains rather than mostly fixed-answer benchmarks, strengthening the target's own tentative observation that reasoning is depth-sensitive.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2602.01997",
+      "title": "On the Limits of Layer Pruning for Generative Reasoning in Large Language Models",
+      "url": "https://arxiv.org/abs/2602.01997",
+      "relationship": "Current direct stress test of depth pruning on free-form generative reasoning.",
+      "difference": "It broadens reasoning evaluation and characterizes failure beyond multiple-choice plateaus; the target uses only GSM8K, HellaSwag, and CoT-MMLU on one model.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2603.24652",
+      "title": "Demystifying When Pruning Works via Representation Hierarchies",
+      "url": "https://arxiv.org/abs/2603.24652",
+      "relationship": "Current representation-based account of when structural pruning preserves model behavior.",
+      "difference": "It studies hierarchical representation structure and boundary conditions; the target reduces representation evidence to a single endpoint angular statistic.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2604.24938",
+      "title": "Rethinking Layer Redundancy: Calibration Matters More Than Search in LLM Depth Pruning",
+      "url": "https://arxiv.org/abs/2604.24938",
+      "relationship": "Current direct challenge to elaborate layer-search claims, emphasizing calibration data and evaluation protocol.",
+      "difference": "It argues the calibration distribution can dominate search sophistication, reinforcing the target's own result that a deepest-block heuristic catches up after healing.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2605.14075",
+      "title": "Rethinking Layer Relevance in Large Language Models Beyond Cosine Similarity",
+      "url": "https://arxiv.org/abs/2605.14075",
+      "relationship": "Most direct current critique of cosine-based layer relevance, the core proxy used by the target.",
+      "difference": "It proves cosine relevance can be arbitrarily small despite catastrophic ablation and empirically finds weak-to-moderate correlation, motivating causal and norm-aware metrics absent from the target.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2607.13124",
+      "title": "ShortOPD: Recovering Pruned LLMs with Short-to-Long On-Policy Distillation",
+      "url": "https://arxiv.org/abs/2607.13124",
+      "relationship": "Current recovery method designed to restore long-form behavior in pruned LLMs through on-policy distillation.",
+      "difference": "It explicitly targets the generative/reasoning distribution damaged by pruning; the target heals on generic C4 and evaluates recovery mainly with short QA and likelihood.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper presents a simple representation-similarity layer-pruning method for open-weight LLMs, shows that up to roughly half the layers can be removed with little QA degradation after QLoRA healing, and interprets this as evidence that deeper layers are underused for knowledge storage but important for reasoning.",
+    "evidence": "Whole-layer transformer pruning, post-pruning retraining, decoder-LLM structural compression, and similarity-based deletion all have strict pre-v1 precedents. Particularly close are Just CHOP/LayerChop (2305.14864), Shortened LLaMA (2402.02834), SLEB (2402.09025), LaCo (2402.11187), and ShortGPT (2403.03853), the last posted twenty days before the target and already using cosine-style block influence. The final target cites ShortGPT but omits several other closest pre-v1 papers. Its genuine combination is multi-layer endpoint distance, a seven-model 2.7B-70B comparison, a deepest-block heuristic, QLoRA healing, and the contrast between sharp QA transitions, smooth loss damage, and preliminary reasoning fragility. Later work improves selection, calibration, recovery, causal relevance, hardware evaluation, and generative reasoning tests.",
+    "reviewer_inference": "Overall novelty is moderate-low for pruning methodology and moderate for the empirical synthesis. The all-at-once combination and broad curves are useful, but neither layer redundancy nor similarity-guided depth pruning is new. The strongest reusable result is benchmark-specific: QA accuracy can remain flat while likelihood and reasoning degrade, and simple deepest-block pruning can approach search after healing. The broad knowledge-localization and deep-layer-ineffectiveness interpretation is not established, and current causal evidence directly undermines cosine similarity as a sufficient relevance measure."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Primary-source review completed 2026-08-23 against arXiv v2, the ICLR 2025 version. All 24/24 extracted pages were read; every page was rendered and visually inspected, covering all 11 numbered figure environments, all 11 included graphic assets, all three tabular environments, equations, footnotes, references, and appendices. The arXiv source tarball (SHA-256 64ca8fdb8c678da267ac83e7a8c01c728106781d8c7c32a62b6923e362cb8f07) contained 18 files: 11 one-page PDF figures, three STY files, two TEX files, one BBL, and one BST. All 11 graphics resolve, and a clean build with the supplied BBL yields 24 pages (rebuilt PDF SHA-256 6f35a1358a6a93dc062ed828f3de8b9299f7eaf8114d8007264878dbfe6accbf); the BIB, raw plot data, and plotting scripts are absent. An author-associated but not manuscript-linked repository, https://github.com/hassan-shap/llm-benchmarks, was audited at commit 923f213ccce62b55f5c1342744614e0111747a7b (tar SHA-256 372f5e772501c945e83746c59ae991b5fc389fdd9cae0977a38647eb0798292). It has 33 commits, no tags/releases, 1,117 files, 32 Python files/5,809 lines/34 functions, 30 notebooks/304 code cells, and 1,009 JSON files that are all Git LFS pointers. All Python parses; one notebook cell does not parse standalone. Representative LFS OIDs from result, averaged-angular, and dataset categories each return server 404. No tests, license, CI, dependency lock, portable environment, final-v2 experiment coverage, or complete raw results are present. No costly GPU run was attempted. Static code findings include correct preserve-final indexing that contradicts the paper's formula, a likely Mistral capitalization branch miss, negative elapsed-time calculation, brittle/destructive paths, private Transformers imports, and hard-coded sampling/configuration. Competitive research checked 25 official primary arXiv records through 2026-08-23, distinguishing pre-v1 priority, concurrent work, and later evidence. Material contradictions are the simple-strategy off-by-one, 0-shot/5-shot MMLU conflict, reversed Figure 3 panel prose, angular similarity's missing norm/causal guarantee, underdetermined knowledge localization and healing interpretations, benchmark-tuned LoRA rank, non-tokenizer-invariant loss normalization, narrow reasoning evidence, and unresolved artifact data."
+}

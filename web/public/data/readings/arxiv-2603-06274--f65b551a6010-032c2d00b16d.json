@@ -1,0 +1,327 @@
+{
+  "stable_id": "arxiv:2603.06274",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2603.06274",
+    "pdf_sha256": "d5a56c152e00e998f0e096e1ff0572fa19daf0b910a0415292f6a1cb8444174c",
+    "text_sha256": "d2096c9653edb030354f8741d332c3a4f923927c506a58d32ecd301737b4b3a2",
+    "page_count": 13,
+    "extracted_at": "2026-08-23T12:43:45.135169+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can training-free causal prefill attention be made more accurate at low block budgets by allocating more blocks to early query positions and ranking blocks with both QK scores and value norms, and do the paper's causal-flow argument, reconstruction bound, complexity claim and near-lossless empirical characterization survive close audit?",
+  "key_findings": [
+    {
+      "claim": "Stem combines two simple heuristics: Token Position-Decay gives earlier query blocks a larger top-k, and an Output-Aware Metric adds a value-norm term to antidiagonally pooled QK scores before block selection.",
+      "evidence": "The per-query-block budget decays linearly from k_start to k_end=mu k_start, with mu=0.7. Scores use the XAttention-style antidiagonal pooled Q/K representation plus beta max(0,log ||V||_2), beta=0.2; local and initial blocks are retained, selected blocks are evaluated by exact sparse softmax, and B=128 in experiments. For 8K-16K, k_start is 0.2 of the block count; above 16K it is 0.1, subject to a minimum total budget of 54 blocks.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "2.1 Token Position-Decay, Eqs. (2)-(3)"},
+        {"page": 4, "section": "2.2 Output-Aware Metric, Eq. (6)"},
+        {"page": 4, "section": "2.3 Overall Algorithm, Algorithm 1"},
+        {"page": 5, "section": "3.1 Experimental Settings"}
+      ]
+    },
+    {
+      "claim": "The recursive causal-flow motivation does not establish the allocation rule actually used: it analyzes removing one value token globally from all outputs, while sparse attention drops query-key/value pairs separately for each query row.",
+      "evidence": "Equation (1) notes that V_1 contributes to every causal output O_i while V_N contributes only to O_N, so globally deleting V_1 affects more outputs. Stem, however, chooses a different set S_i for each query block; omitting key j from row i affects that row's output, not all later rows automatically. The 30-sample segment-ablation study shows early-token removal produces larger head-logit MSE, which supports positional sensitivity in those prompts, but it does not prove that per-row top-k must monotonically decay or that the global participation count is the causal reason.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "1 Introduction, causal information-flow claim"},
+        {"page": 3, "section": "2.1 Token Position-Decay, Eq. (1) and Figure 3"},
+        {"page": 4, "section": "2.3 Algorithm 1, row/block-specific selection"}
+      ]
+    },
+    {
+      "claim": "The position-ablation evidence is directionally consistent with prioritizing early context, but is small, model/task specific and uses a global segment intervention rather than the proposed pair-pruning operation.",
+      "evidence": "Figure 3 uses 30 randomly sampled 8K LongBench inputs on Qwen3-8B and masks four contiguous 2K segments. Across fixed budgets 2048/1024 and dynamic 70/50/30%, removing [0,2K] yields much larger last-layer head-logit MSE than removing [6K,8K]. This is a useful diagnostic, but it has no uncertainty interval, only one model/context length/sample, and content position is confounded with causal participation and benchmark document structure.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "2.1 Token Position-Decay, Figure 3 and segment-ablation protocol"}
+      ]
+    },
+    {
+      "claim": "The OAM derivation is an upper-bound surrogate for unrenormalized truncation, whereas implemented sparse softmax renormalizes selected blocks and further changes/scales the derived ranking; it is not an exact optimal-selection theorem for the implementation.",
+      "evidence": "Appendix A.1 starts from the Frobenius discrepancy between dense output P_i V and a truncated sum over retained terms using the original P_i weights, then applies triangle inequality to obtain a separable bound involving P_ij ||V_j||. The implementation recomputes a softmax over retained blocks, changing every retained coefficient. It also omits/absorbs 1/sqrt(d), replaces log ||V|| by beta max(0,log ||V||), max-pools within blocks and uses antidiagonal Q/K pooling. These are plausible metric-design choices, but minimizing the displayed bound is neither equivalent to minimizing renormalized output error nor proof of the main text's broad 'optimal' wording.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "2.2 Output-Aware Metric, Eqs. (4)-(6)"},
+        {"page": 4, "section": "2.3 Algorithm 1, sparse-softmax execution"},
+        {"page": 11, "section": "Appendix A.1, global objective and separable surrogate bound"}
+      ]
+    },
+    {
+      "claim": "On the paper's 30-input reconstruction diagnostic, OAM improves SAM slightly at deeper layers and in head logits, but the result is not a broad independent validation of the surrogate.",
+      "evidence": "At fixed top-k=1024 on 30 8K Qwen3 LongBench samples, output MSE for OAM versus SAM is 1.4e-5 versus 1.5e-5 at layer 5, equal at 2.0e-4 at layer 15, 8.1e-4 versus 8.5e-4 at layer 25, and 5.2e-3 versus 6.0e-3 at layer 35; head-logit MSE is 0.3126 versus 0.3368. The sample and benchmark overlap the motivation/tuning domain, and no repeated draw or downstream comparison isolates the value term here.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "2.2 Output-Aware Metric, Table 1"}
+      ]
+    },
+    {
+      "claim": "The stated linear-complexity characterization is not supported by the displayed cost or the tested budget schedule.",
+      "evidence": "Equation (8) retains a 2N^2 d/B^2 metric term in addition to Nd/B and terms proportional to N k_avg d. The text calls Stem approximately linear because k_avg is assumed much smaller than N, but small is not asymptotically independent. In the implementation, k_start is a fixed fraction of the number of blocks and retained budget is reported near 25%, so k_avg=Theta(N/B); both scoring and sparse attention remain quadratic in sequence length for fixed B, albeit with smaller constants. A minimum 54-block budget also creates a separate short-context regime.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "3.4 Efficiency Analysis, Eqs. (7)-(8)"},
+        {"page": 5, "section": "3.1 Experimental Settings, budget schedule"}
+      ]
+    },
+    {
+      "claim": "Stem is close to dense and stronger than the tested training-free baselines on LongBench at lower reported average budget, but 'near-lossless' still means a measurable dense gap.",
+      "evidence": "On Qwen3-8B, dense averages 32.01 at 100% budget; MInference 30.27/69%, FlexPrefill 28.55/31%, XAttention 30.46/28%, and Stem 31.64/25%. On Llama-3.1-8B, dense is 42.02/100%, MInference 41.06/81%, FlexPrefill 36.09/34%, XAttention 37.91/35%, and Stem 41.48/31%. Thus Stem is 0.37 and 0.54 points below dense, respectively, while beating the best displayed sparse baseline by 1.18 on Qwen and 0.42 on Llama.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "3.2 Main Results, Table 2 LongBench"}
+      ]
+    },
+    {
+      "claim": "RULER exposes the long-context boundary: average retention is strong at 25%, yet losses grow at 64K/128K and Stem is not the best method for Llama on the reported average.",
+      "evidence": "For Llama, dense averages 88.86, MInference 88.36/55%, FlexPrefill 88.19/27%, XAttention 88.12/26%, and Stem 88.47/25%; Stem is below dense by 0.39 but exceeds every displayed sparse baseline, including MInference by 0.11. At 64K it scores 82.67 versus dense 84.86 (-2.19), and at 128K 75.37 versus 77.11 (-1.74). For Qwen, dense is 87.66 and Stem 87.15/25%, with 64K 78.78 versus 79.57 and 128K 72.31 versus 73.03. These are not uniform near-lossless results across context lengths, despite strong budget efficiency.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "3.2 Main Results, Table 4 RULER"}
+      ]
+    },
+    {
+      "claim": "Most same-budget LongBench gain comes from position-decay, while OAM adds a smaller, task-dependent increment.",
+      "evidence": "At matched total budget, Qwen uniform top-k is 29.41, TPD 31.43 (+2.02), and TPD+OAM 31.64 (+0.21 beyond TPD). Llama is 37.48, 40.85 (+3.37), and 41.48 (+0.63). The paper notes OAM can hurt precise-localization subsets and helps more when evidence is distributed. This ablation is important because the causal-position heuristic, not the theoretically motivated value score, explains the bulk of the aggregate improvement.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "3.3 Ablation Studies, Table 5"},
+        {"page": 7, "section": "3.3 task-dependent OAM discussion"}
+      ]
+    },
+    {
+      "claim": "Hyperparameters are selected and reported on the same LongBench aggregate, so the mu/beta sweeps document sensitivity rather than held-out generalization.",
+      "evidence": "Figure 5 sweeps mu from 0.5 to 1.0 and beta from 0 to 0.5, chooses mu=0.7 and beta=0.2, and reports the main LongBench table on that benchmark. Qwen at mu=0.7 is 31.64, essentially tied with uniform mu=1.0 at 31.67 in the displayed sweep, while Llama benefits more. No held-out tuning set, repeated seeds or confidence intervals are supplied.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 7, "section": "3.3 Ablation Studies, Figure 5 hyperparameter sweeps"},
+        {"page": 5, "section": "3.1-3.2 settings and main LongBench evaluation"}
+      ]
+    },
+    {
+      "claim": "Stem also plugs into two trained sparse models with nearly unchanged aggregate accuracy and claimed budget reductions, but the comparison does not isolate equivalent kernels/training or report detailed budget-by-length tradeoffs.",
+      "evidence": "DeepSeek DSA averages 42.84 and DSA+Stem 43.16 with a claimed 15% budget reduction; MiniCPM InfLLMv2 averages 42.75 and +Stem 42.76 with an 18% reduction. Category-level shifts are mixed. These results show compatibility, not that a training-free heuristic dominates the learned policy under equal end-to-end training and latency.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "3.2 Training-based sparse models, Table 3"}
+      ]
+    },
+    {
+      "claim": "The native H20 implementation is materially faster than dense prefill at long context, but metric construction is a nontrivial fraction of total time and hardware/kernel scope is narrow.",
+      "evidence": "With batch 1, BF16, Llama-3.1-8B and FlashAttention2 as dense baseline, 128K dense latency is about 1540 ms versus Stem total about 420 ms (roughly 3.7x); Stem's sparse kernel is about 330 ms and metric overhead about 90 ms. The comparison is on one H20 system and prefill only, so it establishes an implementation result for this stack, not a portable asymptotic speedup.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Figure 1 latency overview"},
+        {"page": 7, "section": "3.4 Efficiency Analysis, empirical latency"}
+      ]
+    },
+    {
+      "claim": "Stem is explicitly a prefill method; the position-decay rule does not transfer directly to single-query decoding.",
+      "evidence": "The limitations paragraph states that chunked prefill requires global position offsets and that decoding has only one query per step, so TPD cannot be applied directly. The authors defer long-generation and decoding extensions. Consequently, comparisons with KV-cache pruning and streaming methods should not imply full-lifecycle attention acceleration.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 9, "section": "5 Conclusion, Limitations and future work"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Use causal position as a prior over per-query sparse budget and value magnitude as an auxiliary prior over which blocks matter, while retaining exact sparse softmax on selected blocks through a native block-sparse kernel.",
+    "mechanism": "Pool query/key features anti-diagonally at block size 128, max-pool value norms, allocate a linearly decaying number of blocks from early to late query blocks, preserve local/initial windows, rank admissible blocks by pooled QK plus beta-clamped log value norm, and run sparse softmax over the selected mask. Motivation comes from early-token causal participation and a separable upper bound on unrenormalized output truncation; experiments compare reconstruction, downstream accuracy and H20 latency.",
+    "assumptions": [
+      "Early absolute positions are generally more information-critical than late positions after controlling for content, so a monotone global decay schedule is transferable across tasks and prompts.",
+      "A global source-token participation argument is informative about per-query pair pruning, despite the different intervention granularity.",
+      "Blockwise antidiagonal QK pooling and max value-norm pooling preserve enough ordering information to identify useful blocks.",
+      "The unrenormalized truncation surrogate remains a useful ranking proxy after selected-token softmax renormalization, clamping, beta rescaling and block pooling.",
+      "Fixed mu=0.7, beta=0.2, block size 128, initial/local windows and proportional k_start generalize beyond the LongBench tuning/evaluation setup.",
+      "Reported retained-block ratios are an adequate fairness proxy even when baselines use different patterns, kernels and budgets.",
+      "Prefill accuracy on LongBench/RULER and H20 latency are representative of target long-context use cases."
+    ]
+  },
+  "techniques": [
+    {"id": "token-position-decay", "role": "Assigns a larger top-k block budget to early causal query positions and linearly reduces it toward the end."},
+    {"id": "output-aware-metric", "role": "Adds a clamped log value-norm term to pooled QK scores to prioritize blocks with potentially large output contribution."},
+    {"id": "antidiagonal-block-pooling", "role": "Reuses XAttention-style pooled Q/K features to cheaply approximate block relevance."},
+    {"id": "protected-initial-local-windows", "role": "Always retains sink-like initial blocks and nearby causal blocks before dynamic top-k selection."},
+    {"id": "native-block-sparse-softmax", "role": "Computes renormalized attention exactly over selected blocks rather than approximating retained weights post-softmax."},
+    {"id": "segment-removal-diagnostic", "role": "Measures positional sensitivity by removing contiguous early/middle/late context segments and comparing head logits."},
+    {"id": "output-reconstruction-diagnostic", "role": "Compares OAM and score-only selection using layer-output and final-head-logit MSE."}
+  ],
+  "evaluations": [
+    {
+      "setting": "30 randomly sampled 8K Qwen3-8B LongBench examples; four 2K segment removals; fixed 2048/1024 and dynamic 70/50/30% sparse settings.",
+      "metric": "Final head-logit mean squared error relative to the unablated model.",
+      "result": "Removing the first [0,2K] segment causes substantially larger error than removing the last [6K,8K] segment across displayed sparse settings.",
+      "baseline": "Later-segment removal under the same model and pruning budget."
+    },
+    {
+      "setting": "30 8K Qwen3 LongBench inputs with fixed token top-k=1024.",
+      "metric": "Attention-output MSE at layers 5/15/25/35 and final head-logit MSE.",
+      "result": "OAM versus SAM: 1.4e-5/1.5e-5, 2.0e-4/2.0e-4, 8.1e-4/8.5e-4, 5.2e-3/6.0e-3; head logits 0.3126/0.3368.",
+      "baseline": "Score-Aware Metric using attention similarity without value norm."
+    },
+    {
+      "setting": "LongBench on Qwen3-8B and Llama-3.1-8B, training-free sparse prefill.",
+      "metric": "Average task score and retained admissible-block budget.",
+      "result": "Qwen: dense 32.01/100%, MInference 30.27/69%, FlexPrefill 28.55/31%, XAttention 30.46/28%, Stem 31.64/25%. Llama: dense 42.02/100%, MInference 41.06/81%, FlexPrefill 36.09/34%, XAttention 37.91/35%, Stem 41.48/31%.",
+      "baseline": "Dense FlashAttention2 plus MInference, FlexPrefill and XAttention."
+    },
+    {
+      "setting": "RULER sequence lengths through 128K on Qwen3-8B and Llama-3.1-8B.",
+      "metric": "Average synthetic long-context score, per-length score and block budget.",
+      "result": "Qwen dense/Stem averages 87.66/87.15 at 100/25%; Llama 88.86/88.47 at 100/25%. Stem gaps widen at long lengths: Llama -2.19 at 64K and -1.74 at 128K; Qwen -0.79 and -0.72.",
+      "baseline": "Dense, MInference, FlexPrefill and XAttention; Stem has the lowest reported average budget."
+    },
+    {
+      "setting": "Same-total-budget LongBench component ablation.",
+      "metric": "Average LongBench score.",
+      "result": "Qwen uniform/TPD/TPD+OAM: 29.41/31.43/31.64. Llama: 37.48/40.85/41.48. TPD supplies 2.02 and 3.37 points; OAM adds 0.21 and 0.63.",
+      "baseline": "Uniform top-k, then TPD without OAM."
+    },
+    {
+      "setting": "Stem added to DeepSeek DSA and MiniCPM InfLLMv2 training-based sparse models.",
+      "metric": "Aggregate benchmark accuracy and claimed attention-budget reduction.",
+      "result": "DSA 42.84 versus DSA+Stem 43.16 with 15% budget reduction; InfLLMv2 42.75 versus +Stem 42.76 with 18% reduction.",
+      "baseline": "Each trained sparse model without Stem."
+    },
+    {
+      "setting": "Llama-3.1-8B BF16 prefill, batch 1, native PyTorch implementation on one H20 GPU, lengths through 128K.",
+      "metric": "Kernel and total wall-clock latency.",
+      "result": "At 128K, dense FlashAttention2 is about 1540 ms and Stem about 420 ms total (about 330 ms sparse kernel plus 90 ms metric), approximately 3.7x faster.",
+      "baseline": "Dense FlashAttention2-CUDA and implementations of MInference, FlexPrefill and XAttention."
+    },
+    {
+      "setting": "LongBench hyperparameter sweep over mu=0.5-1.0 and beta=0-0.5.",
+      "metric": "Average LongBench score.",
+      "result": "mu=0.7 and beta=0.2 are selected; Qwen's displayed mu=0.7 score 31.64 is nearly tied with mu=1.0 at 31.67, while Llama shows a clearer interior optimum. No held-out tuning or uncertainty is reported.",
+      "baseline": "Uniform budget mu=1.0 and score-only beta=0."
+    }
+  ],
+  "limitations": [
+    "Author-stated: Stem targets prefill; chunked prefill needs global position offsets, and TPD cannot be directly applied to decoding because each step has one query.",
+    "Author-stated: long-generation and decoding extensions remain future work, so end-to-end serving claims should exclude decode/KV-cache cost.",
+    "Reviewer-identified: Equation (1)'s globally dropped value token is not the per-row pair-pruning operation implemented by Algorithm 1, leaving the causal-flow derivation incomplete.",
+    "Reviewer-identified: the early-segment study has 30 Qwen 8K LongBench examples, no uncertainty and content-position confounding; it does not validate a universal monotone budget prior.",
+    "Reviewer-identified: the OAM bound assumes unrenormalized truncation, while sparse softmax renormalizes, and the implemented metric clamps/rescales/pools the theoretical score.",
+    "Reviewer-identified: Table 1 uses the same small benchmark sample family as the method motivation and does not isolate beta/value pooling under downstream metrics.",
+    "Reviewer-identified: Equation (8) retains N^2/B^2 work, and tested budgets scale with N, contradicting an asymptotic linear reading.",
+    "Reviewer-identified: mu and beta are selected and performance is reported on LongBench, with no held-out tuning set, seeds, confidence intervals or statistical tests.",
+    "Reviewer-identified: main baseline tables use unequal budgets and potentially different kernels; the component ablation is budget-matched but sparse competitors are not all evaluated on a common accuracy-latency frontier.",
+    "Reviewer-identified: RULER at 64K/128K has nontrivial dense gaps, so near-lossless is an aggregate characterization rather than a per-length guarantee.",
+    "Reviewer-identified: model coverage centers on Qwen3-8B and Llama-3.1-8B, with plug-in tests on DeepSeek/MiniCPM; architecture scale and head-pattern diversity remain narrow.",
+    "Reviewer-identified: latency is batch-1 BF16 prefill on one H20 software stack, with no energy, memory, batch-size, multi-GPU or decode measurement."
+  ],
+  "failure_modes": [
+    "A prompt whose decisive evidence appears late can be starved by monotone position-decay even though its late query has fewer selected blocks.",
+    "Repeated templates or front-loaded boilerplate can make early-position ablations look important or waste protected initial-window capacity without semantic utility.",
+    "Large-norm but irrelevant values can outrank semantically critical low-norm values under OAM, especially because the bound uses magnitude and triangle inequality rather than cancellation/direction.",
+    "Renormalization after pruning can amplify retained distractors, so a mask with a good unrenormalized upper bound can still have large implemented output error.",
+    "Block max pooling can let one extreme token promote an otherwise irrelevant 128-token block and erase fine-grained token ordering.",
+    "At 25% proportional retention, runtime and memory can remain quadratic and eventually lose the claimed scaling advantage at longer N or smaller B.",
+    "The 54-block minimum can dominate short-context budgets and make reported percentage comparisons discontinuous across sequence lengths.",
+    "Precise-retrieval/localization tasks can lose accuracy when OAM favors distributed high-magnitude evidence; the paper reports task-dependent negative shifts.",
+    "Chunked prefill with incorrect global offsets breaks the intended decay schedule, and single-query decoding has no direct TPD analogue.",
+    "A kernel-specific H20 speedup may shrink when metric overhead, batch size, other hardware or fused dense kernels differ."
+  ],
+  "reusable_insights": [
+    "Distinguish source-token deletion from query-key pair deletion when deriving causal sparse-attention budgets; intervention granularity matters.",
+    "If sparse attention renormalizes, derive or test selection objectives against the renormalized operator rather than an unnormalized truncation surrogate alone.",
+    "Report which engineering transformations separate a theoretical score from implementation: scale absorption, clipping, learned/fixed coefficients and block pooling can change rankings.",
+    "Use matched-budget component ablations to identify where gains arise; here the position schedule explains much more than the value term.",
+    "State complexity under the actual budget schedule. A small constant retained fraction is not asymptotically sparse enough for linear attention.",
+    "Plot accuracy-latency-memory frontiers across lengths rather than comparing methods at heterogeneous single budgets.",
+    "Tune positional schedules on one task family and evaluate them on held-out datasets with deliberately late decisive evidence.",
+    "Break total latency into mask/metric and sparse-kernel components; the selection mechanism can consume a material share of end-to-end time."
+  ],
+  "open_questions": [
+    "Can per-query causal influence be derived with path-wise Jacobians or counterfactual pair masking, yielding a principled budget schedule rather than a global participation count?",
+    "Is there a tractable renormalization-aware output-error bound that accounts for value directions and cancellation rather than only norms?",
+    "Can mu and beta be predicted per layer, head, prompt or query from content while retaining kernel efficiency and avoiding training?",
+    "What fixed or sublinear k_avg schedule preserves LongBench/RULER accuracy as N grows while making total complexity genuinely subquadratic?",
+    "How does Stem behave on adversarial late-evidence, multi-hop, code and retrieval tasks where important information is position-balanced?",
+    "Do the 64K/128K RULER gaps persist across seeds, model scales and different protected initial/local windows?",
+    "What is the common Pareto frontier when MInference, FlexPrefill, XAttention and Stem use equally optimized kernels and matched memory/budget constraints?",
+    "How should TPD be reformulated for chunked prefill and autoregressive decode without needing future query positions?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2407.02490",
+      "title": "MInference 1.0: Accelerating Pre-filling for Long-Context LLMs via Dynamic Sparse Attention",
+      "url": "https://arxiv.org/abs/2407.02490",
+      "relationship": "direct training-free sparse-prefill competitor",
+      "difference": "MInference identifies A-shape, vertical-slash and block-sparse head patterns offline, constructs input-dependent indices online and supplies optimized kernels, reporting up to 10x A100 prefill speedups across models/tasks. Stem uses a uniform block machinery with position-decayed budgets and value-aware scores; its tables report better aggregate accuracy at lower retained budget, but do not provide a common kernel/budget Pareto comparison.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2; NeurIPS 2024 Spotlight"
+    },
+    {
+      "canonical_id": "arxiv:2502.20766",
+      "title": "FlexPrefill: A Context-Aware Sparse Attention Mechanism for Efficient Long-Sequence Inference",
+      "url": "https://arxiv.org/abs/2502.20766",
+      "relationship": "direct adaptive training-free prefill competitor",
+      "difference": "FlexPrefill chooses attention patterns and budgets by input/head context using Jensen-Shannon divergence and cumulative attention thresholds. Stem replaces such adaptive budget estimation with fixed absolute-position decay and adds value norms, making it simpler but potentially less robust to late evidence or head heterogeneity.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1; ICLR 2025 Oral"
+    },
+    {
+      "canonical_id": "arxiv:2503.16428",
+      "title": "XAttention: Block Sparse Attention with Antidiagonal Scoring",
+      "url": "https://arxiv.org/abs/2503.16428",
+      "relationship": "closest block-scoring and kernel predecessor",
+      "difference": "XAttention introduces the antidiagonal block scoring/pooling that Stem explicitly adopts and evaluates on RULER, LongBench and video with reported speedups up to 13.5x. Stem's incremental method novelty is the position-decayed per-row budget and pooled value-norm term, not the underlying block representation/kernel idea.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2309.17453",
+      "title": "Efficient Streaming Language Models with Attention Sinks",
+      "url": "https://arxiv.org/abs/2309.17453",
+      "relationship": "initial-token preservation predecessor",
+      "difference": "StreamingLLM retains initial sink tokens plus a recent window in the KV cache to support decode/streaming for millions of tokens. Stem likewise protects early blocks but allocates prefill computation per query and is explicitly not a decoding method; StreamingLLM is therefore a conceptual predecessor for early-token preservation rather than a like-for-like prefill competitor.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4; ICLR 2024"
+    },
+    {
+      "canonical_id": "arxiv:2410.13276",
+      "title": "SeerAttention: Learning Intrinsic Sparse Attention in Your LLMs",
+      "url": "https://arxiv.org/abs/2410.13276",
+      "relationship": "direct learned block-sparse attention competitor",
+      "difference": "SeerAttention self-distills a trainable gate to predict block sparsity and reports long-context accuracy/acceleration. It incurs calibration/training but can learn layer/head/content variation; Stem is training-free and cheaper to deploy, at the cost of fixed mu/beta and a heuristic output proxy.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4"
+    },
+    {
+      "canonical_id": "arxiv:2502.11089",
+      "title": "Native Sparse Attention: Hardware-Aligned and Natively Trainable Sparse Attention",
+      "url": "https://arxiv.org/abs/2502.11089",
+      "relationship": "direct training-based full-lifecycle sparse-attention alternative",
+      "difference": "NSA trains a hierarchical compression/selection design natively and targets efficient attention across pretraining, prefill and decoding. Stem is a plug-in for existing dense or sparse models and only prefill, making deployment easier but leaving decode and co-adapted sparse representations unresolved.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2406.12335",
+      "title": "Attention Score is not All You Need for Token Importance Indicator in KV Cache Reduction: Value Also Matters",
+      "url": "https://arxiv.org/abs/2406.12335",
+      "relationship": "direct value-norm selection predecessor",
+      "difference": "It combines attention scores with value-vector L1 norms for cumulative KV-cache/token pruning and reports improvements over score-only pruning on Llama/Vicuna LongBench. Stem's OAM uses log L2 value norms in prefill block selection and offers an output-error surrogate, but the underlying insight that attention weights alone ignore value magnitude is prior and should be credited as a close conceptual predecessor.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2; EMNLP 2024"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Stem is a training-free sparse-attention framework that preserves causal information flow with Token Position-Decay and improves selection fidelity with an output-aware value-norm metric, achieving near-lossless long-context accuracy at roughly 25% budget and substantial prefill acceleration.",
+    "evidence": "The matched-budget ablation establishes that the position schedule gives 2.02-3.37 LongBench points and the value term adds 0.21-0.63. Aggregate LongBench/RULER scores at low retained budget and the native H20 timing are substantive engineering evidence. The ingredients sit close to prior initial-token preservation, XAttention antidiagonal block scoring and value-aware token pruning; the combination and budget-allocation framing are the clearest novelty.",
+    "reviewer_inference": "The empirical method contribution is useful, especially as a lightweight XAttention-compatible heuristic, but the theoretical framing is materially stronger than the derivations justify. Global value deletion does not prove per-row decay, OAM's bound does not match renormalized sparse softmax, and the implemented 25% schedule is not asymptotically linear. 'Near-lossless' is reasonable only as an aggregate empirical shorthand, not a per-length guarantee, and hyperparameter selection needs held-out validation."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "All 13 extracted pages were read end to end, including Appendix A's OAM derivation, references and the full algorithm/complexity text; the rendered PDF was inspected for Figures 1, 3 and 5 and Tables 1-5. Exact table values are separated from approximate plot readings. The audit explicitly distinguishes global source deletion from per-row pair pruning, unrenormalized bound from renormalized implementation, proportional retained budget from true asymptotic sparsity, and aggregate near-losslessness from 64K/128K negative results. Seven current primary competitor records were inspected on arXiv on 2026-08-23, including the close XAttention and value-aware-pruning predecessors. This is a primary full-text pass and is intentionally not marked verified."
+}

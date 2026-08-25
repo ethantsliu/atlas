@@ -1,0 +1,167 @@
+{
+  "stable_id": "arxiv:2501.16573",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2501.16573",
+    "pdf_sha256": "4187b325d779834447328aeef2fce69471d09046d90a4d5e9718fadf89a47b8a",
+    "text_sha256": "2b4a8ae07d1e13676924c74e3a8dffd5aab488f7511d7ad4bdb4a87d10cd6d03",
+    "page_count": 14,
+    "extracted_at": "2026-08-23T17:27:53.228960+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a neural proxy of a trajectory-conditioned inverse-problem loss be deliberately smoothed so a local optimizer reaches the basin of the correct physical parameters more often?",
+  "key_findings": [
+    {
+      "claim": "ProxyNN learns the scalar configuration-loss surface, not the forward state trajectory or the inverse parameters directly.",
+      "evidence": "For a true trajectory Y* and randomly sampled candidate parameters Xs, the numerical PDE solver produces Ys and the target is ||Y*-Ys||^2. A convolutional network receives Fourier-augmented Y* and Xs and regresses that scalar loss, preserving the candidate-parameter search space for later optimization.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "2 Method and generalized inverse framework"},
+        {"page": 3, "section": "2.2 ProxyNNs for the Configuration Loss Function"},
+        {"page": 4, "section": "Algorithm 1"}
+      ]
+    },
+    {
+      "claim": "Input noise and asymmetric loss weighting smooth the learned landscape near low-loss regions, but useful smoothing occupies a tuned middle regime rather than increasing monotonically with regularization.",
+      "evidence": "Candidate parameters are perturbed with Gaussian noise and over-predicted loss regions receive an extra penalty. In the billiards ablation, increasing sigma progressively simplifies the surface and improves convergence up to a point; sigma=0.05 is described as too simplified and loses performance.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "2.3 Modulating ProxyNN Complexity"},
+        {"page": 4, "section": "Equation 4 and regularized training"},
+        {"page": 7, "section": "Figure 4 and Regularization Reduces Complexity"}
+      ]
+    },
+    {
+      "claim": "The method uses the proxy only to enter a promising basin and then returns to the exact simulator loss for final correction.",
+      "evidence": "The primary BFGS stage optimizes the regularized ProxyNN landscape; its output initializes a secondary BFGS run on the ground-truth configuration loss. Across 256 inverse cases per setup, the authors report improved threshold accuracy for Kuramoto-Sivashinsky and 2D/4D billiards, with roughly doubled convergence in the 2D billiards comparison.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "2.4 Optimization Scheme"},
+        {"page": 6, "section": "3.3 Optimization Performance Evaluation"},
+        {"page": 8, "section": "Figure 5 and Regularized ProxyNNs Improve Convergence"},
+        {"page": 14, "section": "Appendix B two-step policy"}
+      ]
+    },
+    {
+      "claim": "The reported convergence advantage does not yet establish favorable end-to-end cost or high-dimensional inverse scalability.",
+      "evidence": "All physical inverse targets have at most four unknown parameters, proxy training requires 32k to 2.56M simulated examples and up to 6-8 GPU-hours per problem, and comparisons omit Bayesian optimization, neural-adjoint/operator-learning methods, global-search budgets, and an amortized break-even analysis. The paper itself leaves higher-dimensional and multitask use untested.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "3.1 Physical Systems"},
+        {"page": 6, "section": "3.2 Model Configurations and Baselines"},
+        {"page": 9, "section": "6 Limitations and Future Work"},
+        {"page": 14, "section": "Table 1 dataset and sampling sizes"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Amortize an expensive, rugged simulator-defined inverse loss into a trajectory-conditioned neural scalar field, use regularization to erase nuisance minima while retaining the global basin, and refine the resulting candidate against the exact physics loss.",
+    "mechanism": "Forward simulations pair each observed trajectory with randomly sampled control parameters and their configuration loss. A CNN with Fourier features regresses this loss under input-noise and asymmetric low-region weighting. BFGS first follows proxy gradients, then follows differentiable-simulator gradients from the proxy solution.",
+    "assumptions": [
+      "The true parameter is identifiable as a global minimum of trajectory L2 configuration loss.",
+      "The regularized neural approximation preserves the correct global basin while preferentially removing misleading local geometry.",
+      "Enough forward simulations can be generated offline for each inverse-problem family.",
+      "The numerical solver and proxy are differentiable enough for the two BFGS stages."
+    ]
+  },
+  "techniques": [
+    {"id": "trajectory-conditioned-loss-surrogate", "role": "Predicts candidate-parameter loss conditioned on a full or partial observed trajectory."},
+    {"id": "fourier-input-features", "role": "Reduces spectral bias when fitting sharply varying loss surfaces."},
+    {"id": "candidate-noise-smoothing", "role": "Implicitly convolves the target landscape during proxy training."},
+    {"id": "low-loss-asymmetric-weighting", "role": "Allocates more fitting pressure to regions that may contain useful minima."},
+    {"id": "proxy-to-physics-bfgs", "role": "Uses the smooth proxy for basin finding and the exact simulator loss for precision."}
+  ],
+  "evaluations": [
+    {
+      "setting": "One-parameter inviscid Burgers diffusivity and two-parameter chaotic Kuramoto-Sivashinsky dynamics.",
+      "metric": "Parameter error, threshold convergence accuracy, and trajectory re-simulation error.",
+      "result": "The proxy approximates the scalar landscape; regularized proxy initialization improves KS inverse recovery over direct BFGS/GD, while Burgers mainly serves as an easy validation.",
+      "baseline": "BFGS and gradient descent applied directly to the ground-truth configuration loss."
+    },
+    {
+      "setting": "Two- and four-parameter rigid-body billiards inverse problems with collision-derived trajectory states.",
+      "metric": "Fraction of 256 cases below parameter-error thresholds and re-simulation error.",
+      "result": "The two-stage proxy method improves threshold accuracy across reported settings and approximately doubles 2D-billiards convergence for some thresholds.",
+      "baseline": "Direct BFGS and gradient descent."
+    },
+    {
+      "setting": "Billiards regularization sweep over candidate-noise sigma values from zero through 0.05.",
+      "metric": "Visual landscape complexity and convergence percentage versus error threshold.",
+      "result": "Moderate noise smooths distractor geometry and improves optimization; the strongest noise over-smooths the landscape and degrades recovery.",
+      "baseline": "An unregularized ProxyNN and exact-loss optimizers."
+    }
+  ],
+  "limitations": [
+    "Author-stated: the relation between regularization hyperparameters and PDE/loss geometry remains empirical and problem dependent.",
+    "Author-stated: inverse problems beyond four parameter dimensions and multitask sharing are not investigated.",
+    "Reviewer inference: the substantial per-family simulation/training cost is omitted from convergence plots, preventing an end-to-end compute comparison.",
+    "Reviewer inference: only BFGS and GD are benchmarked, so the evidence does not establish an advantage over global, Bayesian, adjoint, or learned inverse solvers."
+  ],
+  "failure_modes": [
+    "Excess smoothing shifts or merges the true basin, producing a confident proxy optimum that exact local refinement cannot escape.",
+    "Non-identifiable parameters can yield several physically equivalent minima, making pointwise parameter error an inappropriate success criterion.",
+    "Noisy or partially observed real trajectories can fall outside the clean simulation distribution used to train the proxy.",
+    "Simulation cost grows rapidly with parameter dimension because coverage of the candidate landscape is sampled explicitly."
+  ],
+  "reusable_insights": [
+    "A deliberately biased surrogate can be more useful for optimization than the most pointwise-accurate surrogate if it preserves the right basin topology.",
+    "Separate basin-finding and precision-refinement objectives so smoothing bias does not impose a final accuracy floor.",
+    "Evaluate landscape surrogates by optimizer outcomes and basin preservation, not regression error alone.",
+    "Always report offline data-generation cost and the number of repeated inverse queries needed to amortize it."
+  ],
+  "open_questions": [
+    "Can curvature, persistence, or basin topology provide an automatic signal for selecting smoothing strength without labeled inverse solutions?",
+    "How does sample complexity scale with the dimension and anisotropy of the unknown physical parameters?",
+    "Can one conditional proxy generalize across PDE families, boundary conditions, resolutions, and observation noise?",
+    "Would uncertainty-aware multi-start refinement prevent proxy misspecification from collapsing onto the wrong basin?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2012.05020",
+      "title": "Neural-adjoint method for the inverse design of all-dielectric metasurfaces",
+      "url": "https://arxiv.org/abs/2012.05020",
+      "relationship": "direct learned-surrogate optimization precursor",
+      "difference": "Neural-adjoint differentiates a learned forward surrogate to optimize a desired output and can expand the design search; ProxyNN instead directly learns and regularizes the scalar inverse landscape before exact-loss refinement.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2206.00711",
+      "title": "Learning to Solve PDE-constrained Inverse Problems with Graph Networks",
+      "url": "https://arxiv.org/abs/2206.00711",
+      "relationship": "direct learned inverse-solver competitor",
+      "difference": "The graph-network method learns physical dynamics plus autodecoder priors and reports wave/Navier-Stokes recovery and solver speedups; ProxyNN retains the numerical solver and targets smoothing of the optimizer landscape itself.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2402.11722",
+      "title": "Invertible Fourier Neural Operators for Tackling Both Forward and Inverse Problems",
+      "url": "https://arxiv.org/abs/2402.11722",
+      "relationship": "operator-learning competitor",
+      "difference": "iFNO shares an invertible latent operator across forward and posterior inverse tasks and addresses noise/ill-posedness through a variational latent model; ProxyNN learns a scalar loss surface and assumes local refinement can resolve the final inverse.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2307.08964",
+      "title": "Landscape Surrogate: Learning Decision Losses for Mathematical Optimization Under Partial Information",
+      "url": "https://arxiv.org/abs/2307.08964",
+      "relationship": "parallel learned-landscape idea",
+      "difference": "Landscape Surrogate learns smooth decision losses to train optimization predictors while reducing expensive solver calls, including high-dimensional combinatorial cases; ProxyNN specializes learned landscape smoothing to differentiable physics inverse search.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims neural networks can reproduce chaotic physics inverse-loss landscapes and that regularizing those proxies improves convergence of conventional optimizers.",
+    "evidence": "It defines a trajectory-conditioned scalar surrogate, visualizes fitted and smoothed landscapes, and reports two-stage BFGS improvements on Burgers, Kuramoto-Sivashinsky, and billiards problems.",
+    "reviewer_inference": "Learning a deliberately simplified inverse-loss landscape is a useful and fairly distinctive emphasis relative to forward surrogates. The novelty is demonstrated only in low-dimensional simulated problems and without the competitor or amortized-cost study needed to establish practical superiority."
+  },
+  "confidence": 0.94,
+  "reviewer_notes": "Read all 14 extracted pages, including method equations, algorithm, three systems, landscape figures, threshold metrics, limitations, training-size table, and two-stage policy. Primary arXiv records for neural-adjoint, graph inverse, iFNO, and landscape-surrogate competitors were checked on 2026-08-23."
+}

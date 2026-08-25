@@ -1,0 +1,253 @@
+{
+  "stable_id": "arxiv:2311.16357",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2311.16357",
+    "pdf_sha256": "b4fee1f5204eef124600b80a641c16efcaa720b3cf2974c5e4b1e992a9b9d6eb",
+    "text_sha256": "b436d09f7fb6228c336fab1be2875ff87fd952f67a4ec0b9b043e0a9c8dec49a",
+    "page_count": 18,
+    "extracted_at": "2026-08-23T18:50:16.694574+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can classifier training omit explicit cross-entropy computation and instead inject the output-space error directly at the logits, while retaining accuracy and reducing compute for softmax or alternative score activations?",
+  "key_findings": [
+    {
+      "claim": "With softmax, ISBE supplies exactly the standard softmax-cross-entropy gradient rather than defining a new learning rule.",
+      "evidence": "ISBE computes y = softmax(x) in the forward pass and calls backward on x with y minus the target. The appendix derives that same logit gradient for cross-entropy composed with softmax, so parameter updates match when batch reduction and scaling match.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "2 ISBE Functionality"},
+        {"page": 6, "section": "ISBE implementation snippets"},
+        {"page": 15, "section": "A Cross-Entropy and Softmax Trick Properties"}
+      ]
+    },
+    {
+      "claim": "The sigmoid variant is also an existing objective in gradient form: independent one-vs-all binary cross-entropy with logits.",
+      "evidence": "For each class, ISBE injects sigmoid(x_i) minus target_i. This is precisely the derivative of softplus(x_i) minus target_i times x_i, the binary-cross-entropy-with-logits objective; omitting its scalar evaluation does not remove the implicit loss.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "ISBE implementation snippets"},
+        {"page": 8, "section": "Activation-function definitions"}
+      ]
+    },
+    {
+      "claim": "The tanh and hard-activation variants bypass the activation Jacobian, but the tested elementwise monotone rules still correspond to implicit separable surrogate objectives rather than to the displayed MSE.",
+      "evidence": "The backward call directly supplies F(x)-target. For an elementwise F, integrating each coordinate gives a scalar potential whose gradient is this error; for tanh it is log cosh(x_i) minus target_i times x_i. By contrast, the MSE plotted later would differentiate through F and include its Jacobian, which ISBE intentionally omits.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Generalized score normalization"},
+        {"page": 6, "section": "ISBE implementation snippets"},
+        {"page": 10, "section": "3.3 Visual analysis"}
+      ]
+    },
+    {
+      "claim": "All reported accuracy differences are tiny and the paper's own interpretation is statistical parity, not a demonstrated improvement.",
+      "evidence": "Across N0 and N1, cross-entropy accuracies span 99.41%-99.61% and ISBE accuracies span 99.41%-99.66%; the largest tabled difference is 0.15 percentage points. The author explicitly states these differences are within statistical error, but provides no repeat-run uncertainty.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 9, "section": "3.2 Comparison of classifier accuracy, Tables 3-4"}
+      ]
+    },
+    {
+      "claim": "The timing tables do not establish an end-to-end training speedup of 3%.",
+      "evidence": "The measured quantity is tau = backward time divided by forward-plus-backward time, not total wall-clock time. Tau falls by 0.50-3.23 percentage points across configurations, but a lower phase share alone cannot prove that the total denominator decreased; hardware, repetitions, variance, and absolute times are not reported.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "3 Experiments, Equations 3-4"},
+        {"page": 8, "section": "3.1 Comparison of time complexity, Tables 1-2"},
+        {"page": 12, "section": "4 Conclusions"}
+      ]
+    },
+    {
+      "claim": "Theorem 1 is not valid as stated because its reverse implication silently assumes normalized outputs.",
+      "evidence": "The theorem declares only F:R^K to R^K, yet the proof of (2) to (1) invokes a 'unity condition' that is absent from the hypotheses. Functions y_j = a_j exp(x_j)/(C + sum_k a_k exp(x_k)) with C>0 satisfy the stated Jacobian and softmax-trick identity but sum to less than one, so they are not relocated softmax over the K classes.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 16, "section": "Theorem 1"},
+        {"page": 17, "section": "Proof of implication (2) to (1)"}
+      ]
+    },
+    {
+      "claim": "The empirical support is restricted to MNIST and does not test the properties for which explicit probabilistic objectives matter.",
+      "evidence": "Two small convolutional architectures and five activations are evaluated only on MNIST-60K/10K. There are no tests of negative log-likelihood, calibration, class imbalance, soft targets, distillation, robustness, larger datasets, or modern architectures; sigmoid and tanh scores need not form class probabilities.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 7, "section": "3 Experiments"},
+        {"page": 8, "section": "Activation options"},
+        {"page": 12, "section": "4 Conclusions"}
+      ]
+    },
+    {
+      "claim": "The proposed activation-selection heuristic is weakly supported and already has a reported counterexample.",
+      "evidence": "The paper recommends monotonicity, bounded range, and local Lipschitz behavior, then reports success for five hand-picked activations and more than a 10% degradation for p-norm normalization. No necessity theorem or systematic activation sweep links the heuristic to optimization or generalization.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "Score-normalization recommendations"},
+        {"page": 12, "section": "4 Conclusions"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Remove the explicit scalar cross-entropy node and manually seed backpropagation at the classifier logits with normalized scores minus encoded targets.",
+    "mechanism": "A selected score function F maps logits x to y. Instead of computing a scalar loss, training calls backward on x with the externally supplied vector y-target. For softmax this reproduces the fused softmax-cross-entropy logit gradient; for elementwise sigmoid, tanh, hard-sigmoid, or hard-tanh it supplies a deliberately Jacobian-free error rule. Targets are slightly blurred and remapped to the activation range when needed.",
+    "assumptions": [
+      "A useful training rule need not expose or evaluate its underlying scalar objective.",
+      "Score monotonicity, bounded range, and local Lipschitz behavior are enough to generate useful output error signals.",
+      "MNIST accuracy is an adequate proxy for classifier quality despite the absence of probability and calibration measurements.",
+      "Changing cross-entropy reduction and manually supplied gradient scaling does not confound the optimizer comparison.",
+      "A smaller backward-time share implies a smaller total training time."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "manual-logit-gradient-injection",
+      "role": "Seeds backpropagation with score-minus-target without evaluating a scalar loss node."
+    },
+    {
+      "id": "softmax-cross-entropy-gradient-fusion",
+      "role": "Uses the algebraic cancellation that makes the softmax-cross-entropy logit gradient y-target."
+    },
+    {
+      "id": "activation-jacobian-bypass",
+      "role": "Treats normalized-score error as the logit gradient for non-softmax activations."
+    },
+    {
+      "id": "range-matched-target-encoding",
+      "role": "Blurs one-hot labels and maps them into [0,1] or [-1,1] to match the chosen score function."
+    },
+    {
+      "id": "phase-share-timing",
+      "role": "Compares the fraction of forward-plus-backward time spent in backpropagation."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "MNIST-60K training and MNIST-10K test with the N0 two-convolution/two-linear architecture.",
+      "metric": "Final test accuracy.",
+      "result": "Cross-entropy mean/none/sum reaches 99.45%/99.41%/99.47%; ISBE hard-sigmoid/hard-tanh/sigmoid/softmax/tanh reaches 99.50%/99.50%/99.56%/99.41%/99.45%.",
+      "baseline": "PyTorch CrossEntropyLoss with mean, none, and sum reductions."
+    },
+    {
+      "setting": "MNIST with the deeper N1 convolutional architecture and its bias-enabled relocation variant Nr1.",
+      "metric": "Final test accuracy.",
+      "result": "N1 cross-entropy spans 99.58%-99.61% versus ISBE 99.62%-99.66%; Nr1 cross-entropy spans 99.55%-99.64% versus ISBE 99.57%-99.69%, without repeated-run uncertainty.",
+      "baseline": "The corresponding architecture trained with CrossEntropyLoss."
+    },
+    {
+      "setting": "N0, N1, and Nr1 forward/backward measurements across cross-entropy reductions and five ISBE activations.",
+      "metric": "Backward share tau of forward-plus-backward time.",
+      "result": "Tau is 59.56%-60.61% for N0 cross-entropy and 57.38%-59.07% for N0 ISBE; it is 53.92%-54.89% for N1 cross-entropy and 51.75%-52.68% for N1 ISBE, a tabled share decrease of 0.50-3.23 points.",
+      "baseline": "CrossEntropyLoss phase share for the same architecture, with no absolute wall-clock baseline."
+    },
+    {
+      "setting": "MNIST under p-norm score normalization using the same architectures.",
+      "metric": "Classifier accuracy relative to the successful score activations.",
+      "result": "The paper reports performance more than 10% worse, despite the normalization satisfying several proposed qualitative criteria.",
+      "baseline": "Softmax, sigmoid, tanh, hard-sigmoid, and hard-tanh ISBE variants above 99.5%."
+    }
+  ],
+  "limitations": [
+    "The evaluation uses only MNIST, two small model families, and apparently one result per configuration.",
+    "No seeds, confidence intervals, significance tests, hardware, absolute runtime, timing repetitions, or variance are reported.",
+    "The timing metric is a phase ratio and cannot by itself support the claimed total-time saving.",
+    "The exact softmax case is only a re-expression of the established fused gradient, while the sigmoid case is the established one-vs-all BCE gradient.",
+    "No probabilistic metrics are reported even though non-softmax outputs generally do not sum to one.",
+    "Theorem 1 omits the output-unity hypothesis used by its proof and admits subnormalized counterexamples as written.",
+    "Theorem 2 is stated without proof and its elementwise vector-matrix product notation leaves the Jacobian scaling orientation ambiguous.",
+    "The illustrative PyTorch behavior for CrossEntropyLoss reduction='none' is underspecified because backward on a non-scalar loss normally requires an explicit upstream gradient.",
+    "The training hyperparameters, reproducible implementation, and code artifact are not fully specified in the paper."
+  ],
+  "failure_modes": [
+    "Manual error injection can silently change gradient scale relative to mean or sum reduction and make optimizer comparisons non-equivalent.",
+    "Non-simplex scores can preserve argmax accuracy while producing unusable confidence estimates and poorly calibrated probabilities.",
+    "Hard activations keep receiving manually injected updates even when their true derivative is zero, so optimization behavior may be unstable outside MNIST.",
+    "A generic coupled score normalization may yield a non-conservative error field F(x)-target, leaving no scalar objective for monitoring or convergence analysis.",
+    "Framework-fused cross-entropy kernels may erase or reverse the presumed computational advantage of a custom manual-backward path.",
+    "The method may interact badly with soft labels, label smoothing, distillation, class weighting, or dense prediction unless target encoding and gradient scaling are rederived."
+  ],
+  "reusable_insights": [
+    "Audit allegedly loss-free training rules by integrating the supplied update field; the scalar objective may be implicit rather than absent.",
+    "Compare manual-gradient methods to fused objective gradients at the exact tensor where backpropagation is seeded.",
+    "Separate removal of scalar loss evaluation from changes to the optimization objective.",
+    "Benchmark absolute step time and throughput with synchronized repeated measurements, not only the ratio of phase times.",
+    "Evaluate calibration and proper scoring rules whenever a classification method replaces simplex-valued probabilities.",
+    "State normalization constraints explicitly in Jacobian-characterization theorems; derivative identities alone may leave additive normalization constants free."
+  ],
+  "open_questions": [
+    "Does a carefully fused ISBE implementation improve absolute throughput over production fused cross-entropy kernels on modern accelerators?",
+    "Which manually injected score fields are conservative, and what explicit surrogate loss does each one optimize?",
+    "How do ISBE variants behave on ImageNet-scale models, language models, dense prediction, and class-imbalanced datasets across multiple seeds?",
+    "Can non-softmax variants retain accuracy while matching cross-entropy on calibration, negative log-likelihood, robustness, and out-of-distribution detection?",
+    "What corrected characterization theorem results when simplex-valued output is added explicitly, and what is the proper matrix form of the dilated case?",
+    "Are any benefits left after matching gradient reduction, optimizer state, target encoding, and framework kernel fusion exactly?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2006.07322",
+      "title": "Evaluation of Neural Architectures Trained with Square Loss vs Cross-Entropy in Classification Tasks",
+      "url": "https://arxiv.org/abs/2006.07322",
+      "relationship": "prior",
+      "difference": "Hui and Belkin compare explicit square loss against cross-entropy over major vision, NLP, speech, and Transformer settings with computational resources controlled. ISBE instead avoids scalar evaluation and tests manual score-error gradients only on MNIST; its plotted MSE is not its training gradient for nonlinear scores.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v5, 2021-10-23"
+    },
+    {
+      "canonical_id": "arxiv:1308.3432",
+      "title": "Estimating or Propagating Gradients Through Stochastic Neurons for Conditional Computation",
+      "url": "https://arxiv.org/abs/1308.3432",
+      "relationship": "prior",
+      "difference": "Bengio, Leonard, and Courville explicitly study derivative-bypassing estimators and name the straight-through estimator. ISBE's hard-activation variants similarly bypass local derivatives, but for deterministic classifier outputs and without estimator-bias or convergence analysis.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2013-08-15"
+    },
+    {
+      "canonical_id": "pmlr:v48:martins16",
+      "title": "From Softmax to Sparsemax: A Sparse Model of Attention and Multi-Label Classification",
+      "url": "https://proceedings.mlr.press/v48/martins16.html",
+      "relationship": "prior",
+      "difference": "Sparsemax derives an alternative simplex-valued transformation, its exact Jacobian, and a matching smooth convex classification loss. ISBE permits arbitrary bounded monotone scores and bypasses their Jacobians, gaining simplicity but giving up sparsemax's explicit probabilistic and optimization semantics.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2016 final proceedings, PMLR 48"
+    },
+    {
+      "canonical_id": "neurips:2022:cdce17de141c9fba3bdf175a0b721941",
+      "title": "Are All Losses Created Equal: A Neural Collapse Perspective",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2022/hash/cdce17de141c9fba3bdf175a0b721941-Abstract-Conference.html",
+      "relationship": "prior",
+      "difference": "Zhou et al. analyze when cross-entropy, MSE, focal loss, and label smoothing share neural-collapse solutions and test objective choice beyond one accuracy number. ISBE reports near-equal MNIST accuracy but does not analyze representations or identify the implicit objectives of its activation-specific gradients.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2022 final proceedings"
+    },
+    {
+      "canonical_id": "openreview:RFhkcqRmTD",
+      "title": "$f$-Divergence Based Classification: Beyond the Use of Cross-Entropy",
+      "url": "https://openreview.net/forum?id=RFhkcqRmTD",
+      "relationship": "subsequent",
+      "difference": "Novello and Tonello derive a principled family of alternative classification objectives from variational f-divergences and evaluate image and signal tasks. This broadens cross-entropy through explicit statistical objectives, whereas ISBE focuses on directly prescribing logit gradients and gives no risk or calibration interpretation for most variants.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2024 poster, modified 2024-06-25"
+    },
+    {
+      "canonical_id": "arxiv:2505.05813",
+      "title": "BCE vs. CE in Deep Feature Learning",
+      "url": "https://arxiv.org/abs/2505.05813",
+      "relationship": "subsequent",
+      "difference": "Li, Xiao, and Shen explicitly analyze one-vs-all binary cross-entropy against multiclass cross-entropy and show different absolute-versus-relative score geometry. ISBE's sigmoid rule has exactly the BCE-with-logits gradient, so this later work supplies an objective and feature-learning interpretation absent from ISBE's loss-unnecessary framing.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2025-05-09; accepted ICML 2025"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims cross-entropy computation is unnecessary for deep classifier learning, introduces ISBE as direct score-error backpropagation, characterizes softmax-trick activations, and reports unchanged MNIST accuracy with up to 3% time saved.",
+    "evidence": "The softmax identity and manual PyTorch backward pattern are derived, five activations are tested on two MNIST architectures, and timing-share and accuracy tables are reported.",
+    "reviewer_inference": "The useful engineering observation is that a known logit gradient can be supplied without evaluating its scalar loss. The central novelty is substantially narrower than the title: softmax ISBE is exactly fused cross-entropy in gradient form, sigmoid ISBE is exactly one-vs-all BCE in gradient form, other tested elementwise rules have implicit primitive losses, the uniqueness theorem is false without a missing unity assumption, and neither generalization nor end-to-end speedup is established."
+  },
+  "confidence": 0.9,
+  "reviewer_notes": "All 18 cached pages, including both appendix theorems and proofs, were checked. Author-reported statements are separated from reviewer derivations. The implicit-objective observations follow by differentiating log-sum-exp, softplus, or coordinatewise primitives; the theorem counterexample follows by direct substitution into the stated Jacobian and softmax-trick equations. Competitor metadata was checked against current primary arXiv, OpenReview, PMLR, and NeurIPS records on 2026-08-23. This is a primary full-text pass, not an independent second-review verification."
+}

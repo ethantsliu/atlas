@@ -1,0 +1,229 @@
+{
+  "stable_id": "arxiv:2310.17042",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2310.17042",
+    "pdf_sha256": "cc85173eb161c5e03969c85835fb55c4d020500222a8b0b3aaf094f00d2f177f",
+    "text_sha256": "7ec479bd50222ed556a6e7bad9ae4b2e6da7bd2643abe8496330df67106aefa1",
+    "page_count": 21,
+    "extracted_at": "2026-08-23T18:53:52.984596+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Does independently masking Adam gradient coordinates before moment updates improve accuracy, confidence, and computational efficiency while retaining convergence?",
+  "key_findings": [
+    {
+      "claim": "StochGradAdam applies an independent Bernoulli mask to the already-computed dense gradient and feeds the unrescaled masked vector into Adam's first and second moments.",
+      "evidence": "Equations 2-4 sample each coordinate with probability s; Algorithm 1 first obtains the full gradient, then masks it, and updates both moments and parameters exactly as Adam would on the masked vector.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 3, "section": "3.1 Stochastic Gradient Sampling"}, {"page": 4, "section": "Algorithm 1"}]
+    },
+    {
+      "claim": "At one reported hyperparameter setting, 80% masking beats Adam's single reported final accuracy on five of six CIFAR-10 architectures.",
+      "evidence": "Table 1 gives StochGradAdam versus Adam top-1 of 0.853/0.831, 0.847/0.838, 0.851/0.827, 0.840/0.783, 0.843/0.861, and 0.721/0.718 for ResNet-56/110/152, MobileNetV2, VGG-16, and ViT-8 respectively after 300 epochs.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 15, "section": "6.1 Image Classification"}, {"page": 16, "section": "Table 1"}]
+    },
+    {
+      "claim": "Lower prediction entropy is observed, but it does not demonstrate reliable uncertainty.",
+      "evidence": "Histograms show more mass near zero entropy for the proposed optimizer. Entropy measures confidence, not calibration or correctness; no ECE, Brier score, NLL, selective-risk, corruption, or adversarial evaluation is reported, so claims of reliability and robustness do not follow.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 11, "section": "5.1 Entropy"}, {"page": 13, "section": "Figure 1"}, {"page": 19, "section": "Conclusion"}]
+    },
+    {
+      "claim": "The convergence proof is invalid at its first regret step.",
+      "evidence": "Convexity gives f_t(theta_t)-f_t(theta*) <= g_t^T(theta_t-theta*) for the full gradient g_t. Equation 48 replaces g_t with the random masked vector phi_t without expectation, inverse-probability rescaling, or a compensating error term. A discarded coordinate can make the claimed inequality arbitrarily false.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 5, "section": "Lemma 4.2"}, {"page": 9, "section": "Theorem 4.5 and Equation 48"}]
+    },
+    {
+      "claim": "The moment-ratio monotonicity used by Lemma 4.4 is also false.",
+      "evidence": "Masking makes each squared gradient no larger pointwise, but Adam's squared first moment divided by the square root of its second moment is not monotone under removal. For a coordinate whose full history contains canceling signs, masking one sign can increase the first moment while changing the denominator, contradicting Equations 29-45's sampled-to-full inequality.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 7, "section": "Lemma 4.4"}, {"page": 8, "section": "Equations 29-41"}]
+    },
+    {
+      "claim": "No computational saving is established by the stated algorithm.",
+      "evidence": "Algorithm 1 computes the full backpropagated gradient before drawing the mask; zeroing coordinates afterward does not remove the dominant forward/backward operations. The paper reports no FLOPs, wall time, memory, sparse kernel, or energy measurement.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 4, "section": "Algorithm 1 lines 3-6"}, {"page": 15, "section": "Experimental Results"}]
+    },
+    {
+      "claim": "The segmentation claim rests on three selected pictures rather than a quantitative experiment.",
+      "evidence": "Figure 4 shows three Oxford-IIIT Pet masks and asserts clearer boundaries, but supplies no split, seed count, IoU, Dice, pixel accuracy, loss curve, or aggregate uncertainty; visual differences are mixed across examples.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 16, "section": "6.2 Image Segmentation"}, {"page": 17, "section": "Figure 4"}]
+    },
+    {
+      "claim": "The proposed vanishing-gradient explanation is unsupported and its displayed equations are not a valid backpropagation derivation.",
+      "evidence": "Equation 68 labels a weight gradient but writes a recurrence resembling an activation gradient and omits input activations; Equation 69 drops weight-matrix norms; Equation 70 simply asserts sampling variance is inversely proportional to gradient magnitude. None is derived from the Bernoulli mask.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 18, "section": "7.2.1-7.2.2"}, {"page": 19, "section": "7.2.3 Consequences"}]
+    },
+    {
+      "claim": "The evidence is an uncontrolled optimizer comparison rather than a reproducible performance result.",
+      "evidence": "Only one accuracy/loss value per setting is tabulated; there are no seeds, error bars, matched tuning budgets, implementation link, timing results, or validation-selection protocol. The sample-rate discussion itself says 100% sampling (ordinary Adam) converges faster and reaches higher accuracy than lower rates in that separate batch-size setting.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 15, "section": "6.1 setup"}, {"page": 17, "section": "7.1 Sample Rate"}, {"page": 18, "section": "Sample-rate conclusions"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Use random coordinate dropout on each dense gradient before Adam moment accumulation, intending the missing coordinates to regularize training and reduce update work.",
+    "mechanism": "Draw independent Bernoulli masks at rate s; set rejected gradient coordinates to zero without 1/s correction; update Adam moments and parameters; compare entropy/PCA/accuracy against Adam and RMSProp; and attempt to inherit Adam's online convex regret proof by bounding masked quantities with full-gradient quantities.",
+    "assumptions": [
+      "Random coordinate deletion removes mostly redundant or noisy information.",
+      "Post-backprop masking produces meaningful compute savings on the target hardware.",
+      "An unrescaled biased gradient can substitute for the true subgradient in a convex regret inequality.",
+      "Adam moment ratios are monotone when gradient history elements are deleted.",
+      "Lower predictive entropy means better uncertainty and robustness.",
+      "Single-run CIFAR-10 results transfer to large-scale training."
+    ]
+  },
+  "techniques": [
+    {"id": "bernoulli-grad-mask", "role": "Randomly zeros parameter-gradient coordinates before moment updates."},
+    {"id": "adam-moments", "role": "Applies adaptive first/second-moment normalization to the masked history."},
+    {"id": "entropy-histogram", "role": "Visualizes confidence distributions but not calibration."},
+    {"id": "sample-rate-ablation", "role": "Varies retained gradient coordinates from 20% to 100%."},
+    {"id": "qualitative-mask-review", "role": "Compares a few segmentation masks without aggregate metrics."}
+  ],
+  "evaluations": [
+    {
+      "setting": "CIFAR-10, six architectures, 300 epochs, batch 128, learning rate 0.01, sample rate 0.8",
+      "metric": "Single reported final top-1 accuracy and training loss",
+      "result": "Masked Adam is numerically higher than Adam on five architectures and lower on VGG-16; uncertainty across runs is unknown.",
+      "baseline": "Adam and RMSProp under stated common learning rate."
+    },
+    {
+      "setting": "ResNet-56 CIFAR-10 prediction distributions",
+      "metric": "Normalized entropy histograms and PCA plots over 10,000 test outputs",
+      "result": "The proposed run has slightly more very-low-entropy outputs; calibration and correctness conditional on confidence are not measured.",
+      "baseline": "Adam and RMSProp at epochs 10, 100, 200, and 300."
+    },
+    {
+      "setting": "ResNet-56/110/152, batch 256, sample rates 100%, 80%, 60%, and 20%",
+      "metric": "Test-accuracy curves",
+      "result": "Lower rates converge more slowly and vary more; the text reports 100% as fastest and highest.",
+      "baseline": "100% retention, which is ordinary Adam."
+    },
+    {
+      "setting": "U-Net/MobileNetV2 on Oxford-IIIT Pet",
+      "metric": "Three displayed predicted masks",
+      "result": "No numerical segmentation result is reported.",
+      "baseline": "Adam and RMSProp predictions for the same three images."
+    }
+  ],
+  "limitations": [
+    "The convergence theorem uses a masked vector where convexity requires the full gradient.",
+    "Key sampled-versus-full Adam-ratio inequalities are false.",
+    "The algorithm masks after dense backpropagation and has no demonstrated efficiency benefit.",
+    "The masked estimator is biased because it is not divided by its sampling probability.",
+    "Results lack seeds, dispersion, tuning protocol, code, and timing.",
+    "Confidence is conflated with calibration and robustness.",
+    "Segmentation is assessed from three examples without metrics.",
+    "The VGG/vanishing-gradient account relies on incorrect or unsupported equations."
+  ],
+  "failure_modes": [
+    "A useful but infrequent coordinate receives long zero runs, corrupting both Adam moments.",
+    "Sign cancellation makes the masked moment ratio larger than the full-gradient ratio.",
+    "Dense gradient computation dominates, so mask generation adds overhead without saving time.",
+    "Unrescaled masking changes the effective optimizer and learning rate as s varies.",
+    "Lower entropy comes from overconfidence and worsens calibration under shift.",
+    "Unstructured zero updates do not map to efficient hardware kernels.",
+    "No error feedback preserves discarded information, so persistent misses can slow or bias convergence.",
+    "Single-run gains disappear under seeds or matched hyperparameter tuning."
+  ],
+  "reusable_insights": [
+    "Place sparsification before expensive gradient computation if compute reduction is the goal.",
+    "Debias random coordinate estimators or analyze their bias explicitly.",
+    "Do not infer monotonicity of a ratio from monotonicity of its numerator and denominator separately.",
+    "Evaluate calibration with proper scores and reliability curves, not entropy alone.",
+    "Report wall time, FLOPs, memory, and sparse-kernel details for efficiency claims.",
+    "Use error feedback or structured selection when discarded gradients matter over time."
+  ],
+  "open_questions": [
+    "Can pre-backprop structured sampling produce real accelerator speedups while preserving accuracy?",
+    "What unbiased or error-feedback variant has a correct nonconvex convergence guarantee with Adam?",
+    "How should retention probabilities depend on layer sensitivity, variance, and hardware block shape?",
+    "Does masking improve calibrated uncertainty after matching accuracy and tuning budgets?",
+    "Can random masking beat magnitude-based sparsification under equal wall-clock and communication budgets?",
+    "What happens at transformer scale with fused sparse kernels and distributed optimizer states?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1412.6980",
+      "title": "Adam: A Method for Stochastic Optimization",
+      "url": "https://arxiv.org/abs/1412.6980",
+      "relationship": "Direct base optimizer.",
+      "difference": "Adam maintains dense adaptive moments from stochastic minibatch gradients. StochGradAdam adds coordinate Bernoulli deletion but does not correct its bias or repair known proof sensitivities.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:1706.06197",
+      "title": "meProp: Sparsified Back Propagation for Accelerated Deep Learning with Reduced Overfitting",
+      "url": "https://arxiv.org/abs/1706.06197",
+      "relationship": "Direct prior sparse-backprop method.",
+      "difference": "meProp keeps top-magnitude backpropagated errors and changes the computation so only selected rows/columns are updated, reporting actual cost reduction at 1-4% density. The reviewed method randomly masks an already computed gradient at 80% density.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record"
+    },
+    {
+      "canonical_id": "pmlr:v108:gorbunov20a",
+      "title": "A Unified Theory of SGD: Variance Reduction, Sampling, Quantization and Coordinate Descent",
+      "url": "https://proceedings.mlr.press/v108/gorbunov20a.html",
+      "relationship": "Prior rigorous coordinate-sampling framework.",
+      "difference": "Gorbunov et al. unify stochastic sampling and randomized coordinate descent under explicit estimator/geometry assumptions with proven rates. The reviewed proof instead assumes an invalid deterministic substitution of masked for full gradients.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "AISTATS 2020 PMLR version"
+    },
+    {
+      "canonical_id": "arxiv:1809.10505",
+      "title": "The Convergence of Sparsified Gradient Methods",
+      "url": "https://arxiv.org/abs/1809.10505",
+      "relationship": "Prior gradient-sparsification convergence analysis.",
+      "difference": "Alistarh et al. retain large coordinates and accumulate omitted updates through local error correction, proving convex and nonconvex results under stated conditions. StochGradAdam drops coordinates permanently and supplies neither error feedback nor a valid bound.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2308.09201",
+      "title": "TinyProp: Adaptive Sparse Backpropagation for Efficient TinyML On-device Learning",
+      "url": "https://arxiv.org/abs/2308.09201",
+      "relationship": "Contemporary adaptive sparse-backprop system.",
+      "difference": "TinyProp adapts backpropagation ratios and reports end-to-end MCU-oriented speed/accuracy tradeoffs. The reviewed work uses a fixed random rate and offers no hardware implementation or runtime evidence.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2403.03507",
+      "title": "GaLore: Memory-Efficient LLM Training by Gradient Low-Rank Projection",
+      "url": "https://arxiv.org/abs/2403.03507",
+      "relationship": "Later structured gradient-subspace optimizer.",
+      "difference": "GaLore projects full-parameter gradients and optimizer states into low-rank matrix spaces, demonstrating memory savings and billion-parameter language training. It addresses structured optimizer memory rather than random elementwise post-gradient zeros.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2108.00951",
+      "title": "Rethinking Gradient Sparsification as Total Error Minimization",
+      "url": "https://arxiv.org/abs/2108.00951",
+      "relationship": "Prior budget-aware sparsification and error feedback.",
+      "difference": "Sahu et al. optimize cumulative compression error, derive hard-threshold sparsification, and analyze convex/nonconvex convergence with error feedback. The reviewed method neither budgets total error nor preserves rejected coordinates.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Randomly sampling Adam gradient coordinates yields a computationally efficient, convergent optimizer with better accuracy, exploration, generalization, and prediction certainty.",
+    "evidence": "Elementwise masking before moment updates is simple, but gradient/coordinate sparsification, dropout-style noise, and randomized coordinate methods substantially predate it. The algorithm computes dense gradients, the proof has fatal inequalities, and the empirical study lacks the controls needed to distinguish regularization from noise or tuning.",
+    "reviewer_inference": "The current work does not support its central efficiency, convergence, or reliability claims. A corrected project would need pre-compute structured masks, debiasing/error feedback, hardware measurements, proper uncertainty metrics, and replicated tuned baselines."
+  },
+  "confidence": 0.995,
+  "reviewer_notes": "Read all 21 pages and audited every proof step, algorithm, table, and appendix-style limitation. Visually inspected entropy histograms, six accuracy curves, the numeric table, segmentation examples, and sample-rate ablation on pages 13 and 15-17. Checked primary arXiv/PMLR records for Adam, coordinate sampling, sparse backpropagation, error-feedback sparsification, TinyProp, and GaLore through 2026-08-23."
+}

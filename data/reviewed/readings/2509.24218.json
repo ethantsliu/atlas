@@ -1,0 +1,170 @@
+{
+  "stable_id": "arxiv:2509.24218",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2509.24218",
+    "pdf_sha256": "f742879f17e45f0f806354cf37cfb0475e5a0512fd29d1b6f0ff9b2d78440dd3",
+    "text_sha256": "b3882b76bb369255bd465e8caa01427e4c7df5a8ee8b89d5ff55a35806986fcd",
+    "page_count": 24,
+    "extracted_at": "2026-08-23T15:06:49.408942+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can an optimizer combine Muon's matrix-level spectral conditioning with Adam's coordinate adaptivity to accelerate language-model pretraining without prohibitive memory or per-step factorization cost?",
+  "key_findings": [
+    {
+      "claim": "Conda rotates momentum into an SVD-derived subspace and applies column-specific second-moment normalization computed from gradients in that same subspace.",
+      "evidence": "The Muon reformulation exposes singular-basis normalization shared across a column, while Conda maintains a projected second-moment matrix whose entries normalize each column separately. The basis is refreshed lazily every T steps and the intermediate update is rotated back to parameter coordinates.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "3 Method, reformulating Muon"},
+        {"page": 5, "section": "Column-Normalized Adam"},
+        {"page": 6, "section": "Column-specific normalization and lazy SVD"},
+        {"page": 20, "section": "A.4 Complete Conda algorithm"}
+      ]
+    },
+    {
+      "claim": "Across the tested LLaMA models, Conda reaches matched validation-loss levels more than twice as quickly as AdamW and remains faster than the strongest reported matrix-preconditioned baseline.",
+      "evidence": "For LLaMA sizes 60M-1B on C4, Figure 2 reports more than 2x speed versus AdamW in both steps and time; at 1B, the reported factors are 2.7x by steps and about 2.5x by time. Relative to the second-best baseline, reported time gains range from 1.37x to 1.80x depending on size.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "4.1 LLM Pre-training, LLaMA results and Figure 2"},
+        {"page": 10, "section": "5 Conclusion"}
+      ]
+    },
+    {
+      "claim": "The same advantage is smaller on GPT-2, and downstream accuracy improvements are not uniformly monotone across individual tasks despite the best reported average.",
+      "evidence": "On GPT-2 125M/355M, step-speed factors over AdamW are 1.41x/1.56x and time factors are 1.20x/1.49x. Table 2 gives the highest average zero-shot scores for Conda, but several individual tasks favor another optimizer; Table 3 similarly shows some fine-tuning tasks where Conda trails AdamW even though its average is higher.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "GPT-2 results and Figure 3"},
+        {"page": 8, "section": "Downstream Tasks, Table 2"},
+        {"page": 9, "section": "Fine-tuning results, Table 3"}
+      ]
+    },
+    {
+      "claim": "Projected second-moment alignment is necessary in the largest reported ablation, but scalability beyond 1B dense models remains untested.",
+      "evidence": "Replacing the projected second moment with a vanilla estimator modestly worsens smaller-model perplexity and fails at 1B. The authors report stable performance over wide basis-refresh intervals and modest memory overhead versus AdamW, but explicitly state that resource limits prevented evaluation at 13B scale or on mixture-of-experts architectures.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 9, "section": "4.3 Ablation Study"},
+        {"page": 10, "section": "Tables 4-6 and Limitations"},
+        {"page": 17, "section": "A.2 Update-frequency and learning-rate ablations"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Normalize Adam-style updates in a slowly refreshed orthogonal basis, using a separate projected second-moment statistic for every basis-direction and parameter-column pair.",
+    "mechanism": "Conda accumulates first-moment momentum, computes an SVD basis periodically, projects both momentum and current gradients into that basis, updates an elementwise second moment from projected gradients, normalizes the projected momentum column-wise, and rotates the result back before applying weight decay and a learning-rate-scaled update.",
+    "assumptions": [
+      "A slowly changing SVD basis remains useful for hundreds or thousands of optimizer steps.",
+      "Projected gradient second moments are aligned enough with projected momentum to stabilize coordinate adaptation.",
+      "Validation-loss matching at fixed training setups is an adequate measure of optimizer convergence speed.",
+      "The chosen baseline hyperparameter searches and update-scale conventions make cross-optimizer comparisons fair."
+    ]
+  },
+  "techniques": [
+    {"id": "lazy-svd-basis", "role": "Constructs an orthogonal coordinate system periodically rather than factorizing on every step."},
+    {"id": "projected-second-moment", "role": "Estimates Adam-style curvature in the same subspace used for the first-moment update."},
+    {"id": "column-specific-normalization", "role": "Preserves per-column adaptivity while compressing an ill-conditioned singular spectrum."},
+    {"id": "loss-matched-speed", "role": "Measures convergence in both optimizer steps and wall-clock time to a baseline loss target."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Dense LLaMA models from 60M to 1B parameters pretrained on C4.",
+      "metric": "Validation perplexity and steps/time to an AdamW-matched loss.",
+      "result": "Conda has the best final perplexity in the reported table and 2.07x-2.70x step speed and 2.22x-2.48x time speed over AdamW, with smaller but positive gains over the best alternative optimizer.",
+      "baseline": "AdamW, Adafactor, SOAP, and Muon with the paper's optimizer-specific learning-rate choices."
+    },
+    {
+      "setting": "GPT-2 125M and 355M pretrained for 100,000 steps on OpenWebText.",
+      "metric": "Validation loss versus steps and wall-clock time.",
+      "result": "Reported speedups over AdamW are 1.41x/1.56x by steps and 1.20x/1.49x by time for 125M/355M.",
+      "baseline": "AdamW, Muon, Adafactor, SOAP, and a Sophia-G appendix comparison."
+    },
+    {
+      "setting": "Zero-shot evaluation of pretrained 350M/1B LLaMA models and LoRA commonsense fine-tuning of 1B, 7B, and 8B LLaMA variants.",
+      "metric": "Average accuracy across commonsense and mathematical reasoning benchmarks.",
+      "result": "Conda obtains the highest reported average for each displayed comparison, though it does not win every constituent task.",
+      "baseline": "Models trained or fine-tuned with AdamW and, for pretraining, Adafactor, SOAP, and Muon."
+    },
+    {
+      "setting": "LLaMA ablations over projected moments, sequence length, basis-refresh interval, beta values, learning rates, and memory.",
+      "metric": "Perplexity, convergence/failure, training time, and peak GPU memory.",
+      "result": "Removing subspace projection fails at 1B; refresh intervals from roughly 100-2000 trade very little perplexity for large time savings, and Conda adds about 0.1-1.3 GB over AdamW in the reported configurations.",
+      "baseline": "Full Conda and AdamW."
+    }
+  ],
+  "limitations": [
+    "Author-stated: no pretraining evaluation above 1B parameters or on mixture-of-experts architectures was possible.",
+    "Reviewer inference: the submission was withdrawn from ICLR 2026, so the claims have not passed that venue's final acceptance process.",
+    "Reviewer inference: some baselines use imported or coupled learning-rate choices rather than equally broad end-to-end tuning at every scale.",
+    "Reviewer inference: speed-to-matched-loss depends on an AdamW target and does not establish lower compute to a fixed downstream capability."
+  ],
+  "failure_modes": [
+    "If the orthogonal basis rotates faster than the refresh interval, projected first and second moments become stale or misaligned.",
+    "Using an unprojected second-moment estimator can destabilize larger models, as demonstrated by the 1B failure.",
+    "SVD, extra state, and basis communication may erase step-efficiency gains in distributed multi-billion-parameter training.",
+    "A lower pretraining perplexity may not improve every downstream task, as the per-task tables already show."
+  ],
+  "reusable_insights": [
+    "When combining optimizers, estimate curvature in the same coordinate system in which the update is normalized.",
+    "A slowly refreshed learned basis can retain most preconditioning value while amortizing factorization cost.",
+    "Report both steps and wall-clock speed because matrix preconditioners can reverse rankings between the two.",
+    "Per-coordinate and spectral conditioning are complementary design axes rather than mutually exclusive optimizer families."
+  ],
+  "open_questions": [
+    "Does Conda retain a compute advantage at 7B-70B dense and mixture-of-experts scale under distributed sharding?",
+    "How should basis-refresh frequency scale with width, depth, batch size, and nonstationarity of the gradient spectrum?",
+    "Would update-RMS matching and equally exhaustive tuning change the rankings against Muon and SOAP?",
+    "Can cheaper randomized or blockwise bases reproduce projected second-moment alignment without full SVD state?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2409.11321",
+      "title": "SOAP: Improving and Stabilizing Shampoo using Adam",
+      "url": "https://arxiv.org/abs/2409.11321",
+      "relationship": "direct prior optimizer",
+      "difference": "SOAP runs Adam in Shampoo's eigenbasis and maintains moments between infrequent preconditioner refreshes; Conda instead starts from a Muon reformulation and uses column-specific projected moments with a milder singular normalization.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2502.16982",
+      "title": "Muon is Scalable for LLM Training",
+      "url": "https://arxiv.org/abs/2502.16982",
+      "relationship": "direct prior baseline",
+      "difference": "Scales matrix-orthogonalized momentum through weight decay and update-scale rules to much larger training runs; Conda adds projected coordinate adaptivity and reports stronger convergence at dense scales up to 1B.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2512.05620",
+      "title": "Hyperparameter Transfer Enables Consistent Gains of Matrix-Preconditioned Optimizers Across Scales",
+      "url": "https://arxiv.org/abs/2512.05620",
+      "relationship": "contemporary scaling study",
+      "difference": "Shows that blocking, spectral normalization, and width/depth-aware learning-rate and weight-decay transfer can change optimizer rankings, directly testing a fairness/scaling dimension not isolated in Conda's comparisons.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2607.20548",
+      "title": "SOAP, Muon, and Beyond: Pushing LLM Pretraining Scales",
+      "url": "https://arxiv.org/abs/2607.20548",
+      "relationship": "subsequent direct competitor",
+      "difference": "Demonstrates stabilized SOAP and Muon on multi-billion-parameter, trillion-token distributed training with update-RMS matching; it covers precisely the scale and systems regime left open by Conda.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Conda is presented as the first optimizer to integrate Muon-style spectral normalization with Adam-style column adaptivity through aligned projected second moments.",
+    "evidence": "The method derives the connection from an SVD reformulation, ablates projected versus vanilla moments, and compares directly with AdamW, Adafactor, SOAP, and Muon.",
+    "reviewer_inference": "The aligned column-normalization construction is a concrete optimizer contribution, but SOAP is a close eigenbasis-Adam precedent and later large-scale work weakens any broad scalability claim. The most defensible novelty is the particular projected-moment/Muon combination, not matrix-basis adaptive optimization in general."
+  },
+  "confidence": 0.92,
+  "reviewer_notes": "Read all 24 extracted pages, including derivation, complete algorithm, proof appendix, ablations, exact training configurations, and the SOAP comparison. Reported speedups and accuracy are author results; statements about tuning fairness, withdrawal status, and downstream non-uniformity are reviewer audits. Primary arXiv and OpenReview records were checked on 2026-08-23, including subsequent 2026 competition."
+}

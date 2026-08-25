@@ -1,0 +1,179 @@
+{
+  "stable_id": "arxiv:2206.00941",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2206.00941",
+    "pdf_sha256": "0c3334a0076b1b308803e984915e1ee4849226b32ed8045a6a1560615620b910",
+    "text_sha256": "2842a5b956195d5bd2ab814c2b1cf6db14797bb0cc23de49b521a302f3207ea2",
+    "page_count": 29,
+    "extracted_at": "2026-08-23T20:59:53.587620+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can measurement guidance through a Tweedie-denoised estimate keep unconditional diffusion inverse-problem trajectories aligned with the data manifold and improve reconstruction?",
+  "key_findings": [
+    {
+      "claim": "MCG backpropagates measurement error through the diffusion model's Tweedie posterior-mean estimate before applying exact data consistency.",
+      "evidence": "At each reverse step, the algorithm estimates clean x0 from noisy xi, differentiates ||W(y-H*x0_hat(xi))||^2 with respect to xi, adds this correction to the unconditional reverse update, and then projects the result onto the measurement-consistent affine set. It requires no inverse-task-specific retraining for linear H.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "Conditional Diffusion using Manifold Constraints"}, {"page": 18, "section": "Algorithms"}]
+    },
+    {
+      "claim": "Under an exact score and a locally affine, uniformly distributed data-manifold model, the MCG direction is tangent at the denoised point.",
+      "evidence": "Proposition 2 treats the Tweedie map as a local orthogonal projection onto M. Theorem 1 then writes the guidance gradient as -2 J_Q^T H^T W^T W(y-H*x0_hat), which lies in the tangent space. This shows tangency of a direction at Q_i(x_i), not posterior correctness for a curved empirical image manifold.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 5, "section": "Strong manifold assumption and Propositions 1-2"}, {"page": 6, "section": "Theorem 1"}, {"page": 16, "section": "Proof of Theorem 1"}]
+    },
+    {
+      "claim": "MCG substantially improves difficult inpainting across FFHQ and ImageNet when the diffusion score is held fixed.",
+      "evidence": "On FFHQ random 90-95% missing pixels, MCG reports FID 21.4 and LPIPS 0.186 versus RePaint 38.1/0.240, score-SDE 109.3/0.674, and DDRM 111.6/0.774. On ImageNet random masks it reports 34.8/0.308 versus RePaint 59.3/0.387 and score-SDE 143.5/0.758. It is also competitive with task-trained baselines across several masks.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 6, "section": "Inpainting examples"}, {"page": 7, "section": "Table 1"}]
+    },
+    {
+      "claim": "The same guidance improves colorization and simulated sparse-view CT, including over supervised baselines on the reported metrics.",
+      "evidence": "For FFHQ/LSUN colorization, MCG reports SSIM 0.951/0.959 and LPIPS 0.146/0.160. For 18-view AAPM CT it reports 33.57 dB PSNR and 0.956 SSIM versus score-CT 29.85/0.897, cGAN 24.38/0.823, and FISTA-TV 21.57/0.791; 30-view MCG reaches 36.09/0.971.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 7, "section": "Tables 2-3"}, {"page": 8, "section": "Colorization and CT reconstruction"}]
+    },
+    {
+      "claim": "Both manifold guidance and the final projection are necessary: guidance improves perceptual quality while projection restores exact measurements.",
+      "evidence": "On FFHQ box inpainting, projection alone gives LPIPS 0.138 with zero consistency MSE; clean-estimate MCG alone improves LPIPS to 0.124 but has MSE 10.7; their combination reaches 0.089 with zero MSE. Guidance on the noisy intermediate rather than the Tweedie estimate performs worse.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 8, "section": "Ablation studies and Table 5"}, {"page": 9, "section": "Ablation discussion"}]
+    },
+    {
+      "claim": "Quality comes with severe latency and dependence on the pretrained prior.",
+      "evidence": "MCG takes 81.59 seconds per inpainted image versus 38.68 for score-SDE, 2.117 for DDRM, and below one second for LaMa/AOT-GAN in the table; appendix implementation reports about 90 seconds for 1,000-NFE inpainting and 600 seconds for 4,000-NFE colorization/CT. Low-measurement regimes and ImageNet half masks can yield unrealistic symmetric hallucinations.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 8, "section": "Table 4"}, {"page": 9, "section": "Runtime and guidance-scale ablations"}, {"page": 10, "section": "Limitations"}, {"page": 20, "section": "Limitations and implementation time"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Evaluate the likelihood at the diffusion denoiser's clean posterior-mean estimate so its Jacobian filters measurement guidance into directions supported by the learned image prior.",
+    "mechanism": "Use Tweedie's formula Q_i(x_i)=(x_i+b_i^2 s_theta(x_i,i))/a_i to estimate x0. Backpropagate a weighted linear measurement residual through Q_i, add the scaled gradient to each stochastic reverse-diffusion step, and apply a problem-specific projection that exactly inserts observed components. Reuse an unconditional score model across inpainting masks, grayscale operators, and CT projections.",
+    "assumptions": [
+      "The clean data occupy a low-dimensional manifold that is locally affine and approximately uniformly distributed in the theoretical neighborhood.",
+      "The score model is globally optimal enough that Tweedie's map behaves like an orthogonal projection near sampled points.",
+      "The known measurement operator is linear and supports the required projection/data-consistency calculation.",
+      "A perceptually plausible sample from the pretrained prior is an appropriate reconstruction when measurements are underdetermined.",
+      "The guidance scale can be tuned over a broad stable range without ground-truth leakage.",
+      "Image-quality metrics on synthetic corruption predict fidelity in real inverse problems."
+    ]
+  },
+  "techniques": [
+    {"id": "tweedie-clean-estimate", "role": "Maps each noisy diffusion state to an empirical-Bayes estimate of the clean signal."},
+    {"id": "jacobian-filtered-likelihood", "role": "Backpropagates measurement mismatch through the denoiser to obtain prior-aligned guidance."},
+    {"id": "measurement-projection", "role": "Restores exact consistency after the perceptual manifold correction."},
+    {"id": "unconditional-prior-reuse", "role": "Applies one pretrained score network to multiple linear corruptions without task-specific training."},
+    {"id": "stochastic-multiple-solutions", "role": "Produces alternative plausible reconstructions for the same underdetermined measurement."},
+    {"id": "guidance-norm-normalization", "role": "Stabilizes alpha across reverse steps by scaling with residual norm."}
+  ],
+  "evaluations": [
+    {
+      "setting": "FFHQ and ImageNet 256x256 inpainting over box, random 90-95%-missing, extreme, and wide masks with shared pretrained scores.",
+      "metric": "FID-1k, LPIPS, visual quality, measurement MSE, NFE curves, and wall-clock time.",
+      "result": "MCG is best or near-best across most masks and dramatically improves random/extreme masks over projection-only diffusion baselines, at 81.59 seconds per example in the runtime table.",
+      "baseline": "Score-SDE, RePaint, DDRM, IAGAN, LaMa, AOT-GAN, ICT, and DSI."
+    },
+    {
+      "setting": "FFHQ and LSUN-bedroom grayscale colorization.",
+      "metric": "SSIM and LPIPS over held-out images.",
+      "result": "MCG obtains 0.951/0.146 on FFHQ and 0.959/0.160 on LSUN, favorable to score-SDE, DDRM, cINN, and pix2pix.",
+      "baseline": "Score-SDE, DDRM, conditional invertible networks, and pix2pix."
+    },
+    {
+      "setting": "Simulated 18- and 30-view parallel-beam CT on 421 held-out AAPM slices with a score trained on 3,839 images.",
+      "metric": "PSNR and SSIM.",
+      "result": "MCG reaches 33.57/0.956 at 18 views and 36.09/0.971 at 30 views, leading all reported methods.",
+      "baseline": "Score-CT, SIN-4c-PRN, cGAN, FISTA-TV, and filtered backprojection."
+    }
+  ],
+  "limitations": [
+    "The tangent theorem assumes an exact score and an exceptionally strong locally affine/uniform manifold; real image distributions are curved, multimodal, bounded, and nonuniform.",
+    "A uniform probability distribution on an unbounded affine subspace is improper; bounded uniform support introduces boundaries that complicate the claimed orthogonal-projection Jacobian.",
+    "The theorem proves a guidance direction is tangent at a Tweedie estimate, not that discrete approximate-score iterates remain on a real data manifold or sample the exact posterior.",
+    "MCG requires a backward pass through the score network at every step and is far slower than DDRM and task-specific feed-forward restoration.",
+    "Experiments largely use noiseless, known linear synthetic corruptions; real CT physics, noise, motion, and distribution shift are not evaluated.",
+    "Perceptual priors hallucinate unsupported symmetric structures at extreme masks and may create clinically unsafe details.",
+    "FID-1k uses only 1,000 samples and reconstruction metrics do not assess posterior calibration or coverage.",
+    "The method relies on prior training data and can reproduce its biases or malicious content."
+  ],
+  "failure_modes": [
+    "An inaccurate score produces a misleading Tweedie Jacobian that steers measurement guidance toward prior artifacts.",
+    "Very sparse measurements leave many plausible modes and one stochastic reconstruction hallucinates an incorrect but high-scoring structure.",
+    "Guidance alpha is too large, causing exploding gradients and saturated reconstruction, or too small, collapsing to projection-only behavior.",
+    "A forward operator outside the training assumptions is nonlinear, noisy, or ill calibrated, so exact projection is unavailable or wrong.",
+    "A test image lies off the training distribution and the prior resists the true solution despite measurement evidence.",
+    "Thousands of score and backward evaluations make the solver operationally infeasible."
+  ],
+  "reusable_insights": [
+    "Apply likelihood gradients through a denoised clean-state estimate rather than directly to a highly noisy diffusion state.",
+    "Separate perceptual prior guidance from hard measurement consistency; each fixes a distinct failure in underdetermined reconstruction.",
+    "Hold the score network fixed when comparing inverse samplers so gains are attributable to inference.",
+    "Report reconstruction quality jointly with consistency, latency, posterior diversity, and hallucination risk.",
+    "Stress-test extreme missingness and out-of-distribution operators because average image metrics hide prior-dominated failures.",
+    "Distinguish a geometric intuition under an ideal affine manifold from guarantees for realistic learned scores."
+  ],
+  "open_questions": [
+    "Can posterior sampling guarantees be obtained for curved, nonuniform data manifolds and approximate learned scores?",
+    "How can Jacobian-vector guidance be approximated without a full backpropagation at every diffusion step?",
+    "Does MCG produce calibrated posterior samples or only high-quality point reconstructions?",
+    "How should uncertainty and hallucination be validated in real sparse-view CT with measurement/model mismatch?",
+    "Can adaptive guidance detect when the prior conflicts with data and defer rather than invent structure?",
+    "Which accelerated solvers preserve MCG's perceptual gains below 20 neural evaluations?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2201.11793",
+      "title": "Denoising Diffusion Restoration Models",
+      "url": "https://arxiv.org/abs/2201.11793",
+      "relationship": "direct-prior-baseline",
+      "difference": "DDRM performs conditional reverse diffusion in the measurement operator's SVD basis and can solve linear inverse problems in about 20 steps. MCG avoids an SVD-specific derivation and is stronger on severe masks, but its backpropagated 1,000-step guidance is much slower.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2201.09865",
+      "title": "RePaint: Inpainting using Denoising Diffusion Probabilistic Models",
+      "url": "https://arxiv.org/abs/2201.09865",
+      "relationship": "task-specific-prior-baseline",
+      "difference": "RePaint repeatedly jumps forward and backward while injecting known pixels to harmonize inpainting boundaries. MCG uses one tangent-inspired gradient plus projection per step, generalizes to other linear operators, and improves severe masks with less resampling but remains expensive.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2209.14687",
+      "title": "Diffusion Posterior Sampling for General Noisy Inverse Problems",
+      "url": "https://arxiv.org/abs/2209.14687",
+      "relationship": "direct-followup",
+      "difference": "DPS generalizes the same Tweedie-through-likelihood gradient to noisy nonlinear operators and drops strict projection, interpreting it as approximate posterior guidance. It broadens MCG's applicability but retains costly backpropagation and an approximate likelihood score.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2212.00490",
+      "title": "Zero-Shot Image Restoration Using Denoising Diffusion Null-Space Model",
+      "url": "https://arxiv.org/abs/2212.00490",
+      "relationship": "later-linear-alternative",
+      "difference": "DDNM analytically decomposes linear inverse reconstruction into range and null-space components and enforces consistency without task retraining. It offers a more explicit linear-algebra route than MCG's manifold narrative and develops noisy variants, while still depending on the diffusion prior.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "pmlr:v260-meng25a",
+      "title": "Diffusion Model Based Posterior Sampling for Noisy Linear Inverse Problems",
+      "url": "https://proceedings.mlr.press/v260/meng25a.html",
+      "relationship": "later-efficiency-competitor",
+      "difference": "DMPS replaces backpropagated DPS-style likelihood guidance with a closed-form approximation for noisy linear problems and supports diffusion or flow priors. It directly addresses MCG's inference bottleneck, with narrower operator scope than DPS but substantially faster sampling.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim a few-line manifold-constrained correction that makes general diffusion inverse solvers theoretically better aligned and empirically state of the art across inpainting, colorization, and CT.",
+    "evidence": "Theorem 1 gives the idealized tangency result; Tables 1-5 and ablations show large quality gains with a shared score and exact measurement consistency.",
+    "reviewer_inference": "Backpropagating fidelity through the Tweedie clean estimate is an influential, reusable step that directly led to DPS. The 'manifold constraint' guarantee is much narrower than the empirical algorithm: its affine-uniform exact-score assumptions do not justify posterior correctness on images, and speed/hallucination remain major costs."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Read all 29 cached pages, including proofs, algorithms, experimental details, and failure examples. Competitors were checked from primary arXiv/OpenReview/PMLR records through 2025 on 2026-08-23. The theory audit separates tangent-vector membership under Assumption 1 from the stronger prose claim that approximate trajectories remain on a realistic data manifold."
+}

@@ -1,0 +1,223 @@
+{
+  "stable_id": "arxiv:2204.04343",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2204.04343",
+    "pdf_sha256": "1376bbac89cb2ffd6ab6850d94ab8d1a272f7db5823d632bfe76c460de806174",
+    "text_sha256": "404f0ae5e6efa30a3abd8e9b249bfffd54e7f664643e4a616b516f82866862c9",
+    "page_count": 7,
+    "extracted_at": "2026-08-23T21:08:35.491004+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a deliberately simple, fine-grained Markov state model generate arbitrarily long atomistic-looking protein trajectories quickly enough to serve as an exactly solvable testbed for sampling and trajectory-analysis methods?",
+  "key_findings": [
+    {
+      "claim": "The discrete generator produces nominally atomistic Trp-cage trajectories several orders of magnitude faster than the conventional simulation that supplied its training data.",
+      "evidence": "Five 208-microsecond trajectories at 10-nanosecond resolution were generated in 5 minutes 41 seconds on one 2.8 GHz Intel i7 MacBook Pro core, summarized as roughly 250 milliseconds of trajectory per day, versus roughly 100 microseconds per day for the original Anton simulation.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "Introduction: speed comparison"
+        },
+        {
+          "page": 4,
+          "section": "III Results"
+        }
+      ]
+    },
+    {
+      "claim": "Synthetic trajectories recover the stationary and kinetic quantities of the fitted Markov model within the sampling uncertainty shown, which is the relevant exact reference for the proposed testbed.",
+      "evidence": "State occupancies from five generated trajectories agree with the transition matrix's stationary distribution. Generated mean first-passage times are 18.3 plus or minus 9.6 microseconds for folding and 4.1 plus or minus 1.5 microseconds for unfolding, compared with transition-matrix values of 12.7 and 2.8 microseconds.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "III Results / Figure 5"
+        }
+      ]
+    },
+    {
+      "claim": "The workflow's strongest scientific value is controlled method development, not faithful replacement of molecular dynamics.",
+      "evidence": "The same fitted transition matrix both defines the exact equilibrium/kinetic reference and generates evaluation trajectories, so agreement with that model is expected. The authors explicitly prioritize protein-like complexity and exact solvability over fidelity to the original 208-microsecond MD trajectory and acknowledge fundamental MSM limitations.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "II.B Simple generative model"
+        },
+        {
+          "page": 4,
+          "section": "III Results and IV Discussion"
+        }
+      ]
+    },
+    {
+      "claim": "Stratifying clustering along the slow folding coordinate may preserve transition-region resolution at a shorter lag, but the paper does not supply a conventional-clustering ablation.",
+      "evidence": "The method bins tIC 0 and runs 20-center k-means independently per bin to create 1,020 states, then fits a reversible MSM at a 10-nanosecond lag. The text says this appears to improve kinetic fidelity at shorter lag times, yet reports no side-by-side implied-timescale or held-out kinetic comparison with standard global clustering.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "II.B Simple generative model: stratified k-means"
+        },
+        {
+          "page": 4,
+          "section": "IV Discussion"
+        }
+      ]
+    },
+    {
+      "claim": "Dynamic-resolution backmapping is a useful storage and analysis abstraction: simulate cheaply in state space and materialize full coordinates only where inspection is needed.",
+      "evidence": "A long discrete trajectory can first be sparsely backmapped, after which selected time intervals are reconstructed at finer resolution. Backmapping is trivially parallelizable because the entire state sequence exists before representative atomic structures are assigned.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "II.A Workflows"
+        },
+        {
+          "page": 3,
+          "section": "Figure 4"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Turn a fine-grained reversible MSM into a fast synthetic-trajectory oracle whose equilibrium and kinetic answers are analytically available, then attach a saved atomistic configuration to every visited state.",
+    "mechanism": "Featurize one 208-microsecond Trp-cage MD run with residue-pair minimum RMSDs, compute ten commute-map-scaled tICA components at a 10-nanosecond lag, stratify tIC 0, run k-means within each stratum for 1,020 states, symmetrize transition counts to enforce detailed balance, and sample the resulting transition matrix. Each state maps to one randomly chosen member structure; discrete trajectories are backmapped in parallel at fixed or query-dependent temporal resolution.",
+    "assumptions": [
+      "The source trajectory sufficiently covers the conformational transitions that downstream test methods should encounter.",
+      "A first-order Markov model at a 10-nanosecond lag preserves the equilibrium and kinetic behavior relevant to the intended test.",
+      "Stratification on tIC 0 does not encode an unrealistically privileged reaction coordinate for the method being evaluated.",
+      "One representative frame per state supplies enough atomistic detail even though intrastate motion and momenta are absent.",
+      "Exact solvability with respect to the fitted MSM is more important for a benchmark than physical fidelity to the underlying force field."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "stratified-tica-kmeans",
+      "role": "Allocates discrete states evenly along the dominant folding coordinate so transition regions are not swallowed by dense basins."
+    },
+    {
+      "id": "reversible-markov-state-generator",
+      "role": "Creates a cheaply sampled transition model with an exactly computable stationary distribution and first-passage quantities."
+    },
+    {
+      "id": "representative-frame-backmapping",
+      "role": "Turns integer state sequences into standard full-coordinate trajectory files using one saved structure per state."
+    },
+    {
+      "id": "dynamic-resolution-materialization",
+      "role": "Backmaps a coarse view first and reconstructs only selected intervals at the generator's full temporal resolution."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Trp-cage MSM trained on one 208-microsecond Anton trajectory",
+      "metric": "Generation throughput",
+      "result": "Five 208-microsecond sequences at 10-nanosecond resolution in 5 minutes 41 seconds on one laptop CPU; approximately 250 milliseconds/day.",
+      "baseline": "Approximately 100 microseconds/day for the original conventional MD on Anton"
+    },
+    {
+      "setting": "Five independent synthetic trajectories",
+      "metric": "Discrete-state stationary occupancy",
+      "result": "Generated occupancies visually track both the training trajectory and the fitted MSM stationary distribution.",
+      "baseline": "Empirical source-MD state frequencies and the exactly solved transition-matrix stationary distribution"
+    },
+    {
+      "setting": "Trp-cage folding and unfolding",
+      "metric": "Mean first-passage time",
+      "result": "Synthetic folding 18.3 plus or minus 9.6 microseconds and unfolding 4.1 plus or minus 1.5 microseconds.",
+      "baseline": "MSM-exact folding 12.7 microseconds and unfolding 2.8 microseconds"
+    },
+    {
+      "setting": "Long generated trajectory",
+      "metric": "Availability of atomistic coordinates at variable temporal resolution",
+      "result": "Coarse global backmapping and fine reconstruction of chosen intervals are demonstrated conceptually in tIC space.",
+      "baseline": "Writing every generated state as a full-coordinate frame"
+    }
+  ],
+  "limitations": [
+    "The demonstration uses one protein and one 208-microsecond source trajectory; no held-out molecule or independent MD trajectory is evaluated.",
+    "Agreement with the fitted MSM is largely a generator self-consistency check and does not establish agreement with unobserved physical dynamics.",
+    "Mapping each state to one stored configuration removes intrastate structural diversity, velocities, and smooth coordinate evolution; consecutive frames can make unphysical jumps.",
+    "The reversible count symmetrization imposes equilibrium detailed balance and does not directly model driven nonequilibrium dynamics.",
+    "The proposed advantage of stratified clustering is not quantified against ordinary clustering or alternative state counts and lag times.",
+    "Error bars are based on only five generated trajectories and no uncertainty is supplied for stationary-state comparisons.",
+    "A reaction-coordinate-aware construction may make some downstream sampling methods artificially easy if they exploit the same coordinate.",
+    "Disk, backmapping, and analysis costs at the advertised hundreds-of-milliseconds scale are not benchmarked end to end."
+  ],
+  "failure_modes": [
+    "Rare or missing transitions in the source MD receive zero or badly biased transition probability and can never be repaired by longer synthetic sampling.",
+    "The Markov lag aliases memory effects, yielding plausible stationary populations but incorrect pathway statistics or first-passage distributions.",
+    "Representative-frame backmapping creates steric discontinuities or repeated structures that break tools sensitive to local dynamics.",
+    "Testing an algorithm on the same tIC-based discretization leaks the generator's privileged coordinate and overstates generality.",
+    "A huge synthetic sample makes variance tiny while systematic error relative to the underlying force field remains unchanged.",
+    "Symmetrization erases genuine nonequilibrium flux, despite the broader motivation mentioning nonequilibrium method development."
+  ],
+  "reusable_insights": [
+    "A useful synthetic benchmark can trade physical fidelity for a transparent oracle, provided claims are explicitly limited to the oracle's model class.",
+    "Evaluate learned simulators separately for generator self-consistency, held-out trajectory fidelity, and cross-system transfer.",
+    "Store long rollouts in their cheapest latent or discrete form and materialize high-dimensional states only for queried windows.",
+    "Stratified state allocation can protect low-density transition regions, but it should be tested against blinded coordinates and standard clustering.",
+    "Unlimited samples reduce Monte Carlo error but never remove model bias; benchmark reports should display both."
+  ],
+  "open_questions": [
+    "How do downstream enhanced-sampling rankings on this exactly solved MSM correlate with rankings on blinded held-out MD systems?",
+    "Can multiple conditional structures per state restore realistic intrastate variation without sacrificing exact state-space kinetics?",
+    "What diagnostics detect when a short-lag MSM's memory error invalidates pathway-level conclusions?",
+    "Can nonequilibrium haMSMs provide an equally transparent synthetic oracle with maintained fluxes?",
+    "How should benchmark generators hide their construction coordinate while retaining an exact solution for evaluators?",
+    "Does an adaptive mixture of real MD and uncertainty-targeted simulation improve the oracle rather than merely resample its initial bias?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1805.07601",
+      "title": "Deep Generative Markov State Models",
+      "url": "https://arxiv.org/abs/1805.07601",
+      "relationship": "direct generative-MSM antecedent",
+      "difference": "DeepGenMSM couples a probabilistic encoder, metastable Markov chain, and conditional generator and can propose configurations outside the training set. The target deliberately uses a transparent fine-grained transition matrix and stored representative structures, sacrificing novelty and coordinate diversity for exact solvability and very cheap benchmark generation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2, 2019-01-11"
+    },
+    {
+      "canonical_id": "arxiv:2007.00728",
+      "title": "Molecular Latent Space Simulators",
+      "url": "https://arxiv.org/abs/2007.00728",
+      "relationship": "closest same-system generative antecedent",
+      "difference": "Molecular Latent Space Simulators also evaluate on Trp-cage but learn continuous slow variables, latent dynamics, and a generative decoder to produce novel all-atom trajectories at reported million-fold lower cost. The target is simpler and exactly analyzable, but its one-frame-per-state backmapping cannot match LSS coordinate continuity or out-of-sample generation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1, 2020-07-01"
+    },
+    {
+      "canonical_id": "arxiv:2302.01170",
+      "title": "Timewarp: Transferable Acceleration of Molecular Dynamics by Learning Time-Coarsened Dynamics",
+      "url": "https://arxiv.org/abs/2302.01170",
+      "relationship": "later physics-corrected sampling competitor",
+      "difference": "Timewarp uses a learned normalizing-flow proposal inside MCMC targeting the Boltzmann distribution and tests transfer to unseen small peptides. It targets physically corrected equilibrium sampling and transfer, whereas the target samples its fitted MSM exactly and is designed primarily as a controlled methods testbed.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2, 2023-12-01"
+    },
+    {
+      "canonical_id": "arxiv:2409.17808",
+      "title": "Generative Modeling of Molecular Dynamics Trajectories",
+      "url": "https://arxiv.org/abs/2409.17808",
+      "relationship": "later multi-task trajectory-generation competitor",
+      "difference": "MDGen conditions a generative trajectory model for forward simulation, transition-path sampling, upsampling, and dynamics-conditioned inpainting on peptides. It substantially broadens learned functionality, while the target remains distinctive as a minimal exactly solved oracle for testing analysis and sampling algorithms.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1 / NeurIPS 2024, 2024-09-26"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "A very simple fine-grained MSM, augmented with stratified clustering and atomistic backmapping, can serve as an extremely fast, exactly solvable synthetic-MD platform for developing and validating equilibrium and nonequilibrium sampling methods.",
+    "evidence": "The paper builds a 1,020-state Trp-cage model, generates five long sequences on a laptop, checks stationary populations and two mean first-passage times against the transition-matrix oracle, and demonstrates variable-resolution coordinate backmapping.",
+    "reviewer_inference": "Generative MSMs, latent simulators, and learned long-step dynamics all predate the paper, including a closer continuous Trp-cage simulator. The defensible contribution is therefore benchmark engineering: an unusually transparent, cheaply sampled oracle plus dynamic-resolution backmapping. Claims about physical surrogate quality, short-lag superiority, and nonequilibrium usefulness remain unvalidated."
+  },
+  "confidence": 0.9,
+  "reviewer_notes": "Read all seven indexed pages, including the complete workflow, Trp-cage preprocessing, 1,020-state construction, reversibility choice, throughput, stationary-distribution figure, mean-first-passage results, discussion, and references. The exact PDF/text hashes and page count match fulltext_index.jsonl. Four direct primary competitor records, spanning the cited generative-MSM/latent-simulator antecedents and later transferable or multi-task learned simulators, were checked at current official arXiv versions on 2026-08-23. The audit distinguishes exact consistency with the fitted MSM from unmeasured fidelity to molecular dynamics and flags the absence of the claimed stratified-clustering comparison."
+}

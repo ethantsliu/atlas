@@ -1,0 +1,77 @@
+{
+  "stable_id": "arxiv:2510.04871",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2510.04871",
+    "pdf_sha256": "c2b3ef5a8d6bc68e667aa01e8405dcfd9ebe88cfe1c6e58f04c5a6d652ce7af9",
+    "text_sha256": "855f83ad01c449445f0c6f94629a6a21169d482f4c98e1f0543bccd4bf3ac75d",
+    "page_count": 12,
+    "extracted_at": "2026-08-23T14:56:32.039638+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can the complicated two-timescale Hierarchical Reasoning Model be replaced by a much smaller weight-shared network whose latent state and proposed answer are iteratively refined under deep supervision?",
+  "key_findings": [
+    {
+      "claim": "TRM replaces HRM's two recurrent modules and hierarchy story with one two-layer network that alternates latent-reasoning updates and answer refinement.",
+      "evidence": "Each supervision step performs repeated no-gradient warm-up recursions followed by one fully backpropagated recursion, carries a latent z and answer y across detached supervision steps, and trains an output and halting head.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 5, "section": "4 Tiny Recursion Models and Figure 3"}, {"page": 6, "section": "4.1-4.3"}]
+    },
+    {
+      "claim": "Backpropagating through the full inner recursion is decisive on Sudoku-Extreme and avoids HRM's unsupported fixed-point approximation.",
+      "evidence": "The ablation reports 87.4% exact test accuracy for the full model versus 56.5% with a one-step gradient approximation. The paper separately shows HRM's cited fixed point is not reached at the point where the approximation is applied.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "3.1 Implicit Function Theorem with 1-step gradient approximation"}, {"page": 5, "section": "Table 1"}, {"page": 6, "section": "4.1"}]
+    },
+    {
+      "claim": "On the paper's matched puzzle suite, TRM improves substantially over HRM with fewer parameters.",
+      "evidence": "TRM reports 87.4% versus 55.0% on Sudoku-Extreme; its 7M attention version reports 85.3%, 44.6%, and 7.8% on Maze-Hard, ARC-AGI-1, and ARC-AGI-2 versus HRM's 74.5%, 40.3%, and 5.0% at 27M parameters.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 8, "section": "Tables 4 and 5"}]
+    },
+    {
+      "claim": "The results support a strong small-data puzzle solver, not a general demonstration that tiny recursive networks outperform language models at reasoning.",
+      "evidence": "The four tasks use fixed-grid structured outputs, heavy task-specific augmentations, and direct supervised training. The comparison mixes bespoke per-task models with pretrained frontier systems under different data, attempt, and compute budgets.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 8, "section": "5 Results, datasets, and Tables 4-5"}, {"page": 9, "section": "Conclusion and limitation paragraph"}]
+    },
+    {
+      "claim": "Smaller depth, a single shared network, EMA, and a cheaper halting loss each contribute, while the best token-mixing architecture is task dependent.",
+      "evidence": "Sudoku ablations drop from 87.4% to 82.4% with separate networks, 79.9% without EMA, 79.5% with four layers, 74.7% with self-attention, and 86.1% with HRM-style ACT. The MLP mixer fails on the larger 30x30 contexts where attention is used.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 5, "section": "Table 1"}, {"page": 7, "section": "4.4-4.8"}, {"page": 8, "section": "Results"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Trade parameter depth for repeated weight-shared computation while supervising successive answer refinements.",
+    "mechanism": "A shared two-layer block repeatedly updates latent reasoning z from input x, answer y, and z, then updates y from y and z. Several detached warm-up cycles precede one differentiable cycle; detached y and z seed the next deep-supervision step, and a binary correctness head learns early halting.",
+    "assumptions": ["Tasks admit a fixed-shape tokenized input and output", "Repeated application of one transition operator improves a candidate answer", "Exact-label supervision is available for every task", "Detaching between supervision steps does not remove essential long-horizon credit assignment"]
+  },
+  "techniques": [
+    {"id": "weight-shared-recursion", "role": "Creates large effective compute depth with a two-layer shared transition network."},
+    {"id": "deep-supervision", "role": "Optimizes repeated candidate-answer improvements while truncating the graph between outer steps."},
+    {"id": "detached-warmup", "role": "Runs extra recursive computation without retaining all activations before a differentiable inner loop."},
+    {"id": "correctness-halting-head", "role": "Replaces HRM's two-pass Q-learning ACT loss with a one-pass binary stopping signal."}
+  ],
+  "evaluations": [
+    {"setting": "Sudoku-Extreme, 1,000 train and 423,000 test puzzles", "metric": "exact test accuracy", "result": "TRM reaches 87.4% versus HRM's 55.0%", "baseline": "27M-parameter HRM and targeted architecture/optimization ablations"},
+    {"setting": "Maze-Hard and ARC-AGI-1/2", "metric": "exact task accuracy with two ARC attempts", "result": "7M attention TRM reports 85.3%, 44.6%, and 7.8%", "baseline": "HRM reports 74.5%, 40.3%, and 5.0%; heterogeneous frontier LLM results are also tabulated"}
+  ],
+  "limitations": [
+    "Author-stated: architecture choices are not guaranteed to transfer; the MLP mixer that excels on Sudoku is poor on larger contexts.",
+    "Reviewer inference: all main tasks are small, synthetic or curated grid problems with exact supervision and extensive augmentation.",
+    "Reviewer inference: comparisons to frontier LLMs are not compute-, data-, or adaptation-matched, so parameter-count rhetoric overstates the controlled conclusion.",
+    "The full-recursion gradient raises memory cost and some deeper configurations are reported as out of memory."
+  ],
+  "failure_modes": ["The shared transition may settle into a wrong fixed point or oscillate as test-time recursion increases.", "Deep supervision can favor greedy intermediate answers rather than a depth-agnostic solver.", "Task-specific augmentation may supply much of the invariance attributed to recursive reasoning.", "Noisy or non-verifiable outputs make the correctness-halting target unavailable."],
+  "reusable_insights": ["Ablate grand explanatory stories by reducing them to the smallest transition operator that preserves performance.", "Separate inner computation depth from parameter count through weight sharing.", "A direct correctness head can make adaptive compute cheaper when exact labels exist."],
+  "open_questions": ["Does the transition remain stable and improve after far more test-time steps than seen in training?", "Can the method learn open-ended language or tool-use tasks without exact structured outputs?", "How much of the gain remains under compute- and augmentation-matched nonrecursive baselines?"],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2506.21734", "title": "Hierarchical Reasoning Model", "url": "https://arxiv.org/abs/2506.21734", "relationship": "direct predecessor", "difference": "HRM uses separate high- and low-level recurrent modules, a one-step fixed-point gradient approximation, and two-pass ACT; TRM removes the hierarchy, shares one network, and differentiates through the full inner recursion.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv record checked 2026-08-23"},
+    {"canonical_id": "arxiv:2603.15641", "title": "Form Follows Function: Recursive Stem Model", "url": "https://arxiv.org/abs/2603.15641", "relationship": "subsequent direct competitor", "difference": "RSM keeps a TRM-like recursive stem but applies loss only at the final step with detached warm-up and stochastic outer depth, reporting depth-agnostic test-time scaling and much faster training; it directly challenges TRM's deep-supervision contract.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv record checked 2026-08-23"},
+    {"canonical_id": "arxiv:1910.01345", "title": "Deep Equilibrium Models", "url": "https://arxiv.org/abs/1910.01345", "relationship": "mechanistic prior", "difference": "Deep equilibrium models explicitly solve for a fixed point and use implicit differentiation; TRM performs a finite shared-weight unroll and explicitly rejects relying on equilibrium for its gradient approximation.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv record checked 2026-08-23"}
+  ],
+  "novelty_assessment": {"author_claim": "TRM is a simpler single-network recursive reasoner that substantially improves HRM while using roughly one quarter of its parameters.", "evidence": "Matched puzzle benchmarks and component ablations isolate full inner backpropagation, one shared network, two-layer depth, EMA, and simplified halting.", "reviewer_inference": "The simplification and ablation study are novel and useful, but subsequent RSM work targets the same backbone with a stronger depth-agnostic training contract, and the evidence remains limited to supervised grid tasks."},
+  "confidence": 0.9,
+  "reviewer_notes": "Read against all 12 extracted pages. The Deep Equilibrium Models canonical ID is arxiv:1910.01345 and the primary URL is authoritative; the relationship is conceptual rather than a result match. Primary competitor records were checked on 2026-08-23."
+}

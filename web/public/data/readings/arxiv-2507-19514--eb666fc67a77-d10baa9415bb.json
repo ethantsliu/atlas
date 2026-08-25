@@ -1,0 +1,121 @@
+{
+  "stable_id": "arxiv:2507.19514",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2507.19514",
+    "pdf_sha256": "8dd688ebf74576e5101dd775ebacd231079c6a93485e7cd0226f639eda91bf11",
+    "text_sha256": "743444d8409586bc5144fc0e921d654955deef2ac28c1a1bf59082c664c8d68b",
+    "page_count": 22,
+    "extracted_at": "2026-08-23T16:15:56.762186+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a shallow, explicitly parameterized wavelet pipeline replace learned token mixers and hidden layers while retaining competitive denoising and language-classification performance?",
+  "key_findings": [
+    {
+      "claim": "The proposed pipeline applies several fixed 3D discrete wavelet transforms, learnable soft-threshold/gain/phase operations to their subbands, inverse transforms, and a softmax-weighted mixture of the reconstructions.",
+      "evidence": "Sections 3.1-3.2 define one reconstruction per candidate basis and a convex combination controlled by basis logits. The trainable quantities listed on page 9 are two thresholds, a gain, a phase, and K basis logits, optionally shared or channel-wise.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "Section 3.1, learnable basis selection"},
+        {"page": 5, "section": "Figure 1 and reconstruction mixture"},
+        {"page": 6, "section": "Section 3.2, spectral nonlinearity"},
+        {"page": 9, "section": "Learnable parameters"}
+      ]
+    },
+    {
+      "claim": "The advertised 'without neural networks' boundary is semantic rather than computational: training still uses gradient descent, task loss, a softmax mixture, fixed pretrained embeddings, pooling, and a learned linear classifier.",
+      "evidence": "Figure 1 explicitly says all parameters are trained by end-to-end gradient descent. Section 5 reshapes pretrained token embeddings, pools the reconstruction, and passes it through a lightweight linear classifier. These are learnable differentiable components even if no deep attention/MLP stack is used.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Figure 1 caption"},
+        {"page": 9, "section": "Section 5, experimental setup"}
+      ]
+    },
+    {
+      "claim": "The reported GLUE results are internally inconsistent: the abstract says SST-2 accuracy is 89.3% versus a 90.1% four-layer Transformer, whereas Table 1 reports 90.1% for the wavelet model and 93.5% for BERT-base.",
+      "evidence": "The two numeric accounts appear in the same manuscript without a model variant, split, seed, or revision explanation. Table 1 additionally lists MRPC 84.2 and QNLI 88.5 but supplies no uncertainty or reproducible hyperparameter table.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract"},
+        {"page": 2, "section": "Introduction, contribution summary"},
+        {"page": 10, "section": "Table 1, GLUE results"}
+      ]
+    },
+    {
+      "claim": "The implementation and complexity claims are not demonstrated at the level needed to support the stated speedups.",
+      "evidence": "Section 3.2 says PyWavelets operates on CPU/NumPy while also calling the implementation GPU-compatible. Multiple candidate bases require multiple DWT/IDWT paths. The manuscript reports 3-5x faster epochs and over 70% memory reduction without hardware, batch size, sequence length, profiling protocol, variance, or an executable artifact.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "Section 3.2, implementation details"},
+        {"page": 7, "section": "Dilation and pruning"},
+        {"page": 10, "section": "Efficiency and interpretability"},
+        {"page": 19, "section": "Future work, CPU backend limitation"}
+      ]
+    },
+    {
+      "claim": "The paper does not actually validate logical reasoning or length extrapolation despite the 'Logic Machines' title; its language evidence consists of three standard GLUE classification tasks on reshaped embeddings.",
+      "evidence": "No symbolic, relational, compositional, algorithmic, or out-of-distribution reasoning benchmark appears. The discussion of graph Laplacian wavelets and rule processing is prospective rather than experimentally instantiated.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 9, "section": "Section 5, GLUE protocol"},
+        {"page": 10, "section": "Table 1"},
+        {"page": 17, "section": "Wavelet comparison and proposed extensions"},
+        {"page": 18, "section": "Conclusion"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Use analytic wavelet filter banks as the main computation and learn only sparse, interpretable coefficient transformations plus a mixture over bases.",
+    "mechanism": "Each candidate wavelet decomposes an input; soft thresholding, gain, and cosine phase modulation modify coefficients; inverse DWT reconstructs each path; softmax logits mix paths. An entropy term is intended to concentrate basis weights, and an epoch schedule dilates filters and prunes low-weight bases.",
+    "assumptions": [
+      "Input structure is sparse and task-relevant in one of the candidate wavelet bases.",
+      "Reshaping token embeddings into a 2D/3D volume preserves linguistic locality.",
+      "A small classifier on reconstructed features is sufficient for the reported tasks."
+    ]
+  },
+  "techniques": [
+    {"id": "multi-basis-discrete-wavelet-transform", "role": "Fixed multiscale representation bank."},
+    {"id": "learnable-soft-thresholding", "role": "Sparse nonlinear coefficient processing."},
+    {"id": "soft-basis-selection", "role": "Differentiable mixture over fixed wavelet families."},
+    {"id": "entropy-pruning", "role": "Attempts to concentrate and prune the basis mixture."}
+  ],
+  "evaluations": [
+    {"setting": "SST-2, MRPC, and QNLI from GLUE using reshaped fixed embeddings", "metric": "Accuracy or MRPC F1", "result": "Table 1 reports 90.1, 84.2, and 88.5, respectively, but the SST-2 number conflicts with 89.3 in the abstract.", "baseline": "MLP, CNN, BiLSTM, and BERT-base"},
+    {"setting": "Claimed 3D denoising experiments", "metric": "MSE/qualitative reconstruction", "result": "The architecture and objective are described, but the manuscript does not provide a clearly reproducible quantitative denoising table with datasets, splits, and uncertainty.", "baseline": "Classical thresholding and neural denoisers are discussed but not reported in a complete matched table"}
+  ],
+  "limitations": [
+    "Key accuracy, memory, and speed claims lack a complete reproducible protocol and contain numeric inconsistencies.",
+    "CPU/NumPy wavelet transforms complicate the end-to-end GPU and autograd claims.",
+    "Token-to-volume reshaping is heuristic and not ablated against simpler pooled-embedding classifiers.",
+    "No reasoning benchmark supports the logic-machine framing."
+  ],
+  "failure_modes": [
+    "A candidate bank whose wavelets mismatch the data may reduce to a low-capacity shrinkage model.",
+    "Softmax basis weights can collapse prematurely or remain diffuse depending on the entropy-sign convention.",
+    "Reshaping text can manufacture arbitrary neighborhood and boundary effects.",
+    "Multiple CPU wavelet paths can erase nominal linear-complexity advantages at practical sizes."
+  ],
+  "reusable_insights": [
+    "Fixed transforms plus a small learned nonlinear envelope are a valuable low-capacity baseline against deep token mixers.",
+    "Adaptive basis mixtures should be compared to oracle fixed-basis selection and a parameter-matched linear probe.",
+    "Internal numerical consistency is a necessary precondition before treating benchmark claims as evidence."
+  ],
+  "open_questions": [
+    "Can a GPU-native implementation reproduce the stated results and speedups under a public protocol?",
+    "Does wavelet processing improve algorithmic or compositional length generalization rather than only classification?",
+    "How much performance comes from pretrained embeddings and the final classifier versus spectral processing?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2105.03824", "title": "FNet: Mixing Tokens with Fourier Transforms", "url": "https://arxiv.org/abs/2105.03824", "relationship": "Fixed spectral token mixing for language", "difference": "FNet replaces attention with Fourier mixing but retains feed-forward blocks; the present model claims a wavelet-domain pipeline with far fewer learned transformations.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:2205.02191", "title": "Wavelet neural operator: a neural operator for parametric partial differential equations", "url": "https://arxiv.org/abs/2205.02191", "relationship": "Learned wavelet-domain operator", "difference": "WNO learns nonlinear functional mappings for PDEs with neural layers; Wavelet Logic Machines restricts learning to coefficient modulation and basis mixing and targets denoising/NLP.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:1904.11694", "title": "Neural Logic Machines", "url": "https://arxiv.org/abs/1904.11694", "relationship": "Explicit differentiable logic-reasoning architecture", "difference": "NLM represents predicates, quantifiers, and lifted rules and tests out-of-distribution reasoning; the wavelet paper has no comparable logical representation or reasoning evaluation.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:2106.06981", "title": "Thinking Like Transformers", "url": "https://arxiv.org/abs/2106.06981", "relationship": "Mechanistic and symbolic account of Transformer reasoning", "difference": "RASP specifies executable sequence operations and derives reasoning constructions; the wavelet pipeline offers multiscale filtering without an explicit computational logic.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"}
+  ],
+  "novelty_assessment": {
+    "author_claim": "The work is the first fully spectral 3D learning architecture with adaptive wavelet-basis selection and no conventional neural layers.",
+    "evidence": "It specifies a differentiable mixture of wavelet reconstruction paths with learned coefficient shrinkage and modulation.",
+    "reviewer_inference": "The small learned wavelet mixture is an interesting baseline, but the sweeping neural-network, efficiency, and reasoning claims are not supported by a coherent and reproducible empirical record."
+  },
+  "confidence": 0.95,
+  "reviewer_notes": "Read all 22 extracted pages and explicitly reconciled the abstract, method, GLUE table, complexity discussion, and conclusion. Primary competitor records were checked on arXiv on 2026-08-23."
+}

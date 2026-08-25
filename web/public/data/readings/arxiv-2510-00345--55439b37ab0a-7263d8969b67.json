@@ -1,0 +1,72 @@
+{
+  "stable_id": "arxiv:2510.00345",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2510.00345",
+    "pdf_sha256": "1c11dda47a9ca618a6990c643b3037279bfbb3be00511e1d155530b1e2c683a1",
+    "text_sha256": "7eb2466003bb42e21dd1a2913f0e2e10942438127f86f5dfe19a43fcb6968161",
+    "page_count": 18,
+    "extracted_at": "2026-08-23T15:05:41.619644+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can standard Vision Transformers be trained without any residual connections by conditioning their block Jacobians at initialization, while retaining useful depth-wise representation hierarchy?",
+  "key_findings": [
+    {
+      "claim": "The paper attributes skipless-transformer failure to poor Jacobian conditioning and derives an initialization intended to make the self-attention block diagonally dominant.",
+      "evidence": "The analysis decomposes the block Jacobian into a dominant term and perturbation under a block-incoherence assumption, then chooses query/key/value and MLP scales so the dominant factor has condition number near one. This is a sufficient initialization argument, not a proof of conditioning throughout training.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 3, "section": "4 Network Jacobian Analysis"}, {"page": 5, "section": "5 A New Initialization"}, {"page": 15, "section": "Appendix proof of Jacobian conditioning"}]
+    },
+    {
+      "claim": "Initialization alone recovers much of the supervised ImageNet gap, but optimizer choice remains material.",
+      "evidence": "For ViT-Base, the reported AdamW accuracy rises from 61.4% for the ordinary skipless model to 78.1% with the proposed initialization; combining the initialization with SOAP reaches 80.8%, reported as 0.5 points above the residual ViT-Base baseline. Thus the headline parity is jointly attributable to initialization and a second-order optimizer.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 6, "section": "6.1 Supervised Learning / Table 1"}]
+    },
+    {
+      "claim": "Self-supervised skipless ViTs show stronger dense-prediction results when multiscale features are explicitly aggregated.",
+      "evidence": "DINO-pretrained skipless models underperform residual models on ADE20K with a single-layer probe, but the multiscale probe reverses several comparisons. Object discovery experiments report that a 9-layer skipless model surpasses a 12-layer residual model on both evaluated datasets. These results support different feature stratification, not by themselves greater abstraction.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 7, "section": "6.2.1 Dense Linear Probing"}, {"page": 8, "section": "6.2.2 Object Discovery / Tables 2-4"}]
+    },
+    {
+      "claim": "The empirical scope is Vision Transformers and the central block-incoherence premise is not directly tested.",
+      "evidence": "The discussion explicitly restricts experiments to vision and calls block incoherence a mild assumption that is not verified. No language-model pretraining, autoregressive masking, scale study beyond the reported ViTs, or matched wall-clock analysis isolates architecture from optimizer effects.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 10, "section": "7 Discussion and 8 Conclusion"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Replace the identity path supplied by residual connections with a scale-controlled initialization that makes the ordinary transformer block's Jacobian well conditioned at the start of training.",
+    "mechanism": "Analyze attention and MLP Jacobian factors, choose initialization hyperparameters to establish approximate diagonal dominance, remove all residual additions without changing block operators, and train with AdamW or SOAP in supervised and DINO self-supervised settings.",
+    "assumptions": ["Block Jacobian components are sufficiently incoherent for the perturbation bound to be informative.", "Good conditioning at initialization persists long enough for optimization to enter a trainable regime.", "Vision benchmarks are informative about the claimed hierarchy benefits of removing skips.", "Comparisons across optimizers can be interpreted despite SOAP being essential to the strongest results."]
+  },
+  "techniques": [
+    {"id": "transformer-jacobian-decomposition", "role": "Separates a controllable dominant Jacobian factor from a perturbation."},
+    {"id": "conditioning-aware-initialization", "role": "Scales block parameters to approximate diagonal dominance without changing the architecture."},
+    {"id": "skipless-dino", "role": "Tests residual-free feature learning under self-supervised pretraining."},
+    {"id": "multiscale-linear-probing", "role": "Measures whether representations are distributed across depth rather than concentrated at the final layer."}
+  ],
+  "evaluations": [
+    {"setting": "ViT-Base supervised ImageNet-1k", "metric": "Top-1 validation accuracy", "result": "61.4% skipless with standard initialization, 78.1% with the proposed initialization and AdamW, and 80.8% with the proposed initialization plus SOAP", "baseline": "Residual ViT-Base and conventionally initialized skipless ViT-Base"},
+    {"setting": "DINO ViT-Small dense probing on PASCAL VOC, ADE20K, and COCO", "metric": "Mean intersection over union", "result": "Skipless features benefit strongly from multiscale aggregation but do not uniformly win under a last-layer probe", "baseline": "Residual DINO ViT-Small with matched probing protocols"},
+    {"setting": "Unsupervised object discovery across model depths", "metric": "Discovery accuracy", "result": "A reported 9-layer skipless model exceeds the 12-layer residual comparison on both datasets", "baseline": "Residual ViTs and deeper skipless variants"}
+  ],
+  "limitations": ["Author-stated: experiments cover Vision Transformers only.", "Author-stated: block incoherence is assumed but not explicitly verified.", "Reviewer-identified: strongest parity depends on SOAP, so initialization-only and optimizer effects are not cleanly separated.", "Reviewer-identified: qualitative PCA and attention maps do not establish semantic hierarchy causally.", "Reviewer-identified: no language, generative, long-context, or substantially larger-scale experiment tests generality."],
+  "failure_modes": ["Jacobian factors become coherent, invalidating the perturbative conditioning argument.", "Conditioning deteriorates rapidly after initialization.", "AdamW remains unable to optimize the residual-free model at useful depth.", "Removing skips discards reusable low-level information on tasks needing cross-scale fusion.", "Multiscale probing supplies the very shortcut that the backbone intentionally removes."],
+  "reusable_insights": ["Treat residual connections as an optimization intervention whose effect can be tested through singular-value diagnostics.", "Report initialization and optimizer contributions factorially when both are required.", "Use layerwise and multiscale probes to distinguish nominal from functionally used depth.", "Verify the probabilistic assumptions behind Jacobian approximations on trained checkpoints."],
+  "open_questions": ["Does the initialization train residual-free language models under causal masking at competitive token budgets?", "How does Jacobian conditioning evolve over training and scale with depth?", "Can an Adam-family first-order method close the remaining optimization gap?", "Do skipless hierarchies improve transfer after controlling probe capacity and compute?", "Which tasks are harmed because useful early features cannot bypass later transformations?"],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2302.10322", "title": "Deep Transformers without Shortcuts: Modifying Self-attention for Faithful Signal Propagation", "url": "https://arxiv.org/abs/2302.10322", "relationship": "closest prior skipless-transformer method", "difference": "He et al. modify attention, rescaling, and bias structure to preserve kernels and train vanilla language transformers, reaching standard performance after about five times more iterations. This paper keeps the standard ViT block and instead changes initialization, but relies on SOAP for its strongest speed and accuracy claims.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "current arXiv record checked 2026-08-23"},
+    {"canonical_id": "arxiv:2110.01765", "title": "Rapid training of deep neural networks without skip connections or normalization layers using Deep Kernel Shaping", "url": "https://arxiv.org/abs/2110.01765", "relationship": "conditioning precursor", "difference": "Deep Kernel Shaping engineers signal propagation in non-transformer vanilla networks. The present work adapts conditioning logic to attention Jacobians and ViTs rather than introducing shortcut-free training as a general goal.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "current arXiv record checked 2026-08-23"},
+    {"canonical_id": "arxiv:1706.00388", "title": "DiracNets: Training Very Deep Neural Networks Without Skip-Connections", "url": "https://arxiv.org/abs/1706.00388", "relationship": "earlier residual-free architecture", "difference": "DiracNets parameterize convolutional transformations near identity to train deep networks without explicit skips. The current method targets transformer attention and claims hierarchy benefits, while retaining ordinary block operators after a special initialization.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "current arXiv record checked 2026-08-23"},
+    {"canonical_id": "arxiv:2404.10947", "title": "Residual Connections Harm Generative Representation Learning", "url": "https://arxiv.org/abs/2404.10947", "relationship": "representation-motivation predecessor", "difference": "Zhang et al. argue empirically that residual paths can impair generative representation learning. This paper supplies a Jacobian-conditioned residual-free training recipe and dense vision tests, but does not test generative learning directly.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "current arXiv record checked 2026-08-23"}
+  ],
+  "novelty_assessment": {
+    "author_claim": "A principled initialization is the first architecture-preserving method to train fully skipless standard Vision Transformers efficiently, producing richer hierarchical representations.",
+    "evidence": "The paper derives a Jacobian-conditioning prescription, reports a large ImageNet recovery, and evaluates supervised and DINO-pretrained ViTs on classification, dense probing, discovery, and qualitative representations.",
+    "reviewer_inference": "Residual-free deep networks and even skipless transformers predate this work. The defensible contribution is an architecture-preserving attention/MLP initialization plus a Vision-Transformer evaluation. Claims of optimizer-independent efficiency and intrinsically richer hierarchy remain stronger than the controlled evidence."
+  },
+  "confidence": 0.9,
+  "reviewer_notes": "Read all 18 extracted pages, including the Jacobian derivation, three experimental subsections, discussion, proof appendix, tables, and figure captions. Four primary arXiv competitors were rechecked on 2026-08-23. Quantitative claims are author-reported; no code execution or independent wall-clock reproduction was performed."
+}

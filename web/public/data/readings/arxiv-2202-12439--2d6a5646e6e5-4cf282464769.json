@@ -1,0 +1,205 @@
+{
+  "stable_id": "arxiv:2202.12439",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2202.12439",
+    "pdf_sha256": "abb52399eeb879a2931c52fa25019ee5700af218a2fa4002bd4c43a3cca766e6",
+    "text_sha256": "911aafdca2937f906a552a025bbfec064a0028c16e45709a2d96e34b1894a839",
+    "page_count": 17,
+    "extracted_at": "2026-08-23T21:20:18.840344+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a shallow neural network learn how much affine invariance its weights should encode directly from training data by optimizing a variational lower bound on marginal likelihood, rather than choosing augmentations with validation data?",
+  "key_findings": [
+    {
+      "claim": "Averaging a network over input transformations can be moved into its first-layer weights, yielding a differentiable soft-invariant model whose affine transformation ranges are learned parameters.",
+      "evidence": "Associativity gives W1(Tx)=(W1T)x, so the paper transforms and resamples first-layer filters rather than every input. A sample transformation is the matrix exponential of a uniform-noise-weighted sum of six fixed Lie generators for two translations, rotation, two scales, and shear; each learned eta controls the corresponding range from no invariance toward a larger transformation orbit.",
+      "anchors": [
+        {"page": 2, "section": "3 On invariant modelling / Equation 1"},
+        {"page": 3, "section": "3.2-3.3 Invariance in the weights and affine Lie-group reparameterization"},
+        {"page": 17, "section": "Appendix E: Lie group generators"}
+      ]
+    },
+    {
+      "claim": "In the paper's fully rotated MNIST test, variational marginal-likelihood training learns rotational invariance whereas a point-estimate cross-entropy objective does not.",
+      "evidence": "The controlled comparison replaces the Gaussian variational posterior and KL term with a point estimate and ordinary cross entropy. Figure 5 reports that this point-estimate model remains unable to recover the rotation range, while the variational-inference model does; the authors interpret the difference as the marginal likelihood rewarding a simpler invariant model even when invariance does not improve training fit.",
+      "anchors": [
+        {"page": 5, "section": "3.6-3.7 Lower bound and variational inference"},
+        {"page": 6, "section": "4.1 On the necessity of a Bayesian approach / Figure 5"}
+      ]
+    },
+    {
+      "claim": "For one-dimensional rotation sweeps on three MNIST variants, the fixed range with the best ELBO generally tracks the expected invariance and test accuracy, and gradient-learned ranges match or exceed that sweep.",
+      "evidence": "With 1,024 random Fourier features, the learned model reaches 91.72% on fully rotated, 92.34% on partially rotated, and 96.40% on regular MNIST, with ELBOs -0.43, -0.42, and -0.26. These equal the best fixed-range ELBOs in the table and slightly exceed their best accuracies. ReLU appendix runs reach roughly 97-98% and are mostly robust to five initial ranges, although the 175-degree initialization is a noted exception on partially rotated data.",
+      "anchors": [
+        {"page": 6, "section": "4.2 Identifying invariance with ELBO / Table 1"},
+        {"page": 7, "section": "4.3 Recovering invariance from initial conditions"},
+        {"page": 14, "section": "Appendix C.2 ReLU initialization sweep"}
+      ]
+    },
+    {
+      "claim": "Learned affine weight transformations improve accuracy on matching synthetic MNIST and CIFAR-10 variants, but a composite-transformation appendix contradicts a broad claim that the final ELBO reliably ranks the better invariant model.",
+      "evidence": "On MNIST, the affine model scores 98.14%, 97.66%, 98.31%, and 98.93% on rotated, translated, scaled, and regular variants versus 90.35%, 89.34%, 96.61%, and 98.10% for the MLP. On CIFAR-10 it scores 46.12%, 45.77%, 48.81%, and 55.44% versus 41.24%, 40.75%, 46.56%, and 54.49%. Yet Table 8 says the regular MLP unexpectedly has the best final ELBO on datasets composed from two transformations even though invariant models have much higher accuracy, and the authors note that ELBO ranking changed over optimization.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "4.5 Other transformations / Table 2"},
+        {"page": 8, "section": "Table 3 and discussion"},
+        {"page": 15, "section": "Appendix C.4 / Table 8 composite transformations"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Treat the extent of affine invariance as a low-dimensional model hyperparameter and learn it through Bayesian model selection, while implementing the transformation average as a bank of transformed first-layer weights.",
+    "mechanism": "The predictor averages a shallow RFF or ReLU network across S transformations drawn from a learnable compact distribution. Each transformation is exp(sum_i epsilon_i eta_i G_i), with epsilon uniform on [-1,1] and fixed affine generators. For images, first-layer filters are bilinearly grid-sampled and lightly blurred. The method places a class-block-diagonal Gaussian variational posterior on the final-layer weights, uses a point estimate for learned first-layer ReLU weights, applies Jensen's inequality through the transformation expectation, and jointly optimizes the resulting mini-batch ELBO over network and invariance parameters. Experiments use L=1 weight sample, S=32 transformation samples, batch size 128, Adam at 0.001 with cosine decay, and 1,024 hidden features.",
+    "assumptions": [
+      "The useful invariance lies in the supplied six-generator affine basis and can be represented by independent transformation ranges around the identity.",
+      "Transformations are label preserving across the learned range; this is not guaranteed for semantic rotations such as six versus nine.",
+      "A variational posterior over only the last layer, plus a point estimate for the first layer, leaves a sufficiently tight marginal-likelihood lower bound.",
+      "Monte Carlo averages with 32 transformation samples provide stable gradients for the low-dimensional affine parameterization.",
+      "Bilinear resampling and Gaussian blurring of discrete filters are close enough to the exact weight-space/input-space equivalence.",
+      "Synthetic transformations of MNIST and CIFAR-10 are informative about learning invariance in less curated real tasks.",
+      "The final ELBO is an adequate model-selection score even though the appendix shows a ranking failure for composite transformations."
+    ]
+  },
+  "techniques": [
+    {"id": "weight-space-orbit-averaging", "role": "Moves transformation averaging from examples into a reusable bank of transformed first-layer weights."},
+    {"id": "affine-lie-reparameterization", "role": "Makes rotation, translation, scale, and shear ranges differentiable through fixed Lie generators and a matrix exponential."},
+    {"id": "stochastic-transformation-integration", "role": "Approximates the soft-invariant predictor with 32 Monte Carlo transformation samples rather than exponentially large deterministic grids."},
+    {"id": "last-layer-variational-posterior", "role": "Integrates final-layer uncertainty with one Gaussian sample while optimizing first-layer weights as point estimates."},
+    {"id": "jensen-marginal-likelihood-bound", "role": "Creates a mini-batch-trainable ELBO whose complexity term is intended to identify useful invariance without validation data."},
+    {"id": "fixed-versus-learned-invariance-sweep", "role": "Checks whether ELBO ranking and a directly learned range agree across known synthetic rotation extents."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Fully rotated MNIST with the same shallow architecture trained by point-estimate cross entropy or variational inference",
+      "metric": "Learned rotational-invariance extent over optimization",
+      "result": "The variational model recovers near-full rotation while the point-estimate model does not learn the invariance.",
+      "baseline": "Ordinary maximum-likelihood/cross-entropy training without the Gaussian posterior or KL term"
+    },
+    {
+      "setting": "Fully rotated, partially rotated, and regular MNIST with 1,024 RFF features",
+      "metric": "Test accuracy and ELBO across five fixed rotation ranges and one learned range",
+      "result": "Learned rotation obtains 91.72%/-0.43, 92.34%/-0.42, and 96.40%/-0.26, matching the best fixed ELBO and slightly exceeding the best fixed accuracy for each dataset.",
+      "baseline": "Fixed ranges of 5, 45, 90, 135, and 175 degrees"
+    },
+    {
+      "setting": "Rotation learning from five initial ranges in RFF and ReLU networks",
+      "metric": "Converged range, ELBO, and accuracy",
+      "result": "Most starts converge toward dataset-appropriate ranges; a 175-degree start on partially rotated MNIST is the stated exception, while ReLU runs generally reach about 97-98%.",
+      "baseline": "Sensitivity to initialization rather than a separate model"
+    },
+    {
+      "setting": "Rotated, translated, scaled, and regular MNIST with a shallow ReLU network",
+      "metric": "Test accuracy",
+      "result": "The learned affine model records 98.14%, 97.66%, 98.31%, and 98.93%, improving over the non-invariant MLP's 90.35%, 89.34%, 96.61%, and 98.10%.",
+      "baseline": "Non-invariant MLP, SGPR, and single-transformation invariant models"
+    },
+    {
+      "setting": "Rotated, translated, scaled, and regular CIFAR-10 with a shallow ReLU network",
+      "metric": "Test accuracy",
+      "result": "The learned affine model records 46.12%, 45.77%, 48.81%, and 55.44%, versus 41.24%, 40.75%, 46.56%, and 54.49% for the MLP; a specialized scale model is slightly better on scaled data.",
+      "baseline": "Non-invariant MLP and specialized rotation, translation, or scale models"
+    },
+    {
+      "setting": "MNIST datasets augmented by pairs of rotation, translation, and scale transformations",
+      "metric": "Final test accuracy and ELBO",
+      "result": "Invariant models substantially improve accuracy, but the regular MLP has the best final ELBO in all three composite settings, contradicting simple final-ELBO model selection.",
+      "baseline": "Regular MLP versus single and full-affine invariant ReLU models"
+    }
+  ],
+  "limitations": [
+    "The experiments use only a one-hidden-layer RFF or ReLU network; the authors explicitly leave open whether the variational bound remains tight in deeper architectures.",
+    "Uncertainty covers only the final-layer weights while learned first-layer weights are point estimates, so the ELBO is not a faithful neural-network marginal likelihood.",
+    "The objective stacks a variational approximation with a Jensen bound through transformation averaging, but the paper does not measure either bound's tightness.",
+    "The method learns ranges over a hand-selected affine generator basis rather than discovering unknown generators, discrete symmetries, non-affine transformations, or multimodal transformation distributions.",
+    "All headline tasks are synthetically transformed MNIST or CIFAR-10 variants whose construction exactly matches the candidate transformation family.",
+    "The paper reports no multi-seed uncertainty, confidence intervals, statistical tests, or resource-normalized compute comparison for the 32-fold transformation average.",
+    "Deterministic quadrature grows exponentially with the number of transformations, and the authors acknowledge that higher-dimensional stochastic invariance may need stronger methods or priors.",
+    "The appendix's composite-transformation result breaks the claimed correspondence between best final ELBO and best invariant model.",
+    "Appendix D states that every MNIST or CIFAR-10-derived dataset has 60,000 training examples, which is inconsistent with standard CIFAR-10's 50,000-example training split and leaves the exact CIFAR protocol ambiguous."
+  ],
+  "failure_modes": [
+    "A supplied transformation changes the label, so optimizing a broad range erases discriminative structure rather than improving generalization.",
+    "The correct symmetry is non-affine or outside the six fixed generators, causing the learned eta values to approximate it with artifacts or remain misleadingly small.",
+    "Bilinear filter interpolation and blur cease to approximate the corresponding input transformation, especially for large rotations, scaling, or high-frequency features.",
+    "The last-layer variational approximation ranks invariances incorrectly as feature learning becomes deeper or more coupled, as anticipated by contemporaneous CIFAR-10 failure results.",
+    "A high-invariance initialization creates a poor local optimum, as observed for partially rotated MNIST from 175 degrees.",
+    "Monte Carlo variance or transformation cost grows rapidly when many generators are active, making eta gradients unstable or prohibitively expensive.",
+    "The learned compact range is called a group invariance even though a partial interval of transformations is generally not closed under composition and provides only soft insensitivity.",
+    "Final ELBO selects the regular MLP on composite transformations despite large accuracy gains from invariant models, so an ELBO-only deployment rule rejects the useful model.",
+    "Approximate marginal likelihood depends on posterior, prior, and transformation parameterization even though the discussion extrapolates parameterization independence from exact Bayesian evidence."
+  ],
+  "reusable_insights": [
+    "When an input transformation is linear, look for an algebraically equivalent weight transformation that can turn data augmentation into a reusable architectural operation.",
+    "Separate learning the type of symmetry from learning its extent; fixed generators plus learned ranges are a useful intermediate design when unconstrained discovery is too hard.",
+    "Validate a model-selection score both by fixed hyperparameter sweeps and direct gradient learning, then include composite and out-of-family transformations as falsification tests.",
+    "Compare the marginal-likelihood objective to an identical point-estimate training objective to isolate whether the complexity term actually drives structural selection.",
+    "Measure bound tightness and ranking stability over optimization before treating an approximate ELBO as validation-free evidence.",
+    "Report label-preservation audits, compute per transformation sample, and sensitivity to Monte Carlo count whenever learned augmentation is interpreted as invariance.",
+    "Treat soft transformation ranges as distributions over perturbations, not automatically as exact group invariance."
+  ],
+  "open_questions": [
+    "Can a full-network posterior or scalable Laplace/NTK approximation preserve reliable invariance selection in deep convolutional and Transformer models?",
+    "How can the transformation generators themselves be discovered without assuming an affine basis, while preventing degenerate symmetries?",
+    "What bound-tightness diagnostic predicts the composite-transformation ELBO ranking failure before test labels are inspected?",
+    "Can learned transformation distributions become multimodal, discrete, input conditional, or non-affine without exponential integration cost?",
+    "How should label preservation be tested when a transformation is valid for some classes or examples but not others?",
+    "Does weight-space transformation remain beneficial relative to input augmentation when interpolation artifacts and hardware cost are fully matched?",
+    "What evidence would show that invariance learned on small synthetic transforms scales to natural distribution shifts rather than only fitting the benchmark generator?",
+    "Can a method jointly learn useful equivariance in intermediate representations and invariance only at the output?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1808.05563",
+      "title": "Learning Invariances using the Marginal Likelihood",
+      "url": "https://arxiv.org/abs/1808.05563",
+      "relationship": "Gaussian-process predecessor",
+      "difference": "Van der Wilk et al. learn a sampled invariance procedure by maximizing tractable Gaussian-process marginal likelihood. The reviewed paper explicitly translates this principle to shallow neural-network weights with a variational lower bound, but loses the GP setting's comparatively direct evidence calculation."
+    },
+    {
+      "canonical_id": "arxiv:2010.11882",
+      "title": "Learning Invariances in Neural Networks",
+      "url": "https://arxiv.org/abs/2010.11882",
+      "relationship": "direct augmentation competitor",
+      "difference": "Benton et al.'s Augerino learns distributions over input augmentations jointly with network weights using training loss and an explicit regularizer across image, regression, segmentation, and molecular tasks. The reviewed method instead transforms weights and uses approximate marginal likelihood as its complexity preference, but evaluates much narrower shallow image models."
+    },
+    {
+      "canonical_id": "pmlr:v151:schwobel22a",
+      "title": "Last Layer Marginal Likelihood for Invariance Learning",
+      "url": "https://proceedings.mlr.press/v151/schwobel22a.html",
+      "relationship": "closest contemporaneous marginal-likelihood method",
+      "difference": "Schwobel et al. also use last-layer marginal likelihood and a new lower bound, reporting partial success in low-data and medical settings but an explicit CIFAR-10 failure where the approximation is insufficient. That result is a direct caution against extrapolating the reviewed paper's shallow synthetic-CIFAR evidence to deeper feature learners."
+    },
+    {
+      "canonical_id": "neurips:2021:148148d62be67e0916a833931bd32b26",
+      "title": "Automatic Symmetry Discovery with Lie Algebra Convolutional Network",
+      "url": "https://proceedings.neurips.cc/paper/2021/hash/148148d62be67e0916a833931bd32b26-Abstract.html",
+      "relationship": "generator-discovery alternative",
+      "difference": "L-conv learns a Lie-algebra basis and builds continuous-group-equivariant layers without discretizing the group. The reviewed paper learns only coefficients over six known affine generators and averages outputs for invariance, making it simpler but much less open-ended as symmetry discovery."
+    },
+    {
+      "canonical_id": "neurips:2022:a120382cf4e2e06d94d7ae7ac96fbe25",
+      "title": "LieGG: Studying Learned Lie Group Generators",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2022/hash/a120382cf4e2e06d94d7ae7ac96fbe25-Abstract-Conference.html",
+      "relationship": "post-hoc symmetry-discovery alternative",
+      "difference": "LieGG extracts infinitesimal generators of symmetries a trained network already learned and shows their quality depends on depth and parameter count. It can reveal generators rather than selecting ranges from a preset basis, while the reviewed method integrates selection into training and directly modifies the predictor."
+    },
+    {
+      "canonical_id": "pmlr:v202:immer23b",
+      "title": "Stochastic Marginal Likelihood Gradients using Neural Tangent Kernels",
+      "url": "https://proceedings.mlr.press/v202/immer23b.html",
+      "relationship": "scalable marginal-likelihood successor",
+      "difference": "Immer et al. derive stochastic lower bounds to linearized-Laplace marginal likelihood using neural tangent kernels, allowing hyperparameter gradients to trade estimation accuracy against computational cost. This addresses the scalability of evidence optimization more generally, whereas the reviewed method relies on a shallow last-layer variational construction specialized to invariance ranges."
+    },
+    {
+      "canonical_id": "neurips:2024:cd04ec5aebfbe397c7fd718c35d02e0b",
+      "title": "Symmetry Discovery Beyond Affine Transformations",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2024/hash/cd04ec5aebfbe397c7fd718c35d02e0b-Abstract-Conference.html",
+      "relationship": "broader modern symmetry-discovery method",
+      "difference": "Shaw et al. estimate vector-field generators on data manifolds and demonstrate continuous symmetry discovery beyond the affine group, as well as discrete symmetry. It targets the transformation-family blind spot left by the reviewed fixed affine basis, though it is not a Bayesian weight-space model-selection method."
+    }
+  ],
+  "novelty_assessment": "The paper's credible novelty is a weight-space realization of learned soft invariance for shallow neural networks, coupled to a mini-batch variational marginal-likelihood lower bound so affine ranges can be selected without a held-out validation set. The marginal-likelihood principle itself comes directly from prior Gaussian-process work; differentiable transformation distributions are shared with Augerino; and contemporaneous last-layer evidence work is extremely close. The strongest unique evidence is therefore the algebraic weight-transformation implementation plus its shallow RFF/ReLU demonstration, not general automatic symmetry discovery. Because the candidate generators are fixed, experiments are synthetically matched to that basis, the composite-transform appendix breaks final-ELBO ranking, and later methods discover non-affine generators, claims of broad or parameterization-independent invariance learning should remain narrow.",
+  "confidence": 0.94,
+  "reviewer_notes": "Read all 17 extracted pages, including derivations, exact hyperparameters, RFF and ReLU sweeps, composite-transformation Table 8, dataset definitions, and affine-generator appendix. Quantitative claims are transcribed from Tables 1-3 and 8. The composite ELBO mismatch and the CIFAR-10 training-count inconsistency are recorded as audits rather than smoothed over. Seven primary arXiv, PMLR, and NeurIPS records spanning marginal-likelihood predecessors, direct competitors, scalable successors, and generator-discovery alternatives were checked on 2026-08-23."
+}

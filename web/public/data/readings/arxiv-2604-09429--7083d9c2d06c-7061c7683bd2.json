@@ -1,0 +1,463 @@
+{
+  "stable_id": "arxiv:2604.09429",
+  "reading_depth": "verified",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2604.09429",
+    "pdf_sha256": "47174af777f5f51c772b9892a2c057c0b7e27485d2aa079ae5b6e0015717a784",
+    "text_sha256": "8a95b0cc4f0adea5fb54b87816917d1c8cd2c64e96307264063adef062f5da2e",
+    "page_count": 14,
+    "extracted_at": "2026-08-23T09:55:27.483250+00:00",
+    "review_pass": "secondary-verified-v1"
+  },
+  "question": "Can camera trajectories be encoded as image-like ray tensors and jointly denoised with video latents in one pretrained video flow model, so that the same learned system supports pose inference, camera-conditioned video, and joint view/trajectory generation?",
+  "key_findings": [
+    {
+      "claim": "Rays as Pixels turns a camera into a three-channel raxel image and jointly flow-matches raxel and video latents, yielding two usable conditionals from one modeling objective.",
+      "evidence": "Each pixel ray has canonical-world direction d=R K⁻¹u/||K⁻¹u|| and origin o=T; the paper stores d+o on an H/2×W/2 grid, passes it through the frozen video VAE, concatenates ray and visual latents, and learns the joint velocity of x=[z,r] with MSE plus cosine direction loss λ=.5. At inference, fixing r while denoising z gives camera-conditioned video; fixing video observations while denoising r gives pose inference.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "3.1 Preliminaries and 3.2 Representing Rays as Pixels, Equations 1-2"},
+        {"page": 5, "section": "3.3 Joint Denoising via Flow Matching, Equations 3-4"},
+        {"page": 9, "section": "5 Conclusion"}
+      ]
+    },
+    {
+      "claim": "The raxel design is RGB-compatible but deliberately lossy: d+o conflates ray origin and direction before a 4× temporally compressive VAE, so camera recovery depends on bundle-level structure and a numerical fitting stage.",
+      "evidence": "Unlike six-channel [o,d] raymaps or Plücker coordinates, a single raxel vector does not separately identify o and d. The model decodes an entire ray bundle, aligns it to a reference bundle by Orthogonal Procrustes to recover extrinsics, and estimates focal lengths with median coordinate/direction ratios while assuming the principal point is centered. Equation 6 additionally treats target and reference bundles as rigidly congruent even though a focal or intrinsics change alters the local direction grid; the paper neither states a shared-intrinsics condition nor evaluates focal recovery. VAE error, nearly degenerate bundles, small denominators, or varying intrinsics can therefore propagate into pose.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "Table 1 and 3.2 Raxel Image Construction"},
+        {"page": 6, "section": "3.5 From Raxels to Camera Parameters, Equations 6-7"},
+        {"page": 9, "section": "4.4 Limitations"}
+      ]
+    },
+    {
+      "claim": "The asserted pixelwise latent alignment is dimensionally underspecified: half-resolution raxel images passed through the same fixed-stride VAE should not automatically share the full-resolution video's latent grid.",
+      "evidence": "Section 3.2 defines raxels on H/2 by W/2 to reduce tokens, then says the shared VAE produces ray latents that spatially align with video latents from H by W frames and that identical RoPE positions pair the modalities. No resizing, upsampling, alternate VAE stride, patch projection, or cross-resolution position map is described. Without one, the grids and token counts differ by a factor of four spatially, leaving a core implementation step missing.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Figure 2—shared latent-space overview"},
+        {"page": 4, "section": "3.2 Raxel Image Construction and shared VAE encoding"},
+        {"page": 6, "section": "3.4 spatial RoPE alignment"}
+      ]
+    },
+    {
+      "claim": "The model architecture and parameter count are described incompatibly in the main text and appendix.",
+      "evidence": "Section 4 says every transformer block gains a dedicated ray branch with independent layer norms, feed-forward networks, and linear embeddings initialized from video layers, adding 6B parameters to Wan 2.1 14B for a 20B model. Appendix B says the method introduces no second branch or stream, keeps one shared network, decouples only attention, and preserves parameter count and pretrained weights. Both descriptions cannot be true as written.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "4 Experiments—Architecture Design"},
+        {"page": 14, "section": "Appendix B Decoupled Self-Cross Attention"}
+      ]
+    },
+    {
+      "claim": "The probabilistic interpretation of DSCA is a heuristic analogy, not a derived factorization of the learned density across attention sublayers.",
+      "evidence": "Equation 5 correctly states two chain-rule factorizations of log p(z,r), but labels self-attention as the marginal terms and cross-attention as the conditional terms. In the actual residual transformer, self-attention, cross-attention, feed-forward layers, and repeated blocks jointly determine one velocity field; no loss decomposition, conditional-independence result, likelihood estimate, or intervention shows that a sublayer learns the labeled probability factor.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "3.4 Probabilistic Interpretation / Equation 5"}
+      ]
+    },
+    {
+      "claim": "The appendix claims joint training on unposed dynamic video that the main method, experimental setup, and limitations neither specify nor evaluate.",
+      "evidence": "Appendix C states 'we therefore mix' posed static videos with unposed dynamic videos and disable ray loss for the latter. Section 4 names only posed Re10K and DL3DV, whose poses come from ORB-SLAM and COLMAP; Section 4.4 says training data consist of static scenes and warns about dynamic objects. No dynamic dataset, sampling ratio, objective weight, training result, or ablation is disclosed, making the appendix either an undocumented experiment or an unevaluated capability written as completed methodology.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Training Datasets and Strategies"},
+        {"page": 9, "section": "4.4 Limitations"},
+        {"page": 14, "section": "Appendix C Joint Training with Videos without Camera Annotations"}
+      ]
+    },
+    {
+      "claim": "The headline evaluations do not all come from one identical trained model because camera-controlled generation uses a separate pose-normalization variant.",
+      "evidence": "Metric-scale training globally aligns scenes and supports the pose/cycle experiments, but Section 4.3 explicitly evaluates camera-controlled generation with a variant trained on per-scene normalized trajectories because ground-truth scales are ambiguous. Appendix A describes these as different normalization regimes. Therefore the claim that a single model handles all three tasks is demonstrated at the architecture/objective level, not by one checkpoint across Tables 2-4.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Training Datasets and Strategies"},
+        {"page": 9, "section": "4.3 Camera-Controlled Video Generation"},
+        {"page": 14, "section": "Appendix A Normalizing the Dataset"}
+      ]
+    },
+    {
+      "claim": "Cycle consistency supports compatibility between the learned forward and inverse mappings but cannot prove that the model learned a calibrated joint density, and the assertion that no conditional-only model can pass is logically too strong.",
+      "evidence": "The test samples r′~p(r|z) and then z′~p(z|r′,Is), measuring pose error and FID/FVD. Two separately trained complementary conditionals could round-trip, and a coupled pair can agree while being biased or mode collapsed. Conversely, samples from a valid stochastic joint need not reconstruct the original z. Thus good round-trip scores are evidence of operational self-consistency, not an identifying test of joint-density learning.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "4.1 Self-Consistency and Ablation Study—Cycle Setup"},
+        {"page": 8, "section": "Table 2"},
+        {"page": 9, "section": "5 Conclusion"}
+      ]
+    },
+    {
+      "claim": "The full model has strong cycle scores and every listed component ablation worsens them, but the large raxel-versus-Plücker gap is confounded by unequal encoders and temporal handling.",
+      "evidence": "On raw DL3DV at 12 FPS with three source images, Table 2 gives full model FID 7.33, FVD 68.17, Rerr .020, Terr .018; no DSCA 8.69/77.08/.048/.052; no cosine 9.48/97.84/.058/.094; Plücker 21.97/333.56/.241/.430. Because six-channel Plücker tensors cannot use the pretrained VAE, that row instead uses a direct MLP and linear temporal interpolation. The comparison changes representation, pretrained encoding prior, and temporal compression together, so it does not isolate d+o raxels as the causal advantage.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Figure 6, Ablation Study, and Table 2"}
+      ]
+    },
+    {
+      "claim": "Metric-scale training is called a primary load-bearing choice without a corresponding quantitative ablation.",
+      "evidence": "The ablation table removes DSCA, cosine loss, or changes ray representation, but contains no per-scene-normalized versus globally metric-scaled row. The text nevertheless identifies metric-scale training alongside raxels as primary. Table 4 then uses the per-scene-normalized variant, further preventing the available comparisons from isolating the claimed scale benefit.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "4.1 Ablation Study—Results and Table 2"},
+        {"page": 9, "section": "4.3 Camera-Controlled Video Generation"},
+        {"page": 14, "section": "Appendix A Normalizing the Dataset"}
+      ]
+    },
+    {
+      "claim": "As a pose estimator the generative model is competitive but loses to VGGT on every benchmark, and additional denoising steps slightly hurt rather than help.",
+      "evidence": "Table 3 mRRA@30×100 at 1/2/5/20 steps is 95.39/95.91/95.08/94.78 on Re10K versus VGGT 98.07; 82.78/88.37/87.30/85.90 on DL3DV-140 versus 91.86; and 92.34/93.51/93.43/93.01 on Tanks and Temples versus 97.70. The best is always two steps, after which performance degrades, consistent with fast ray convergence but also negative evidence against iterative refinement.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "4.2 Camera Pose Estimation—Experimental Setup"},
+        {"page": 9, "section": "Table 3 and pose-estimation Results"}
+      ]
+    },
+    {
+      "claim": "Pose evaluation omits translation accuracy even though translation is central to the proposed representation and cycle study.",
+      "evidence": "The paper reports only mRRA@30 for 975 quality-filtered Re10K clips, all 299 DL3DV-140 clips, and all 211 Tanks and Temples clips. It declines relative translation accuracy because ground truth and VGGT are scale ambiguous and angular translation is unstable near the reference frame. That caveat is legitimate, but no scale-aligned translation, camera-center, or trajectory-shape metric replaces it, leaving half of SE(3) untested in the standalone pose benchmark.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "4.2 Camera Pose Estimation—Experimental Setup"},
+        {"page": 9, "section": "Table 3"}
+      ]
+    },
+    {
+      "claim": "Camera-controlled generation wins FID and FVD on all three datasets but is not the best at following the requested trajectory, exposing a quality-versus-control trade-off.",
+      "evidence": "On Re10K, Ours has FID/FVD 15.76/98.72 and Rerr/Terr .056/.115, while Wonderland adheres better at .046/.093. On DL3DV, Ours is 9.73/102.52 and .098/.192, while Kaleido is .011/.026. On Tanks and Temples, Ours is 13.02/187.03 and .105/.192, while Kaleido is .016/.086. The conclusion emphasizes visual-quality wins but does not foreground the substantially worse camera control on the two harder sets.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "4.3 Camera-Controlled Video Generation and Table 4"}
+      ]
+    },
+    {
+      "claim": "The method removes a pose estimator at inference but inherits the biases and failures of classical pose pipelines through supervision.",
+      "evidence": "Re10K camera labels are reconstructed by ORB-SLAM and DL3DV labels by COLMAP, then scenes are aligned to a common metric scale. Training therefore depends on clips for which these pipelines succeed and on their coordinate, scale, dynamic-scene, and filtering choices. The paper does not evaluate sensitivity to pose noise or failed/misaligned labels.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 7, "section": "Training Datasets and Strategies"},
+        {"page": 8, "section": "4.2 benchmark construction"}
+      ]
+    },
+    {
+      "claim": "The three claimed generation/inference modes are unevenly evaluated: pose, camera-conditioned video, and a cycle are quantitative, while free joint video-and-trajectory generation lacks a standalone quantitative test.",
+      "evidence": "The methodology claims pose from video, video from rays, and joint generation from source images. Tables 2-4 cover round-trip consistency, pose inference, and controlled video. Figure 3 offers qualitative novel-view samples where the model also predicts cameras, but there is no distributional, geometric, or diversity benchmark for jointly sampled (z,r) pairs and no comparison to a unified photogrammetry model.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Figure 2 and contributions"},
+        {"page": 5, "section": "3.3 Joint Denoising via Flow Matching"},
+        {"page": 7, "section": "4.1 Self-Consistency"},
+        {"page": 9, "section": "Tables 3-4 and 5 Conclusion"}
+      ]
+    },
+    {
+      "claim": "The authors' main scope limitation—static scenes with smooth camera paths—is severe for the joint camera/video claim and is not repaired by the undocumented dynamic-data appendix.",
+      "evidence": "Section 4.4 warns that rapid camera motion and dynamic objects may not generalize and that 4× VAE temporal compression loses temporal resolution. No experiment combines independent object motion with camera motion, uses rapid handheld trajectories, or evaluates rolling shutter and blur. Appendix C describes unposed dynamic mixing but provides no evidence that it occurred or helped.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 9, "section": "4.4 Limitations"},
+        {"page": 14, "section": "Appendix C"}
+      ]
+    },
+    {
+      "claim": "Core reproducibility and efficiency information is absent for a 20B-parameter fine-tune.",
+      "evidence": "The paper gives input resolution 480×832, time reversal, datasets, λ=.5, and sampling-step sweeps, but not training batch size, number of updates/epochs, optimizer, learning-rate schedule, hardware, wall-clock/compute, precision, checkpoint selection, dataset sampling ratios, Ns/Nt/N, or random seeds. Table 4 also lacks generated-sample counts and uncertainty. These omissions prevent cost assessment and exact reproduction.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "3.1 Preliminaries and Notations"},
+        {"page": 5, "section": "3.3 Training Objective"},
+        {"page": 7, "section": "4 Experiments—Architecture and Training"},
+        {"page": 9, "section": "Tables 3-4"}
+      ]
+    },
+    {
+      "claim": "The visual-quality metrics do not establish conditional fidelity or geometric correctness of the generated content.",
+      "evidence": "FID and FVD compare feature distributions and temporal statistics; Rerr/Terr are obtained by a separate VGGT validator. The paper reports no per-prompt/source reconstruction metric, perceptual correspondence, occlusion/geometry measure, human preference study, diversity/calibration, or confidence interval. A model can score well by generating plausible videos while changing scene identity or compensating with a different camera path.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 7, "section": "4.1 Cycle Setup"},
+        {"page": 9, "section": "4.3 Camera-Controlled Video Generation and Table 4"}
+      ]
+    },
+    {
+      "claim": "Global metric-scale normalization may use evaluation-set extrema and is underspecified enough to create leakage or brittle scaling.",
+      "evidence": "Appendix A says one factor is computed over the 'entire dataset' so all metric raxels lie in [−1,1]. It does not state that this factor is fit on training scenes only, how outliers are handled, or what happens when a new trajectory exceeds the range. If test scenes contribute to the factor, this is distribution-level leakage; if they do not, clipping/extrapolation behavior is missing.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 14, "section": "Appendix A Normalizing the Dataset"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Map cameras into the pretrained video model's own image/latent interface so camera rays become a generative modality rather than fixed external conditioning, then train a rectified-flow transformer on the joint video-ray distribution.",
+    "mechanism": "A random source frame defines canonical coordinates. For every frame, a half-resolution raxel tensor stores d+o for each camera ray; the same frozen spatiotemporal VAE encodes RGB and raxels, with shared RoPE and a modality embedding. Wan 2.1 T2V is fine-tuned to predict straight-line flow velocities for concatenated video and ray latents with MSE plus a .5-weight cosine term. Decoupled self-cross attention applies separate intramodal attention followed by symmetric z←r and r←z cross-attention. Sampling schedules clamp either modality to obtain p(z|r) or p(r|z). Decoded ray bundles are registered to a reference by Orthogonal Procrustes for extrinsics, and centered focal lengths are recovered by robust median ratios.",
+    "assumptions": [
+      "The vector sum d+o retains enough bundle-level camera information despite not identifying direction and origin per pixel.",
+      "A frozen RGB video VAE gives a useful prior for numerical ray maps after range normalization.",
+      "Half-resolution raxel inputs can be mapped to positions aligned with full-resolution video latents despite no disclosed resizing or cross-resolution operation.",
+      "Fourfold temporal compression preserves the trajectory detail needed for rapid or non-smooth cameras.",
+      "Canonicalizing to a random source frame removes arbitrary world frames without creating discontinuities or ambiguity.",
+      "ORB-SLAM and COLMAP poses are sufficiently accurate and representative for supervision.",
+      "Global metric alignment across scenes is correct and computed without test leakage.",
+      "Separate self-attention and symmetric cross-attention correspond meaningfully to marginal and conditional probability factors.",
+      "Cycle consistency distinguishes joint modeling from conditional modeling and correlates with calibrated joint samples.",
+      "A centered principal point and median-of-ratios focal estimator hold across benchmarks.",
+      "Orthogonal Procrustes remains stable after lossy VAE decoding and under limited camera baseline.",
+      "Reference and target ray bundles are sufficiently congruent for rigid Procrustes alignment even when focal length is recovered only afterward.",
+      "FID/FVD plus VGGT-recovered trajectory errors measure both visual realism and intended-camera fidelity.",
+      "A checkpoint trained on static, smoothly moving cameras generalizes to the intended video domain.",
+      "A per-scene-normalized checkpoint and a metric-scale checkpoint jointly substantiate a 'single model' claim.",
+      "Fine-tuning all 20B parameters is computationally practical and necessary relative to smaller adapters.",
+      "The fixed but undisclosed N+Ns+Nt token budget does not materially affect comparisons."
+    ]
+  },
+  "techniques": [
+    {"id": "raxel-image", "role": "Compresses each camera's world-space ray direction and origin into an RGB-compatible d+o tensor."},
+    {"id": "random-reference-canonicalization", "role": "Expresses all camera poses relative to a randomly selected source frame."},
+    {"id": "shared-video-vae", "role": "Encodes both RGB frames and ray images with the frozen pretrained Wan video latent interface."},
+    {"id": "joint-rectified-flow", "role": "Learns a velocity field for concatenated video and camera latents so either modality can be clamped."},
+    {"id": "cosine-velocity-loss", "role": "Adds a λ=.5 direction-only term to flow-matching MSE."},
+    {"id": "decoupled-self-cross-attention", "role": "Separates intramodal self-attention and symmetric cross-modal exchange while attempting to preserve spatial RoPE alignment."},
+    {"id": "asymmetric-inference-schedule", "role": "Uses few denoising steps for fast-converging rays and condition-specific clamping."},
+    {"id": "orthogonal-procrustes-pose-recovery", "role": "Fits decoded ray bundles to the reference bundle to extract SE(3) extrinsics."},
+    {"id": "median-ratio-focal-recovery", "role": "Estimates centered fx and fy robustly from decoded local ray directions."},
+    {"id": "metric-scale-alignment", "role": "Aligns independently reconstructed Re10K/DL3DV trajectories to a shared scale before global raxel normalization."},
+    {"id": "per-scene-raxel-normalization", "role": "Provides the separate scale-ambiguous checkpoint used for camera-controlled generation."},
+    {"id": "time-reversal-augmentation", "role": "Pairs each static scene with forward and reversed trajectories to weaken scene-path correlations."},
+    {"id": "cycle-self-consistency", "role": "Measures a video→camera→video round trip with pose error and FID/FVD."}
+  ],
+  "evaluations": [
+    {
+      "setting": "DL3DV raw videos sampled uniformly at 12 FPS, three source images, video→predicted-camera→regenerated-video cycle.",
+      "metric": "FID, FVD, rotation error Rerr, and translation error Terr; lower is better.",
+      "result": "Full: 7.33, 68.17, .020, .018. Without DSCA: 8.69, 77.08, .048, .052. Without cosine: 9.48, 97.84, .058, .094. Plücker: 21.97, 333.56, .241, .430.",
+      "baseline": "Component ablations of DSCA and cosine loss plus a confounded six-channel Plücker/MLP/temporal-interpolation variant."
+    },
+    {
+      "setting": "Camera-pose inference on 975 quality-filtered Re10K clips, all 299 DL3DV-140 clips, and all 211 Tanks and Temples clips.",
+      "metric": "mRRA@30×100 at 1, 2, 5, and 20 flow steps; translation is not reported.",
+      "result": "Re10K 95.39/95.91/95.08/94.78; DL3DV-140 82.78/88.37/87.30/85.90; T&T 92.34/93.51/93.43/93.01. Two steps are best on every set.",
+      "baseline": "VGGT reaches 98.07, 91.86, and 97.70, respectively, exceeding the proposed model on all three."
+    },
+    {
+      "setting": "Camera-controlled generation on Re10K using the per-scene-normalized checkpoint.",
+      "metric": "FID, FVD, VGGT-validated Rerr, and Terr.",
+      "result": "Ours 15.76/98.72/.056/.115, best FID/FVD; Wonderland has best adherence .046/.093. Kaleido is 18.04/103.03/.049/.181 and VD3D 21.40/187.55/.053/.126.",
+      "baseline": "MotionCtrl, VD3D, ViewCrafter, Wonderland, and Kaleido."
+    },
+    {
+      "setting": "Camera-controlled generation on DL3DV-140 using the per-scene-normalized checkpoint.",
+      "metric": "FID, FVD, VGGT-validated Rerr, and Terr.",
+      "result": "Ours 9.73/102.52/.098/.192, best FID/FVD; Kaleido has far better adherence .011/.026 despite FID/FVD 41.18/458.60. Wonderland is 17.74/169.34/.061/.130.",
+      "baseline": "MotionCtrl, VD3D, ViewCrafter, Wonderland, and Kaleido."
+    },
+    {
+      "setting": "Camera-controlled generation on Tanks and Temples using the per-scene-normalized checkpoint.",
+      "metric": "FID, FVD, VGGT-validated Rerr, and Terr.",
+      "result": "Ours 13.02/187.03/.105/.192, best FID/FVD; Kaleido has best adherence .016/.086 and FID/FVD 14.84/245.09. Wonderland is 19.46/189.32/.094/.172.",
+      "baseline": "MotionCtrl, VD3D, ViewCrafter, Wonderland, and Kaleido."
+    },
+    {
+      "setting": "Qualitative novel-view generation from one DL3DV source image and qualitative prescribed Arc Left/Arc Right trajectories.",
+      "metric": "Selected visual comparisons for structural fidelity, lighting consistency, reflections, and trajectory plausibility.",
+      "result": "Figures 3 and 5 show coherent scenes and view-dependent effects, with the paper favoring its samples over Kaleido, but no blinded selection protocol, source-fidelity score, or uncertainty is supplied.",
+      "baseline": "Kaleido in Figure 3 and ground-truth frames; no quantitative joint-generation baseline."
+    },
+    {
+      "setting": "Reported architecture/data controls.",
+      "metric": "Parameter count, preprocessing, supervision, and disclosed optimization configuration.",
+      "result": "Wan 2.1 T2V 14B plus a stated 6B ray branch for 20B total; all parameters fine-tuned; Re10K+DL3DV at 480×832 with center crop and time reversal; λ=.5. Batch, optimizer, learning rate, steps/epochs, compute, seeds, N/Ns/Nt, sampling ratios, and the half-resolution-raxel alignment operation are absent, and Appendix B contradicts the parameter addition.",
+      "baseline": "Pretrained Wan 2.1 T2V initialization; no frozen-backbone, adapter-only, or size/compute ablation."
+    }
+  ],
+  "limitations": [
+    "Author-stated: training scenes are static with smooth camera trajectories, so rapid motion and dynamic objects may not generalize.",
+    "Author-stated: 4× temporal VAE compression loses temporal information.",
+    "Main text and Appendix B contradict each other about a 6B dedicated ray branch and whether parameter count is preserved.",
+    "Appendix C claims unposed dynamic-video training that is absent from the named datasets, experimental details, ablations, and main limitation statement.",
+    "Camera-controlled results use a different per-scene-normalized variant from the metric-scale pose/cycle model.",
+    "The broad joint-distribution claim is not identified by cycle consistency and lacks a standalone joint-sampling benchmark.",
+    "The Plücker ablation changes encoder and temporal processing together with representation.",
+    "No quantitative ablation supports the claim that metric scale is a primary load-bearing design choice.",
+    "VGGT beats pose mRRA on every dataset, and no standalone translation metric is reported.",
+    "The model wins FID/FVD but loses trajectory adherence to another method on every camera-control dataset.",
+    "FID/FVD and VGGT trajectory estimates do not directly measure source/content identity, conditional fidelity, diversity, or human preference.",
+    "Training labels inherit ORB-SLAM/COLMAP failures and selection bias; pose-noise sensitivity is untested.",
+    "The d+o representation is not per-pixel invertible into separate origin and direction.",
+    "The paper gives no operation that reconciles H/2 by W/2 raxel inputs with H by W video inputs while claiming spatially aligned shared-VAE latents and identical RoPE positions.",
+    "Pose extraction assumes stable VAE-decoded bundles, centered principal point, and robust median ratios; focal/intrinsics accuracy is not evaluated.",
+    "Rigid Procrustes alignment assumes target and reference raxel bundles have the same shape under SE(3), which need not hold when intrinsics vary; focal length is estimated only after pose recovery.",
+    "Equation 5's assignment of marginals to self-attention and conditionals to cross-attention is not implied by the probability chain rule or validated empirically.",
+    "The global metric normalization says it uses the entire dataset and does not clarify train-only fitting or out-of-range handling.",
+    "Twenty-billion-parameter fine-tuning is costly, but training/inference compute and efficiency comparisons are absent.",
+    "Training batch, optimizer, learning rate, schedule, updates, hardware, precision, checkpoint rule, random seeds, and N/Ns/Nt are missing.",
+    "No sample counts, confidence intervals, multi-seed variation, or statistical tests accompany FID/FVD and trajectory comparisons.",
+    "Re10K pose evaluation uses 975 quality-filtered clips without defining the filter or reporting excluded cases.",
+    "The segmentation-as-RGB-compatible-modality and embodied-perception extrapolations are speculative and unevaluated."
+  ],
+  "failure_modes": [
+    "Decoded d+o raxels can fit a plausible bundle while yielding biased or unstable extrinsics/focal lengths.",
+    "Small camera baselines or nearly parallel bundles can make Procrustes/focal recovery ill-conditioned.",
+    "Median focal ratios become unstable when decoded x or y direction components approach zero.",
+    "Per-scene normalization removes absolute scale, while global normalization can be dominated by outliers or overflow on novel trajectories.",
+    "VAE temporal compression can smear abrupt camera motion and cause the observed degradation after additional ray denoising steps.",
+    "Static-scene supervision can confuse independent object motion with camera motion.",
+    "Cycle training/evaluation can reward mutually consistent biases or mode collapse.",
+    "A visually plausible video can ignore or soften the requested camera path, as the Table 4 adherence trade-off indicates.",
+    "Pose-label noise from ORB-SLAM/COLMAP can be learned as camera-distribution structure.",
+    "Shared positional encodings can leak modality artifacts; Appendix B says DSCA artifacts are worse under per-scene normalization.",
+    "The camera prior may overfit smooth real-estate trajectories and fail on wide-baseline, handheld, rolling-shutter, or dynamic footage.",
+    "An RGB VAE trained for appearance may quantize numerical ray fields nonuniformly and introduce geometry-dependent error.",
+    "A missing or incorrect cross-resolution mapping can pair ray and video tokens at different physical pixels despite shared RoPE coordinates.",
+    "Varying focal length or principal point changes the ray-bundle shape and can bias a rigid Procrustes pose fit before intrinsics are recovered.",
+    "Separate metric-scale and normalized checkpoints can diverge in capability despite a common architecture.",
+    "FID/FVD can improve through distributional realism even when source-scene identity or geometric correspondence deteriorates."
+  ],
+  "reusable_insights": [
+    "Re-encoding a structured modality into a pretrained model's native tensor shape can reuse powerful compression and spatial priors, but representation compatibility should be disentangled from representation content in ablations.",
+    "For two-way generative models, clamp either modality during sampling but evaluate joint samples, both conditionals, calibration, and cycle consistency separately.",
+    "Ablate encoders and representations factorially; otherwise a six-channel baseline denied the pretrained VAE does not isolate the value of a three-channel encoding.",
+    "Treat cycle consistency as an operational compatibility diagnostic, not proof of a joint likelihood or correct semantics.",
+    "Report visual quality and control adherence as a Pareto trade-off rather than collapsing one into an overall win.",
+    "If scale regimes require different checkpoints, state checkpoint scope explicitly and avoid presenting aggregate tables as one-model evidence.",
+    "Validate learned dense camera representations before and after VAE encoding, including Jacobians, reconstruction error, pose-fitting conditioning, and intrinsics recovery.",
+    "When modalities enter a shared VAE at different resolutions, disclose and ablate the exact resampling or token-position map before claiming pixelwise alignment.",
+    "Fast-converging modalities may benefit from modality-specific solvers or stopping times; more joint denoising can degrade already-correct structured latents.",
+    "Train-only global normalization with percentile/clipping policies is safer and more reproducible than an entire-dataset extrema rule.",
+    "Pose supervision from SfM/SLAM should include noise injection and failure-stratified evaluation to distinguish inherited labels from learned robustness."
+  ],
+  "open_questions": [
+    "Which architecture description is implemented: a 6B ray branch or parameter-preserving attention decoupling?",
+    "How are H/2 by W/2 raxel tensors mapped to the H by W video's latent grid and shared RoPE coordinates after the same VAE?",
+    "Was any unposed dynamic dataset actually mixed during training, and if so which data, ratio, schedule, and effect?",
+    "Can one checkpoint operate under both metric and scale-ambiguous settings, perhaps with an explicit scale latent?",
+    "How does raxel d+o compare with a six-channel raymap when both receive equally pretrained or equally trained encoders and temporal processing?",
+    "What information is lost by d+o and by the video VAE, measured as ray, pose, and focal reconstruction error before generative training?",
+    "Does a separately trained p(r|z)/p(z|r) pair pass the proposed cycle test, confirming that it is not specific to joint-density learning?",
+    "How calibrated and diverse are free joint samples (z,r), and do sampled camera paths remain physically plausible?",
+    "Can translation be evaluated after similarity alignment or with scale-invariant trajectory-shape metrics?",
+    "Why do more than two ray-flow steps reduce pose accuracy, and can a modality-specific time schedule prevent it?",
+    "Do FID/FVD wins persist under matched trajectory-adherence thresholds or human judgments of source identity and control?",
+    "How robust are Procrustes and median focal recovery to VAE noise, short baselines, varying principal points, and rolling shutter?",
+    "Is global normalization fit on training data only, and what happens for rays outside its extrema?",
+    "How much of performance comes from 20B-parameter capacity versus the joint objective, VAE reuse, and DSCA?",
+    "Can dynamic camera/object motion be separated without camera labels, rather than simply disabling the ray loss?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2502.07685",
+      "title": "Matrix3D: Large Photogrammetry Model All-in-One",
+      "url": "https://arxiv.org/abs/2502.07685v2",
+      "relationship": "closest unified pose-and-view-generation antecedent",
+      "difference": "Matrix3D already uses one multimodal diffusion transformer and mask learning for pose estimation, depth prediction, and novel-view synthesis from incomplete modality pairs, then can produce 3D Gaussian splats. Rays as Pixels narrows to video and cameras, removes explicit depth/3DGS, and contributes an RGB-compatible ray latent plus two-way video flow; therefore the broad 'unified pose and generation' novelty is preceded, while direct video-trajectory joint modeling remains distinctive.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2025-03-21"
+    },
+    {
+      "canonical_id": "arxiv:2402.14817",
+      "title": "Cameras as Rays: Pose Estimation via Ray Diffusion",
+      "url": "https://arxiv.org/abs/2402.14817v3",
+      "relationship": "direct ray-bundle pose-diffusion antecedent",
+      "difference": "Cameras as Rays represents cameras as distributed ray bundles and diffuses them for uncertainty-aware sparse-view pose estimation. Rays as Pixels adopts the same camera-as-rays premise but compresses origin and direction into three-channel d+o images, routes them through a pretrained video VAE, and adds camera-conditioned video synthesis; it is broader in task but less directly geometry-specialized.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, 2024-04-04"
+    },
+    {
+      "canonical_id": "arxiv:2505.05473",
+      "title": "DiffusionSfM: Predicting Structure and Motion via Ray Origin and Endpoint Diffusion",
+      "url": "https://arxiv.org/abs/2505.05473v1",
+      "relationship": "current ray-field structure-and-motion competitor",
+      "difference": "DiffusionSfM denoises pixelwise ray origins and endpoints in a global frame to infer both scene structure and camera poses, explicitly modeling missing data and unbounded coordinates. Rays as Pixels discards explicit endpoints/depth and instead models d+o jointly with appearance video, enabling synthesis but relying on VAE decoding and Procrustes for geometry.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2025-05-08"
+    },
+    {
+      "canonical_id": "arxiv:2312.03641",
+      "title": "MotionCtrl: A Unified and Flexible Motion Controller for Video Generation",
+      "url": "https://arxiv.org/abs/2312.03641v2",
+      "relationship": "camera-conditioned video-generation baseline and antecedent",
+      "difference": "MotionCtrl injects known camera trajectories and separately controls camera and object motion in a video generator. Rays as Pixels makes cameras a denoised output as well as a condition and can infer poses, but its training/evaluation is static-scene dominated and does not demonstrate MotionCtrl's explicit object/camera-motion separation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2024-07-16"
+    },
+    {
+      "canonical_id": "arxiv:2407.12781",
+      "title": "VD3D: Taming Large Video Diffusion Transformers for 3D Camera Control",
+      "url": "https://arxiv.org/abs/2407.12781v3",
+      "relationship": "direct transformer camera-control competitor",
+      "difference": "VD3D adapts a large video diffusion transformer with ControlNet-like spatiotemporal Plücker conditioning for known-camera generation. Rays as Pixels replaces fixed six-channel conditioning with a generated three-channel VAE modality and supports reverse pose inference, but Table 4 shows better FID/FVD at generally weaker trajectory adherence and its Plücker ablation is encoder-confounded.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, 2025-03-22"
+    },
+    {
+      "canonical_id": "arxiv:2412.12091",
+      "title": "Wonderland: Navigating 3D Scenes from a Single Image",
+      "url": "https://arxiv.org/abs/2412.12091v2",
+      "relationship": "task-and-evaluation camera-path generation competitor",
+      "difference": "Wonderland uses a camera-controlled video diffusion latent to feed forward-predict 3D Gaussian scenes from one image, targeting navigable 3D reconstruction with known paths. Rays as Pixels has no explicit 3D representation and can also generate cameras; it wins reported FID/FVD but Wonderland follows Re10K trajectories more accurately in Table 4.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2025-04-26"
+    },
+    {
+      "canonical_id": "arxiv:2510.04236",
+      "title": "Scaling Sequence-to-Sequence Generative Neural Rendering",
+      "url": "https://arxiv.org/abs/2510.04236v3",
+      "relationship": "closest current sequence-to-sequence neural-rendering competitor",
+      "difference": "Kaleido unifies 3D and video in a decoder-only rectified-flow transformer and renders arbitrary known 6-DoF target views from arbitrary reference views without explicit 3D. Rays as Pixels additionally samples/infer cameras and uses VAE-compatible raxels; Kaleido provides much tighter DL3DV/T&T trajectory adherence in Table 4, while Rays reports better FID/FVD.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, 2026-05-03 (ICLR 2026)"
+    },
+    {
+      "canonical_id": "arxiv:2503.11651",
+      "title": "VGGT: Visual Geometry Grounded Transformer",
+      "url": "https://arxiv.org/abs/2503.11651v1",
+      "relationship": "pose-estimation baseline and geometric counterpoint",
+      "difference": "VGGT directly predicts camera parameters, depth, point maps, and tracks from one to hundreds of views in under a second and is specialized for visual geometry. Rays as Pixels generates appearance and cameras without explicit 3D, but VGGT beats its mRRA on all three pose sets and is also used as the external validator for its generated trajectories.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2025-03-14"
+    },
+    {
+      "canonical_id": "arxiv:2605.06051",
+      "title": "RealCam: Real-Time Novel-View Video Generation with Interactive Camera Control",
+      "url": "https://arxiv.org/abs/2605.06051v1",
+      "relationship": "Subsequent interactive camera-control competitor",
+      "difference": "RealCam distills a camera-controlled video-to-video teacher into a few-step causal streaming model and explicitly treats latency, variable length, and loop closure. It postdates Rays as Pixels and assumes a requested camera trajectory rather than generating or inferring cameras, but raises a stronger efficiency and interactive-control bar absent from the 20B joint model's evaluation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2026-05-07"
+    },
+    {
+      "canonical_id": "arxiv:2605.06667",
+      "title": "ActCam: Zero-Shot Joint Camera and 3D Motion Control for Video Generation",
+      "url": "https://arxiv.org/abs/2605.06667v1",
+      "relationship": "Subsequent joint motion-and-camera-control comparator",
+      "difference": "ActCam provides training-free per-frame intrinsic/extrinsic camera control together with transferred character motion and evaluates camera adherence and human preference. It does not infer camera trajectories or learn a video-camera joint distribution, but directly addresses dynamic content and control fidelity where Rays as Pixels is static-scene dominated and trails dedicated baselines.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2026-05-07"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims the first single video diffusion model to learn a joint distribution of videos and camera trajectories, enabled by RGB-compatible raxels, shared VAE encoding, and decoupled self-cross attention, so one model can estimate poses, jointly generate video and cameras, and generate video from cameras.",
+    "evidence": "The concrete raxel construction d+o, reuse of a frozen spatiotemporal RGB VAE, modality-specific self-attention with symmetric cross-attention, and conditional clamping inside a Wan-based flow model form a distinctive engineering combination. Full-model cycle scores beat its stated ablations, FID/FVD lead camera-control tables, and pose estimates are competitive. However, Matrix3D already unifies pose and view synthesis, ray-bundle diffusion predates the work, and camera-controlled video transformers and sequence-to-sequence neural renderers are established; subsequent RealCam and ActCam further raise the efficiency, interactivity, dynamic-motion, and adherence bar without duplicating joint camera inference.",
+    "reviewer_inference": "The defensible novelty is the narrower interface: treating dense camera rays as an RGB-compatible denoised video modality so one flow objective exposes both video→camera and camera→video operations without explicit 3D. The evidence does not establish a calibrated joint density, one checkpoint across all headline tasks, or superiority in camera control. Architecture and data contradictions, the undisclosed half-resolution alignment operation, heuristic attention-probability mapping, intrinsics-sensitive pose fit, a confounded key ablation, absent joint-sample quantification, and weaker trajectory adherence materially weaken the broad first/single-model framing."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Independent secondary verification re-read all 14 pages of the exact pinned arXiv:2604.09429v4 PDF, revised 2026-05-29, and independently matched its 47174af777f5f51c772b9892a2c057c0b7e27485d2aa079ae5b6e0015717a784 SHA-256 byte-for-byte to the versioned endpoint. The pass inspected the rendered Figure 2 pipeline, raxel equations and Table 1, DSCA diagram and Equation 5, Procrustes/focal equations, all qualitative figures, Tables 2-4, references, and all of Appendices A-C. Numerical values and negative results were re-transcribed: VGGT wins all pose sets, more than two ray steps degrade, and dedicated baselines follow trajectories better despite the method's FID/FVD wins. Repairs add the previously missed half-resolution latent-grid mismatch, the heuristic DSCA probability factorization, and the intrinsics-sensitive Procrustes assumption. Ten exact-version primary competitors, including subsequent RealCam and ActCam, were checked at official arXiv records on 2026-08-23. Confidence remains below 1 because architecture, dynamic-data use, cross-resolution mapping, training configuration, sample counts, and intrinsics evaluation are unresolved in the paper.",
+  "verification": {
+    "reviewer_id": "reviewer-724da79fc600",
+    "checked_at": "2026-08-23",
+    "passage_check": "Independently checked all 14 pages and every existing finding, anchor, evaluation, novelty split, limitation, and negative result against the pinned PDF; visually re-read Figures 2-6 and Tables 1-4 and re-transcribed all metrics. Confirmed the 6B-branch versus parameter-preserving Appendix-B contradiction, the unposed-dynamic-data versus static-only setup contradiction, separate normalization checkpoints, cycle-identification overclaim, Plucker encoder confound, VGGT and adherence losses, and added three missed implementation/theory gaps: half-resolution latent alignment, DSCA probability-factor attribution, and intrinsics-sensitive Procrustes recovery.",
+    "competitor_check": "Re-ran camera-as-rays, joint pose/view generation, camera-controlled video, sequence-to-sequence rendering, pose-estimation baseline, and post-April-2026 camera-control searches using official arXiv records only. Confirmed ten unique primary competitors with current exact versions and revision dates; retained eight direct antecedents/baselines and added subsequent arXiv:2605.06051v1 RealCam and arXiv:2605.06667v1 ActCam to cover current interactive, efficient, and dynamic-control competition."
+  }
+}

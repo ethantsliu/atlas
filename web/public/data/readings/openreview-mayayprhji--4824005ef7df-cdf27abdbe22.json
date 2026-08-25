@@ -1,0 +1,230 @@
+{
+  "stable_id": "openreview:mayAyPrhJI",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2304.08612",
+    "pdf_sha256": "18690439e3983adc348032956e7ead42d2d4955f0a62471b88ccac7e9e6ef83c",
+    "text_sha256": "27677126413618cbc3571950b57e10aa2f70c23ad3fb6f9fa0fa9dec7e9ca201",
+    "page_count": 21,
+    "extracted_at": "2026-08-24T00:37:35.008456+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can the biased straight-through gradient for a categorical latent variable be interpreted as a numerical quadrature approximation and upgraded from a one-endpoint to a two-endpoint rule without extra model evaluations or Hessians?",
+  "key_findings": [
+    {
+      "claim": "For a single softmax-categorical variable, the expected straight-through estimator exactly equals the paper's forward-Euler-style approximation to the true discrete gradient.",
+      "evidence": "Writing the exact gradient as a double sum of pi_j [f(I_i)-f(I_j)] d pi_i/d theta, Definition 3.1 replaces each finite difference by the directional derivative at I_j. Theorem 3.1 then algebraically shows E[ST] equals that expression. This is an identity about the expected surrogate estimator, not an unbiasedness result for the true gradient.",
+      "anchors": [
+        {"page": 3, "section": "2 and Equations (2)-(5)"},
+        {"page": 4, "section": "3.1, Definition 3.1, and Theorem 3.1"},
+        {"page": 13, "section": "Appendix A"}
+      ]
+    },
+    {
+      "claim": "ReinMax replaces the one-endpoint directional derivative by the trapezoidal average of endpoint derivatives, and its expectation exactly equals this Heun-style approximation.",
+      "evidence": "Definition 3.2 approximates f(I_i)-f(I_j) with one half the sum of gradients at I_i and I_j dotted with I_i-I_j. The stochastic construction combines an ST-like Jacobian at the midpoint distribution with minus one-half ST. Theorem 3.2 proves its expectation equals the resulting double sum, and Algorithm 2 implements the altered backward Jacobian with stop-gradient operations.",
+      "anchors": [
+        {"page": 4, "section": "3.2 and Definition 3.2"},
+        {"page": 5, "section": "Equation (7) and Theorem 3.2"},
+        {"page": 13, "section": "Appendix B"},
+        {"page": 2, "section": "Algorithm 2"}
+      ]
+    },
+    {
+      "claim": "The claimed first- versus second-order terminology is formal quadrature order, not a controlled error guarantee for categorical vertices.",
+      "evidence": "Appendix E derives Euler and Heun truncation orders for an interval with a small step, but the categorical path from I_j to I_i has fixed length and the paper gives no bound on third derivatives or on aggregate gradient error. Moreover, the true discrete objective depends only on f at one-hot vertices, whereas ST and ReinMax depend on derivatives of an arbitrary continuous extension between and at those vertices. Thus two extensions with identical discrete objectives can produce different estimators.",
+      "anchors": [
+        {"page": 4, "section": "3.1-3.2"},
+        {"page": 15, "section": "Appendix E"}
+      ]
+    },
+    {
+      "claim": "The theory recommends no temperature relaxation for accuracy, while the deployed estimator deliberately adds temperature smoothing for stability and thereby departs from the theorem.",
+      "evidence": "Theorems 3.1 and 3.2 use pi=softmax(theta). Section 5 says temperature cannot reduce ST/ReinMax approximation bias in the STGS sense and that tau at least one is instead used to smooth the approximation at the cost of accuracy. Empirical heatmaps find ST and ReinMax prefer tau >=1 while STGS, GST, and GR-MCK prefer tau <=1, but no error theorem covers the tempered ReinMax update.",
+      "anchors": [
+        {"page": 6, "section": "5"},
+        {"page": 10, "section": "6.6"},
+        {"page": 16, "section": "Appendix F.2"}
+      ]
+    },
+    {
+      "claim": "Across the paper's polynomial, VAE, and ListOps settings, ReinMax generally improves the displayed training objective and often gradient cosine similarity at near-ST cost.",
+      "evidence": "It reaches near-optimal polynomial objectives faster, has the best average training negative ELBO across six categorical MNIST-VAE configurations, improves validation/test ListOps accuracy to 67.65/68.07 versus roughly 66-67 for the listed alternatives, and gives higher cosine similarity to an exactly enumerated gradient in the small 4-by-8 latent setting. Reported epoch time is essentially the same as ST/STGS/GST and below high-sample GR-MCK.",
+      "anchors": [
+        {"page": 7, "section": "6.1-6.2 and Tables 1-2"},
+        {"page": 8, "section": "6.3, Figure 4, and Table 3"},
+        {"page": 10, "section": "6.6"}
+      ]
+    },
+    {
+      "claim": "The architecture-search experiment shows an association with better results but is not a clean one-variable drop-in comparison.",
+      "evidence": "Replacing STGS in GDAS with ReinMax improves the displayed NATS-Bench validation/test averages on CIFAR-10, CIFAR-100, and ImageNet-16-120. However, the appendix also removes GDAS's temperature schedule and increases weight decay from 0.001 to 0.09, so the estimator, annealing, and regularization all change together.",
+      "anchors": [
+        {"page": 8, "section": "Table 4"},
+        {"page": 9, "section": "6.4"},
+        {"page": 17, "section": "Differentiable Neural Architecture Search"}
+      ]
+    },
+    {
+      "claim": "The paper correctly exposes a bias-variance tradeoff rather than claiming universal dominance over unbiased score-function estimators.",
+      "evidence": "Section 6.5 reports that REINFORCE-style methods can converge better on simpler cases, while ReinMax performs better with smaller batches, more latent variables, or more complex problems. The authors attribute this to biased use of the full derivative vector versus unbiased but noisy scalar-function information, and acknowledge slower ReinMax convergence in some simple scenarios.",
+      "anchors": [
+        {"page": 9, "section": "6.5"},
+        {"page": 10, "section": "6.5 continuation"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "View discrete-gradient estimation as approximating pairwise finite differences of the downstream function, then use endpoint-gradient trapezoidal quadrature instead of the one-endpoint straight-through rule.",
+    "mechanism": "The exact softmax-categorical gradient is rewritten using pairwise differences among one-hot outcomes. ST replaces each difference by a first-order directional derivative at one endpoint. ReinMax symmetrizes it using gradients at both endpoints, corresponding to Heun/trapezoidal integration along the line segment joining categories. A sampled one-hot D and carefully constructed stop-gradient softmax expressions make the expectation equal to the symmetrized formula while requiring an ordinary backward pass. Temperature greater than or equal to one can be introduced as additional smoothing. The estimator is substituted into VAEs, latent parsers, and differentiable architecture search.",
+    "assumptions": [
+      "A discrete variable is categorical with probabilities parameterized by a softmax, and the downstream f has a differentiable extension to R^n.",
+      "Directional derivatives of that extension at one-hot outcomes meaningfully approximate finite differences of f between categories.",
+      "For the second-order interpretation, f restricted to each line segment between one-hot vertices is sufficiently smooth for trapezoidal Taylor reasoning.",
+      "The analysis treats one categorical variable directly; applications with many or hierarchical variables inherit the estimator locally without a joint bias theorem.",
+      "The backward derivative vector with respect to the discrete representation is available and informative, unlike black-box rewards.",
+      "A single-sample biased estimator's variance and induced optimization trajectory are acceptable even though expectation accuracy alone does not guarantee convergence.",
+      "Temperature, optimizer, and learning rate can be selected on validation or training criteria for each estimator."
+    ]
+  },
+  "techniques": [
+    {"id": "pairwise-softmax-gradient-identity", "role": "Expresses the exact categorical gradient through all pairwise differences f(I_i)-f(I_j)."},
+    {"id": "euler-interpretation-of-st", "role": "Identifies expected straight-through backpropagation with a one-endpoint directional finite-difference approximation."},
+    {"id": "heun-trapezoidal-surrogate", "role": "Averages endpoint derivatives to cancel the leading local truncation term without Hessians."},
+    {"id": "stop-gradient-jacobian-programming", "role": "Implements a custom surrogate Jacobian in ordinary automatic-differentiation frameworks while preserving discrete forward samples."},
+    {"id": "temperature-smoothing", "role": "Trades additional bias for a smoother, empirically more stable ST/ReinMax backward distribution."},
+    {"id": "exact-small-space-gradient-audit", "role": "Enumerates a 4-by-8 categorical latent space to compare estimator cosine similarity with the exact gradient during VAE training."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Polynomial programming with 128 independent Bernoulli variables and p in {1.5,2,3}",
+      "metric": "Objective and convergence curve",
+      "result": "ReinMax reaches near-optimal values fastest across the displayed cases",
+      "baseline": "ST, STGS, Gapped ST, and Gumbel-Rao Monte Carlo"
+    },
+    {
+      "setting": "Unsupervised ListOps parsing",
+      "metric": "Validation and test accuracy across five seeds",
+      "result": "67.65% validation and 68.07% test means, modestly above the roughly 66-67% alternatives",
+      "baseline": "ST, STGS, GST-1.0, and GR-MCK"
+    },
+    {
+      "setting": "Categorical MNIST VAEs from 8x4 through 10x30 latent configurations",
+      "metric": "Training negative ELBO across ten seeds",
+      "result": "Best average in every displayed configuration; exact enumeration in the 4x8 setting also shows higher gradient cosine similarity",
+      "baseline": "ST, STGS, GST-1.0, GR-MCK, and cited score-function estimators"
+    },
+    {
+      "setting": "Bernoulli 2x200 VAEs on MNIST, Fashion-MNIST, and Omniglot with K=2 or 3 evaluations",
+      "metric": "Training negative ELBO",
+      "result": "Lower displayed training negative ELBO than borrowed RELAX, ARMS, DisARM, DoubleCV, and RODEO results",
+      "baseline": "Published score-function and control-variate estimators"
+    },
+    {
+      "setting": "GDAS topology search on NATS-Bench",
+      "metric": "Validation and test accuracy on CIFAR-10, CIFAR-100, and ImageNet-16-120",
+      "result": "Higher mean values after substituting ReinMax, removing temperature annealing, and increasing weight decay",
+      "baseline": "Published GDAS+STGS configuration"
+    },
+    {
+      "setting": "Quadratic programming and MNIST-VAE efficiency",
+      "metric": "Per-epoch time and peak memory with parameter updates disabled",
+      "result": "ReinMax is reported at essentially ST/STGS/GST time, with a small memory increase on the synthetic problem and far less cost than high-sample GR-MCK",
+      "baseline": "ST, STGS, GST-1.0, and GR-MCK with 100/300/1000 samples"
+    }
+  ],
+  "limitations": [
+    "Theorems 3.1 and 3.2 establish equality to chosen surrogate formulas, not a numerical bound between either expected estimator and the true discrete gradient.",
+    "Categorical one-hot vertices are a fixed non-small distance apart; classical first/second-order truncation language needs a vanishing step and derivative bounds to imply an accuracy hierarchy, neither of which is supplied here.",
+    "The estimator depends on the continuous extension of f and its derivatives, although the exact discrete objective depends only on vertex values; this creates an unidentifiable source of bias.",
+    "The core analysis handles one softmax categorical variable and does not bound accumulated bias for many interacting variables, hierarchical discrete networks, or sequential decisions.",
+    "Tempered ReinMax, which is what hyperparameter searches often use, is deliberately less accurate according to the text and is not covered by Theorem 3.2.",
+    "Gradient cosine similarity is directly measured only in a tiny enumerable latent space; training objective improvements do not show lower bias or mean-squared gradient error in the large spaces.",
+    "Most VAE comparisons foreground training ELBO; held-out likelihood, importance-sampling evaluation, posterior quality, and discrete representation usefulness receive less emphasis.",
+    "Several score-function baselines are imported from prior papers rather than rerun in a single codebase and tuning protocol, limiting fine-grained fairness claims.",
+    "The NATS-Bench comparison simultaneously changes estimator, temperature schedule, and weight decay by 90x, so it cannot isolate ReinMax's contribution.",
+    "Efficiency measurements disable parameter updates and do not test distributed, memory-bound, or large-category settings; later work reports ReinMax can have high variance."
+  ],
+  "failure_modes": [
+    "The downstream extension has strong curvature or oscillation between categories, making endpoint trapezoidal derivatives a poor proxy for vertex value differences.",
+    "Two implementations have identical discrete forward values but different surrogate derivatives, yielding different ReinMax updates for the same true objective.",
+    "Estimator variance overwhelms its reduced local quadrature bias, especially with one sample or near-degenerate probabilities.",
+    "Large temperature oversmooths rare but important categories and steers optimization toward a different biased solution.",
+    "The downstream operation is non-differentiable or black-box, so the derivative vector needed by ReinMax is unavailable and REINFORCE remains applicable.",
+    "Bias compounds through multiple stochastic layers or autoregressive decisions and settles at a nonstationary point of the true discrete objective.",
+    "A task is simple enough and batches large enough that an unbiased score-function estimator eventually outperforms the biased update, as the paper observes.",
+    "Hyperparameter selection on training ELBO favors overfitting or a distorted posterior despite apparently superior optimization."
+  ],
+  "reusable_insights": [
+    "Rewrite discrete gradients as pairwise value differences before designing a surrogate; this reveals exactly which numerical approximation the backward pass is making.",
+    "Separate an algebraic representation theorem from an approximation theorem: equality to a Heun-like expression does not itself prove closeness to the target gradient.",
+    "Evaluate biased estimators on bias, variance, mean-squared error, directional agreement, and final held-out objective rather than only convergence speed.",
+    "Treat the continuous extension as part of the estimator design and test invariance to alternative extensions that agree on all discrete outcomes.",
+    "When a baseline or temperature changes the backward rule, document whether it reduces theoretical bias, empirical variance, or merely optimization instability.",
+    "For drop-in comparisons, hold annealing, weight decay, architecture, and tuning budget fixed; then separately study interactions.",
+    "Rao-Blackwellization and control variates are natural complements to a lower-bias surrogate if its single-sample variance is high."
+  ],
+  "open_questions": [
+    "Can one derive a nonvacuous ReinMax error bound in terms of directional third derivatives, category geometry, and softmax probabilities?",
+    "Is there a canonical continuous extension of a discrete computation that minimizes estimator mean-squared error rather than leaving derivatives arbitrary?",
+    "How do ReinMax bias and variance accumulate through multiple categorical layers or long discrete trajectories?",
+    "Can Rao-Blackwellized or control-variate ReinMax variants dominate both the original estimator and score-function methods at matched function-evaluation cost?",
+    "What adaptive criterion should choose temperature from online bias-variance diagnostics instead of a task-level grid search?",
+    "Does lower training negative ELBO translate into tighter held-out likelihood estimates and more useful discrete representations under standardized evaluation?",
+    "Can the clean estimator-only effect in architecture search be measured while preserving GDAS's original schedule and regularization?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "neurips:2017:ebd6d2f5d60ff9afaeda1a81fc53e2d0",
+      "title": "REBAR: Low-variance, Unbiased Gradient Estimates for Discrete Latent Variable Models",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2017/hash/ebd6d2f5d60ff9afaeda1a81fc53e2d0-Abstract.html",
+      "relationship": "Combines a continuous relaxation with a score-function control variate to retain unbiasedness while reducing variance.",
+      "difference": "REBAR spends extra machinery to target unbiased gradients; ReinMax accepts extension-dependent bias for an ST-like single-backward implementation."
+    },
+    {
+      "canonical_id": "arxiv:2010.04838",
+      "title": "Rao-Blackwellizing the Straight-Through Gumbel-Softmax Gradient Estimator",
+      "url": "https://arxiv.org/abs/2010.04838",
+      "relationship": "GR-MCK reduces STGS variance without additional downstream function evaluations by integrating conditional Gumbel randomness and Monte Carlo sampling.",
+      "difference": "It improves variance/MSE of a relaxation-based estimator; ReinMax changes the bias approximation itself using endpoint derivative quadrature and is cheaper than high-sample GR-MCK."
+    },
+    {
+      "canonical_id": "arxiv:2206.07235",
+      "title": "Training Discrete Deep Generative Models via Gapped Straight-Through Estimator",
+      "url": "https://arxiv.org/abs/2206.07235",
+      "relationship": "GST constructs a deterministic gap to reduce STGS variance without repeated samples and is a principal experimental baseline.",
+      "difference": "GST retains a Gumbel-relaxation-inspired backward rule with task-sensitive variants; ReinMax derives a categorical pairwise finite-difference approximation and claims a more uniform configuration story."
+    },
+    {
+      "canonical_id": "neurips:2021:cd0b43eac0392accf3624b7372dec36e",
+      "title": "Coupled Gradient Estimators for Discrete Latent Variables",
+      "url": "https://proceedings.neurips.cc/paper/2021/hash/cd0b43eac0392accf3624b7372dec36e-Abstract.html",
+      "relationship": "Develops unbiased low-variance binary and categorical estimators via coupling, stick breaking, and Rao-Blackwellization.",
+      "difference": "It remains score-function based and can handle nondifferentiable f, whereas ReinMax exploits the derivative vector of a smooth extension and remains biased."
+    },
+    {
+      "canonical_id": "pmlr:v151:titsias22a",
+      "title": "Double Control Variates for Gradient Estimation in Discrete Latent Variable Models",
+      "url": "https://proceedings.mlr.press/v151/titsias22a.html",
+      "relationship": "Uses two control-variate levels to reduce the variance of unbiased leave-one-out REINFORCE estimators at standard training cost.",
+      "difference": "It optimizes variance while preserving unbiasedness for binary latents; ReinMax instead attacks local approximation bias for general categorical variables."
+    },
+    {
+      "canonical_id": "pmlr:v119:pervez20a",
+      "title": "Low Bias Low Variance Gradient Estimates for Boolean Stochastic Networks",
+      "url": "https://proceedings.mlr.press/v119/pervez20a.html",
+      "relationship": "Analyzes low-bias, low-variance estimators for Boolean stochastic networks and connects straight-through-like rules to linear approximations.",
+      "difference": "It focuses on Boolean deep networks and specialized estimators; the reviewed paper gives a simple multinomial identity and a trapezoidal upgrade applicable as a categorical drop-in."
+    },
+    {
+      "canonical_id": "arxiv:2603.08257",
+      "title": "Beyond ReinMax: Low-Variance Gradient Estimators for Discrete Latent Variables",
+      "url": "https://arxiv.org/abs/2603.08257",
+      "relationship": "A direct later follow-up reports that ReinMax's lower-bias numerical rule can carry high variance and adds Rao-Blackwellized and control-variate variants.",
+      "difference": "It targets the main unresolved bias-variance weakness rather than changing the Heun-like core approximation, and explores alternative quadrature views."
+    }
+  ],
+  "novelty_assessment": "ReinMax is a clever and unusually simple reframing of straight-through estimation: pairwise categorical value differences reveal ST as a one-endpoint derivative rule and suggest a symmetric two-endpoint surrogate implementable with ordinary autodiff. The exact expectation identities are solid. The paper overstates what 'second-order accuracy' ensures for fixed one-hot vertices, because no truncation bound or canonical continuous extension connects formal quadrature order to the true gradient in general. Empirical breadth is strong, but estimator-only causality is weakest in the architecture-search result.",
+  "confidence": 0.97,
+  "reviewer_notes": "Read all 21 extracted pages, including both expectation proofs, baseline derivations, numerical-integration appendix, full tuning grids, held-out ELBO tables, efficiency setup, and polynomial ablations. Competitive work was checked on official NeurIPS/PMLR proceedings and arXiv primary pages on 2026-08-23, including the direct 2026 ReinMax variance follow-up. The review distinguishes exact estimator identities from uncontrolled truncation error."
+}

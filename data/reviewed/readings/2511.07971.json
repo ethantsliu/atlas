@@ -1,0 +1,492 @@
+{
+  "stable_id": "arxiv:2511.07971",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2511.07971",
+    "pdf_sha256": "f07113dee12e932647b531adaac738943c78f0170d1efda4495835a8abf2758a",
+    "text_sha256": "be9e781677552f425b0c7290204eeaf3e16ac2a068c06d565633a2caf8de0c3d",
+    "page_count": 27,
+    "extracted_at": "2026-08-23T14:27:18.043102+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can an LLM-scale zeroth-order optimizer jointly reduce perturbation variance and adapt search directions to local curvature by learning one damped rank-one precision factor per repeated matrix block, while retaining a materially smaller memory footprint than full optimizer states?",
+  "key_findings": [
+    {
+      "claim": "LOREN recasts preconditioned zeroth-order optimization as natural-evolution-strategy learning of an anisotropic Gaussian search distribution.",
+      "evidence": "For a layer X in R^{m x n}, the paper sets the precision approximation H_tilde=I_m tensor (rho I_n + aa^T), covariance Sigma=H_tilde^{-1}, and samples one-sided perturbed parameters x+epsilon Sigma^{1/2}u. A score-function estimator updates both the mean parameters x and covariance factor a; K function values share a mini-batch and a leave-one-out baseline, and the experimental variant adds heavy-ball momentum.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "4.1 Preconditioning via Evolution Strategies and 4.2 Low-Rank Structured Covariance Matrices"},
+        {"page": 6, "section": "4.3 Search Distribution Parameter Updates"},
+        {"page": 7, "section": "Algorithm 1 and 4.4 Algorithm"}
+      ]
+    },
+    {
+      "claim": "The advertised block-diagonal curvature model is far more restrictive than a general low-rank Hessian approximation.",
+      "evidence": "Every one of the m blocks is the same rho I_n+aa^T, so all rows of a weight matrix share one exceptional input-space direction; cross-row coupling, block-specific directions, output-side structure, multiple eigenvectors, and negative curvature are absent. The construction is positive definite by design even though an LLM Hessian can be indefinite. The paper neither measures Hessian approximation error nor shows learned a aligning with Hessian/Fisher eigenspaces.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Contributions (ii) curvature claim"},
+        {"page": 3, "section": "2 Related Work"},
+        {"page": 5, "section": "Equation 5 and 4.2 Low-Rank Structured Covariance Matrices"},
+        {"page": 14, "section": "Appendix B Alternative Covariance Model introduction"}
+      ]
+    },
+    {
+      "claim": "The covariance-factor score has a sign contradiction between the differential and the stated gradient.",
+      "evidence": "Equation 9 derives dL=-sum_i (Z-Sigma)_ii a : da + Sigma^{-1}(z-x):dx. The next display drops the minus sign and states grad_a log p=+sum_i (Z-Sigma)_ii a. Equation 10 instead begins with Sigma^{1/2}(I-uu^T)Sigma^{1/2}, i.e. Sigma-Z, which restores the sign implied by the differential. At least one displayed gradient/implementation prescription is therefore wrong.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Equations 9-10"},
+        {"page": 14, "section": "Appendix A low-rank covariance differential"}
+      ]
+    },
+    {
+      "claim": "Equation 12 and Algorithm 1 contain independent scaling, dimensional, and indexing errors.",
+      "evidence": "Equation 7 defines Sigma^{1/2}=I_m tensor B with no 1/epsilon, but Equation 12 writes Sigma^{1/2}u=(1/epsilon)(I_m tensor B)u and then replaces the mn-dimensional stacked Kronecker product by an n-dimensional sum over subvectors. Algorithm line 8 defines z_k=x_k+epsilon Sigma^{1/2}u_k although x_k is never defined; the iterate is x_t. If the inserted 1/epsilon were used, the outer epsilon perturbation in Algorithm line 5 would cancel.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Equations 6-7"},
+        {"page": 7, "section": "Equation 12 and Algorithm 1 lines 5-8"}
+      ]
+    },
+    {
+      "claim": "The paper uses Sigma inconsistently for a normalized inverse-curvature shape and for the actual epsilon-scaled search covariance.",
+      "evidence": "Section 4.1 first states Sigma=H_tilde^{-1}=epsilon^2 Sigma_bar, then defines p(z;theta)=N(x,epsilon^2 Sigma) and later Section 4.3 calls p=N(x,Sigma), while the algorithm separately perturbs by epsilon Sigma^{1/2}u. These conventions cannot all hold simultaneously without redefining Sigma; the ambiguity propagates into score scaling and Equation 12.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Equation 3 and ES search-distribution definition"},
+        {"page": 6, "section": "4.3 Search Distribution Parameter Updates"},
+        {"page": 7, "section": "Algorithm 1 and Equation 12"}
+      ]
+    },
+    {
+      "claim": "The convergence proof does not establish the stated stochastic stationary-point guarantee.",
+      "evidence": "Theorem 4.2 bounds E||grad f(x_t;xi_t)||^2, the per-sample gradient norm, rather than ||grad E_xi f(x_t;xi)||. In the proof, L-smoothness is invoked to compare f(x_t;xi_t) with f(x_{t+1};xi_{t+1}) for different random samples and those terms are then telescoped. Smoothness of one sample loss cannot justify an inequality across two different sample functions, and nonzero stochastic-gradient variance generally prevents the per-sample gradient norm from converging to zero.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Theorem 4.2"},
+        {"page": 16, "section": "Appendix D Assumptions D.1-D.2"},
+        {"page": 20, "section": "Proof of Theorem 4.2"}
+      ]
+    },
+    {
+      "claim": "The theorem and its proof disagree on the trace extremum, while their constants can be vacuous because a is not bounded.",
+      "evidence": "The theorem and prescribed step size use max_t tr(Sigma_t); the last proof line substitutes min_t tr(Sigma_t). The lower spectral factor alpha_min=(rho+max_t||a_t||^2)^{-1} depends on the maximum future factor norm, yet no projection, regularizer, or stability lemma bounds a_t. The rate and even its prescribed step size therefore depend on unproved trajectory-wide quantities.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Theorem 4.2 and trace bound"},
+        {"page": 20, "section": "Final lines of Proof of Theorem 4.2"}
+      ]
+    },
+    {
+      "claim": "The convergence analysis abstracts away the method's central adaptive and variance-reduction mechanisms.",
+      "evidence": "The gradient-norm bound replaces the K-sample RLOO estimator by a first-order Taylor expression without a finite-K variance term, and the theorem has no K dependence. Sigma_t is treated as an arbitrary positive matrix; the simultaneous noisy update for a, its sign/scaling ambiguity, heavy-ball momentum, decoupled damping, and correlation between x_t and learned Sigma_t are not analyzed. The result is at best a generic adaptive-preconditioned ZO sketch.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 7, "section": "Algorithm 1"},
+        {"page": 8, "section": "4.5 Convergence Analysis"},
+        {"page": 16, "section": "Appendix C Decoupled Damping and Appendix D"},
+        {"page": 17, "section": "Equation 14 RLOO estimator"},
+        {"page": 18, "section": "Bound on the gradient norm"},
+        {"page": 20, "section": "Proof of Theorem 4.2"}
+      ]
+    },
+    {
+      "claim": "The benchmark protocol is a tiny-data validation-selection study, not independent test evaluation.",
+      "evidence": "Every task trains on 512 randomly sampled examples and evaluates on 256 validation examples, explicitly calling validation accuracy a proxy for test accuracy. The same study uses early stopping, broad method-specific grid searches, and reports best accuracy. No separate selection split or GLUE/SuperGLUE test submission is described, so hyperparameter choice, checkpoint selection, and final reporting reuse the validation set and can bias the five-run means.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "5 Experiments"},
+        {"page": 22, "section": "G Experimental Details: Datasets and Implementation"},
+        {"page": 23, "section": "Table 7 Hyperparameter Grid"},
+        {"page": 24, "section": "Table 8 Hyperparameter Grid"},
+        {"page": 25, "section": "Table 9 Hyperparameter Grid"},
+        {"page": 26, "section": "Table 10 Hyperparameter Grid"},
+        {"page": 27, "section": "Table 11 Hyperparameter Grid"}
+      ]
+    },
+    {
+      "claim": "LOREN leads the DistilBERT average but does not lead RoBERTa-large, contradicting universal superiority language.",
+      "evidence": "Table 2 averages on MNLI/QNLI/SST-2/CoLA are, for DistilBERT, 54.4 MeZO, 64.6 MeZO-Adam, 61.6 MeZO-SVRG, 55.3 LOZO, 62.6 HiZOO, and 65.4 LOREN. On RoBERTa-large they are 58.4, 73.6, 54.6, 59.1, 64.2, and 70.1: MeZO-Adam beats LOREN by 3.5 points. LOREN also loses individual tasks, including DistilBERT MNLI and CoLA and RoBERTa QNLI/CoLA.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Contribution claiming consistently higher accuracy"},
+        {"page": 8, "section": "Table 2"},
+        {"page": 9, "section": "5.1 Masked Language Models"},
+        {"page": 11, "section": "6 Conclusions"}
+      ]
+    },
+    {
+      "claim": "On autoregressive models, LOREN has the highest displayed average in each block, but the large-model margins are often negligible relative to run variance.",
+      "evidence": "Table 3 averages are GPT-2-XL 71.9 versus MeZO-Adam 71.5; OPT-2.7B 71.6 versus MeZO 70.7 and HiZOO 70.0; LLaMA-3-8B 63.7 versus MeZO 63.6; and OPT-13B 63.5 versus MeZO 63.4 and HiZOO 63.3. The last two gains are 0.1 point, while task-level standard deviations commonly span roughly 0.4-4.4 points. No paired test, confidence interval for differences, correction across task-model-method comparisons, or seed-level results are supplied.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "Table 3"},
+        {"page": 10, "section": "5.2 Autoregressive Language Models"}
+      ]
+    },
+    {
+      "claim": "The SuperGLUE treatment of MeZO-SVRG is internally contradictory.",
+      "evidence": "Section 5.2 says 'We exclude MeZO-SVRG from our SuperGLUE fine-tuning' because it is slow and gains are limited. Yet Table 3 reports MeZO-SVRG means and standard deviations for all four LLaMA-3-8B and OPT-13B SuperGLUE tasks. Appendix Table 11 then omits MeZO-SVRG hyperparameters. The paper does not resolve whether those rows were run under the claimed protocol.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "Table 3 LLaMA-3-8B and OPT-13B rows"},
+        {"page": 10, "section": "5.2 Autoregressive Language Models"},
+        {"page": 27, "section": "Table 11"}
+      ]
+    },
+    {
+      "claim": "The memory result supports a middle-ground trade-off, not inference-level memory.",
+      "evidence": "Across the six architectures, LOREN uses 1.35x-1.83x MeZO memory and 1.17x-1.53x LOZO memory, while remaining below MeZO-Adam, MeZO-SVRG, and HiZOO. The abstract's maximum 27.3% saving versus MeZO-Adam occurs on LLaMA-3-8B (33.6 GB versus 46.2 GB). On OPT-13B, LOREN requires 57.5 GB versus 32.9 GB MeZO, 32.8 GB LOZO, and 76.0 GB MeZO-Adam.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 1, "section": "Abstract"},
+        {"page": 7, "section": "Table 1 Memory Complexity"},
+        {"page": 10, "section": "Table 4 and 5.3 Memory and Training Efficiency"}
+      ]
+    },
+    {
+      "claim": "LOREN is most query-efficient at two low thresholds but is not the fastest wall-clock method.",
+      "evidence": "To reach 70% SST-2 with GPT-2-XL, LOREN uses 1,320+/-72 queries in 0.33 h, versus MeZO-Adam's 1,632+/-144 in 0.32 h. To reach 65% CB with LLaMA-3-8B, LOREN uses 1,512+/-486 in 0.47 h, while LOZO uses 3,198+/-888 in only 0.15 h. The targets are chosen as the lowest accuracy reached by any optimizer, not matched final quality, and LOREN ranks second in time in both cases.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "5.3 Query Efficiency"},
+        {"page": 11, "section": "Table 5"}
+      ]
+    },
+    {
+      "claim": "Standardizing every optimizer to six forward passes changes the competitors materially and makes the headline comparison budget-dependent.",
+      "evidence": "Main tables give six evaluations per iteration to all methods because LOREN is best at K=6. Under each baseline's default passes, Table 6 changes DistilBERT averages modestly but RoBERTa MeZO-Adam jumps from 60.3 default to 73.6 at six passes and HiZOO from 60.0 to 64.2; MeZO-Adam then beats LOREN. Equal passes control queries per iteration but change competitor algorithms away from their normal configurations, and neither total hyperparameter-search queries nor matched wall-clock budgets are reported.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "5 Experiments six-pass protocol"},
+        {"page": 20, "section": "Appendix E Fine-Tuning Using Default Number of Forward Passes"},
+        {"page": 21, "section": "Table 6"},
+        {"page": 22, "section": "G Experimental Details"}
+      ]
+    },
+    {
+      "claim": "The ablation cannot attribute improvements to learned curvature rather than RLOO, query count, momentum, or tuning.",
+      "evidence": "The only LOREN ablation varies covariance learning rate nu, damping rho, and K on RoBERTa-large QNLI, finding optima near 0.001, 0.1, and six passes. There is no isotropic K=6 RLOO control, frozen/random a, no-RLOO LOREN, no-momentum LOREN, matched preconditioner capacity, factor-rank comparison, covariance-recovery metric, or full factorial study. Figure 1a isolates RLOO only on synthetic functions and therefore already shows one component can improve estimates without curvature.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Figure 1a-b"},
+        {"page": 21, "section": "F Ablation Study"},
+        {"page": 22, "section": "Figure 4"}
+      ]
+    },
+    {
+      "claim": "The synthetic evidence is illustrative rather than a robust curvature-validation study.",
+      "evidence": "Figure 1a averages 5,000 K=4 gradient estimates at one fixed point on each 1,000-dimensional Sphere, Rastrigin, and Rosenbrock function and shows RLOO lowering MSE, with no numeric table or interval. Figure 1b shows a single monkey-saddle trajectory from (2.9,-0.01), with no replicate, initialization sweep, time/query normalization, covariance recovery, or sensitivity analysis. Neither experiment verifies an LLM Hessian approximation.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 2, "section": "Figure 1 and introductory synthetic experiments"}
+      ]
+    },
+    {
+      "claim": "Main experiments do not compare against first-order fine-tuning despite motivating LOREN as an effective fine-tuning alternative.",
+      "evidence": "FO-SGD appears only in the two-dimensional monkey-saddle illustration. Tables 2-5 compare ZO variants only, so they cannot quantify accuracy, convergence, memory-quality Pareto position, or wall-clock gap relative to AdamW/backpropagation. The evaluated workload is full-parameter classification on 512 examples, not instruction tuning, generation quality, long context, or the nondifferentiable-objective settings where ZO has a distinct access advantage.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "1 Introduction"},
+        {"page": 2, "section": "Figure 1b"},
+        {"page": 8, "section": "Table 2 and 5 Experiments"},
+        {"page": 9, "section": "Table 3"},
+        {"page": 22, "section": "G Datasets and Implementation"}
+      ]
+    },
+    {
+      "claim": "The current official code is not an executable confirmation of the pinned Algorithm 1 because core update semantics diverge.",
+      "evidence": "At official repository commit b80a32bc394332d1a1f115f41dfb5dcf7b326d37 (checked 2026-08-23), the layer code repeats a across row blocks but forms one flattened dot, introducing tied global rank-one coupling rather than applying the blockwise Kronecker action in Equations 5-7. Its training loop updates parameters, covariance factors, momentum, and decay sequentially inside the K-query loop instead of summing one RLOO gradient and updating once as Algorithm 1; its covariance score also carries an epsilon-squared factor absent from the displayed score. The repository postdates v1 and is not pinned to reported-run commits, so this is a reproducibility warning rather than proof of what generated the tables.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract code URL"},
+        {"page": 5, "section": "Equations 5-8"},
+        {"page": 6, "section": "Equations 9-11"},
+        {"page": 7, "section": "Algorithm 1 and Equation 12"}
+      ]
+    },
+    {
+      "claim": "Reproducibility details are extensive for hyperparameter grids but incomplete for selecting and rerunning the reported results.",
+      "evidence": "Tables 7-11 list batch size 64, epsilon=1e-3, candidate learning rates, ranks/intervals, damping, and 4k-24k total steps. The paper names one H100 or A100 and five runs but does not map GPU to every run, specify random seeds or sampled example IDs, define the early-stopping rule, expose seed-level metrics, state total tuning compute, identify exact checkpoints/tokenization/sequence length in the paper, or resolve the missing MeZO-SVRG configuration.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "5 Experiments"},
+        {"page": 22, "section": "G Experimental Details"},
+        {"page": 23, "section": "Table 7"},
+        {"page": 24, "section": "Table 8"},
+        {"page": 25, "section": "Table 9"},
+        {"page": 26, "section": "Table 10"},
+        {"page": 27, "section": "Table 11"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Interpret a preconditioned ZO step as sampling finite-difference perturbations from an anisotropic Gaussian, then learn that Gaussian's inverse-curvature shape with natural-evolution-strategy score gradients while using a leave-one-out baseline to exploit multiple forward evaluations.",
+    "mechanism": "For each matrix layer, LOREN stores a length-n vector a and defines a repeated block precision I_m tensor (rho I_n+aa^T), whose inverse square root scales Gaussian perturbations. K=6 one-sided losses on a common mini-batch form RLOO estimates for the model mean and a; the mean uses the Gaussian Fisher natural gradient, damping is decoupled from effective learning rate, and the experimental version applies heavy-ball momentum. As written, however, sign, epsilon, dimension, and indexing inconsistencies prevent the equations and pseudocode from specifying one unambiguous algorithm.",
+    "assumptions": [
+      "The local LLM curvature relevant to useful perturbations is positive and adequately represented by one input-side direction shared across every output row of each matrix.",
+      "An inverse-Hessian interpretation is meaningful even where the nonconvex Hessian is indefinite or singular.",
+      "One-sided Gaussian smoothing at epsilon=1e-3 introduces acceptably small bias in BF16 and FP32 models.",
+      "K=6 same-mini-batch loss evaluations and an RLOO baseline reduce variance enough to offset six forward passes per update.",
+      "The noisy covariance-factor update remains bounded and tracks curvature on the same timescale as model parameters.",
+      "Decoupled damping and heavy-ball momentum preserve any convergence properties of the displayed base algorithm.",
+      "Six-pass configurations are a fair basis for comparing baselines whose published defaults use two or three passes.",
+      "Best accuracy on 256 validation examples after grid search and early stopping estimates unseen test performance.",
+      "Five runs adequately resolve task differences as small as 0.1 percentage point.",
+      "Forward-pass query count is a useful efficiency metric despite different per-step arithmetic, perturbation construction, and wall-clock costs.",
+      "O(n) auxiliary state per m-by-n layer remains negligible after summing factors and momentum over all layers.",
+      "The notation and official implementation can be reconciled despite their published sign, scaling, dimension, and update-order differences."
+    ]
+  },
+  "techniques": [
+    {"id": "anisotropic-gaussian-zo", "role": "Turns an intended preconditioned gradient into a covariance-shaped random perturbation estimator."},
+    {"id": "natural-evolution-strategy-score", "role": "Updates search-distribution mean and covariance parameters from loss-weighted log-density gradients."},
+    {"id": "shared-rank-one-block-precision", "role": "Uses I_m tensor (rho I_n+aa^T) to store one repeated exceptional direction with O(n) layerwise state."},
+    {"id": "sherman-morrison-square-root", "role": "Provides closed-form covariance and inverse-square-root actions without materializing mn-by-mn matrices."},
+    {"id": "rloo-control-variate", "role": "Subtracts the mean of other function values from each of K one-sided score-function samples."},
+    {"id": "natural-gradient-mean-update", "role": "Premultiplies the Gaussian mean score by its Fisher inverse, yielding Sigma^{1/2}u directions."},
+    {"id": "decoupled-damping", "role": "Absorbs the 1/sqrt(rho) scale into learning rates so rho nominally controls regularization rather than step size."},
+    {"id": "heavy-ball-momentum", "role": "Adds acceleration in experiments using the low-dimensional stored curvature structure."},
+    {"id": "six-query-standardization", "role": "Runs LOREN and all ZO baselines with six forward evaluations per iteration in main tables."},
+    {"id": "early-stopped-grid-selection", "role": "Selects method-specific settings and checkpoints using a 256-example validation proxy."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Three 1,000-dimensional analytic functions at one fixed point; 5,000 estimates with K=4",
+      "metric": "MSE of estimated versus exact gradient",
+      "result": "RLOO is visually lower-MSE than the non-RLOO ZO estimator on Sphere, Rastrigin, and Rosenbrock",
+      "baseline": "Same ZO estimator without RLOO; no numerical values or uncertainty"
+    },
+    {
+      "setting": "Monkey saddle initialized at (2.9,-0.01)",
+      "metric": "One plotted two-dimensional optimization trajectory",
+      "result": "LOREN follows the visually shortest path away from the saddle among shown methods",
+      "baseline": "FO-SGD, ZO-SGD, ZO-Adam, and HiZOO; no replicate or query/time normalization"
+    },
+    {
+      "setting": "DistilBERT-66M and RoBERTa-large-355M FP32, four GLUE tasks, 512 training and 256 validation examples, five runs, K=6",
+      "metric": "Best validation accuracy mean+/-SD and four-task average",
+      "result": "LOREN averages 65.4 on DistilBERT, the highest, and 70.1 on RoBERTa, second to MeZO-Adam's 73.6",
+      "baseline": "MeZO, MeZO-Adam, MeZO-SVRG, LOZO, and HiZOO"
+    },
+    {
+      "setting": "GPT-2-XL-1.5B and OPT-2.7B FP32, four GLUE tasks under the same tiny-data protocol",
+      "metric": "Best validation accuracy mean+/-SD and average",
+      "result": "LOREN averages 71.9 and 71.6, leading the displayed baselines by 0.4 and 0.9 point respectively",
+      "baseline": "Five ZO optimizers; no first-order fine-tuning"
+    },
+    {
+      "setting": "LLaMA-3-8B and OPT-13B BF16, four SuperGLUE tasks under the same tiny-data protocol",
+      "metric": "Best validation accuracy mean+/-SD and average",
+      "result": "LOREN averages 63.7 and 63.5, only 0.1 point above the next displayed method on each model",
+      "baseline": "Five ZO optimizer rows, including MeZO-SVRG despite text saying it was excluded"
+    },
+    {
+      "setting": "Peak GPU memory across six architectures",
+      "metric": "GB and ratio to MeZO",
+      "result": "LOREN spans 1.15-57.5 GB and 1.35x-1.83x MeZO, below Adam/SVRG/HiZOO but above MeZO and LOZO; maximum saving versus MeZO-Adam is 27.3%",
+      "baseline": "MeZO, MeZO-Adam, MeZO-SVRG, LOZO, and HiZOO"
+    },
+    {
+      "setting": "GPT-2-XL SST-2 to 70% and LLaMA-3-8B CB to 65%, five runs",
+      "metric": "Forward-pass queries and wall-clock hours to a low target",
+      "result": "LOREN uses the fewest queries, 1,320 and 1,512, but is second-fastest in time at 0.33 and 0.47 hours",
+      "baseline": "Five ZO methods; targets selected from the lowest accuracy reached by any optimizer rather than common final quality"
+    },
+    {
+      "setting": "DistilBERT and RoBERTa default-query appendix reruns",
+      "metric": "Best validation accuracy under method-default passes versus main six-pass average",
+      "result": "Most defaults are lower; RoBERTa MeZO-Adam changes by 13.3 points and HiZOO by 4.2, demonstrating strong budget sensitivity",
+      "baseline": "Each optimizer's own two/three-pass default versus standardized six passes"
+    },
+    {
+      "setting": "RoBERTa-large QNLI factor-learning ablation, five runs",
+      "metric": "Validation accuracy versus nu, rho, and K",
+      "result": "The displayed optima are nu=0.001, rho=0.1, and K=6 with a plateau beyond six",
+      "baseline": "Other values of one hyperparameter at a time; no component-removal or isotropic RLOO baseline"
+    },
+    {
+      "setting": "Method-specific hyperparameter grids across six models",
+      "metric": "Best early-stopped validation result from learning-rate/rank/interval/damping grids",
+      "result": "Appendix Tables 7-11 disclose candidate grids and total steps of 24k/20k/8k/8k/4k",
+      "baseline": "No total tuning-query accounting, independent selection split, or seed-level selection audit"
+    }
+  ],
+  "limitations": [
+    "Reviewer-identified: Equation 9's derived negative covariance-factor gradient contradicts the positive gradient immediately stated and Equation 10's restored sign.",
+    "Reviewer-identified: Equation 12 inserts an unexplained 1/epsilon and collapses an mn-dimensional Kronecker product into an n-dimensional sum.",
+    "Reviewer-identified: Algorithm 1 uses undefined x_k in z_k and does not unambiguously reconcile the paper's competing covariance conventions.",
+    "Reviewer-identified: the repeated rank-one block captures only one shared input-side direction per layer, no row-specific or cross-row curvature, and no negative curvature.",
+    "Reviewer-identified: no Hessian/Fisher spectrum, approximation error, learned-factor trajectory, or curvature-alignment measurement supports the curvature interpretation.",
+    "Reviewer-identified: the stationary-point proof applies smoothness across different stochastic sample functions and telescopes invalid sample-loss differences.",
+    "Reviewer-identified: Theorem 4.2 bounds per-sample gradient norms, uses trajectory-wide unknown constants, and disagrees with its proof on max versus min trace.",
+    "Reviewer-identified: the theorem omits finite-K RLOO variance, covariance-factor stability, simultaneous adaptation, decoupled damping, and momentum.",
+    "Reviewer-identified: only 512 training and 256 validation examples per task are used; validation doubles as proxy test after grid search and early stopping.",
+    "Reviewer-identified: five runs and no paired significance tests do not support 0.1-point large-model superiority claims.",
+    "Reviewer-identified: no first-order fine-tuning baseline quantifies the remaining accuracy/time gap to backpropagation.",
+    "Reviewer-identified: main K=6 comparisons modify competitors away from defaults, and Table 6 shows this choice can shift accuracy by 13.3 points.",
+    "Reviewer-identified: no factorial ablation isolates covariance learning from RLOO, K, momentum, damping, and hyperparameter search.",
+    "Reviewer-identified: query efficiency is demonstrated at only two low, post-selected thresholds; LOREN is not fastest in wall time.",
+    "Reviewer-identified: LOREN consumes 35%-83% more memory than MeZO and more than LOZO despite favorable comparisons to stateful variants.",
+    "Reviewer-identified: masked/autoregressive classification on short tiny subsets does not establish generation, instruction tuning, long-context, safety, or full-data behavior.",
+    "Reviewer-identified: the paper contradicts itself on whether MeZO-SVRG was run on SuperGLUE and omits its Table 11 configuration.",
+    "Reviewer-identified: current official code diverges from the pseudocode's block action, aggregation/update order, and score scaling and is not pinned to reported runs.",
+    "Reviewer-identified: seeds, sampled-example IDs, checkpoint/early-stop criterion, exact GPU mapping, total tuning compute, and seed-level results are absent.",
+    "Author-stated limitations are not provided in a dedicated section; the conclusion presents only positive claims and no failure analysis."
+  ],
+  "failure_modes": [
+    "A covariance-factor sign error updates a toward higher-loss or inverse-intended search geometry.",
+    "Using Equation 12 literally cancels epsilon and returns an n-vector where the mn-parameter layer requires an mn-vector.",
+    "A shared a direction fits one subset of rows but mis-preconditions other rows whose curvature differs.",
+    "The true Hessian has important negative or multiple low-rank directions that the positive repeated rank-one precision cannot represent.",
+    "The learned factor norm grows without control, drives alpha_min toward zero, and makes covariance updates or theoretical constants unstable.",
+    "Small damping magnifies effective updates unless implementation exactly applies the appendix's learning-rate decoupling.",
+    "One-sided loss differences at epsilon=1e-3 are lost to BF16 quantization or dominated by mini-batch noise.",
+    "K correlated evaluations reduce estimator variance but increase wall time enough that a cheaper LOZO/MeZO configuration wins under latency constraints.",
+    "RLOO baselines become unstable when one of six loss samples is an outlier or the mini-batch loss distribution is heavy-tailed.",
+    "Sequential per-query updates in the released code optimize a different online process than the aggregated Algorithm 1 and make results order-dependent.",
+    "Validation overfitting from broad grids and early stopping produces apparent 0.1-point wins that reverse on an independent test set.",
+    "Six-pass retuning disproportionately improves or harms a baseline, so algorithm ranking reverses under defaults or matched wall-clock budgets.",
+    "Momentum benefit is mistaken for curvature benefit because there is no no-momentum/frozen-factor control.",
+    "The method reaches a low threshold in few queries but plateaus below a competitor's final quality.",
+    "Full-parameter optimizer state plus BF16 model memory exceeds a single-device budget even though asymptotic extra state is O(n) per layer.",
+    "The classification gains fail to transfer to generation losses, long sequences, large datasets, or nondifferentiable black-box objectives.",
+    "A proof-guided step size cannot be set because it requires future max trace, future max factor norm, L, and T.",
+    "A user follows the paper while the code follows different covariance/update semantics, preventing faithful reproduction."
+  ],
+  "reusable_insights": [
+    "Treat a preconditioner as a perturbation covariance to design ZO search distributions without storing full gradients.",
+    "Score-function samples can reuse multiple objective evaluations with leave-one-out baselines, but K must appear in both theory and cost reporting.",
+    "Closed-form Sherman-Morrison square-root actions are useful whenever an identity-plus-low-rank precision is genuinely justified.",
+    "State exactly whether a matrix factor is covariance, normalized covariance shape, or epsilon-scaled search covariance; do not reuse one symbol for all three.",
+    "Check differential signs, tensor dimensions, and iterate indices before using a mathematical derivation as an implementation specification.",
+    "A repeated Kronecker block is a strong parameter-tying assumption; name the curvature it can and cannot represent rather than calling it generic low rank.",
+    "Validate learned curvature directly with eigenspace overlap, inverse-action error, or held-out quadratic predictions, not only downstream accuracy.",
+    "Use component-isolating controls: isotropic RLOO at the same K, frozen/random factor, no momentum, no RLOO, and matched tuning budgets.",
+    "Convergence for stochastic objectives should telescope the expected population objective and target its gradient, not swap sample losses across iterations.",
+    "Report default-query, equal-query, equal-wall-clock, and equal-total-tuning-compute comparisons because each answers a different efficiency question.",
+    "Reserve an independent test set after grid search and early stopping, especially with only 256 validation examples and many method/task comparisons.",
+    "Distinguish query efficiency from time efficiency and compare at multiple common quality levels plus final Pareto frontiers.",
+    "Memory claims should include the strongest low-memory baseline as well as stateful optimizers; relative savings can reverse with comparator choice.",
+    "Pin the exact code commit used for tables and test that equations, pseudocode, and executable update order agree."
+  ],
+  "open_questions": [
+    "What is the intended sign of grad_a log p, and which sign generated the reported experiments?",
+    "Should Sigma in the algorithm denote H_tilde^{-1}, epsilon^2 H_tilde^{-1}, or a normalized shape, and what is the corrected dimensionally valid Equation 12?",
+    "Can the authors provide a proof for the population-gradient objective that handles adaptive Sigma_t, finite-K RLOO, a updates, damping, and momentum?",
+    "How well does the learned factor approximate actual Hessian/Fisher inverse actions on LLM layers, and which rows/layers violate the shared-direction assumption?",
+    "Do results survive an isotropic K=6 RLOO baseline and frozen-factor/no-momentum/no-RLOO ablations at matched tuning compute?",
+    "Why does the official code implement different block coupling, per-query update order, and epsilon scaling, and which commit produced Tables 2-5?",
+    "Were MeZO-SVRG SuperGLUE runs performed, and what hyperparameters and code produced their Table 3 rows?",
+    "How do rankings change under each method's default, equal forward-query, equal wall-clock, and equal peak-memory budget?",
+    "Do 0.1-point LLaMA/OPT gains persist with prespecified seeds, paired tests, a separate test set, and correction across comparisons?",
+    "What is the full first-order AdamW accuracy/time/memory Pareto gap on the identical 512-example task protocol?",
+    "Does LOREN retain gains on full training sets, long sequences, instruction tuning, generation, and nondifferentiable objectives?",
+    "Can multiple low-rank directions or two-sided Kronecker factors improve curvature fidelity without surrendering the claimed memory advantage?",
+    "What happens when a layer's Hessian is indefinite and useful escape requires following negative curvature rather than a positive preconditioner?",
+    "How sensitive are BF16 runs to epsilon, loss scaling, quantization, common-random-number choices, and the RLOO outlier distribution?",
+    "Can the validation-selection protocol be reproduced from released sampled-example IDs, checkpoints, early-stopping rules, and total grid-search logs?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2305.17333",
+      "title": "Fine-Tuning Language Models with Just Forward Passes",
+      "url": "https://arxiv.org/abs/2305.17333v3",
+      "relationship": "foundational inference-memory ZO baseline",
+      "difference": "MeZO provides the in-place two-forward-pass estimator and inference-level memory baseline across models to 66B, multiple task types, full/PEFT tuning, and nondifferentiable objectives. LOREN adds six-query RLOO, learned anisotropic perturbations, and momentum, improving some tiny-data classification results but using 1.35x-1.83x MeZO memory and more per-step queries.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2305.17333v3 (2024-01-11; NeurIPS 2023 oral)"
+    },
+    {
+      "canonical_id": "arxiv:2404.08080",
+      "title": "Variance-reduced Zeroth-Order Methods for Fine-Tuning Language Models",
+      "url": "https://arxiv.org/abs/2404.08080v1",
+      "relationship": "variance-reduced ZO competitor",
+      "difference": "MeZO-SVRG uses periodic reference estimates to reduce variance without task prompts, trading reference parameter/gradient memory and computation for stability. LOREN's RLOO uses within-step samples and no reference vector, but the target paper's SuperGLUE inclusion and configuration for this competitor are internally inconsistent.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2404.08080v1 (2024-04-11; ICML 2024/PMLR 235 final work)"
+    },
+    {
+      "canonical_id": "arxiv:2410.07698",
+      "title": "Enhancing Zeroth-order Fine-tuning for Language Models with Low-rank Structures",
+      "url": "https://arxiv.org/abs/2410.07698v1",
+      "relationship": "low-rank gradient-subspace competitor",
+      "difference": "LOZO samples low-rank gradient perturbations and supports compressed momentum with O(nr)-style state, scaling experiments to 66B and approaching first-order baselines. LOREN instead keeps full-dimensional Gaussian noise shaped by a shared rank-one covariance factor; it is consistently more memory-hungry than LOZO in Table 4 and lacks a first-order comparison.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2410.07698v1 (2024-10-10; ICLR 2025)"
+    },
+    {
+      "canonical_id": "arxiv:2402.15173",
+      "title": "Second-Order Fine-Tuning without Pain for LLMs: A Hessian Informed Zeroth-Order Optimizer",
+      "url": "https://arxiv.org/abs/2402.15173v4",
+      "relationship": "direct curvature-aware ZO competitor",
+      "difference": "HiZOO estimates diagonal Hessian information with an additional forward pass and demonstrates models up to 66B. LOREN replaces the diagonal with one repeated rank-one direction plus damping and uses RLOO, claiming O(n) rather than O(mn) extra state; it never directly measures which approximation better matches true curvature at equal time/memory.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2402.15173v4 (2025-02-18; ICLR 2025)"
+    },
+    {
+      "canonical_id": "arxiv:2410.08989",
+      "title": "Zeroth-Order Fine-Tuning of LLMs in Random Subspaces",
+      "url": "https://arxiv.org/abs/2410.08989v3",
+      "relationship": "dimension-reduced perturbation competitor",
+      "difference": "SubZero uses random low-rank subspaces tailored to matrix parameters, proves variance reduction relative to full-dimensional ZO, and targets the dimensionality problem directly. LOREN instead learns a covariance direction online and combines it with RLOO; no comparison appears despite SubZero v1 predating LOREN's submission.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2410.08989v3 (2025-07-24; ICCV 2025 camera-ready)"
+    },
+    {
+      "canonical_id": "arxiv:2406.18060",
+      "title": "AdaZeta: Adaptive Zeroth-Order Tensor-Train Adaption for Memory-Efficient Large Language Models Fine-Tuning",
+      "url": "https://arxiv.org/abs/2406.18060v3",
+      "relationship": "adaptive-query low-dimensional ZO competitor",
+      "difference": "AdaZeta reduces effective dimension with a tensor-train adapter and adapts query count to stabilize convergence on RoBERTa-large and Llama-2-7B. LOREN full-parameter tunes and adapts a perturbation covariance at a fixed six queries; comparing them would separate gains from low-dimensional parameterization versus covariance shaping.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2406.18060v3 (2024-12-02; EMNLP 2024)"
+    },
+    {
+      "canonical_id": "arxiv:2510.00419",
+      "title": "Learning a Zeroth-Order Optimizer for Fine-Tuning LLMs",
+      "url": "https://arxiv.org/abs/2510.00419v2",
+      "relationship": "learned perturbation-strategy competitor",
+      "difference": "ZO Fine-tuner learns a compact optimizer once per foundation model and reuses its perturbation strategy across downstream tasks, reporting four LLMs and seven datasets. Its v1 predates LOREN and makes LOREN's static rank-one parameterization only one point in a broader learned-sampling design space; the target paper does not compare transfer or optimizer-training cost.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2510.00419v2 (2026-05-29; v1 submitted 2025-10-01)"
+    },
+    {
+      "canonical_id": "arxiv:2402.15751",
+      "title": "Sparse MeZO: Less Parameters for Better Performance in Zeroth-Order LLM Fine-Tuning",
+      "url": "https://arxiv.org/abs/2402.15751v2",
+      "relationship": "selective-parameter low-variance ZO competitor",
+      "difference": "Sparse MeZO perturbs a selected subset of parameters, retaining inference-level memory while reducing estimator dimension and reporting a LLaMA-30B single-A100 run. LOREN perturbs full parameters with a learned covariance and higher memory; it does not test whether selection yields a stronger quality/query/memory trade-off.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2402.15751v2 (2026-02-16; NeurIPS 2025)"
+    },
+    {
+      "canonical_id": "arxiv:2608.15665",
+      "title": "SubZero+: Efficient Zeroth-Order LLM Fine-Tuning via Large Learning Rates",
+      "url": "https://arxiv.org/abs/2608.15665v1",
+      "relationship": "current multi-query adaptive-subspace competitor",
+      "difference": "SubZero+ combines multi-query estimation in layer-specific low-rank subspaces, subspace Adam, and a QR sign correction, evaluating 1.3B-32B models under full and LoRA tuning. It postdates LOREN but is the current closest systems-level comparator for whether six-query variance reduction and adaptive geometry can deliver stability without LOREN's ambiguous covariance equations.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2608.15665v1 (2026-08-16)"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "LOREN is the first LLM fine-tuning ZO optimizer to combine curvature adaptation and variance reduction and the first to use a block-diagonal Hessian approximation in ZO, achieving higher accuracy, faster convergence, O(n) curvature state, and up to 27.3% lower peak memory than MeZO-Adam.",
+    "evidence": "The paper derives a repeated damped rank-one precision, natural-gradient mean score, and RLOO factor score; reports five-run results across six models and eight classification tasks; measures memory on six models and threshold efficiency on two; and gives one hyperparameter ablation. It does not measure curvature fidelity, isolate components, compare first-order fine-tuning, or use an independent test set.",
+    "reviewer_inference": "The plausible novel kernel is combining a memory-light repeated rank-one perturbation precision with same-batch RLOO and momentum for full-parameter LLM ZO. Preconditioned ZO, NES covariance learning, RLOO, low-rank perturbations, diagonal Hessian ZO, adaptive query schedules, and subspace ZO all preexist it, so 'first' claims require a much narrower formulation. Empirically, LOREN is often competitive and query-efficient, but not universally most accurate, fastest in wall time, or closest to inference memory. The novelty is materially undermined by a sign contradiction, an invalid dimension/epsilon equation, ambiguous covariance notation, a flawed convergence proof, validation reuse, missing causal ablations, and code/pseudocode divergence. Confidence is high for the document audit and algebra, moderate for real-world optimizer quality because no training run was independently reproduced."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Atomic full-text review of all 27 pinned pages: Sections 1-6; Equations 1-12 and Algorithm 1; Figures 1-2 and Tables 1-5; all references; Appendix A derivations; Appendix B alternative covariance; Appendix C damping; Appendix D assumptions, lemmas, and the complete convergence proof; Appendix E default-pass curves/Table 6; Appendix F ablation/Figures 3-4; and Appendix G dataset protocol plus Tables 7-11. The cached PDF was independently fetched as official arXiv:2511.07971v1 and its SHA-256 matched the pinned artifact; the official record checked 2026-08-23 still listed v1 (submitted 2025-11-11), AAAI 2026 acceptance, and DOI 10.1609/aaai.v40i30.39715. Nine distinct official primary-source competitors were checked at exact versions. The official LOREN repository was additionally audited at commit b80a32bc394332d1a1f115f41dfb5dcf7b326d37 (2025-12-11), but it is not a reported-run pin and diverges from the paper, so code observations are flagged rather than treated as experimental reproduction. All reported accuracies and memory/query numbers were transcribed from the pinned v1; no LLM fine-tuning experiment was rerun."
+}

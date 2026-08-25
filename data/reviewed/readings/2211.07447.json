@@ -1,0 +1,177 @@
+{
+  "stable_id": "arxiv:2211.07447",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2211.07447",
+    "pdf_sha256": "bd7182a727bf19fc6177baa4dd88bcbed8ee154f7ea62c7034b5add990638253",
+    "text_sha256": "721b6667510180ff96e261629b3ce262f7911438cf3073c2a2c9a3e8052da4d2",
+    "page_count": 14,
+    "extracted_at": "2026-08-23T20:21:48.609436+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a real-valued regression target be encoded autoregressively so that histogram-loss optimization remains insensitive to mixed target scales without a linear-in-precision output layer?",
+  "key_findings": [
+    {
+      "claim": "Global target normalization does not repair scale imbalance when one observed target distribution mixes latent subtasks with very different variances.",
+      "evidence": "The analysis shows that one global standard deviation leaves the smaller-variance subtask compressed, so MSE gradients still prioritize the larger-scale component; separate per-subtask normalization would work only when the subtask identity and statistics are available.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "2.6 Limitations of Existing Approaches"},
+        {"page": 7, "section": "5 Discussion"}
+      ]
+    },
+    {
+      "claim": "Base-b autoregressive digits replace a k-way histogram head with a sequence whose representable resolution grows exponentially in its length.",
+      "evidence": "A bucket index is written as s base-b coefficients with k=b^s; the model factors their probability by the chain rule and predicts b logits at each step conditioned on the input and preceding coefficients.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "3 Method"}
+      ]
+    },
+    {
+      "claim": "Histogram-loss training learns both halves of deliberately scale-mismatched targets where MSE, normalized MSE, and MAE learn mainly the larger-scale half.",
+      "evidence": "The pattern repeats on a synthetic one-dimensional function mixture, a four-digit MNIST regression construction, and Amazon reviews mixing star rating with total character count; equal-scale controls remove the failure.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "4.1 Learning At Multiple Scales"},
+        {"page": 6, "section": "4.1.1 Multi-task Regression"}
+      ]
+    },
+    {
+      "claim": "The apparent multiscale optimization gain is not evidence for autoregressive factorization itself.",
+      "evidence": "The authors explicitly attribute the Section 4.1 gains to histogram loss; autoregression is the engineering mechanism that lets that loss cover many bins without the dense head's memory cost.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "4.1 Learning At Multiple Scales"},
+        {"page": 7, "section": "4.3 Computational Tractability"}
+      ]
+    },
+    {
+      "claim": "The classification-style objective has a more stable learning-rate region across target scales, but exact means become expensive.",
+      "evidence": "On the MNIST construction, the best MSE learning rate shifts from about 10^-1 at target scale 10^9 to about 10^-5 at 10^-3, while autoregressive regression stays near 10^-3. Exact marginal means require enumerating all output sequences, which is especially problematic for Bellman action selection.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "4.2 Learning Rate Stability"},
+        {"page": 7, "section": "5 Discussion"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Turn scalar regression into conditional next-digit classification over a positional numeral encoding of a histogram bucket.",
+    "mechanism": "Choose a bounded output range and precision, map each target to an s-token base-b bucket code, train a Transformer-style head by summed token cross-entropy, and decode a distribution or sampled scalar at inference.",
+    "assumptions": [
+      "A useful bounded range and discretization precision can be selected in advance",
+      "The model can learn dependencies among target digits rather than compounding early-token mistakes",
+      "Histogram cross-entropy gives an appropriate task weighting across target scales",
+      "Sampling is an acceptable approximation when an exact predictive mean is intractable"
+    ]
+  },
+  "techniques": [
+    {
+      "id": "autoregressive-radix-target-code",
+      "role": "Represents k histogram buckets with s sequential b-way predictions where k=b^s."
+    },
+    {
+      "id": "histogram-cross-entropy-regression",
+      "role": "Makes optimization depend on categorical prediction error instead of the target's numeric magnitude."
+    },
+    {
+      "id": "scale-swap-controls",
+      "role": "Tests whether failure tracks target scale rather than which subtask is intrinsically harder."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "two-function synthetic regression, four-digit MNIST regression, and Amazon review rating/length regression",
+      "metric": "small-subtask and aggregate held-out regression error",
+      "result": "autoregressive histogram models learn both target scales; direct regression losses generally ignore the smaller scale in the deliberately imbalanced settings",
+      "baseline": "MSE, globally normalized MSE, and MAE"
+    },
+    {
+      "setting": "MNIST-derived single-target regression across target magnitudes and learning rates",
+      "metric": "test error at convergence",
+      "result": "the autoregressive optimum remains near 10^-3 while the MSE optimum moves by roughly four orders of magnitude between the reported extreme scales",
+      "baseline": "MSE and MAE"
+    },
+    {
+      "setting": "MNIST-derived histogram prediction on an RTX A6000 across requested class counts",
+      "metric": "GPU memory use and out-of-memory incidence",
+      "result": "multiple autoregressive steps reach high-fidelity output spaces that exhaust memory with a one-step dense histogram head",
+      "baseline": "basic one-logit-per-bucket histogram loss"
+    }
+  ],
+  "limitations": [
+    "Author-stated: exact predictive means require enumerating every output sequence; sampling only approximates them.",
+    "Author-stated: this is a serious obstacle for value-based reinforcement learning, where a mean is needed inside the Bellman argmax during training.",
+    "The multiscale benchmarks intentionally splice two recognizable subtasks and do not establish gains on naturally continuous, heavy-tailed targets.",
+    "Range clipping, bin width, radix, sequence length, decoding strategy, and calibration introduce design choices absent from direct scalar regression.",
+    "Sequential decoding increases inference latency even though it reduces output-layer memory."
+  ],
+  "failure_modes": [
+    "A target lies outside the prespecified numeric range or needs more local precision than uniform buckets provide.",
+    "Early digit errors send the decoded target to a distant interval and later digits cannot correct it.",
+    "Sampling noise makes mean-based downstream decisions unstable.",
+    "Categorical accuracy weights all bins similarly even when application costs genuinely should grow with magnitude."
+  ],
+  "reusable_insights": [
+    "Separate the optimization benefit of a distributional loss from the compression mechanism used to implement it.",
+    "Radix factorization converts a wide classifier into depth, offering an explicit memory-latency tradeoff.",
+    "Scale-swap and equal-scale controls can distinguish gradient-scale pathology from task difficulty.",
+    "Evaluate both distribution quality and the cost of extracting the downstream statistic actually consumed."
+  ],
+  "open_questions": [
+    "Can adaptive or hierarchical buckets retain the stable objective while reducing sequence length and boundary error?",
+    "How can exact or low-variance means be computed without enumerating exponentially many codes?",
+    "Does the method improve naturally heavy-tailed scientific and economic regressions after calibrated-loss baselines are tuned?",
+    "Can distributional RL exploit the code without repeatedly decoding every action's mean?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "pmlr:v80:imani18a",
+      "title": "Improving Regression Performance with Distributional Losses",
+      "url": "https://proceedings.mlr.press/v80/imani18a.html",
+      "relationship": "direct predecessor",
+      "difference": "Imani and White introduce histogram-style distributional regression and analyze its gradients; this paper targets mixed scales and factorizes a very large fixed histogram into autoregressive digits.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2018 PMLR record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2208.02246",
+      "title": "AdaCat: Adaptive Categorical Discretization for Autoregressive Models",
+      "url": "https://arxiv.org/abs/2208.02246",
+      "relationship": "concurrent adaptive-discretization competitor",
+      "difference": "AdaCat predicts adaptive interval widths and masses to spend a fixed bin budget where density changes sharply; radix regression preserves uniformly fine coverage by composing multiple categorical digits.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv/UAI 2022 record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:1707.06887",
+      "title": "A Distributional Perspective on Reinforcement Learning",
+      "url": "https://arxiv.org/abs/1707.06887",
+      "relationship": "fixed-support distributional-loss precedent",
+      "difference": "C51 learns 51 categorical return atoms under a distributional Bellman update; this work addresses supervised scalar regression and exponentially increases fixed-grid fidelity, while identifying mean extraction as an unresolved RL cost.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv/ICML 2017 record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2104.14138",
+      "title": "Adapting to Reward Progressivity via Spectral Reinforcement Learning",
+      "url": "https://arxiv.org/abs/2104.14138",
+      "relationship": "related multiscale-target decomposition",
+      "difference": "Spectral DQN decomposes progressive rewards into independently predicted frequency bands to balance RL losses; radix regression autoregressively represents one scalar distribution and can express dependencies among digits.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Autoregressive regression makes histogram-loss regression tractable at arbitrarily large scale and precision while retaining scale-insensitive optimization.",
+    "evidence": "The radix construction gives exponential bucket growth, and the three scale-mismatch domains plus memory sweep demonstrate the intended behavior.",
+    "reviewer_inference": "The clearest novelty is a radix-factorized output parameterization for high-fidelity histogram regression. The paper itself correctly narrows the learning benefit: histogram cross-entropy, not autoregression, explains the multiscale optimization result; natural-task utility and exact-statistic extraction remain open."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Read all 14 extracted pages, including appendix details, with a second pass on the mixed-scale controls, radix factorization, memory experiment, discussion, and related work. Primary records for histogram loss, AdaCat, C51, and Spectral DQN were checked."
+}

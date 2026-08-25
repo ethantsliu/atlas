@@ -1,0 +1,370 @@
+{
+  "stable_id": "arxiv:2604.07397",
+  "reading_depth": "verified",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2604.07397",
+    "pdf_sha256": "135875d2d39dc14bb133d5000c94d6858c5061de188a0e9aee69d25e312c0fd4",
+    "text_sha256": "510a3cc25bff74a970ef82fa310dcef580eb18c4b06accf73e3d6cbffc3a317f",
+    "page_count": 10,
+    "extracted_at": "2026-08-23T09:56:06.346394+00:00",
+    "review_pass": "secondary-verified-v1"
+  },
+  "question": "Can diffusion-transformer training be accelerated, without changing the model or denoising loss, by using a frozen semantic image-complexity score to bias early sampling from foreground-dominated, prototypical images toward the full data distribution; and under what data-diversity, model-scale, and accelerator conditions does that curriculum help or fail?",
+  "key_findings": [
+    {
+      "claim": "Data Warmup defines image difficulty from two frozen DINO-v2-derived signals rather than from the diffusion model's current loss: foreground dominance and foreground typicality.",
+      "evidence": "For every image, the method projects DINO-v2 spatial tokens onto the dataset-wide first principal component, labels tokens with projection above 0.05 as foreground, maps background proportion through a sigmoid with kappa=12 and v_min=0.002, averages foreground tokens, clusters those averages into K=1000 ImageNet prototypes, and multiplies sigmoid-corrected background ratio by distance to the nearest prototype. The construction is offline and model-independent, so it is inexpensive but assumes these two semantic proxies preserve the target model's learning difficulty.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "3.1 Semantic-aware Image Complexity / Figure 1"},
+        {"page": 4, "section": "3.1.1-3.1.4 / Equations 1-6"},
+        {"page": 5, "section": "Algorithm 1 and complexity preprocessing"}
+      ]
+    },
+    {
+      "claim": "The curriculum is a smooth, cluster-normalized annealing of example probabilities, but one material schedule input is not numerically reported.",
+      "evidence": "Within each prototype cluster, raw complexity is min-max normalized; image probability is proportional to exp(-normalized complexity/tau). Temperature is recovered by binary search from an effective-dataset-size target that follows a power-2 curve to (1-1/e)|D| during the first 200,000 experimental iterations, after which sampling is uniform for another 200,000. Algorithm 1 lists the initial effective size |D_0| as an input, yet the experiment section does not state its value, limiting exact reproduction of early sampling concentration.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "3.2 Warmup Sampling Schedule / Equations 7-8"},
+        {"page": 5, "section": "Equations 9-10, Figure 5, and Algorithm 1"},
+        {"page": 5, "section": "4 Experiments / Setup"}
+      ]
+    },
+    {
+      "claim": "On the main ImageNet-1K SiT-B/2 experiment, simple-to-complex warmup improves IS, FID, sFID, and precision at the same 400,000-step budget, while recall is unchanged.",
+      "evidence": "Uniform sampling obtains IS 41.40, FID 36.16, sFID 6.80, precision 0.52, and recall 0.63. Data Warmup obtains 45.70, 32.75, 6.56, 0.54, and 0.63 respectively: +4.30 IS, -3.41 FID, -0.24 sFID, +0.02 precision, and +0.00 recall.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "4 Experiments / Setup and Metrics"},
+        {"page": 6, "section": "4.1 Does Direction Matter? / Table 1"}
+      ]
+    },
+    {
+      "claim": "The reverse-order control strongly supports an ordering effect, but it does not by itself validate the particular DINO complexity score against other easy-to-hard rankings.",
+      "evidence": "Using the same non-uniform mechanism in the complex-to-simple direction lowers IS from the uniform baseline's 41.40 to 36.60 and worsens FID from 36.16 to 41.05; sFID, precision, and recall also move from 6.80/0.52/0.63 to 7.19/0.49/0.62. The approximately 9-point IS and 8-point FID separation between directions rules out direction-free non-uniformity, but there is no random-ranking, loss-ranked, timestep-curriculum, or alternative semantic-ranking control to isolate which score ingredients are necessary.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "4.1 Does Direction Matter? / Table 1"},
+        {"page": 7, "section": "5 Discussion / Why does direction matter so strongly?"}
+      ]
+    },
+    {
+      "claim": "Data Warmup fails catastrophically on the smallest ImageNet subset, establishing a focus-diversity failure regime rather than a universally beneficial curriculum.",
+      "evidence": "On IN-100 (about 100 images per class), warmup changes IS from 43.05 to 28.75 (-14.30), FID from 79.38 to 100.97 (+21.59), and sFID from 220.69 to 225.38 (+4.69). On IN-500 it instead changes IS/FID/sFID from 44.79/35.32/10.08 to 50.90/31.95/10.03, and on IN-1K from 41.40/36.16/6.80 to 45.70/32.75/6.56. The authors attribute IN-100 degradation to diversity starvation and overfitting, but report no coverage, memorization, or mode-collapse diagnostic that directly tests that mechanism.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "4.2 Dataset size: a diversity threshold / Table 3"},
+        {"page": 8, "section": "5 Discussion / The focus-diversity trade-off"}
+      ]
+    },
+    {
+      "claim": "The main quality gains extend across four SiT capacities, although the size trend is not monotone and one metric sometimes saturates.",
+      "evidence": "On ImageNet-1K, SiT-S warmup changes IS/FID/sFID from 24.39/58.34/9.30 to 25.55/55.87/9.16; SiT-B from 41.40/36.16/6.80 to 45.70/32.75/6.56; SiT-L from 71.48/18.79/5.14 to 77.44/17.17/5.14; and SiT-XL from 75.40/17.67/5.15 to 80.07/16.36/5.13. IS improvement peaks at L (+5.96), not XL (+4.67), and L's sFID is unchanged, so the text's suggestion that gains grow with capacity is only broadly, not monotonically, supported.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "4.2 Model capacity"},
+        {"page": 7, "section": "Table 4"}
+      ]
+    },
+    {
+      "claim": "Data Warmup composes with REPA on most reported metrics, but slightly reduces recall.",
+      "evidence": "For SiT-B/2 on ImageNet-1K, REPA alone reports IS 55.36, FID 27.54, sFID 6.91, precision 0.56, and recall 0.65; adding warmup gives 58.08, 25.84, 6.89, 0.57, and 0.64. Thus IS improves 2.72 and FID improves 1.70, while recall drops 0.01, a negative result omitted from the prose summary of compatibility.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "4.1 Compatibility with model-centric acceleration / Table 2"},
+        {"page": 8, "section": "6 Conclusion"}
+      ]
+    },
+    {
+      "claim": "Both score factors help individually, but the paper's claim that their product exceeds the sum of individual improvements is false for IS and the product is not best on sFID.",
+      "evidence": "Against IS 41.40/FID 36.16/sFID 6.80, prototype-only reaches 42.91/35.01/6.72 (+1.51 IS, -1.15 FID, -0.08 sFID), dominance-only reaches 44.42/33.94/6.53 (+3.02, -2.22, -0.27), and the product reaches 45.70/32.75/6.56 (+4.30, -3.41, -0.24). The individual IS gains sum to 4.53, which exceeds the product's 4.30; only the FID improvement is marginally superadditive (3.41 versus 3.37), and dominance alone has better sFID (6.53 versus 6.56). The evidence supports complementarity on IS/FID, not a metric-independent synergy claim.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "4.3 Individual vs. combined factors / Table 5"}
+      ]
+    },
+    {
+      "claim": "The reported sigmoid sweep shows local robustness, not broad robustness of the complexity metric or curriculum schedule.",
+      "evidence": "At kappa 10, 12, and 16, IS/FID/sFID are 45.01/33.14/6.63, 45.69/32.75/6.56, and 44.94/33.21/6.63. At v_min 0.02 versus 0.002 they are 44.19/34.07/6.68 versus 45.69/32.75/6.56. Every tested setting beats the 41.40/36.16/6.80 baseline, but the paper does not sweep saliency threshold, prototype count, PCA sign/orientation, initial effective dataset size, warmup length, schedule power, or cluster-normalization rule. Table 6 also rounds the selected IS to 45.69 whereas main tables report 45.70.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "3.1.1-3.1.2 saliency threshold and sigmoid settings"},
+        {"page": 7, "section": "4.3 Sigmoid hyperparameters / Table 6"}
+      ]
+    },
+    {
+      "claim": "The convergence evidence is promising but does not establish a statistically reliable wall-clock speedup.",
+      "evidence": "On IN-500, the warmup curve is ahead at plotted checkpoints from roughly 80,000 through 400,000 iterations and ends about six IS points higher; preprocessing is reported as about ten minutes on one H100 with negligible per-step overhead. However, the paper gives no repeated-run uncertainty, confidence intervals, random seeds, GPU-hour table, time-to-fixed-FID table, or equal-wall-clock comparison. Its 'tens of thousands of iterations earlier' and efficiency language therefore rests on a single coarse training curve and equal-step final metrics rather than a measured end-to-end speedup distribution.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "4 Experiments / Setup and complexity preprocessing"},
+        {"page": 6, "section": "4.2 / Figure 6 discussion"},
+        {"page": 7, "section": "Figure 6"},
+        {"page": 8, "section": "6 Conclusion"}
+      ]
+    },
+    {
+      "claim": "The proposed low-entropy-gradient and favorable-loss-basin mechanism remains a hypothesis rather than a measured explanation.",
+      "evidence": "The discussion argues that simple foreground-dominated images give coherent low-entropy gradients, that hard-first gradients conflict and average out, and that early curricula steer optimization into a better region. No gradient variance, cosine conflict, Hessian/loss geometry, representation-development, or trajectory intervention is measured. The inverse control establishes behavioral asymmetry but cannot discriminate the stated gradient mechanism from alternative explanations such as class-conditional sampling bias, repeated canonical examples, or optimizer path dependence.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "1 Introduction"},
+        {"page": 7, "section": "5 Discussion / Why does direction matter so strongly?"},
+        {"page": 8, "section": "5 Discussion continuation"}
+      ]
+    },
+    {
+      "claim": "Two supporting claims lack the controls or results needed for their stated breadth.",
+      "evidence": "Section 3.1 says ablations confirm that texture and compressibility add no gain, but Section 5 reports only foreground-factor and sigmoid ablations; no texture or compression result appears in the paper. The qualitative SiT-XL/2+REPA+Warmup turtle grid has neither a matched baseline grid nor human evaluation, so it cannot attribute fine-grained appearance to the curriculum. These omissions do not negate the aggregate tables but narrow what they establish.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "3.1 Semantic-aware Image Complexity"},
+        {"page": 7, "section": "4.3 ablations and 4.4 Qualitative Examples"},
+        {"page": 8, "section": "Figure 7"}
+      ]
+    },
+    {
+      "claim": "After direct-prior review, the defensible novelty is semantic image-example scheduling for diffusion training, not curriculum training for diffusion models in general.",
+      "evidence": "The authors explicitly inherit prototype-distance scoring and temperature/effective-size scheduling from arXiv:2411.10685. Earlier ICLR 2025 work arXiv:2403.10348 already applies an easy-to-hard denoising-task curriculum to diffusion training, while REPA, ERW, REED, SARA, and Immiscible Diffusion address the same training-efficiency bottleneck through representation objectives or image-noise assignment. Data Warmup remains distinct in scheduling which real images are sampled using foreground dominance plus prototype typicality while leaving the model and loss unchanged; the closest diffusion-curriculum prior is not cited in the paper's references.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "2.2 Data selection and closest precursor"},
+        {"page": 2, "section": "2.3 Accelerating diffusion model training"},
+        {"page": 8, "section": "6 Conclusion"},
+        {"page": 9, "section": "References 16-17"},
+        {"page": 10, "section": "References 36-38"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Precompute a scalar semantic complexity for every training image, then bias only the early data sampler toward low-complexity images and anneal smoothly to the original uniform distribution, leaving the SiT architecture, optimizer, latent diffusion objective, and total training steps unchanged.",
+    "mechanism": "DINO-v2 spatial tokens are split into foreground and background by thresholding projection onto a dataset-wide first principal component. Foreground dominance is a sigmoid of background fraction; foreground typicality is Euclidean distance between the image's mean foreground feature and its nearest k-means prototype. Their product is min-max normalized within each prototype cluster. A softmax over negative normalized complexity defines sampling probabilities. Rather than schedule temperature directly, the algorithm schedules the expected number of distinct samples in |D| draws from |D_0| toward (1-1/e)|D| with a power-2 curve, recovers temperature by binary search, and switches to uniform sampling after the 200,000-step warmup.",
+    "assumptions": [
+      "DINO-v2 token geometry and a global PCA saliency direction identify foreground consistently enough to proxy diffusion learning difficulty.",
+      "The sign/orientation of the first principal component is fixed appropriately even though PCA eigenvectors are sign-indeterminate and the paper does not state the convention.",
+      "Projection threshold 0.05 transfers from prior saliency use to every ImageNet image and model scale.",
+      "Mean foreground-token distance to one of K=1000 k-means centroids measures semantic typicality rather than encoder or cluster-density artifacts.",
+      "Multiplying dominance and prototype distance is a calibrated enough joint difficulty function despite the components' different units and distribution shapes.",
+      "Within-cluster min-max normalization removes unwanted concept bias without amplifying outliers or erasing meaningful cross-cluster difficulty.",
+      "Static, model-independent scores remain relevant as the denoiser's competence and diffusion-timestep difficulty change during training.",
+      "A curriculum distribution concentrated on simple images retains enough class and within-class diversity; IN-100 shows this assumption can fail badly.",
+      "FID, sFID, IS, precision, and recall at selected checkpoints capture the relevant quality/diversity trade-off.",
+      "Equal training steps plus about ten minutes of preprocessing are an adequate efficiency comparison even without repeated wall-clock measurements.",
+      "The low-entropy-gradient explanation is plausible, although no gradient or loss-landscape diagnostic tests it.",
+      "Results from curated, class-conditional ImageNet-256 SiT training transfer to less curated or text-conditioned regimes only after further validation."
+    ]
+  },
+  "techniques": [
+    {"id": "dino-pca-foreground-separation", "role": "Uses frozen DINO-v2 spatial tokens and a global first-principal-component threshold to isolate salient foreground tokens offline."},
+    {"id": "sigmoid-foreground-dominance", "role": "Maps background proportion nonlinearly so images with small, cluttered foregrounds receive higher complexity."},
+    {"id": "prototype-distance-typicality", "role": "Measures how atypical an image's mean foreground feature is relative to K=1000 visual centroids."},
+    {"id": "multiplicative-complexity", "role": "Requires an image to be both foreground-dominated and prototypical to receive a low score."},
+    {"id": "within-cluster-minmax-normalization", "role": "Normalizes complexity inside each prototype cluster before global sampling to reduce concept-level score bias."},
+    {"id": "temperature-controlled-example-sampling", "role": "Softmaxes negative complexity so low-score examples dominate early and all examples approach uniform probability later."},
+    {"id": "effective-dataset-size-annealing", "role": "Parameterizes temperature through expected unique examples under |D| draws and follows a power-2 growth schedule."},
+    {"id": "inverse-curriculum-control", "role": "Reverses score order under the same sampler to test whether direction, rather than non-uniformity alone, matters."},
+    {"id": "orthogonal-accelerator-stacking", "role": "Combines data ordering with REPA's representation-alignment loss to test complementarity across intervention axes."}
+  ],
+  "evaluations": [
+    {
+      "setting": "SiT-B/2 trained for 400,000 iterations on class-conditional ImageNet-1K at 256x256; warmup uses 200,000 curriculum steps followed by 200,000 uniform steps.",
+      "metric": "IS, FID, sFID, precision, and recall.",
+      "result": "Data Warmup reports 45.70 IS, 32.75 FID, 6.56 sFID, 0.54 precision, and 0.63 recall.",
+      "baseline": "Uniform SiT-B/2 reports 41.40 IS, 36.16 FID, 6.80 sFID, 0.52 precision, and 0.63 recall."
+    },
+    {
+      "setting": "Same SiT-B/2/ImageNet-1K configuration and sampling entropy schedule, with complexity direction reversed during warmup.",
+      "metric": "IS, FID, sFID, precision, and recall.",
+      "result": "Inverse warmup reports 36.60 IS, 41.05 FID, 7.19 sFID, 0.49 precision, and 0.62 recall, worse than uniform on every reported metric.",
+      "baseline": "Uniform sampling at 41.40/36.16/6.80/0.52/0.63 and simple-to-complex warmup at 45.70/32.75/6.56/0.54/0.63."
+    },
+    {
+      "setting": "SiT-B/2 on ImageNet subsets with about 100, 500, or 1,000 images per class.",
+      "metric": "IS, FID, and sFID at the common training budget.",
+      "result": "IN-100 warmup changes 43.05/79.38/220.69 to 28.75/100.97/225.38; IN-500 changes 44.79/35.32/10.08 to 50.90/31.95/10.03; IN-1K changes 41.40/36.16/6.80 to 45.70/32.75/6.56.",
+      "baseline": "Uniform sampling separately trained on each subset."
+    },
+    {
+      "setting": "ImageNet-1K 256x256 across SiT-S/2, B/2, L/2, and XL/2 backbones.",
+      "metric": "IS, FID, and sFID.",
+      "result": "Warmup reports S 25.55/55.87/9.16, B 45.70/32.75/6.56, L 77.44/17.17/5.14, and XL 80.07/16.36/5.13.",
+      "baseline": "Uniform models report S 24.39/58.34/9.30, B 41.40/36.16/6.80, L 71.48/18.79/5.14, and XL 75.40/17.67/5.15."
+    },
+    {
+      "setting": "REPA with a SiT-B/2 backbone on ImageNet-1K 256x256, with and without Data Warmup.",
+      "metric": "IS, FID, sFID, precision, and recall.",
+      "result": "REPA plus warmup reaches 58.08/25.84/6.89/0.57/0.64, improving the first four metrics but reducing recall by 0.01.",
+      "baseline": "REPA alone at 55.36/27.54/6.91/0.56/0.65."
+    },
+    {
+      "setting": "SiT-B/2 ImageNet-1K ablation of prototype typicality, foreground dominance, and their product.",
+      "metric": "IS, FID, and sFID.",
+      "result": "Prototype-only is 42.91/35.01/6.72, dominance-only 44.42/33.94/6.53, and the product 45.70/32.75/6.56; product IS gain 4.30 is below the 4.53 sum of individual gains, while product FID gain 3.41 slightly exceeds the 3.37 sum.",
+      "baseline": "Uniform sampling at 41.40/36.16/6.80."
+    },
+    {
+      "setting": "Local sweep of foreground-dominance sigmoid parameters on SiT-B/2 ImageNet-1K.",
+      "metric": "IS, FID, and sFID.",
+      "result": "kappa 10/12/16 gives 45.01/33.14/6.63, 45.69/32.75/6.56, and 44.94/33.21/6.63; v_min 0.02/0.002 gives 44.19/34.07/6.68 and 45.69/32.75/6.56.",
+      "baseline": "Selected kappa=12, v_min=0.002 and the uniform 41.40/36.16/6.80 model."
+    },
+    {
+      "setting": "IN-500 SiT-B/2 training curve at approximately 40k, 80k, 160k, 240k, 320k, and 400k iterations, with T_w=200k.",
+      "metric": "Inception Score versus optimization steps.",
+      "result": "The warmup curve is ahead from the early measured checkpoints and ends near 51 versus about 45, a roughly six-point lead at 400k; the paper supplies no error bars or repeat runs.",
+      "baseline": "Uniform sampling for all 400k iterations."
+    }
+  ],
+  "limitations": [
+    "Author-stated: the frozen DINO-v2 complexity score is static and does not adapt to the denoiser's evolving competence; the authors propose loss-aware rescoring as future work.",
+    "Author-stated: experiments cover only class-conditional image generation, not text-conditioned generation where prompt complexity adds a new axis.",
+    "Author-stated: foreground dominance and typicality may be insufficient for uncurated web-scale data with texture, occlusion, and label noise.",
+    "Author-reported failure: on IN-100, early concentration catastrophically reduces IS by 14.30 and worsens FID by 21.59, revealing a minimum-diversity requirement.",
+    "Reviewer-identified: all quantitative experiments use curated ImageNet at 256x256 and SiT-family backbones; no other dataset, resolution, architecture family, unconditional setting, or text-to-image model is tested.",
+    "Reviewer-identified: the paper reports no seeds, uncertainty intervals, statistical tests, or run-level results, so differences—especially small sFID/precision/recall changes—cannot be separated from training variance.",
+    "Reviewer-identified: there is no end-to-end GPU-hour or time-to-quality analysis; the approximately ten-minute preprocessing claim does not establish total wall-clock acceleration.",
+    "Reviewer-identified: the initial effective dataset size |D_0| is an algorithm input but is not numerically stated in the experimental setup.",
+    "Reviewer-identified: PCA sign convention, prototype initialization/seeds, empty/small-cluster handling, and min-max outlier behavior are underspecified.",
+    "Reviewer-identified: the low-entropy-gradient, gradient-conflict, structured-parameter-region, and mode-collapse explanations are asserted without direct measurements.",
+    "Reviewer-identified: the factor 'synergy' statement is numerically false for IS and dominance alone is better on sFID; the product's advantage is metric-dependent.",
+    "Reviewer-identified: the claimed texture/compressibility ablation is absent, and the qualitative sample grid has no matched baseline or human evaluation.",
+    "Reviewer-identified: the inverse control isolates direction but not semantic-score validity; no random ranking, alternative encoder, loss ranking, timestep curriculum, or simpler foreground heuristic is compared.",
+    "Reviewer-identified: cluster-wise normalization can preserve cluster-size imbalance and erase meaningful cross-cluster difficulty, contrary to a strong interpretation that it guarantees concept-balanced sampling.",
+    "Reviewer-identified: the claim that sufficient diversity is 'easily met by any practical large-scale dataset' is extrapolated from only three ImageNet subset sizes and without retuning the sampler for the small set.",
+    "Reviewer-identified: a directly relevant prior diffusion curriculum, arXiv:2403.10348, is absent from the related-work discussion, so novelty should not be phrased as the first curriculum for diffusion training."
+  ],
+  "failure_modes": [
+    "When a dataset or cluster is small, repeated exposure to canonical low-score images can starve rare variation and sharply harm both fidelity and diversity, as IN-100 demonstrates.",
+    "A globally chosen PCA direction can be sign-flipped or align with background/style variance rather than saliency, reversing or corrupting foreground masks.",
+    "A small foreground that is genuinely the only important object may be labeled complex merely because it occupies few tokens.",
+    "Rare but semantically easy examples can be far from a centroid and delayed, while visually typical but intrinsically hard examples can be oversampled early.",
+    "Min-max normalization is sensitive to cluster outliers and small cluster sizes, compressing most scores or exaggerating negligible within-cluster differences.",
+    "A static ranking can become stale: examples helpful to a random model may cease to be useful, while delayed hard examples may remain undertrained before the uniform phase.",
+    "Foreground-only averaging discards relational layout, multiple-object interactions, occlusion, texture, captions, and label noise that dominate difficulty outside curated ImageNet.",
+    "A fixed 200k warmup can be too concentrated or too long for smaller datasets and too short for larger or slower models.",
+    "Optimizing IS/FID can hide reduced support coverage; REPA plus warmup already shows a small recall regression despite improved headline scores.",
+    "The method can appear to accelerate convergence when it primarily changes the metric trajectory or final optimum; without time-to-target repeats, an optimization speedup and a quality shift are confounded.",
+    "A DINO-dependent score can inherit domain bias and fail on medical, satellite, abstract, or non-photographic imagery whose foreground semantics differ from DINO pretraining."
+  ],
+  "reusable_insights": [
+    "For data curricula, use an inverse-order control with the same sampler to distinguish direction from non-uniformity.",
+    "Report catastrophic small-data regimes alongside gains; focus-diversity trade-offs are part of the method, not peripheral exceptions.",
+    "Normalize difficulty within semantic groups when global scores would otherwise collapse onto a few concepts, but audit cluster mass and outlier sensitivity explicitly.",
+    "Separate data-axis acceleration from model/loss-axis acceleration and test whether they stack; orthogonality can yield additive improvements.",
+    "Measure each component alone and jointly on every metric before using synergy language; superadditivity can differ across metrics.",
+    "Parameterizing a softmax curriculum by expected unique-sample count is more interpretable than raw temperature and can transfer to other static-rank samplers.",
+    "Pair final-quality tables with repeated time-to-fixed-quality and GPU-hour curves so curriculum benefits can be classified as faster convergence, a different optimum, or both.",
+    "A frozen semantic encoder enables near-zero training-loop overhead, but its score should be stress-tested against simpler proxies and adaptive model-dependent difficulty.",
+    "For uncurated multimodal data, extend difficulty beyond object dominance/typicality to relational density, occlusion, text complexity, noise, and encoder uncertainty.",
+    "Make the initial curriculum concentration and every schedule constant explicit; early-distribution parameters can dominate outcomes."
+  ],
+  "open_questions": [
+    "Do gains survive multiple seeds and equal-wall-clock comparisons, and what is the distribution of steps or GPU-hours needed to reach fixed FID/IS targets?",
+    "What initial effective size |D_0| was used, and how sensitive are the results to |D_0|, warmup length, power exponent, saliency threshold, K, and PCA sign convention?",
+    "Does a random easy-to-hard ranking, a loss-based ranking, DINO distance alone, segmentation-derived object area, or the ICLR 2025 denoising-timestep curriculum match the gains?",
+    "Are early gradients actually lower variance or less conflicting on low-complexity images, and does warmup move optimization into a measurably different basin?",
+    "Can adaptive rescoring retain the early advantage while avoiding stale rankings and the IN-100 diversity collapse?",
+    "Does the method work on LAION-like uncurated data, text-to-image diffusion, higher resolutions, unconditional generation, video, and non-SiT architectures?",
+    "How do curriculum effects interact with diffusion noise level—are simple images equally useful at every timestep, or should image and timestep difficulty be scheduled jointly?",
+    "Can sampling enforce a minimum per-cluster or per-class coverage guarantee while still emphasizing simple examples?",
+    "Why does REPA plus warmup reduce recall, and is that a stable sign of mode-coverage loss?",
+    "Do texture, compressibility, occlusion, relational complexity, and label-noise features improve rankings on uncurated data despite the paper's unsupported no-gain statement?",
+    "Can score calibration predict in advance the dataset-size threshold at which focus becomes diversity starvation?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2411.10685",
+      "title": "From Prototypes to General Distributions: An Efficient Curriculum for Masked Image Modeling",
+      "url": "https://arxiv.org/abs/2411.10685v2",
+      "relationship": "closest scoring-and-schedule precursor",
+      "difference": "Lin et al. already rank images by distance to visual prototypes and anneal a temperature/effective-dataset-size curriculum for masked autoencoder pretraining. Data Warmup transfers that machinery to diffusion training and adds foreground dominance to prototype typicality; thus the new combination and generative setting, not prototype curricula or the annealing design alone, carry the novelty.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2, revised 2025-06-06; CVPR 2025"
+    },
+    {
+      "canonical_id": "arxiv:2403.10348",
+      "title": "Denoising Task Difficulty-based Curriculum for Training Diffusion Models",
+      "url": "https://arxiv.org/abs/2403.10348v3",
+      "relationship": "direct prior diffusion-curriculum competitor omitted from the paper",
+      "difference": "Kim et al. establish an easy-to-hard curriculum for diffusion training by grouping denoising timesteps/noise levels according to convergence and relative-entropy difficulty, across unconditional, class-conditional, and text-to-image tasks. Data Warmup instead holds timestep sampling and loss fixed and schedules real images by semantic scene complexity; the axes are complementary, but Data Warmup is not the first easy-to-hard diffusion-training curriculum.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3, revised 2025-02-11; ICLR 2025"
+    },
+    {
+      "canonical_id": "arxiv:2410.06940",
+      "title": "Representation Alignment for Generation: Training Diffusion Transformers Is Easier Than You Think",
+      "url": "https://arxiv.org/abs/2410.06940v4",
+      "relationship": "direct training-efficiency baseline and stacked method",
+      "difference": "REPA aligns noisy denoiser hidden states with clean pretrained-encoder representations through an auxiliary loss and reports more than 17.5x training acceleration for SiT-XL. Data Warmup changes only image sampling and produces smaller standalone gains, but its REPA experiment supports complementarity rather than replacement.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4, revised 2025-06-18; ICLR 2025 Oral"
+    },
+    {
+      "canonical_id": "arxiv:2504.10188",
+      "title": "Efficient Generative Model Training via Embedded Representation Warmup",
+      "url": "https://arxiv.org/abs/2504.10188v3",
+      "relationship": "direct semantic-warmup competitor",
+      "difference": "ERW uses a two-phase objective: first specialize early diffusion layers by alignment to a pretrained encoder, then continue full generative training with alignment. Data Warmup also targets weak early representations but keeps the network and loss untouched, using the encoder solely to rank data; ERW reports a substantially stronger 11.5x speedup claim but requires objective and training-phase changes.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3, revised 2025-09-29"
+    },
+    {
+      "canonical_id": "arxiv:2507.08980",
+      "title": "Learning Diffusion Models with Flexible Representation Guidance",
+      "url": "https://arxiv.org/abs/2507.08980v2",
+      "relationship": "direct representation-curriculum and efficiency competitor",
+      "difference": "REED derives representation-guided denoising decompositions and schedules the balance between representation generation and diffusion generation, reporting 23.3x acceleration over SiT-XL and 4x over REPA on ImageNet-256. Data Warmup schedules examples rather than objectives and is simpler to stack, but offers no comparable theory or time-to-target factor.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2, revised 2025-10-13; NeurIPS 2025"
+    },
+    {
+      "canonical_id": "openreview:kK23oMGe9g",
+      "title": "Immiscible Diffusion: Accelerating Diffusion Training with Noise Assignment",
+      "url": "https://openreview.net/forum?id=kK23oMGe9g",
+      "relationship": "direct data/noise-assignment training-efficiency competitor",
+      "difference": "Immiscible Diffusion accelerates training by assigning each batch of images to nearby Gaussian noises before corruption, changing image-noise pairing within every step and reporting up to 3x speedup. Data Warmup instead changes which images enter early batches and leaves their noise assignment standard; both are lightweight data-path interventions and should be compared or combined directly.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2024 poster; OpenReview last modified 2024-11-06"
+    },
+    {
+      "canonical_id": "arxiv:2503.08253",
+      "title": "SARA: Structural and Adversarial Representation Alignment for Training-efficient Diffusion Models",
+      "url": "https://arxiv.org/abs/2503.08253v1",
+      "relationship": "direct diffusion-training accelerator",
+      "difference": "SARA extends REPA with patch, autocorrelation, and adversarial distribution alignment and reports FID 1.36 with twice REPA's convergence rate. Data Warmup is architecture/loss agnostic and cheaper to integrate, but its evidence is confined to modest metric improvements at a fixed 400k-step budget rather than a state-of-the-art alignment objective.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1, submitted 2025-03-11"
+    },
+    {
+      "canonical_id": "arxiv:2605.30642",
+      "title": "Diffusion Models Preferentially Memorize Prototypical Examples or: Why Does My Diffusion Model Love Slop?",
+      "url": "https://arxiv.org/abs/2605.30642v1",
+      "relationship": "post-publication evidence on prototype concentration and diversity risk",
+      "difference": "Aparicio Rodriguez et al. find on Random Hierarchy Model strings that diffusion models preferentially memorize samples built from common substrings, that high-level dataset diversity delays memorization, and that an intermediate partial-memorization regime overproduces common structure. This does not test ImageNet curricula and postdates Data Warmup, so it is not a priority precursor; it independently sharpens the target's unmeasured risk that early prototype concentration can trade coverage for memorization or blandness.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1, submitted 2026-05-28"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims that semantic image complexity creates a simple-to-complex diffusion-training curriculum with no model or loss modification, improves ImageNet-256 SiT quality and convergence, composes with REPA, and uses the reverse-order failure to establish ordering as the operative cause.",
+    "evidence": "The closest cited prototype curriculum already supplies prototype distance, temperature sampling, and effective-dataset-size annealing for masked image modeling. Data Warmup adds foreground dominance, multiplies it with prototype typicality, applies cluster normalization, and demonstrates the image-ordering intervention in class-conditional diffusion across four SiT scales, three data sizes, an inverse direction, and REPA. Main improvements are numerically clear at the reported checkpoints, and the IN-100 failure is unusually informative. However, an earlier direct diffusion curriculum schedules denoising-task difficulty, and several representation warmups address the same early-training bottleneck with stronger speed claims. Current post-publication prototype-memorization evidence does not diminish priority but reinforces that concentration on common structure requires direct coverage and memorization diagnostics.",
+    "reviewer_inference": "The defensible novelty is a lightweight semantic image-example curriculum for diffusion models—especially the combination of DINO foreground dominance with prototype typicality and a reverse-order test—not curriculum diffusion training broadly, prototype annealing, or a demonstrated gradient-entropy mechanism. The factor-synergy wording must be narrowed because IS is subadditive and dominance alone wins sFID. Without seeds, alternative rankings, direct timestep-curriculum comparison, wall-clock time-to-quality, or coverage/memorization measurements, the work is a promising controlled ImageNet result rather than a general or mechanistically established training-efficiency law."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Secondary verification independently re-read the exact 10-page arXiv:2604.07397v1 PDF end to end, including equations 1-10, Algorithm 1, all six quantitative tables, Figure 6's IN-500 training curve, Figure 7, discussion, limitations, conclusion, and all 38 references. Rendered pages 6-8 were re-inspected to check every table value and the catastrophic IN-100 result, REPA recall regression, scale trend, and factor-ablation arithmetic. The indexed PDF SHA-256 135875d2d39dc14bb133d5000c94d6858c5061de188a0e9aee69d25e312c0fd4 and text SHA-256 510a3cc25bff74a970ef82fa310dcef580eb18c4b06accf73e3d6cbffc3a317f were rechecked against the pinned extraction; the official current record remains v1. No finding or page anchor required numerical repair. The contradiction audit was independently confirmed: combined-factor IS is subadditive, dominance-only wins sFID, the texture/compressibility ablation is absent, proposed mechanisms lack diagnostics, and efficiency lacks repeated wall-clock/time-to-target evidence. The competitor panel was re-searched from official primary records, version-pinned, and expanded with current prototype-memorization evidence.",
+  "verification": {
+    "reviewer_id": "reviewer-915194e03861",
+    "checked_at": "2026-08-23",
+    "passage_check": "Independently checked every claim, evidence sentence, and page anchor against all 10 pages of arXiv:2604.07397v1, including equations 1-10, Algorithm 1, Tables 1-6, Figures 1-7, discussion, conclusion, and references. Recomputed the main, inverse, IN-100/500/1K, scale, REPA, factor, and sigmoid deltas; confirmed the missing |D_0| value, missing texture/compressibility ablation, unmeasured mechanisms, absent seeds/uncertainty, and lack of end-to-end time-to-target evidence. The exact indexed PDF and text hashes were confirmed and no existing anchor or reported number needed correction.",
+    "competitor_check": "Re-searched official primary literature through 2026-08-23 and checked eight exact current records: arXiv 2411.10685v2, 2403.10348v3, 2410.06940v4, 2504.10188v3, 2507.08980v2, and 2503.08253v1; the NeurIPS 2024 OpenReview record kK23oMGe9g last modified 2024-11-06; and post-publication arXiv 2605.30642v1. All arXiv URLs are pinned to those versions. The audit confirms that prototype curricula and diffusion curricula predate the target, while semantic real-image ordering with foreground dominance is the narrower contribution; the later memorization result is treated only as current risk evidence, not a priority precursor."
+  }
+}

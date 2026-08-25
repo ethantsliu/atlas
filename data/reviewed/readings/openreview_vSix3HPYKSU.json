@@ -1,0 +1,136 @@
+{
+  "stable_id": "openreview:vSix3HPYKSU",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2202.03376",
+    "pdf_sha256": "ba8b573eb50a17284b61d78e04466f5594094ed0a43988f94dbaf9bf7c1f5cae",
+    "text_sha256": "806fbf57422652e50de3bbae8ce62a41873ce8f5b2ea33bdbc01d1a45815b19d",
+    "page_count": 27,
+    "extracted_at": "2026-08-24T00:27:36.179289+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can one message-passing architecture learn stable time-dependent PDE solvers that generalize across equations, parameters, spatial resolutions, grids, and boundary conditions?",
+  "key_findings": [
+    {
+      "claim": "MP-PDE casts a discretized PDE state as a graph and learns local update messages that can represent classical finite-difference, finite-volume, and WENO-style stencils.",
+      "evidence": "Nodes carry coordinates, current field history, and equation parameters; edges encode relative geometry. The message-passing update aggregates neighbor information before a decoder predicts temporal increments, and a representation argument embeds polynomial/local numerical stencils in this form.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 3, "section": "2 Numerical PDE update perspective"}, {"page": 6, "section": "3 MP-PDE architecture and stencil representation"}]
+    },
+    {
+      "claim": "Temporal bundling and the pushforward trick address rollout cost and train-test distribution shift without fully unrolling long trajectories during every update.",
+      "evidence": "The decoder predicts several future steps at once to reduce message-passing calls. During training, the model is sometimes fed its own detached prediction before the supervised step, exposing it to rollout-like states while avoiding deep backpropagation through every prior prediction.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "Figure 1 temporal bundling"}, {"page": 5, "section": "Figure 2 pushforward training"}]
+    },
+    {
+      "claim": "The solver outperforms or matches CNN, graph, and classical baselines on 1D shock/equation generalization and 2D wave problems while transferring between resolutions and boundary conditions.",
+      "evidence": "Burgers-family tests vary diffusion, flux parameters, and grid resolution; wave tests use irregular grids and Dirichlet/Neumann combinations. Tables 1-2 report low rollout error and competitive runtime, with ablations showing equation parameters, graph structure, bundling, and pushforward exposure matter.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 7, "section": "4 Experiments / E1-E3"}, {"page": 8, "section": "Table 1 shock and unseen-equation results"}, {"page": 9, "section": "Wave results and Table 2"}, {"page": 26, "section": "Architecture ablation"}]
+    },
+    {
+      "claim": "Flexibility is empirical rather than a numerical guarantee: learned local updates can still violate conservation, stability, consistency, or symmetry outside the training envelope.",
+      "evidence": "The paper notes equivariance and further geometries as future work, relies on high-quality generated trajectories, and evaluates finite rollout families. The stencil expressivity argument shows capacity to represent a scheme, not that training selects a convergent or conservative one.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 2, "section": "Contribution and scope"}, {"page": 9, "section": "Conclusion and limitations"}, {"page": 10, "section": "Reproducibility statement"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Learn a mesh-local numerical update rule with message passing so the same parameters apply to new node layouts, resolutions, and PDE coefficients.",
+    "mechanism": "The current and recent solution values, coordinates, time step, and PDE parameters form node/edge features. Several message-passing layers estimate spatial interaction and a decoder predicts a bundle of future increments. Pushforward exposure trains on model-induced states; autoregressive application yields the full rollout.",
+    "assumptions": [
+      "The PDE dynamics are sufficiently local to be captured by the graph neighborhood and message depth.",
+      "Training trajectories cover the parameter, resolution, and boundary-condition variations needed at deployment.",
+      "Bundled explicit updates are stable at the chosen temporal stride.",
+      "Graph connectivity and coordinate features encode the geometry without requiring exact symmetry constraints."
+    ]
+  },
+  "techniques": [
+    {"id": "mesh-message-passing", "role": "Learns spatial update operators on regular or irregular discretizations."},
+    {"id": "equation-parameter-conditioning", "role": "Allows one model to solve a family of fluxes and coefficients."},
+    {"id": "temporal-bundling", "role": "Predicts multiple steps per graph evaluation to accelerate rollouts."},
+    {"id": "pushforward-training", "role": "Exposes the model to its own rollout distribution with shallow gradient paths."},
+    {"id": "stencil-expressivity-proof", "role": "Relates graph messages to classical local numerical schemes."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "One-dimensional inviscid/diffusive Burgers-family equations including shocks and unseen coefficient combinations.",
+      "metric": "Autoregressive rollout error and runtime over full trajectories.",
+      "result": "MP-PDE gives the strongest or competitive learned-solver error, resolves shocks better than simple neural baselines, and transfers across tested equation parameters.",
+      "baseline": "FDM/WENO-style solvers, FNO/neural operator, CNN, and graph baselines."
+    },
+    {
+      "setting": "Resolution transfer on one-dimensional meshes.",
+      "metric": "Error when evaluated at grid sizes different from training.",
+      "result": "The shared local graph rule retains useful accuracy across tested resolutions, unlike grid-index-specific CNN behavior.",
+      "baseline": "Fixed-grid neural baselines and training-resolution performance."
+    },
+    {
+      "setting": "Two-dimensional wave propagation on irregular grids with Dirichlet and Neumann boundaries.",
+      "metric": "Rollout error over resolution and boundary-condition combinations.",
+      "result": "The model generalizes across the tested mesh/boundary variations and compares favorably with learned alternatives.",
+      "baseline": "Pseudospectral/Runge-Kutta reference generation and CNN/GNN ablations."
+    }
+  ],
+  "limitations": [
+    "No formal consistency, convergence, conservation, monotonicity, or long-time stability guarantee is provided.",
+    "Benchmarks are generated low-dimensional PDEs rather than complex multiphysics or three-dimensional industrial meshes.",
+    "Training requires high-quality reference trajectories over the target parameter family.",
+    "Graph message passing can be slower than optimized classical stencils and neural operators on dense regular grids.",
+    "Geometric equivariance and symmetry are not hard-coded."
+  ],
+  "failure_modes": [
+    "Autoregressive error can accumulate into unstable states beyond the pushforward training distribution.",
+    "A graph neighborhood too small for the domain of dependence misses nonlocal dynamics.",
+    "Temporal bundles can cross a stability limit or smear shocks.",
+    "Unseen topology or boundary encodings can create messages inconsistent with physical flux."
+  ],
+  "reusable_insights": [
+    "A learned solver should be conditioned on governing-equation parameters rather than train one opaque network per PDE.",
+    "Push model-generated states into training while detaching long histories to reduce rollout shift cheaply.",
+    "Compare learned updates with classical stencil expressivity and test resolution/boundary transfer explicitly."
+  ],
+  "open_questions": [
+    "Can conservation and stability constraints be imposed while retaining cross-equation flexibility?",
+    "How does MP-PDE scale relative to neural operators and optimized sparse kernels in 3D?",
+    "Can uncertainty or residual estimators detect when a rollout has left the learned solver's validity region?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2010.08895",
+      "title": "Fourier Neural Operator for Parametric Partial Differential Equations",
+      "url": "https://arxiv.org/abs/2010.08895",
+      "relationship": "Learns resolution-transferable mappings between function spaces using global Fourier kernels.",
+      "difference": "FNO maps fields through spectral global operators; MP-PDE learns local autoregressive graph updates and handles irregular meshes/boundaries directly.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2002.09405",
+      "title": "Learning to Simulate Complex Physics with Graph Networks",
+      "url": "https://arxiv.org/abs/2002.09405",
+      "relationship": "Uses graph-network simulators and learned local interactions for mesh/particle physical dynamics.",
+      "difference": "It is a broad learned-simulation framework; MP-PDE conditions explicitly on PDE terms, connects messages to numerical stencils, and introduces temporal bundling/pushforward training for PDE rollout.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2204.07651",
+      "title": "Learning time-dependent PDE solver using Message Passing Graph Neural Networks",
+      "url": "https://arxiv.org/abs/2204.07651",
+      "relationship": "Also learns time-dependent PDE evolution with message-passing graph networks.",
+      "difference": "It provides a closely competing graph-solver formulation; MP-PDE's distinct package emphasizes classical-stencil expressivity, equation-family conditioning, temporal bundling, and pushforward rollout training.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "MP-PDE is a flexible all-neural message-passing PDE solver that subsumes local numerical stencils and generalizes across equations, grids, resolutions, and boundaries.",
+    "evidence": "Representational arguments plus 1D/2D transfer experiments and training-strategy ablations support flexibility over the tested families.",
+    "reviewer_inference": "Equation-conditioned local graph updates and pushforward/bundled training are a strong integration; numerical reliability outside the empirical envelope remains unguaranteed."
+  },
+  "confidence": 0.95,
+  "reviewer_notes": "Read the cached 27-page ICLR/arXiv full text including numerical-method and architecture appendices. Neural operator, graph simulator, and direct graph-PDE competitors were checked at primary arXiv pages on 2026-08-23."
+}

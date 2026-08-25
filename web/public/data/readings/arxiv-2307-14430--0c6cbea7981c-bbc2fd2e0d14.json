@@ -1,0 +1,187 @@
+{
+  "stable_id": "arxiv:2307.14430",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2307.14430",
+    "pdf_sha256": "df4cbd08458e0de760c6a644bd8501bb2aee27ec9de5b46f1801bd4ffd3deaf6",
+    "text_sha256": "92320879953892a1d3f044753923e301c5dcb752bf9fa4e9c9ee3d79bbc5d7f9",
+    "page_count": 37,
+    "extracted_at": "2026-08-23T19:18:27.811277+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can language-model training data be represented as interdependent skills, and can a learned directed skill graph drive a token-efficient mixture that adapts as those skills are learned?",
+  "key_findings": [
+    {
+      "claim": "The paper operationalizes a skill through held-out loss improvement and an ordered skill set through data-efficient directed transfer, making the usefulness of a proposed grouping empirically falsifiable.",
+      "evidence": "An edge from skill i to skill j exists when training on a fixed-budget mixture of their data reaches a target loss on j with no more data than training on j alone. The resulting graphs distinguish unhelpful near-complete Alpaca instruction-type groupings (97.4% dense), near-empty Pile of Law source groupings (3.9% dense), and an intermediate Natural Instructions task-category graph (42.7% dense).",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "2.1 Definitions"},
+        {"page": 4, "section": "2.1 Complete, empty, and intermediate skill graphs"}
+      ]
+    },
+    {
+      "claim": "SKILL-IT converts a fixed directed skill graph and live per-skill validation losses into a dynamic multiplicative-weights data mixture.",
+      "evidence": "The paper assumes each evaluation loss contracts according to the mixture-weighted incoming graph edges, derives an online mirror-descent update, and upweights training skills that influence high-loss evaluation skills. Brute-force graph learning costs O(Hk^2); a linear O(hk) approximation trains once per source skill and measures cross-skill loss change.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "3.2 Skills graph learning and Algorithm 1"},
+        {"page": 7, "section": "3.3.2 SKILL-IT online data selection algorithm"},
+        {"page": 17, "section": "Appendix B.2 Graph Learning Method"}
+      ]
+    },
+    {
+      "claim": "Skill-aware sampling produces large gains on deliberately structured synthetic tasks and smaller but recurring improvements on Natural Instructions, including transfer from a 125M graph to a 1.3B model.",
+      "evidence": "On five-skill LEGO continual pretraining, SKILL-IT reaches 99.4% average exact classification accuracy versus 98.5% for skill-stratified sampling and 62.9% for random sampling. In fine-tuning it reaches loss 0.01 in 38.1% fewer LEGO steps and 59% fewer addition steps than target-only training, and reduces Spanish question-generation and stance-detection losses by 5.3% and 13.6%. On Natural Instructions continual pretraining the average loss is 2.103 versus 2.173 for random; with the 1.3B model it is 1.883 versus 1.985 for random and 1.907 for stratified sampling.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "4.1 Continual pre-training and 4.2 Fine-tuning"},
+        {"page": 27, "section": "Tables 4-6"},
+        {"page": 28, "section": "Table 7"},
+        {"page": 30, "section": "D.4 Experiments on 1.3B parameter model"},
+        {"page": 33, "section": "Table 10"}
+      ]
+    },
+    {
+      "claim": "The headline RedPajama token-efficiency result is directionally positive but too small and confounded by mixture-search cost to establish a robust threefold training-efficiency gain.",
+      "evidence": "The 3B-parameter case uses a static T=1 mixture, after graph learning trains for one billion tokens on each of seven sources. Its average evaluation-harness accuracy is 64.4 at 1B, 2B, and 3B additional tokens, versus uniform 64.2, 64.3, and 64.3; at 1B SKILL-IT wins four of eight listed tasks and loses four. The table provides no uncertainty for this scale. Thus the statement that 1B SKILL-IT exceeds 3B uniform is literally supported (64.4 versus 64.3) but not an end-to-end compute or statistically demonstrated 3x efficiency result.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "4.3 RedPajama"},
+        {"page": 19, "section": "C.2 RedPajama graph learning details"},
+        {"page": 24, "section": "C.3 SKILL-IT out-of-domain settings"},
+        {"page": 29, "section": "Table 9 RedPajama results"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Partition data into behavior-linked skills, estimate a directed graph of which training skills accelerate which evaluation skills under a fixed budget, then allocate training tokens according to both graph influence and current validation loss.",
+    "mechanism": "Graph learning estimates positive cross-skill loss reduction by short training runs or pairwise fixed-budget comparisons. Skill-stratified sampling uniformly covers graph-relevant skills. SKILL-IT initializes from incoming graph strength and repeatedly applies an exponentiated online mirror-descent update using a moving window of evaluation losses, then samples the next round's data from the normalized weights.",
+    "assumptions": [
+      "Each skill has an identifiable support slice and enough held-out examples for reliable loss measurement.",
+      "Short-run directed loss transfer estimates remain useful later in training and, when reused, across model scales.",
+      "Training on a source skill monotonically contracts the losses of graph-linked evaluation skills approximately according to the proposed multiplicative dynamics.",
+      "The fixed token budget excludes neither the cost of graph estimation nor repeated evaluation unless those costs are accounted for separately.",
+      "Skill categories are externally given for most real-data experiments; unsupervised skill discovery is not assumed solved."
+    ]
+  },
+  "techniques": [
+    {"id": "operational-skill-graph", "role": "Defines a directed edge through measured fixed-budget data efficiency instead of semantic similarity alone."},
+    {"id": "cross-skill-loss-probing", "role": "Estimates edge weights from pairwise or one-source short training runs and held-out loss changes."},
+    {"id": "skill-stratified-sampling", "role": "Removes irrelevant skills and balances the target and prerequisite skill supports."},
+    {"id": "loss-weighted-online-mirror-descent", "role": "Dynamically reallocates tokens toward sources connected to evaluation skills that remain high-loss."},
+    {"id": "proxy-scale-graph-transfer", "role": "Learns the graph with a 125M model and reuses it to select data for a 1.3B model."},
+    {"id": "loss-trajectory-skill-recovery", "role": "Clusters examples by loss trajectories across multiple random training runs as a preliminary unsupervised skill-discovery method."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Five-skill LEGO continual pretraining with GPT-Neo 125M, an imbalanced 1:1:1:3:5 training distribution, 6,000 steps, and five seeds.",
+      "metric": "Per-skill validation loss and binary exact-match accuracy.",
+      "result": "SKILL-IT obtains 99.4% average accuracy and 0.012 average loss.",
+      "baseline": "Random 62.9%/0.541, curriculum 63.6%/0.535, skill-stratified 98.5%/0.046, and skill curricula."
+    },
+    {
+      "setting": "LEGO, three-digit addition, Spanish question generation, and stance detection target-skill fine-tuning.",
+      "metric": "Steps to loss 0.01 on synthetics and final target validation loss on Natural Instructions.",
+      "result": "SKILL-IT needs 38.1% fewer LEGO steps and 59% fewer addition steps than target-only training, and lowers the two Natural Instructions losses by 5.3% and 13.6%.",
+      "baseline": "Training only on the target skill and static skill-stratified target-plus-prerequisite sampling."
+    },
+    {
+      "setting": "Natural Instructions continual pretraining and disjoint train/test skill categories.",
+      "metric": "Average cross-entropy validation loss per skill after 5,000 steps.",
+      "result": "Continual-pretraining loss is 2.103 versus random 2.173; out-of-domain loss is 2.540 versus random 2.546 and stratified 2.572, with the lowest category loss on 11 of 12 tasks.",
+      "baseline": "Random, sample curriculum/anticurriculum, skill curricula, skill-stratified, no-graph, and static-mixture variants."
+    },
+    {
+      "setting": "A one-trillion-token 3B model continually pretrained on seven RedPajama sources using a static graph-based mixture.",
+      "metric": "Average accuracy over eight LM Evaluation Harness tasks after 1B, 2B, and 3B additional tokens.",
+      "result": "SKILL-IT reports 64.4 at all checkpoints; uniform reports 64.2, 64.3, and 64.3.",
+      "baseline": "Uniform sampling over data sources, excluding the seven one-billion-token source-specific graph-learning runs from the headline token comparison."
+    },
+    {
+      "setting": "Unsupervised recovery of five LEGO skills from 500 validation examples.",
+      "metric": "Ten-run k-means clustering accuracy.",
+      "result": "Clustering 1,200-dimensional loss trajectories reaches 61.0% +/- 1.6%, compared with 38.4% +/- 0.8% for the best tested embedding method.",
+      "baseline": "Pretrained/trained token embeddings and Sentence-BERT embeddings."
+    }
+  ],
+  "limitations": [
+    "Author-stated/in-design: most experiments assume skills are supplied as task categories, languages, reasoning depths, digits, or data sources; the unsupervised LEGO recovery reaches only 61% accuracy.",
+    "Author-stated: brute-force graph learning scales quadratically in the number of skills, while the linear approximation changes the edge definition and still requires one training run per source skill.",
+    "Reviewer inference: short-run positive loss change is noisy, asymmetric, model-state dependent, and need not encode a stable prerequisite relation or causal semantic hierarchy.",
+    "Reviewer inference: many results use toy 125M/1.3B models, small validation sets (often 50-100 examples per skill), and hand-designed synthetic skill structure.",
+    "Reviewer inference: the only 3B-scale result is a static mixture with a 0.1-0.2 average-accuracy-point advantage and does not include graph-search compute or uncertainty.",
+    "Reviewer inference: several purportedly online experiments use T=1, so they test graph-based static mixing rather than the dynamic update."
+  ],
+  "failure_modes": [
+    "A dense graph collapses SKILL-IT toward stratified sampling, while an empty graph collapses it toward loss-proportional sampling, leaving little benefit over simpler methods.",
+    "Misclassified or overlapping skills cause examples and losses to be assigned to the wrong mixture component.",
+    "Negative transfer and forgetting are thresholded away when only positive edges are retained, even though they can determine an optimal schedule.",
+    "A graph learned early or on a proxy model can become stale as the target model changes representation, scale, or competence.",
+    "Loss magnitudes with different calibration or irreducible entropy can make the exponentiated update oversample intrinsically hard skills.",
+    "The graph-probing budget can exceed the data savings when there are many skills or large proxy runs."
+  ],
+  "reusable_insights": [
+    "Treat a proposed data taxonomy as useful only if it predicts measurable transfer under a fixed budget; semantic diversity alone is insufficient.",
+    "Separate identifying relevant data groups from scheduling them: a static graph and a state-dependent controller solve different problems and should be ablated independently.",
+    "Report mixture-search, proxy-training, and validation overhead alongside target-training tokens when claiming end-to-end efficiency.",
+    "Use per-group training trajectories as behavioral fingerprints for discovering latent groups, but validate stability and causal transfer before calling them skills.",
+    "Test graph portability across scale, architecture, training phase, and random seed rather than assuming small-model preferences extrapolate."
+  ],
+  "open_questions": [
+    "Can skills and directed transfer edges be recovered jointly from raw corpora without labels, repeated full training runs, or a fixed number of clusters?",
+    "How stable are graph direction, edge weight, and optimal schedules across seeds, model families, scales, and stages of pretraining?",
+    "Can an online controller update both the graph and mixture while representing negative transfer, saturation, forgetting, and uncertainty?",
+    "What gains remain when graph-learning compute and repeated validation are charged to the same end-to-end token/FLOP budget?",
+    "Do skill mixtures improve robust downstream capabilities rather than average loss on the same task categories used to define or probe the graph?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2305.10429",
+      "title": "DoReMi: Optimizing Data Mixtures Speeds Up Language Model Pretraining",
+      "url": "https://arxiv.org/abs/2305.10429",
+      "relationship": "contemporary direct data-mixture competitor",
+      "difference": "DoReMi uses a proxy/reference-model group-DRO objective to optimize worst-domain excess loss and reports transfer from 280M to 8B without downstream labels. SKILL-IT instead models directed source-to-target skill influence and can condition a dynamic schedule on selected evaluation skills.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v4, 2023-11-21; NeurIPS 2023"
+    },
+    {
+      "canonical_id": "arxiv:2403.16952",
+      "title": "Data Mixing Laws: Optimizing Data Mixtures by Predicting Language Modeling Performance",
+      "url": "https://arxiv.org/abs/2403.16952",
+      "relationship": "post-publication predictive-mixture competitor",
+      "difference": "Data Mixing Laws fits explicit mixture-performance functions across sampled mixtures and nests them with model/data scaling laws, selecting a mostly static mixture before large training. SKILL-IT needs directional cross-skill probes but adapts weights from live validation losses.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2025-03-20; ICLR 2025 camera-ready"
+    },
+    {
+      "canonical_id": "arxiv:2407.01492",
+      "title": "RegMix: Data Mixture as Regression for Language Model Pre-training",
+      "url": "https://arxiv.org/abs/2407.01492",
+      "relationship": "post-publication proxy-regression competitor",
+      "difference": "RegMix trains hundreds of ultra-small models on sampled mixtures and regresses unseen-mixture performance, explicitly testing 1M-to-1B and up-to-7B transfer. It searches domain interactions globally but produces a static mixture; SKILL-IT encodes pairwise directed influence and online loss feedback.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2025-01-23; ICLR 2025"
+    },
+    {
+      "canonical_id": "arxiv:2606.18663",
+      "title": "RegMix-D: Dynamic Data Mixing via Proxy Training Trajectories",
+      "url": "https://arxiv.org/abs/2606.18663",
+      "relationship": "current direct dynamic-mixture competitor",
+      "difference": "RegMix-D predicts stage-specific mixtures from complete proxy loss trajectories and supports offline schedules or online adaptation, directly challenging SKILL-IT's dynamic-mixing niche. It does not require a human-named prerequisite graph, while SKILL-IT offers an interpretable target-conditioned transfer structure.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2026-06-17; work in progress"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims the first data-driven framework that formalizes LM skills and their ordering, demonstrates nontrivial ordered skill sets, and uses their graph in an online sampler for continual pretraining, fine-tuning, and out-of-domain targets.",
+    "evidence": "Formal definitions, graph-estimation algorithms, mirror-descent derivation, synthetic and Natural Instructions experiments, graph/no-graph and static/online ablations, proxy-to-larger-model transfer, and a 3B RedPajama case support the components of the claim.",
+    "reviewer_inference": "The distinctive contribution is target-conditioned dynamic mixing through an interpretable directed transfer graph, broader than source-level worst-domain reweighting. Later regression and mixing-law methods provide stronger global mixture search and scale tests, and RegMix-D covers dynamic schedules without a fixed prerequisite taxonomy. The remaining novelty is therefore the skill-level causal-transfer framing, not an established best general-purpose data-mixture optimizer."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Read all 37 extracted pages, including definitions, derivation, all main experiments, graph-construction costs, per-skill tables, scale transfer, weight trajectories, and graph/static ablations. The current target is arXiv v1. Primary arXiv records for DoReMi, Data Mixing Laws, RegMix, and RegMix-D were checked on 2026-08-23; author-reported results are separated from the end-to-end-compute and effect-size audit."
+}

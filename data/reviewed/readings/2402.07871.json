@@ -1,0 +1,403 @@
+{
+  "stable_id": "arxiv:2402.07871",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2402.07871",
+    "pdf_sha256": "f3c132cfeb3b05a88ba6b2f72b7b2b49c615c3e6f47e81c5663c37b7a38c6cbe",
+    "text_sha256": "cd5e15fd7d06fa764fe180936337b09aa56176a085b777ea9c98baa10fd45239",
+    "page_count": 20,
+    "extracted_at": "2026-08-23T18:32:36.886309+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "How should expert width, total expert capacity, active model size, and training tokens scale in a sparsely routed language model, and does splitting standard experts into more simultaneously selected subexperts improve compute efficiency?",
+  "key_findings": [
+    {
+      "claim": "Granularity cleanly separates expert width from total expansion while holding expert-MLP work per token constant.",
+      "evidence": "The paper defines G=d_ff/d_expert and E=N_MoE/N_ff, so the number of experts is E times G. A token is routed to G experts of width d_ff/G. Ignoring the router, the selected experts contain the same total hidden width and active parameters as one standard G=1 expert, but can represent a combinatorial selection of smaller blocks. This is a useful architecture coordinate even though earlier sparse-memory work and concurrent DeepSeekMoE also vary expert block size.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Section 4 and Figure 2"
+        },
+        {
+          "page": 5,
+          "section": "Granularity and expansion-rate definitions, Equation 3"
+        }
+      ]
+    },
+    {
+      "claim": "Within the observed small-model regime, increasing granularity from 1 through roughly 8 or 16 usually lowers smoothed training loss at fixed total parameters and tokens.",
+      "evidence": "More than 100 Expert-Choice MoE runs span E=64, active model scales associated with 3M-85M nonembedding dense parameters, 16B-130B C4 tokens, and mostly G in {1,2,4,8,16}. The plotted residual loss is approximately linear in log G after subtracting an asymptote, motivating a G^-gamma term. A wall-clock trace for one 64x7M, 66B-token model favors G=8; G=16 loses because router overhead dominates.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Section 5, experiment range"
+        },
+        {
+          "page": 6,
+          "section": "Section 5.1 and Figure 3"
+        },
+        {
+          "page": 8,
+          "section": "Figure 5"
+        },
+        {
+          "page": 17,
+          "section": "Appendix A, Tables 3-4"
+        }
+      ]
+    },
+    {
+      "claim": "The joint law is a deliberately separable empirical ansatz, not a derived or exhaustively selected law.",
+      "evidence": "The fitted form is c + a N^-alpha + b D^-beta + g G^-gamma. A shared irreducible c is argued from semantics; D-by-G interaction is discarded based on a loss-difference plot; alpha-by-G interaction is ruled out by assuming polynomial forms; and the extra a term is retained to avoid unlimited-granularity perfection. No alternative interaction model, information criterion, residual dependence analysis, or truly out-of-range test is compared. RMSE 0.015 and 0.019 after excluding the best-loss 20% demonstrate interpolation/local extrapolation under this chosen family, not structural truth.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Sections 5.2-5.3"
+        },
+        {
+          "page": 7,
+          "section": "Equations 6-9 and fit method"
+        },
+        {
+          "page": 8,
+          "section": "Section 5.4, Table 1"
+        },
+        {
+          "page": 18,
+          "section": "Appendix B"
+        }
+      ]
+    },
+    {
+      "claim": "The most dramatic 20x-40x efficiency and 'always better' conclusions are extreme extrapolations from tiny active models and training loss.",
+      "evidence": "Measured active dense-equivalent sizes stop at 85M nonembedding parameters, observed G mostly stops at 16, and dense runs stop at 66B tokens; the optimization table extends to 1T active parameters, 7.94T tokens, G=64, and nearly 5e25 FLOPs. Thus the 70B-1T rows extrapolate active scale by roughly three to four orders of magnitude and use granularity values never validated at those widths. Appendix A explicitly says the target is smoothed training loss, not held-out loss or task accuracy. Bootstrap resampling of the same runs captures sampling sensitivity within the ansatz but not functional-form or scale-shift error.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "Headline compute-savings claim"
+        },
+        {
+          "page": 9,
+          "section": "Section 6.3"
+        },
+        {
+          "page": 10,
+          "section": "Table 2"
+        },
+        {
+          "page": 17,
+          "section": "Appendix A, measured model/token ranges and training-loss target"
+        },
+        {
+          "page": 18,
+          "section": "Appendix C, bootstrap"
+        }
+      ]
+    },
+    {
+      "claim": "The fitted compute optimum omits the resource that MoE expands most aggressively: resident and communicated parameter state.",
+      "evidence": "Main results fix E=64 and constrain only arithmetic FLOPs. A configuration denoted 64x70B or 64x1T has vastly more total expert parameters than its active core and must store, update, checkpoint, and distribute them. The paper acknowledges memory determines E and omits it from the law. Router FLOPs are modeled, but all-to-all traffic, expert-parallel imbalance, memory bandwidth, optimizer-state memory, small-matrix utilization, latency, and inference batch effects are not in the optimization. Consequently 'compute-efficient' cannot be generalized to hardware, memory, energy, cost, or serving efficiency.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "Sections 6.1-6.2, FLOP constraint"
+        },
+        {
+          "page": 10,
+          "section": "Table 2 and Section 7"
+        },
+        {
+          "page": 19,
+          "section": "Appendix E, router operation count"
+        }
+      ]
+    },
+    {
+      "claim": "The router-specific experimental setup limits direct deployment and makes the law architecture-conditional.",
+      "evidence": "All primary MoE runs use Expert Choice routing, which lets experts select tokens and obtains balance by grouping tokens at the same sequence position across 256 separate sequences. A token's selected computation can therefore depend on other batch members, unlike ordinary token-choice autoregressive routing; batch-one generation and changing inference batches are not evaluated. The models also add a post-MoE layer normalization that is described as crucial for G>1. The scaling coefficients consequently describe this grouped router plus normalization and cannot be assumed for Switch, Mixtral, DeepSeek, dropless, or device-limited routing.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Related routing architectures"
+        },
+        {
+          "page": 17,
+          "section": "Appendix A, Expert Choice grouping and extra layer normalization"
+        }
+      ]
+    },
+    {
+      "claim": "The monotone granularity term is already known to break in a measured corner, weakening predicted G=32-128 optima.",
+      "evidence": "Section 7 reports performance decline at G=64 for d_model=256 and E=64 when router parameters exceed selected expert parameters. The loss law itself only improves as G grows; the compute optimizer penalizes router FLOPs but does not model optimization degradation, expert width too small for useful nonlinear capacity, or discrete routing failures. Yet Tables 2 and 9 recommend G=32, 64, and 128 outside the main observed grid. These values are hypotheses, not validated prescriptions.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 10,
+          "section": "Table 2 and Extreme Granularity"
+        },
+        {
+          "page": 18,
+          "section": "Appendix C, extrapolated G intervals"
+        },
+        {
+          "page": 19,
+          "section": "Appendix D, G up to 128 prediction"
+        }
+      ]
+    },
+    {
+      "claim": "Expansion rate materially interacts with the fitted law despite being treated mostly as fixed.",
+      "evidence": "At E=64 the fitted gamma is 0.58 and beta is 0.147; the smaller E=16 appendix gives gamma 0.986 and beta 0.169 with much wider optimal ranges. These differences suggest expert count/capacity changes the apparent granularity and data scaling, so N, D, G, and E are not adequately summarized by the main three-variable additive law. The authors acknowledge that a unified E law is future work, and later joint scaling research directly addresses memory and expert count.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "Table 1"
+        },
+        {
+          "page": 10,
+          "section": "Section 7, Varying Expansion Rate"
+        },
+        {
+          "page": 18,
+          "section": "Appendix D, Table 8"
+        },
+        {
+          "page": 19,
+          "section": "Appendix D, Table 9"
+        }
+      ]
+    },
+    {
+      "claim": "The local granularity benefit has stronger later support than the paper's universal scaling projection.",
+      "evidence": "A later large-scale study with overlapping authors trains 11B and 56B total-parameter token-choice models and finds G=8 improves validation loss and average downstream accuracy, especially with longer training. That validates the qualitative architecture insight beyond the original tiny regime. Separate later joint laws add active parameters, expert count, memory, shared-expert ratio, and nonmonotonic effects, implicitly narrowing the original claim that one separable FLOP-only law proves MoE is always more efficient.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 11,
+          "section": "Conclusions"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Factor a fixed amount of selected feed-forward capacity into a larger menu of smaller expert blocks, fit a separable power law for loss versus total parameters, tokens, and block granularity, and optimize that fit under a router-aware FLOP budget.",
+    "mechanism": "Replace every Transformer FFN by E times G experts of hidden width d_ff/G; route each token to G blocks with Expert Choice so selected MLP width remains d_ff; train over a grid of active model sizes, token budgets, and G; fit c+aN^-alpha+bD^-beta+gG^-gamma with Huber loss/BFGS; model training FLOPs as dense active-block work plus a router term proportional to d_model E G; impose a depth-width relation and solve the remaining compute allocation numerically.",
+    "assumptions": [
+      "Smoothed training loss is a sufficient proxy for held-out language-model and downstream quality.",
+      "Loss contributions from model size, data, and granularity are additive and power-law separable.",
+      "The irreducible loss c is shared across dense and routed architectures and is identifiable from the measured regime.",
+      "There is no meaningful D-by-G interaction and the N exponent is independent of G.",
+      "E=64 is an appropriate main expansion rate and can be ignored in the joint law.",
+      "Arithmetic FLOPs plus a simple router count are the relevant constrained resource.",
+      "A fixed d_model=64 times number-of-layers relation represents compute-optimal depth-width allocation.",
+      "Expert Choice results transfer to ordinary autoregressive token-choice routing and serving.",
+      "Power laws fitted at at most 85M active parameters and G at most 16 remain valid through trillion-active-parameter and G=64 regimes.",
+      "Uniform optimizer, learning rate, batch, tokenizer, and C4 training choices do not differentially undertrain dense or granular variants."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "fine-grained-expert-segmentation",
+      "role": "Increase routing combinations without changing selected expert-MLP width per token."
+    },
+    {
+      "id": "expert-choice-routing",
+      "role": "Guarantee balanced per-expert token load in the experimental grid."
+    },
+    {
+      "id": "separable-moe-scaling-law",
+      "role": "Predict training loss from total model parameters, tokens, and granularity."
+    },
+    {
+      "id": "router-aware-flop-model",
+      "role": "Penalize the routing matrix as the number of fine experts grows."
+    },
+    {
+      "id": "brent-compute-allocation",
+      "role": "Numerically choose model size, data, and granularity at a prescribed FLOP budget."
+    },
+    {
+      "id": "bootstrap-optimal-configuration",
+      "role": "Estimate sensitivity of fitted optimal N, D, and G to resampling measured runs."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "More than 100 E=64 Expert-Choice MoE C4 pretraining runs",
+      "metric": "Smoothed training cross-entropy over N, D, and G",
+      "result": "A four-term separable power law fits with RMSE 0.015; excluding the lowest-loss 20% gives RMSE 0.019.",
+      "baseline": "Dense decoder-only Transformers and G=1 MoE under shared training settings."
+    },
+    {
+      "setting": "Granularity sweeps G=1-16 at several 3M-85M active scales and 16B-130B tokens",
+      "metric": "Training loss at matched tokens/selected MLP work",
+      "result": "Higher G usually lowers loss with diminishing power-law-like returns in the measured range.",
+      "baseline": "Conventional full-width experts at G=1."
+    },
+    {
+      "setting": "One 64x7M model trained for 66B tokens on NVIDIA A100",
+      "metric": "Training loss versus wall-clock time",
+      "result": "G=8 is best among the shown configurations; G=16 routing overhead erases part of the gain.",
+      "baseline": "Other granularities for the same model."
+    },
+    {
+      "setting": "FLOP-constrained numerical extrapolation through roughly 5e25 FLOPs",
+      "metric": "Predicted minimum training loss and dense/MoE compute ratio",
+      "result": "The fitted laws predict fine-grained MoE beats dense at every plotted budget and the predicted advantage grows beyond 40x at the largest budgets.",
+      "baseline": "Compute-optimal dense fit and G=1 MoE fit; no actual models at the large predicted points."
+    },
+    {
+      "setting": "Smaller E=16 appendix grid",
+      "metric": "Fitted coefficients and bootstrapped optimal G",
+      "result": "Qualitative preference for G greater than 1 persists, but exponents and uncertainty differ substantially from E=64.",
+      "baseline": "Main E=64 law."
+    }
+  ],
+  "limitations": [
+    "Author-acknowledged: extreme granularity can reduce performance when routing dominates or experts become too small.",
+    "Author-acknowledged: expansion rate is fixed at 64 in the main study and memory makes E a hardware-dependent choice.",
+    "Author-acknowledged: communication, memory footprint, and exact routing cost depend on implementation and distributed setup.",
+    "Reviewer-identified: headline 20x-40x and universal-efficiency claims extrapolate orders of magnitude beyond the measured active model, token, and granularity ranges.",
+    "Reviewer-identified: the fit and compute optimization use smoothed training loss, with no held-out loss, downstream tasks, or emergent-capability validation.",
+    "Reviewer-identified: Expert Choice grouping across sequences is batch-dependent and not representative of common token-choice autoregressive serving.",
+    "Reviewer-identified: the additive law assumes away N-D-G-E interactions without comparing alternative joint forms.",
+    "Reviewer-identified: FLOPs omit parameter/optimizer memory, communication bytes, bandwidth, utilization, latency, energy, and checkpoint/storage cost.",
+    "Reviewer-identified: recommended G=32-128 values are outside the main empirical grid despite observed G=64 degradation in a small model.",
+    "Reviewer-identified: bootstrap intervals do not capture model-form, extrapolation, dataset, router, or hardware uncertainty.",
+    "Reviewer-identified: embeddings are excluded even though they are large relative to the tiniest 3M-85M nonembedding models.",
+    "Reviewer-identified: one C4/GPT-2-tokenizer corpus, one optimizer schedule, and one primary router limit external validity.",
+    "Reviewer-identified: the extra post-MoE layer normalization is crucial for G>1, so granularity is not the only architectural difference from conventional baselines.",
+    "Reviewer-identified: earlier sparse-memory work and concurrent DeepSeekMoE already study smaller expert blocks, narrowing the novelty of granularity itself."
+  ],
+  "failure_modes": [
+    "A power-law fit looks accurate locally but reverses rankings after a router, data, or scale regime change.",
+    "Fine experts become too narrow to form useful nonlinear features even when router FLOPs remain affordable.",
+    "All-to-all communication and small kernels dominate wall-clock time despite favorable arithmetic FLOPs.",
+    "Model and optimizer state exceed device or cluster memory at high expansion rate.",
+    "Expert Choice behaves differently or becomes unusable at batch-one autoregressive inference.",
+    "Routing decisions depend on batch composition, making outputs or latency unstable across serving batches.",
+    "Training loss improves without matching held-out or downstream accuracy.",
+    "A fixed learning-rate schedule differentially undertrains dense, G=1, or high-G variants and contaminates fitted exponents.",
+    "The compute optimizer recommends an untested discrete G because it ignores nonmonotonic specialization and routing dynamics.",
+    "Redundant experts inflate total parameter count without usable specialization or memory efficiency."
+  ],
+  "reusable_insights": [
+    "Treat expert width, number of available experts, and number selected per token as separate design axes.",
+    "Validate any scaling-law recommendation at anchor points beyond the fitting range before spending a full training budget.",
+    "Report training loss, validation loss, downstream accuracy, memory, communication, utilization, wall-clock time, and serving latency together.",
+    "Fit interactions among active parameters, total parameters, tokens, selected experts, shared experts, and routing method instead of assuming separability.",
+    "Use nested validation: select the functional form and hyperparameters separately from testing extrapolation.",
+    "Distinguish arithmetic compute efficiency from hardware, memory, energy, and deployment efficiency.",
+    "Test fine-grained experts with both token-choice and expert-choice routers and at realistic inference batch sizes.",
+    "Include extreme-granularity failure terms or constrained expert-width floors in configuration optimization.",
+    "Propagate structural and hardware uncertainty, not only bootstrap resampling error, into compute-optimal tables."
+  ],
+  "open_questions": [
+    "What joint law remains stable when E, active expert count, shared experts, router type, memory, and communication are varied together?",
+    "Where does the benefit of smaller experts saturate or reverse as model width and task diversity scale?",
+    "Do fine-grained MoE gains persist under batch-one and low-latency autoregressive inference?",
+    "Which granularity is optimal under fixed HBM, interconnect bandwidth, energy, and dollar budgets rather than FLOPs alone?",
+    "How much of the gain comes from combinatorial routing versus the extra layer normalization or optimization dynamics?",
+    "Can high-G routers learn all selected experts early enough under short or continual training schedules?",
+    "How well do pretraining-loss gains predict reasoning, multilingual, code, retrieval, and long-context performance?",
+    "Can analytical uncertainty bounds distinguish trustworthy interpolation from orders-of-magnitude extrapolation?",
+    "Should expert width scale with representation dimension, depth, or domain complexity rather than a single global G?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "pmlr:v162-clark22a",
+      "title": "Unified Scaling Laws for Routed Language Models",
+      "url": "https://proceedings.mlr.press/v162/clark22a.html",
+      "relationship": "direct-scaling-predecessor",
+      "difference": "Clark et al. fit routed-language-model laws over five orders of magnitude, hundreds of experts, and multiple routing methods, but hold the major token regime fixed when making the comparison challenged here. Krajewski/Ludziejewski add variable training tokens and expert granularity; their grid is much smaller in active model scale and their universal reversal of Clark is correspondingly more extrapolative.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2022 / PMLR 162"
+    },
+    {
+      "canonical_id": "arxiv:2305.13999",
+      "title": "Towards A Unified View of Sparse Feed-Forward Network in Pretraining Large Language Model",
+      "url": "https://arxiv.org/abs/2305.13999",
+      "relationship": "expert-size-predecessor",
+      "difference": "Liu et al. explicitly analyze memory-block/expert size and selection under a sparse-neural-memory view before this paper, and propose Avg-K routing. The reviewed work contributes a named G coordinate, a larger token/size grid, and compute optimization, but cannot claim first recognition that standard FFN-sized experts are arbitrary.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2305.13999 / EMNLP 2023"
+    },
+    {
+      "canonical_id": "arxiv:2401.06066",
+      "title": "DeepSeekMoE: Towards Ultimate Expert Specialization in Mixture-of-Experts Language Models",
+      "url": "https://arxiv.org/abs/2401.06066",
+      "relationship": "concurrent-fine-grained-architecture",
+      "difference": "DeepSeekMoE independently splits experts into m times more blocks, selects m times more per token, and adds shared experts, validating at 2B, 16B, and preliminary 145B total scale. It supplies real large-model/task evidence and a redundancy mechanism; the reviewed paper supplies the systematic G-D-N scaling fit but initially lacks shared experts and downstream evaluation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2401.06066 / ACL 2024"
+    },
+    {
+      "canonical_id": "pmlr:v162-du22c",
+      "title": "GLaM: Efficient Scaling of Language Models with Mixture-of-Experts",
+      "url": "https://proceedings.mlr.press/v162/du22c.html",
+      "relationship": "large-scale-practical-baseline",
+      "difference": "GLaM demonstrates sparse-model quality, energy, and downstream transfer at hundreds of billions to trillions of parameters with ordinary expert granularity. It is weaker as a controlled scaling-law study but stronger evidence that real distributed-system and task performance—not fitted training FLOPs alone—must ground an efficiency claim.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2022 / PMLR 162"
+    },
+    {
+      "canonical_id": "arxiv:2502.05172",
+      "title": "Joint MoE Scaling Laws: Mixture of Experts Can Be Memory Efficient",
+      "url": "https://arxiv.org/abs/2502.05172",
+      "relationship": "same-group-later-law",
+      "difference": "The later study fits active parameters, data, and expert count jointly over 280 runs up to 2.7B active/5B total parameters and optimizes under both compute and memory. It directly repairs the reviewed law's fixed-E and FLOP-only limitation and shows the original 'MoE is memory inefficient' intuition can depend on optimal expert allocation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2502.05172"
+    },
+    {
+      "canonical_id": "arxiv:2506.02890",
+      "title": "Scaling Fine-Grained MoE Beyond 50B Parameters: Empirical Evaluation and Practical Insights",
+      "url": "https://arxiv.org/abs/2506.02890",
+      "relationship": "later-large-scale-validation",
+      "difference": "This overlapping-author successor trains token-choice G=8 models at 11B and 56B total parameters, reports validation and downstream gains, and studies router learning/load balance. It strongly validates the qualitative granularity insight at realistic scale while still testing G=8 rather than the original law's G=32-128 prescriptions or 20x-40x extrapolated savings.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2506.02890"
+    },
+    {
+      "canonical_id": "pmlr:v267-liew25a",
+      "title": "Scaling Laws for Upcycling Mixture-of-Experts Language Models",
+      "url": "https://proceedings.mlr.press/v267/liew25a.html",
+      "relationship": "later-training-path-scaling-competitor",
+      "difference": "Liew et al. model dense-to-MoE upcycling and discover an interaction between dense and sparse training data that limits upcycling efficiency at large budgets. It illustrates why training history and interaction terms can matter and why a from-scratch separable N-D-G law should not be generalized to reused-model workflows.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2025 / PMLR 267"
+    },
+    {
+      "canonical_id": "arxiv:2509.23678",
+      "title": "Towards a Comprehensive Scaling Law of Mixture-of-Experts",
+      "url": "https://arxiv.org/abs/2509.23678",
+      "relationship": "later-comprehensive-competitor",
+      "difference": "Zhao et al. run 446 controlled experiments over data, total and active model size, active experts, and shared-expert ratio, explicitly modeling coupled and nonmonotonic effects. Its broader variable set contests the sufficiency of the reviewed additive G law, while its own scale transfer still requires independent validation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2509.23678"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "A newly formalized granularity hyperparameter and joint N-D-G scaling law show that full-width experts are almost never compute-optimal and that optimally trained fine-grained MoE always beats dense Transformers by an increasing margin.",
+    "evidence": "A controlled C4 grid shows robust local training-loss improvements from splitting selected FFN capacity across smaller blocks, a compact law fits the measured runs closely, one A100 trace supports G=8 wall-clock benefit, and code plus bootstrap tables make the analysis reproducible.",
+    "reviewer_inference": "The durable contribution is the clean granularity coordinate and empirical case for G greater than 1; concurrent DeepSeekMoE and later 56B experiments independently confirm that design intuition. Expert-size variation itself has precedent. The universal dense-versus-MoE conclusion is much less secure: it relies on a fixed-E, Expert-Choice, training-loss, FLOP-only law extrapolated several orders of magnitude and to untested G values, while omitting memory and communication. Later joint scaling work should supersede the numerical prescriptions."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "All 20 extracted pages were reviewed, including the full architecture grid, E=16 replication, bootstrap table, router FLOP derivation, and additional fit plots. The arXiv paper was verified as the ICML 2024 PMLR 235 publication. Primary predecessors, concurrent DeepSeekMoE, and 2025 scaling/large-model successors were checked on PMLR, ACL Anthology, and arXiv on 2026-08-23."
+}

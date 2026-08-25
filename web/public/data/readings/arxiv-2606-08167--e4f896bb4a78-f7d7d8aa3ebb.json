@@ -1,0 +1,182 @@
+{
+  "stable_id": "arxiv:2606.08167",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2606.08167",
+    "pdf_sha256": "dcd6942ebbfbcb222da625cac9fed9b2988eef20e8a4e781bbd17954ddc05d8f",
+    "text_sha256": "9572cad23c481d817d5035ab6821b1f403abfd93a05cbcf327e75980d593ea84",
+    "page_count": 43,
+    "extracted_at": "2026-08-23T09:51:22.555867+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "What mechanism explains how pretraining-domain proportions determine per-domain loss, and can that mechanism predict high-performing mixtures at model and token scales not used for fitting?",
+  "key_findings": [
+    {
+      "claim": "The proposed loss law decomposes mixture effects into finite-capacity competition across domains and an observation-noise term that favors harder domains.",
+      "evidence": "Under a shared-head/disjoint-tail spectral model, a top-N sketch allocates representational modes by mixture-weighted eigenvalue. The resulting domain loss is approximated by an unrepresented-tail term c_i x_i*(h,N)^(-b_i), a data term A_i(Dh_i)^(-a_i), and irreducible loss E_i.",
+      "anchors": [
+        {"page": 9, "section": "4.3 Extended Linear Regression Model"},
+        {"page": 10, "section": "Theorem 4.1 and Optimal Mixture"}
+      ]
+    },
+    {
+      "claim": "Adding the data-dependent noise term breaks the otherwise trivial optimum in which the training mixture equals the target mixture.",
+      "evidence": "The extended quantization model alone minimizes the same weighted losses in its inner and outer problems and therefore yields h*=w. The term A_i(Dh_i)^(-a_i) makes the optimum shift toward domains with slower learning or larger noise coefficients; the authors derive an outer gradient and solve it with exponentiated online mirror descent.",
+      "anchors": [
+        {"page": 8, "section": "4.2 Limitation"},
+        {"page": 10, "section": "Optimal Mixture and Symmetry Breaking"},
+        {"page": 19, "section": "Appendix B Algorithm"}
+      ]
+    },
+    {
+      "claim": "On 64 one-billion-parameter Pile mixture runs, the five-parameter-per-domain law fits held-out mixture losses more accurately than four empirical baselines.",
+      "evidence": "Rendered Table 2 reports 1.533% mean relative error and 0.034 mean absolute error for Eq. 3 with 5K parameters. The next best is the authors' capacity-only law at 2.064% MRE, followed by the Additive law at 2.209% MRE with K(2K+1) parameters.",
+      "anchors": [{"page": 12, "section": "5.2 Fitting Accuracy"}]
+    },
+    {
+      "claim": "Mixtures selected by the fitted law achieve the lowest reported target perplexity in all three direct optimization settings.",
+      "evidence": "Rendered Figure 2 reports 8.126 perplexity for the 200M four-domain model, 13.076 for the 122M seven-domain model, and 10.413 for the 310M seven-domain model. The strongest displayed non-author baselines are 8.135, 13.089, and 10.531 respectively.",
+      "anchors": [{"page": 13, "section": "5.3 Predicting the Optimal Data Mixture"}]
+    },
+    {
+      "claim": "Small-scale fitted parameters produce scale-adjusted mixtures that beat the small-scale static mixture at both larger target scales.",
+      "evidence": "In the 200M/8B to 700M/16B experiment, final loss is 1.8281 for the extrapolated mixture versus 1.8356 static and 1.8753 for the Additive-law mixture. In the 122M/10B to 1B/30B experiment, final loss is 2.1087 versus 2.2103 static and 2.1106 for an Additive law fitted with data that includes the target scale.",
+      "anchors": [
+        {"page": 14, "section": "5.4 Extrapolation to Unseen Scales, Figure 3"},
+        {"page": 15, "section": "5.4 Extrapolation to Unseen Scales, Figure 4"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Model domains as sharing frequent spectral modes but owning power-law tails, then derive a compact mixture-conditioned loss from which an optimizer can allocate domain weights at a requested model and token scale.",
+    "mechanism": "A top-N spectral sketch represents finite model capacity. The N largest mixture-weighted eigenmodes implicitly solve a convex capacity-allocation problem across domain tails. A one-pass SGD diffusion approximation contributes a per-domain finite-data term. Nonconvex parameter fitting repeatedly solves the inner convex program; online mirror descent uses an analytic outer gradient to search the probability simplex.",
+    "assumptions": [
+      "All domain covariance matrices are simultaneously diagonalizable and share a learned common head while their specialized tails are mutually orthogonal.",
+      "Tail eigenvalues in every domain follow a power law with exponent between one and three.",
+      "The learned neural model behaves like a top-N projected linear regressor trained by one-pass SGD with a cosine schedule.",
+      "Every domain receives a fixed positive minimum weight and data distributions satisfy a bounded fourth-moment condition.",
+      "The leading finite-data coefficient A(h) varies little enough with h to be treated as a fitted domain constant."
+    ]
+  },
+  "techniques": [
+    {"id": "capacity-allocation", "role": "Turns cross-domain interference into competition for a fixed budget of represented spectral modes."},
+    {"id": "spectral-truncation", "role": "Uses the top mixture-weighted eigenmodes as an analytically tractable proxy for finite neural model capacity."},
+    {"id": "noise-decomposition", "role": "Adds a domain-local finite-observation term so the optimum can differ from the target evaluation proportions."},
+    {"id": "bilevel-optimization", "role": "Alternates a convex capacity response with an outer simplex update for the training mixture."},
+    {"id": "scale-extrapolation", "role": "Reuses parameters fitted at a proxy scale while substituting target N and D before optimizing the mixture."}
+  ],
+  "evaluations": [
+    {
+      "setting": "64 TinyLlama-style 1B models, each trained on 25B tokens from 17 Pile domains, split into fitting and held-out mixture sets",
+      "metric": "Domain-averaged mean relative error and mean absolute error",
+      "result": "Eq. 3: 1.533% MRE and 0.034 MAE with 5K parameters; capacity-only Eq. 1: 2.064% and 0.051 with 3K parameters",
+      "baseline": "Additive 2.209%/0.052; BiMix 2.963%/0.144; RegMix 6.480%/0.136; Exponential 6.990%/0.059"
+    },
+    {
+      "setting": "Fresh 200M four-domain, 122M seven-domain, and 310M seven-domain models trained with mixtures selected by each fitted law",
+      "metric": "Target-distribution test perplexity",
+      "result": "Proposed law: 8.126, 13.076, and 10.413 respectively",
+      "baseline": "Best displayed competing fitted laws: 8.135 Additive, 13.089 Additive, and 10.531 Additive; uniform gives 8.148, 13.223, and 10.587"
+    },
+    {
+      "setting": "Four-domain extrapolation from 200M/8B proxy runs to a fresh 700M/16B model",
+      "metric": "Final average validation loss through 16B tokens",
+      "result": "Target-scale extrapolated mixture 1.8281",
+      "baseline": "Proxy-scale static mixture 1.8356; Additive-law mixture 1.8753"
+    },
+    {
+      "setting": "Seven-domain extrapolation from 122M/10B proxy runs to a fresh 1B/30B model",
+      "metric": "Final average validation loss through 30B tokens",
+      "result": "Target-scale extrapolated mixture 2.1087",
+      "baseline": "Proxy-scale static mixture 2.2103; Additive law fitted across scales including the target 1B/30B losses 2.1106"
+    }
+  ],
+  "limitations": [
+    "The authors state that the framework predicts losses only within the span of training domains, not unseen domains or downstream task behavior.",
+    "The authors state that tail overlap is not modeled explicitly; only a synthetic stress test with up to 40% randomly shared skills supports robustness to this violation.",
+    "The authors state that parameter fitting is nonconvex, computationally intensive, and sensitive to initialization.",
+    "Four Pile domains lack validation splits, so their training losses are used as held-out-loss proxies in the fitting experiment.",
+    "Reviewer inference: simultaneous diagonalization, a fully shared head, orthogonal tails, top-N projection, and a global linear teacher are strong structural idealizations of language-model pretraining.",
+    "Reviewer inference: the paper reports single loss curves without uncertainty intervals; several claimed wins are small enough that seed variance could change their ordering.",
+    "Reviewer inference: Lemma D.15 assumes a tail exponent below two, while the formal setup and Theorem D.19 allow exponents below three and invoke that lemma without an explicit extension, leaving a proof-scope gap.",
+    "Reviewer inference: Assumption D.18's numerical statement that A(h) lies between 8 and 9 throughout alpha in (1,3), learning rate in [0.1,1], and noise variance at most one is not justified by the displayed formula and appears nonuniform near alpha approaching one."
+  ],
+  "failure_modes": [
+    "Highly correlated or antagonistic domain tails can violate the additive capacity picture and make interaction effects look constant when they are not.",
+    "A mixture that minimizes same-domain validation loss can reduce downstream capability or performance on an unseen target distribution.",
+    "The nonconvex basin-hopping fit can select different parameters and mixtures across initializations despite similar training error.",
+    "Near-zero mixture coordinates make the finite-data term singular; excluding zero-weight observations can weaken boundary predictions where optimal mixtures may lie.",
+    "Small proxy models can reorder domain utility when architecture, tokenizer, optimizer, or data quality changes at target scale.",
+    "Online mirror descent can converge to a local outer optimum because the fitted bilevel objective is nonconvex."
+  ],
+  "reusable_insights": [
+    "Separate mixture effects caused by shared capacity from those caused by unequal sample efficiency; either mechanism alone can imply the wrong optimum.",
+    "A useful mixture law should predict not only losses on held-out ratios but the outcome of a fresh model trained at its selected ratio.",
+    "Test extrapolation by comparing a target-scale-optimized mixture with the same law's proxy-scale optimum; this isolates whether the law predicts mixture shift rather than merely a good static ratio.",
+    "Count free parameters and fit-run cost alongside prediction error, because a highly flexible surface can interpolate mixtures without explaining them.",
+    "Attach seed-level uncertainty and boundary stress tests to mixture recommendations before spending a target-scale pretraining budget."
+  ],
+  "open_questions": [
+    "Can domain overlap and synergy be estimated explicitly without quadratic-in-domain interaction parameters?",
+    "Does the fitted law predict downstream task vectors and unseen domains rather than only validation loss on constituent domains?",
+    "How often do proxy-to-target mixture rankings reverse across architecture, tokenizer, curriculum, or learning-rate schedule?",
+    "Can the parameter fit and outer mixture search be made convex, uncertainty-aware, and stable at simplex boundaries?",
+    "Do replicated target-scale runs confirm the 0.0019-loss advantage over the full-data Additive baseline in the 1B/30B setting?",
+    "Can the theorem be strengthened under overlapping spectra and with assumptions whose exponent ranges match every invoked lemma?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "openreview:vVU1KTOsju",
+      "title": "Scaling Laws for Optimal Data Mixtures",
+      "url": "https://openreview.net/forum?id=vVU1KTOsju",
+      "relationship": "prior direct scaling-law baseline",
+      "difference": "Shukor et al. fit additive and joint empirical laws across model size, token count, and mixture in language, vision, and multimodal settings. This paper derives a lower-parameter capacity-plus-noise form and matches or exceeds that law from a single smaller scale, but covers fewer modalities and rests on stronger theory assumptions.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2025 poster, OpenReview modified 2026-04-21"
+    },
+    {
+      "canonical_id": "openreview:jjCB27TMK3",
+      "title": "Data Mixing Laws: Optimizing Data Mixtures by Predicting Language Modeling Performance",
+      "url": "https://openreview.net/forum?id=jjCB27TMK3",
+      "relationship": "prior direct scaling-law baseline",
+      "difference": "Ye et al. use an empirical exponential mixture surface nested with model- and step-scaling laws and also study continual training. The present work replaces that functional fit with an interpretable capacity allocation and finite-data term, reporting substantially lower Pile-mixture MRE.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2025 conference paper"
+    },
+    {
+      "canonical_id": "openreview:5BjQOUXq7i",
+      "title": "RegMix: Data Mixture as Regression for Language Model Pre-Training",
+      "url": "https://openreview.net/forum?id=5BjQOUXq7i",
+      "relationship": "prior direct proxy-selection baseline",
+      "difference": "RegMix trains hundreds of very small proxy models and uses a flexible regressor to rank mixtures at much larger scale. The present law uses fewer parameters and an explicit N,D mechanism, but RegMix makes fewer shared-head/disjoint-tail assumptions and has demonstrated transfer up to 7B/100B-token runs.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2025 conference paper"
+    },
+    {
+      "canonical_id": "openreview:Kvsa8ZXd0W",
+      "title": "Data Mixture Optimization: A Multi-fidelity Multi-scale Bayesian Framework",
+      "url": "https://openreview.net/forum?id=Kvsa8ZXd0W",
+      "relationship": "concurrent uncertainty-aware alternative",
+      "difference": "The Bayesian framework treats mixture, scale, and training horizon as sequential experimental choices and models extrapolation uncertainty, reporting 2.6x to 3.3x search speedups. The present work supplies a stronger mechanistic parametric prior and direct large-scale mixtures but no posterior uncertainty or adaptive run allocation.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2025 poster, OpenReview modified 2026-04-21"
+    },
+    {
+      "canonical_id": "openreview:FndNAs9s0d",
+      "title": "Domain-Aware Scaling Laws Uncover Data Synergy",
+      "url": "https://openreview.net/forum?id=FndNAs9s0d",
+      "relationship": "prior interaction-aware alternative",
+      "difference": "Domain-Aware Scaling Laws estimates direct transfer plus pairwise synergy and interference from observational open-model variation. That explicitly targets the interactions suppressed by a disjoint-tail approximation, while this paper offers a much more parameter-efficient mechanistic law and prospective mixture-training tests.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2025 LLM Evaluation Workshop poster, modified 2025-11-14"
+    }
+  ],
+  "novelty_assessment": "The authors claim a first theoretical explanation that unifies capacity competition and noise reduction for data-mixture scaling and supports cross-scale mixture selection with fewer parameters. Reviewer inference: the main novelty is not another mixture predictor but the compact decomposition connecting a quantized skill allocation to projected linear-regression dynamics. The empirical results are promising and unusually prospective, yet the theory's structural and proof-range assumptions mean it currently functions better as a useful inductive bias than as an established explanation of transformer data mixing.",
+  "confidence": 0.93,
+  "reviewer_notes": "Read all 43 extracted pages, including the SDE derivation, approximation/bias/variance bounds, formal theorem, and outer-gradient proof. Rendered Tables/Figures 2–4 were inspected to recover exact values and verify that several improvements are narrow. Author-reported empirical claims are separated from reviewer checks of assumptions and theorem scope. The paper is arXiv v3 and marked published at ICML 2026; direct competitors and their latest public venue/revision records were checked on 2026-08-23."
+}

@@ -1,0 +1,172 @@
+{
+  "stable_id": "arxiv:2502.15938",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2502.15938",
+    "pdf_sha256": "d1ca4842b8c33a427da5a5ddb4b6c290a9969dce6ba233d2f6de21c56a850ce3",
+    "text_sha256": "69cfcc7ce6eecae56ad9849fa783267b2b7b71d5903109851797a66b9f9675b8",
+    "page_count": 34,
+    "extracted_at": "2026-08-23T17:19:11.338795+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "For AdamW language-model pretraining with a known token budget, when and why does warmup followed by linear learning-rate decay to zero outperform cosine or linear decay to a nonzero floor and continuous schedules such as WSD?",
+  "key_findings": [
+    {
+      "claim": "At compute-optimal and overtraining token budgets, tuned linear decay-to-zero is consistently better than tuned 10x decay, while very short low-TPP runs can favor retaining a nonzero learning rate.",
+      "evidence": "For 610M-parameter models at 20 tokens per parameter, the best Linear-D2Z validation loss is 0.77% lower than best Linear-10x. At 111M and 2 TPP, D2Z is worse, but its advantage grows with duration; at 200 TPP it exceeds the best 10x result by 1.6%. Across 111M, 610M, and 1.7B models, the gap increases with TPP.",
+      "anchors": [
+        {"page": 7, "section": "4.2 Results, Table 1 and Figure 5"},
+        {"page": 8, "section": "Figure 6, TPP scaling"}
+      ]
+    },
+    {
+      "claim": "Linear is only modestly but consistently better than cosine when both decay to zero; linear is not universally better when the schedules stop at one tenth of peak.",
+      "evidence": "Across the six peak-rate settings in Table 1, Linear-D2Z slightly beats Cosine-D2Z each time, whereas Cosine-10x slightly beats Linear-10x. This isolates an interaction between decay shape and endpoint rather than a blanket advantage for linear schedules.",
+      "anchors": [
+        {"page": 7, "section": "4.2 Results, Table 1"}
+      ]
+    },
+    {
+      "claim": "The empirical gains can be large enough to dominate additional training tokens in the studied regime, but extrapolations to frontier models are projections rather than direct measurements.",
+      "evidence": "A 610M D2Z model trained for 80 TPP beats a 10x model trained for 200 TPP on training and validation loss, implying 60% fewer pretraining FLOPs for that comparison. Its average downstream score, 43.54%, is also close to the 200-TPP 10x model's 43.46%. The largest main-model experiment is 1.7B, with appendix scaling fits up to 2.75B rather than a direct 7B or 70B test.",
+      "anchors": [
+        {"page": 1, "section": "Abstract and Figure 1"},
+        {"page": 8, "section": "Figure 6"},
+        {"page": 19, "section": "Appendix C.1, Table 5"},
+        {"page": 30, "section": "Appendix C.11, Figure 26"}
+      ]
+    },
+    {
+      "claim": "Under AdamW, the full learning-rate and weight-decay trajectory determines a weighted combination of past normalized updates, offering a useful explanation for schedule-dependent recency and noise averaging.",
+      "evidence": "Unrolling AdamW gives coefficient c_{t,i}=eta_i lambda times the product of later factors (1-eta_j lambda). Linear D2Z produces flatter late-stage coefficients than abrupt step or cosine changes, and frozen-weight evaluation on ordered training batches shows Constant and 10x models fitting the latest batches more strongly than D2Z.",
+      "anchors": [
+        {"page": 4, "section": "2.3 AdamW weights as an EMA"},
+        {"page": 5, "section": "3.1 AdamW as convex combination of weight updates"},
+        {"page": 9, "section": "Figure 9, training-order recency"}
+      ]
+    },
+    {
+      "claim": "D2Z reduces peak-learning-rate sensitivity across token budgets, weight decay, and batch size, and outperforms the tested WSD branch at 80 TPP, but it requires advance knowledge of the stopping budget.",
+      "evidence": "Loss bowls and optima move much less for D2Z than for Constant or 10x as TPP and batch size change. At 610M/80 TPP, optimal D2Z is about 0.84% lower loss than optimal WSD. The paper acknowledges that D2Z must be parameterized by the planned final step and may fail when high peak rates are unstable.",
+      "anchors": [
+        {"page": 8, "section": "Finding 3 and Figure 7"},
+        {"page": 9, "section": "Figure 8, continuous schedules"},
+        {"page": 11, "section": "6 Limitations and Further Experiments"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Sweep both peak learning rate and schedule shape/end ratio over language-model sizes and token budgets, then interpret AdamW parameters as a time-varying exponential moving average of normalized weight updates.",
+    "mechanism": "The study compares constant, inverse-square-root, step, cyclic, WSD, cosine, and linear schedules with nonzero or zero endpoints. By expanding decoupled weight decay recursively, it derives the contribution of each historical normalized update and connects longer averaging windows to late-training gradient-noise reduction.",
+    "assumptions": [
+      "Validation cross-entropy and the selected downstream suite adequately rank pretraining schedules.",
+      "Per-schedule peak-rate sweeps are broad enough to identify comparable optima.",
+      "The AdamW update-mixture view captures the dominant reason schedule shape matters despite nonlinear, nonstationary neural-network training.",
+      "Small-to-mid-scale GPT-like results and fitted loss scaling trends transfer to much larger production models.",
+      "Tokens per parameter is a useful proxy for the transition from bias-dominated to gradient-noise-dominated training."
+    ]
+  },
+  "techniques": [
+    {"id": "schedule-peak-cross-sweep", "role": "Avoids comparing learning-rate schedules at a peak rate tuned for a different endpoint."},
+    {"id": "adamw-update-coefficient-unrolling", "role": "Maps the full LR/weight-decay trajectory to explicit contributions from historical normalized updates."},
+    {"id": "tokens-per-parameter-scaling", "role": "Measures how schedule ranking changes from short runs to compute-optimal and overtrained regimes."},
+    {"id": "training-order-recency-probe", "role": "Evaluates frozen checkpoints on original ordered batches to test whether schedules overweight recent updates."},
+    {"id": "schedule-specific-scaling-law-fit", "role": "Fits loss-to-FLOPs power laws separately for D2Z and 10x decay."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "GPT-like ALiBi/SwiGLU models from 111M to 1.7B parameters on SlimPajama, primarily with muP, across 2-200 tokens per parameter and peak-rate sweeps.",
+      "metric": "Held-out pretraining cross-entropy over 1.1B tokens.",
+      "result": "D2Z loses at very low TPP but becomes best by compute-optimal 20 TPP; its advantage over 10x grows with duration and reaches 3.05% at 1.7B/80 TPP at the proxy-tuned rate.",
+      "baseline": "Optimally tuned constant, inverse-square-root, cosine/linear 10x, and cosine D2Z schedules."
+    },
+    {
+      "setting": "610M models at 80 and 200 TPP, including evaluation on MMLU, commonsense, reading, truthfulness, and bias tasks.",
+      "metric": "Training/validation loss and mean downstream percentage.",
+      "result": "D2Z at 80 TPP beats 10x at 200 TPP on loss and approximately matches its downstream average; D2Z at 200 TPP attains the best downstream average, 45.00%.",
+      "baseline": "Linear 10x at matched or 2.5x larger token budgets."
+    },
+    {
+      "setting": "610M/80-TPP comparisons against WSD and cyclic schedules, plus batch-size and weight-decay grids.",
+      "metric": "Optimal validation loss and movement/flatness of the optimal peak-rate basin.",
+      "result": "D2Z is about 0.84% better than optimal WSD and is less sensitive to batch size, weight decay, and training duration.",
+      "baseline": "WSD, cyclic, constant, and 10x schedules with their own peak-rate sweeps."
+    },
+    {
+      "setting": "Four model sizes up to 2.75B at 20 TPP with Llama-style architecture, 8192-token context, and bilingual/code data.",
+      "metric": "Power-law slope of validation loss versus pretraining FLOPs.",
+      "result": "The fitted D2Z slope is roughly 2.5% steeper than 10x, supporting—but not directly validating—larger-scale extrapolation.",
+      "baseline": "Linear decay to one tenth of peak."
+    }
+  ],
+  "limitations": [
+    "The largest direct comparisons are far below current frontier scale; claims about Llama-2-7B compute savings and 70B improvement are extrapolations.",
+    "Most schedule runs share one random seed, with multi-seed evidence relegated to a smaller appendix check.",
+    "D2Z needs a predetermined stopping step and is unsuitable for arbitrary checkpoint extraction without branching or redesign.",
+    "The main results use AdamW and may not transfer to approximate second-order or other non-decoupled optimizers.",
+    "The EMA derivation is exact algebra, but interpreting coefficient flatness as causal noise reduction is a conceptual model rather than a nonlinear optimization theorem.",
+    "Low-data and unstable-training regimes can favor less decay or prevent use of D2Z's higher optimal peak rate."
+  ],
+  "failure_modes": [
+    "Reusing a peak rate tuned for 10x decay can make D2Z appear worse or destabilize training.",
+    "A short proxy run at low TPP can reverse the schedule ranking and lead to the wrong production choice.",
+    "Numerical instability at the higher D2Z optimum can erase the theoretical benefit; the NanoGPT replication required moving from bfloat16 to float32.",
+    "Training that must stop unpredictably can end before the zero-decay cooldown and yield a poor checkpoint.",
+    "Data ordering or distribution shift late in training can interact with D2Z's historical averaging in ways not captured by shuffled held-out loss."
+  ],
+  "reusable_insights": [
+    "Schedule comparisons must jointly tune the peak rate and decay endpoint; otherwise the schedule is confounded with a mismatched optimizer scale.",
+    "Report schedule quality as a function of tokens per parameter rather than extrapolating from cheap short runs.",
+    "Unrolling optimizer state into historical-update coefficients is a low-cost diagnostic for candidate schedules before expensive training.",
+    "Learning-rate schedules can change hyperparameter-transfer laws, including apparent batch-size scaling of the optimal rate.",
+    "Compute-savings claims are strongest when a shorter-run schedule beats a longer-run baseline on both validation loss and downstream evaluations."
+  ],
+  "open_questions": [
+    "Does linear D2Z retain its edge at 7B-70B scale with modern architectures, data mixtures, and multiple seeds?",
+    "Can a stopping-time-agnostic controller reproduce D2Z's update coefficients while yielding strong checkpoints at any time?",
+    "How should peak rate, weight decay, and batch size be jointly adapted as gradient noise changes during high-TPP training?",
+    "Does D2Z change memorization, calibration, data-order sensitivity, or rare-domain retention beyond average loss?",
+    "Can the update-mixture account generate falsifiable predictions for optimizers without decoupled weight decay?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2310.07831",
+      "title": "Optimal Linear Decay Learning Rate Schedules and Further Refinements",
+      "url": "https://arxiv.org/abs/2310.07831",
+      "relationship": "Closest direct predecessor deriving linear decay as a worst-case-optimal schedule and benchmarking it across deep-learning problems including LMs.",
+      "difference": "Defazio et al. provide broader schedule theory and task coverage; the target focuses on LLM token budgets, jointly sweeps endpoint and peak rate, and adds an AdamW historical-update explanation."
+    },
+    {
+      "canonical_id": "arxiv:2410.05192",
+      "title": "Understanding Warmup-Stable-Decay Learning Rates: A River Valley Loss Landscape Perspective",
+      "url": "https://arxiv.org/abs/2410.05192",
+      "relationship": "Direct alternative for obtaining language-model checkpoints at multiple compute budgets through a stable branch and rapid decay branches.",
+      "difference": "WSD-S optimizes flexibility across unknown/multiple stopping budgets and offers a loss-landscape theory; the target optimizes a single known budget and finds full-run linear D2Z lower-loss in its tested comparison."
+    },
+    {
+      "canonical_id": "arxiv:2405.15682",
+      "title": "The Road Less Scheduled",
+      "url": "https://arxiv.org/abs/2405.15682",
+      "relationship": "Schedule-free optimizer competitor designed to avoid dependence on the final training step while retaining scheduled-optimizer performance.",
+      "difference": "Schedule-Free AdamW couples iterate averaging and optimization without a prescribed horizon and wins broad AlgoPerf tests; the target retains standard AdamW and argues a horizon-aware linear schedule is best for its LLM setting."
+    },
+    {
+      "canonical_id": "arxiv:2405.13698",
+      "title": "How to set AdamW's weight decay as you scale model and dataset size",
+      "url": "https://arxiv.org/abs/2405.13698",
+      "relationship": "Immediate theoretical foundation for viewing AdamW weights as an EMA of updates and scaling the associated timescale.",
+      "difference": "Wang and Aitchison emphasize weight-decay scaling across dataset/model size and validate mostly vision plus NanoGPT; the target generalizes the coefficient calculation to time-varying LR schedules and conducts larger LLM schedule sweeps."
+    },
+    {
+      "canonical_id": "arxiv:2203.15556",
+      "title": "Training Compute-Optimal Large Language Models",
+      "url": "https://arxiv.org/abs/2203.15556",
+      "relationship": "Defines the compute-optimal tokens-per-parameter regime and popularized the cosine-to-10%-of-peak recipe used as the target's main baseline.",
+      "difference": "Chinchilla studies model/data allocation and treats the schedule as a training choice; the target argues the nonzero endpoint is itself suboptimal and can materially shift compute efficiency."
+    }
+  ],
+  "novelty_assessment": "Reviewer inference after checking linear-schedule theory, WSD, schedule-free optimization, and AdamW EMA work: linear decay-to-zero was already theoretically and empirically motivated, and the EMA-of-updates view comes directly from Wang and Aitchison. The paper's substantive novelty is the controlled LLM-specific cross-sweep over peak rate, decay ratio, TPP, batch size, weight decay, and scale, together with the time-varying AdamW coefficient extension and unusually strong compute-equivalence result. The evidence supports adoption for similar known-budget AdamW runs, but frontier-scale savings remain unverified projections.",
+  "confidence": 0.96,
+  "reviewer_notes": "Read all 34 extracted pages, including downstream results, parameterization replications, weight-decay/batch grids, NanoGPT replication, scaling-law appendix, and the proposed horizon-free coefficient schedule. Competitor records were checked against primary arXiv pages on 2026-08-23."
+}

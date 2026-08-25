@@ -1,0 +1,228 @@
+{
+  "stable_id": "arxiv:2608.17896",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://arxiv.org/pdf/2608.17896",
+    "pdf_sha256": "61b933256ccb99141ff12d587d988f96d8054d431ec7d6a6f59bf817cb20f9ad",
+    "text_sha256": "d861f75bca2433d1c6ac8db46d36a4b9f6279658f16f87d868e0a789f28812b4",
+    "page_count": 13,
+    "extracted_at": "2026-08-23T08:58:15.885561+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a fixed-state recurrent model trade extra computation for memory capacity by selectively revisiting past tokens after later context reveals which information must be represented at high fidelity?",
+  "key_findings": [
+    {
+      "claim": "Single-pass recurrent compression scales poorly when several functions must be stored before the model knows which one a later query will require.",
+      "evidence": "In the controlled in-context matrix-regression task, matching the K=1 error at K=3 required roughly three orders of magnitude more recurrent state, from about 3,000 to about 3.1 million elements, while identifying the relevant basis alone was already nearly perfect at about 3,000 elements.",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "3"
+        },
+        {
+          "page": 5,
+          "section": "4"
+        },
+        {
+          "page": 11,
+          "section": "B.1"
+        }
+      ]
+    },
+    {
+      "claim": "Reprocessing only the function selected by the later few-shot context lets a much smaller recurrent state outperform large single-pass compression.",
+      "evidence": "At K=3, oracle dynamic re-scanning with a 110,592-element state achieved lower validation error than single-pass compression with a 3,145,728-element state. Across K=3 through 7 at a fixed 6,912-element state, the median error power-law exponent was about 2.3 for dynamic re-scanning versus 6.1 for single pass.",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.1 and Figure 6"
+        },
+        {
+          "page": 7,
+          "section": "5"
+        },
+        {
+          "page": 11,
+          "section": "B.1"
+        },
+        {
+          "page": 12,
+          "section": "B.2"
+        }
+      ]
+    },
+    {
+      "claim": "The model's own write strengths during a repeated-context pass provide label-free supervision for a selective re-scan policy.",
+      "evidence": "A repeat model processes the prefix again after the few-shot block; final-layer GatedDeltaNet beta patterns vary with the queried basis. K-means compresses 52-position patterns into a three-code codebook of 21-token re-scan choices, and a dynamic model learns to predict the code without ground-truth basis labels.",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "4.1"
+        },
+        {
+          "page": 6,
+          "section": "4.1"
+        }
+      ]
+    },
+    {
+      "claim": "The learned codebook policy closes much of the performance gap between one-pass compression and oracle or full-repeat upper bounds.",
+      "evidence": "At head dimension 16 and 50,000 steps, mean best validation MSE over three seeds was 67.06 +/- 95.99 times 10^-3 for single pass, 4.91 +/- 1.53 for codebook dynamic, 2.30 +/- 2.44 for oracle dynamic, and 1.38 +/- 0.44 for full repeat. The paper notes the single-pass mean is inflated by a high-variance seed and gives median 17.4.",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.1"
+        },
+        {
+          "page": 7,
+          "section": "5, Table 1"
+        }
+      ]
+    },
+    {
+      "claim": "Dynamic compression creates a two-level memory system: raw context is a lossless archive, while the fixed recurrent state becomes revisable working memory.",
+      "evidence": "The dynamic model first writes all bases relatively evenly, predicts a relevant region after the few-shot block, then reprocesses that region with stronger writes so later prediction reads a task-specific state rather than one uniform compromise.",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "1"
+        },
+        {
+          "page": 6,
+          "section": "4.1"
+        },
+        {
+          "page": 8,
+          "section": "7"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Retain the raw prefix, infer which past span matters after the query task becomes identifiable, and feed those old tokens through the same recurrent update again so the fixed-size state can be recompressed around current needs.",
+    "mechanism": "A four-layer, six-head GatedDeltaNet first observes K random 8-by-8 linear functions through 16 labeled pairs per function. A later few-shot block identifies one basis but is too short to reconstruct it. A selection head chooses a basis or learned code, its tokens are reprocessed through persistent recurrence, and the query head predicts the matrix output from the revised state. Oracle supervision gives an upper bound. The self-supervised version trains a repeat model, clusters its later-context-conditioned beta write-strength traces, turns centroids into fixed token subsets, and trains the dynamic model to choose among those codes.",
+    "assumptions": [
+      "The complete raw prefix remains available, so the method trades recurrent-state memory for O(t) archive storage.",
+      "Later few-shot examples identify which previously demonstrated function is relevant even though they cannot reconstruct it alone.",
+      "The recurrent update-strength gate beta is a useful proxy for which past tokens deserve another write after task revelation.",
+      "Basis blocks and their token locations are explicit in the synthetic task; oracle experiments assume the correct block is known.",
+      "Training and evaluation draw random linear maps from the same controlled distribution."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "selective-recurrent-rescanning",
+      "role": "Replays chosen past tokens through the same recurrence, changing the persistent state instead of merely reading an external memory."
+    },
+    {
+      "id": "task-conditioned-state-recompression",
+      "role": "Delays high-fidelity representation until few-shot context reveals which stored function the current query needs."
+    },
+    {
+      "id": "write-strength-self-supervision",
+      "role": "Uses GatedDeltaNet's beta gates on a repeated context as a label-free signal for valuable re-scan positions."
+    },
+    {
+      "id": "rescan-codebook-distillation",
+      "role": "Clusters dense write traces into a small discrete set of fixed-length token-selection patterns that a lightweight head can predict."
+    },
+    {
+      "id": "oracle-span-upper-bound",
+      "role": "Separates the value of correct reprocessing from errors in learning the selector."
+    },
+    {
+      "id": "memory-compute-scaling-sweep",
+      "role": "Varies recurrent-state elements and number of stored functions to expose the tradeoff between state capacity and extra recurrent updates."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Synthetic continual function reuse with K=3 random 8-dimensional matrix functions, 16 basis pairs, four few-shot pairs, eight queries, and GatedDeltaNet state sizes 3,072, 110,592, and 3,145,728; three seeds.",
+      "metric": "Minimum held-out validation MSE over 150,000 training steps.",
+      "result": "Oracle dynamic re-scanning at 110,592 state elements achieved lower error than single pass at 3,145,728 elements.",
+      "baseline": "K=3 single-pass compression under the same model family and training budget."
+    },
+    {
+      "setting": "K from 3 to 7 at fixed head dimension 12, 6,912 state elements, 150,000 steps, and three seeds per point.",
+      "metric": "Median validation-MSE scaling exponent versus number of bases.",
+      "result": "Power-law exponent about 2.3 for oracle dynamic re-scanning; one K=6 dynamic seed failed optimization.",
+      "baseline": "Single-pass exponent about 6.1 under the same state and data settings."
+    },
+    {
+      "setting": "Learned-selector comparison at head dimension 16, K=3, one query group, 50,000 steps, and three seeds.",
+      "metric": "Best validation MSE in units of 10^-3, mean plus or minus standard deviation.",
+      "result": "Codebook dynamic 4.91 +/- 1.53; oracle dynamic 2.30 +/- 2.44; full repeat 1.38 +/- 0.44.",
+      "baseline": "Single-pass 67.06 +/- 95.99, median 17.4 because one seed had high variance."
+    },
+    {
+      "setting": "Basis-selection subtask at K=3 across recurrent-state sizes.",
+      "metric": "Selection accuracy.",
+      "result": "The selection head reached near-perfect accuracy at about 3,000 state elements.",
+      "baseline": "Applying all three bases accurately in one-pass state required about 3 million elements."
+    }
+  ],
+  "limitations": [
+    "Author-stated: experiments use only a controlled synthetic linear-function task, not natural-language or natural-data pre-training.",
+    "Author-stated: general re-scan parameterization is open because the codebook depends on fixed task structure and known token positions.",
+    "Author-stated: it is unclear how to generate selection supervision when tasks are not explicitly delineated in a sequence.",
+    "Reviewer inference: total memory is not constant because the raw sequence is retained losslessly; the gain concerns active recurrent state, not end-to-end storage.",
+    "Reviewer inference: all train and test functions come from the same random linear family, so the results do not establish transfer to novel skill types or semantic retrieval.",
+    "Reviewer inference: the key codebook result uses only three clusters, fixed 21-token selections, one query group, and three seeds, with substantial baseline variance."
+  ],
+  "failure_modes": [
+    "If the selector chooses the wrong span, reprocessing can overwrite useful working memory with irrelevant detail before prediction.",
+    "When task boundaries or relevant spans are diffuse, overlapping, or compositional, a small discrete codebook may be too rigid.",
+    "If the archive cannot retain all raw context, discarded information remains unrecoverable despite dynamic state updates.",
+    "Repeated writes can interfere with information needed by later queries, especially when several skills must be combined rather than one selected.",
+    "Write-strength gates can reflect optimization quirks rather than causal usefulness, producing misleading self-supervised targets.",
+    "The extra recurrent updates can erase the throughput benefit over attention when selections are large or frequent."
+  ],
+  "reusable_insights": [
+    "Separate an inexpensive task-identification representation from the high-fidelity representation needed to execute the selected task.",
+    "Treat recurrent state as revisable working memory and retained tokens as archival memory, rather than demanding one irreversible compression pass.",
+    "Use a model's behavior under an expensive oracle computation, such as a full second pass, to distill a cheaper selective-compute policy.",
+    "Measure memory systems jointly by active-state size, archive size, additional updates, and how each scales with the number of reusable items.",
+    "Reprocessing through the same recurrence differs from retrieval-only reads because it can repair earlier state-allocation decisions."
+  ],
+  "open_questions": [
+    "Can natural-language pre-training learn continuous span selectors or bookmarks without known task boundaries?",
+    "Can reinforcement learning discover re-scan policies that optimize downstream value under a compute budget?",
+    "How should dynamic compression combine several distant spans for compositional queries without destructive interference?",
+    "Does selective re-scanning improve generalization, or only memory efficiency, at language-model scale?",
+    "What causal signal is more reliable than raw beta write strength for deciding which past tokens will improve a future prediction?",
+    "When does the total archive-plus-compute cost beat growing KV caches, sparse attention, or external retrieval in real workloads?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2407.05483",
+      "title": "Just Read Twice: Closing the Recall Gap for Recurrent Language Models",
+      "url": "https://arxiv.org/abs/2407.05483",
+      "relationship": "prior",
+      "difference": "Just Read Twice repeats or non-causally reorders the full prefix to reduce order-sensitive recall; this paper uses a full repeat only to derive supervision, then predicts a small task-conditioned subset to reprocess through persistent recurrence."
+    },
+    {
+      "canonical_id": "arxiv:2503.22913",
+      "title": "Resona: Improving Context Copying in Linear Recurrence Models with Retrieval",
+      "url": "https://arxiv.org/abs/2503.22913",
+      "relationship": "prior",
+      "difference": "Resona retrieves original-context chunks and integrates them through an added retrieval pathway for synthetic and natural language tasks; dynamic compression sends selected raw tokens through the original recurrent update so retrieval revises what the fixed state stores."
+    },
+    {
+      "canonical_id": "arxiv:2602.24281",
+      "title": "Memory Caching: RNNs with Growing Memory",
+      "url": "https://arxiv.org/abs/2602.24281",
+      "relationship": "prior",
+      "difference": "Memory Caching stores checkpoints of recurrent hidden states so effective model memory grows with context; this paper keeps active recurrent state fixed, retains raw tokens separately, and spends compute to reconstruct a task-specific state."
+    },
+    {
+      "canonical_id": "arxiv:2607.02303",
+      "title": "A Hippocampus for Linear Attention: An Exact Memory for What the Recurrent State Forgets",
+      "url": "https://arxiv.org/abs/2607.02303",
+      "relationship": "concurrent",
+      "difference": "HOLA adds a bounded exact KV cache selected by beta times residual magnitude and reads it as a separate sharp retrieval memory at language-model scale; this paper uses beta traces as supervision for reprocessing archived tokens into the recurrent state and demonstrates the mechanism only on synthetic function reuse."
+    }
+  ],
+  "novelty_assessment": "Reviewer inference: full rereading, growing recurrent caches, and retrieval augmentation already address recurrent recall. The distinctive contribution is task-conditioned selective replay that changes the same persistent state, together with self-supervised distillation of a full-repeat model's write pattern into a small re-scan codebook. HOLA is especially close in its use of delta-rule write magnitude, but keeps exact KV entries and reads them separately; this paper instead revises recurrent compression. The mechanism is novel but evidence remains preliminary because it is synthetic, small-scale, and dependent on explicit block structure.",
+  "confidence": 0.95,
+  "reviewer_notes": "The full text and experimental appendix were read. State sizes, training steps, seed counts, MSE values, and scaling exponents were checked against pages 4-7 and 11-12. Four primary arXiv abstracts were reviewed for direct comparison. The distinction between active state memory and total retained archive is reviewer inference."
+}

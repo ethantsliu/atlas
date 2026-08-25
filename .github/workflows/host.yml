@@ -1,0 +1,41 @@
+name: host
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Hosted database operation
+        required: true
+        type: choice
+        options:
+          - sync
+          - migrate
+          - both
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hosted-database
+  cancel-in-progress: false
+
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    env:
+      ATLAS_DATABASE_URL: ${{ secrets.ATLAS_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Require server credential
+        run: test -n "$ATLAS_DATABASE_URL"
+      - name: Apply schema
+        if: inputs.mode == 'migrate' || inputs.mode == 'both'
+        run: python pipeline/migrate.py
+      - name: Sync public metadata
+        if: inputs.mode == 'sync' || inputs.mode == 'both'
+        run: python pipeline/sync.py

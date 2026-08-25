@@ -1,0 +1,259 @@
+{
+  "stable_id": "arxiv:2402.17090",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2402.17090",
+    "pdf_sha256": "3afef71b930851ff3f448a4762ad5e8d26fea282b9a9b0828bf9f80aa33699ac",
+    "text_sha256": "459499f0d175ff5e2ddda44097a7b93118700e590f5ec9a6d914d729c2d86b3d",
+    "page_count": 19,
+    "extracted_at": "2026-08-23T18:17:20.187030+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can reversing a momentum-space renormalization flow motivate a faster image generator by diffusing patchwise DCT coefficients from high to low frequency with a scale-dependent noise schedule?",
+  "key_findings": [
+    {
+      "claim": "The implemented FDDM is a patchwise DCT-space x0-prediction diffusion model with a hand-designed frequency-dependent schedule.",
+      "evidence": "Images are converted to YCbCr, split into d-by-d patches, transformed by DCT, and regrouped so each within-patch frequency becomes a channel over the patch grid. A U-Net predicts clean DCT coefficients with MSE. The schedule alpha-bar(t,k) is a Fermi-Dirac function of a tight-binding dispersion epsilon_k=-cos(pi k1)-cos(pi k2), with chemical potential decreasing from 4 to -4 so high-frequency modes are corrupted before low-frequency modes; sampling follows a DDIM-like x0 reconstruction.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 9, "section": "5.1 Overview and Motivation"},
+        {"page": 10, "section": "5.2.1 Forward Diffusion in the Frequency Domain"},
+        {"page": 11, "section": "5.2.2-5.2.4 objective and noise schedule"},
+        {"page": 12, "section": "5.3 Description of FDDM"},
+        {"page": 13, "section": "Algorithms 1-2"}
+      ]
+    },
+    {
+      "claim": "The RG and optimal-transport narrative does not mathematically determine the FDDM actually trained.",
+      "evidence": "Sections 1-3 discuss Wasserstein gradient flow and an exact-RG covariance flow, but the practical forward kernel, Fermi schedule, patch size, DCT grouping, x0 MSE, modified U-Net, and DDIM sampler are introduced independently. No derivation maps the RG covariance Sigma or graph conductance to the discrete patchwise schedule, and none of the RG functional, Wasserstein metric, graph discretization, or curvature terms enters the training objective or algorithms.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "3 RG flow and Wasserstein dynamics"},
+        {"page": 8, "section": "Equations 17-20 and 4.1 DDPM transition"},
+        {"page": 11, "section": "Equation 29 training objective and Equation 30 schedule"},
+        {"page": 13, "section": "Algorithms 1-2"},
+        {"page": 15, "section": "Appendix A graph discretization"}
+      ]
+    },
+    {
+      "claim": "As written, the central RG-as-Wasserstein-gradient-flow derivation contains sign, normalization, and probability errors.",
+      "evidence": "Equation 10 expands E-TS as an integral of mu*epsilon + T*log(mu), omitting the required factor mu in the entropy term. Equation 18 sets g^{-1}=partial_t Sigma/2 and calls it positive definite, but immediately requires partial_t Sigma<=0 and later uses g=-2(partial_t Sigma)^{-1}, which corresponds to the opposite sign. After Equation 20, the purported reference probability is printed as q(x)=-exp(-2S_free(x))/2, which is negative. The intended KL-gradient-flow identity is plausibly repairable, but it is not valid as specified.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Definitions 1.4-1.6, Equations 9-11"},
+        {"page": 7, "section": "Equation 18 metric definition"},
+        {"page": 8, "section": "Equations 19-20 and negative q(x)"}
+      ]
+    },
+    {
+      "claim": "The optimal-transport and graph-discretization exposition is not a complete supporting theorem.",
+      "evidence": "The stated Monge problem minimizes over couplings rather than transport maps, effectively giving the Kantorovich form before Section 1.2; the Wasserstein distance definition is written as a one-argument W(mu_X) despite depending on two marginals. Section 2 points to a detailed construction in nonexistent Appendix C. Section 3 instead points to Appendix A for exact RG, but Appendix A only sketches graph curvature, ends mid-development after introducing two measures, and never derives the claimed discrete Benamou-Brenier dynamics used by FDDM.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "1 Monge formulation"},
+        {"page": 5, "section": "Definition 1.1 Wasserstein distance"},
+        {"page": 7, "section": "2-3 appendix cross-references"},
+        {"page": 15, "section": "Appendix A opening"},
+        {"page": 16, "section": "Equations 31-32"},
+        {"page": 17, "section": "Appendix A incomplete ending"}
+      ]
+    },
+    {
+      "claim": "The reported compute gain is real for the compared networks, but it is inseparable from an explicit architecture-and-quality trade rather than evidence that Fourier diffusion itself is faster.",
+      "evidence": "On CelebA-64 with 1,000 sampling steps, DDPM is reported at 5.344 steps/s, 3,099 G MACs, and FID 3.26; FDDM with 4-by-4 patches reaches 14.655 steps/s and 1,781 G MACs but FID 18.17, while 8-by-8 patches reaches 45.76 steps/s and 449 G MACs but FID 20.65. The patch DCT is dimension preserving: 3n^2 scalars become 3d^2 channels on an n/d by n/d grid. Speed therefore comes from processing a much smaller spatial grid with a modified constant-resolution U-Net, not from the orthogonal transform reducing information dimension.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 12, "section": "Patch/channel tensor construction"},
+        {"page": 14, "section": "Modified constant-resolution U-Net"},
+        {"page": 15, "section": "Table 1 compute, speed, and FID"}
+      ]
+    },
+    {
+      "claim": "The abstract's claim of significantly reduced training time is not evaluated.",
+      "evidence": "Both models are described as trained for 800,000 steps on an A100, but the only efficiency results are inference steps per second and calculated MACs. The paper reports no training wall-clock time, training throughput, time-to-FID curve, convergence curve, energy, or peak memory. It therefore supports a per-step inference-compute tradeoff, not a training-time improvement.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract"},
+        {"page": 14, "section": "5.4 training setup"},
+        {"page": 15, "section": "Table 1 metrics"}
+      ]
+    },
+    {
+      "claim": "No ablation identifies whether the DCT basis, mode-dependent schedule, patch rearrangement, color conversion, or U-Net redesign causes the result.",
+      "evidence": "The sole quantitative baseline is an image-domain DDPM with a different downsample/upsample U-Net. There is no matched space-to-depth model without DCT, DCT with a scalar schedule, pixel model with the same spectral covariance, schedule sweep, patch-size quality-at-fixed-MAC curve beyond two points, or comparison at equal FID. Because an orthonormal DCT preserves isotropic Gaussian noise, changing coordinates alone is equivalent to pixel diffusion; the causal novelties are the non-isotropic schedule and network layout, which are not isolated.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 9, "section": "5.1 claimed FDDM advantages"},
+        {"page": 10, "section": "Equation 26 scale-dependent corruption"},
+        {"page": 14, "section": "Architecture modifications"},
+        {"page": 15, "section": "Single-baseline comparison"}
+      ]
+    },
+    {
+      "claim": "The published sampler and frequency-index specification are ambiguous enough to impede faithful reproduction.",
+      "evidence": "Equation 27 and Algorithm 2 use sqrt(1-alpha-bar_{t-1}-sigma_t) multiplying predicted noise, whereas the referenced DDIM variance-preserving form uses sigma_t squared inside that radical when sigma_t is a standard deviation. Algorithm 1 samples I_d noise for a d-by-d patch, and Equation 28 calls an x0 predictor a noise model. More importantly, the schedule operates on within-patch d-by-d DCT modes, yet Section 5.4 says momentum increments are determined by full image size (1/64 on CelebA-64), leaving the k-grid for d=4 or d=8 unspecified.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "Equation 27 reverse update"},
+        {"page": 11, "section": "Equation 28 prediction parameterization"},
+        {"page": 13, "section": "Algorithms 1-2"},
+        {"page": 14, "section": "Momentum-coordinate increment"}
+      ]
+    },
+    {
+      "claim": "The image-quality validation is too narrow to support the proposed downstream or medical-imaging relevance.",
+      "evidence": "Fashion-MNIST receives only a sample grid. CelebA-64 receives one FID table and curated plus uncurated samples, without a curation protocol, multiple seeds, confidence intervals, precision/recall, likelihood, perceptual or human evaluation, or downstream classifier study. The authors argue that FID 18-21 may suffice for attributes such as hair color or glasses, but do not run that task; medical imaging is mentioned only as motivation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "5.1 medical-imaging motivation"},
+        {"page": 14, "section": "Figures 4-6 samples"},
+        {"page": 15, "section": "FID interpretation and hypothetical downstream use"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Rearrange images into patchwise DCT-frequency channels and diffuse them with a mode-dependent signal-to-noise schedule that removes fine scales before coarse scales, then reverse the process with a lower-spatial-resolution U-Net.",
+    "mechanism": "YCbCr d-by-d patches are DCT transformed and identical frequency coefficients across patches become channels. A Fermi-Dirac schedule derived from a tight-binding dispersion assigns each channel a different alpha-bar. At a random timestep, independent Gaussian noise corrupts each coefficient and an Adam-trained model minimizes DCT-space x0 MSE. A DDIM-like update generates coefficients from noise; inverse DCT and unpatching return an image.",
+    "assumptions": [
+      "Natural-image energy is concentrated in low DCT frequencies and this separation improves signal/noise learning.",
+      "Corrupting high-frequency modes before low-frequency modes is a useful analogue of coarse graining under RG.",
+      "A tight-binding dispersion and linearly decreasing chemical potential are suitable without data-dependent calibration.",
+      "Patch boundaries and YCbCr conversion do not create unacceptable artifacts or information bottlenecks.",
+      "A constant-resolution network over frequency channels is a fair comparison with the spatial DDPM U-Net.",
+      "DCT-space squared error appropriately weights perceptually unequal frequency errors.",
+      "The printed DDIM-like sampler is interpreted with the intended variance coefficient despite its sigma ambiguity.",
+      "CelebA-64 and Fashion-MNIST are representative enough to support broader efficiency claims."
+    ]
+  },
+  "techniques": [
+    {"id": "patchwise-dct", "role": "Maps each image patch to real-valued frequency coefficients."},
+    {"id": "frequency-channel-grouping", "role": "Rearranges equal within-patch frequencies across spatial patches into model channels."},
+    {"id": "fermi-dirac-noise-schedule", "role": "Assigns time- and momentum-dependent SNR using a tight-binding dispersion."},
+    {"id": "coarse-to-fine-reverse-process", "role": "Denoises low-frequency structure before high-frequency detail."},
+    {"id": "dct-x0-prediction", "role": "Trains with MSE between clean and predicted frequency coefficients."},
+    {"id": "constant-resolution-unet", "role": "Reduces spatial compute after patch-to-channel rearrangement."},
+    {"id": "ddim-like-sampling", "role": "Permits stochastic or sparse-timestep reverse updates."},
+    {"id": "rg-wasserstein-motivation", "role": "Frames multiscale corruption as inverse renormalization, without entering the implementation."}
+  ],
+  "evaluations": [
+    {"setting": "Fashion-MNIST 28x28, patch size d=7", "metric": "uncurated qualitative samples", "result": "The paper shows recognizable clothing-class samples but reports no quantitative score.", "baseline": "No quantitative baseline"},
+    {"setting": "CelebA-64, DDPM baseline, T=I=1000", "metric": "MACs for a batch, inference steps/s, and FID over 200,000 samples", "result": "3,099 G MACs, 5.344 steps/s, FID 3.26.", "baseline": "Image-domain DDPM"},
+    {"setting": "CelebA-64 FDDM with 4x4 patches, T=I=1000", "metric": "MACs, inference steps/s, and FID", "result": "1,781 G MACs, 14.655 steps/s, FID 18.17: about 2.7x throughput at much worse FID.", "baseline": "Image-domain DDPM"},
+    {"setting": "CelebA-64 FDDM with 8x8 patches, T=I=1000", "metric": "MACs, inference steps/s, and FID", "result": "449 G MACs, 45.76 steps/s, FID 20.65: about 8.5x throughput at still worse FID.", "baseline": "Image-domain DDPM"},
+    {"setting": "CelebA-64 qualitative generation", "metric": "curated and uncurated sample grids", "result": "Faces retain coarse attributes but fine detail and background fidelity visibly lag the stated DDPM FID comparator.", "baseline": "No side-by-side baseline samples or curation rule"}
+  ],
+  "limitations": [
+    "The RG/optimal-transport derivation contains errors and is not connected to the learned model.",
+    "Only one quantitative pixel-space baseline is used, with a confounded architecture change.",
+    "Quality degrades from FID 3.26 to 18.17-20.65 in exchange for compute savings.",
+    "Training-time reduction is claimed but no training-time metric is reported.",
+    "The study lacks component ablations, equal-quality comparisons, and modern fast-sampler baselines.",
+    "Only two low-resolution unconditional datasets are tested; Fashion-MNIST has no quantitative result.",
+    "There are no repeated runs, uncertainty estimates, parameter counts, memory measurements, or energy measurements.",
+    "Sampler variance notation and the patch-frequency grid are internally ambiguous.",
+    "No code, checkpoints, or full curation/reproduction protocol is linked in the paper.",
+    "Medical and downstream-task usefulness is speculative and unevaluated."
+  ],
+  "failure_modes": [
+    "Large patches shrink spatial resolution but push many heterogeneous frequency bands into channels, which may erase local detail and worsen FID.",
+    "Blockwise DCT can create patch-boundary artifacts because cross-patch frequency continuity is not modeled directly.",
+    "A fixed Fermi schedule can over-corrupt task-important high frequencies or under-corrupt low-frequency dataset bias.",
+    "Using sigma instead of sigma squared in the reverse coefficient can produce an invalid variance and NaNs for some schedules.",
+    "An incorrectly indexed k-grid can assign noise levels intended for full-image modes to within-patch coefficients.",
+    "Unweighted DCT MSE can prioritize large low-frequency coefficients at the expense of perceptually important fine structure.",
+    "A speed comparison can reverse at matched FID, matched parameter count, matched network family, or with a 10-20-step solver.",
+    "Curated sample selection can conceal systematic failures without a prespecified selection protocol.",
+    "The inverse-RG interpretation can become unfalsifiable if no observable from the RG construction predicts model behavior."
+  ],
+  "reusable_insights": [
+    "Separate a coordinate transform from dimensional compression and from architectural compute reduction; they are different interventions.",
+    "For orthogonal transforms, use matched controls because isotropic Gaussian diffusion is basis invariant.",
+    "Evaluate efficiency with a Pareto frontier of quality versus wall time, memory, energy, and function evaluations rather than one fixed-step point.",
+    "Ablate basis, schedule, patching, channel rearrangement, and backbone independently before assigning a causal mechanism.",
+    "Make a physics analogy predictive by deriving schedule parameters or measurable ablations from it.",
+    "Check probability normalization, metric signs, and variance units before using a mathematical bridge as motivation.",
+    "Compare at equal sample quality and include strong solver-only and latent-space baselines.",
+    "Report time-to-quality curves when claiming faster training, not just inference throughput.",
+    "Define frequency coordinates relative to the actual transform block, especially after patchification."
+  ],
+  "open_questions": [
+    "Does the mode-dependent Fermi schedule outperform a learned schedule or a matched scalar schedule at fixed architecture and compute?",
+    "How much of the speedup remains under a space-to-depth pixel control with the identical constant-resolution U-Net?",
+    "Can the RG covariance flow uniquely derive the patch-frequency schedule and its temperature or chemical-potential path?",
+    "Would a corrected sampler combined with DPM-Solver or consistency distillation yield a better quality-latency frontier?",
+    "Can overlapping or learned frequency bases avoid block artifacts while retaining compute savings?",
+    "What weighting of DCT-space error best predicts perceptual quality and downstream utility?",
+    "Do the claimed coarse attributes support classifiers trained on synthetic images without bias or accuracy loss?",
+    "Can the method scale to 256-512 pixel images and diverse datasets without the FID gap widening?",
+    "Is there any measurable RG observable whose value changes when the FDDM schedule or backbone is ablated?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2412.15032",
+      "title": "DCTdiff: Intriguing Properties of Image Generative Modeling in the DCT Space",
+      "url": "https://arxiv.org/abs/2412.15032v2",
+      "relationship": "subsequent direct DCT-space competitor",
+      "difference": "Ning et al. systematically study DCT diffusion across UViT and DiT backbones, tasks, samplers, resolutions through 512x512, compression choices, and theory, reporting better quality and training efficiency than pixel and latent baselines. It turns the reviewed paper's promising DCT direction into a much broader, controlled, code-backed program and is the strongest current benchmark for its novelty and validation gaps.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2 / ICML 2025"
+    },
+    {
+      "canonical_id": "arxiv:2211.16152",
+      "title": "Wavelet Diffusion Models are fast and scalable Image Generators",
+      "url": "https://arxiv.org/abs/2211.16152v2",
+      "relationship": "prior multiscale transform-domain speed competitor",
+      "difference": "Phung, Dao, and Tran decompose low and high frequencies in wavelet space, add a reconstruction term to accelerate convergence, and evaluate CelebA-HQ, CIFAR-10, LSUN-Church, and STL-10 with released code. FDDM uses block DCT channels and a physics-shaped schedule, but its narrower two-dataset evaluation and absent training-time curve do not establish an advantage over this prior fast transform-domain approach.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2 / CVPR 2023"
+    },
+    {
+      "canonical_id": "arxiv:2209.05557",
+      "title": "Blurring Diffusion Models",
+      "url": "https://arxiv.org/abs/2209.05557v3",
+      "relationship": "prior spectral-corruption theory",
+      "difference": "Hoogeboom and Salimans show that heat/blurring diffusion is equivalent to Gaussian diffusion with non-isotropic noise and analyze the resulting inductive bias. This directly precedes FDDM's frequency-dependent covariance idea with a cleaner probabilistic formulation; FDDM adds patch-DCT compute reduction and a Fermi schedule but does not compare against or ablate the generalized blurring process.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2308.12355",
+      "title": "Renormalizing Diffusion Models",
+      "url": "https://arxiv.org/abs/2308.12355v2",
+      "relationship": "closest inverse-RG diffusion framework",
+      "difference": "Cotler and Rezchikov build diffusion models for explicitly specified nonperturbative RG schemes, derive adaptive bridge samplers, prescribe comparisons among RG choices, and test interacting field theories. FDDM transfers the inverse-RG metaphor to natural images, but its actual schedule is heuristic and its incomplete optimal-transport derivation supplies no equivalent RG-grounded validation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2206.00927",
+      "title": "DPM-Solver: A Fast ODE Solver for Diffusion Probabilistic Model Sampling in Around 10 Steps",
+      "url": "https://arxiv.org/abs/2206.00927v3",
+      "relationship": "strong training-free inference baseline",
+      "difference": "Lu et al. provide a convergence-guaranteed dedicated solver producing high-quality samples in 10-20 function evaluations and report 4-16x speedups without retraining. FDDM measures throughput at 1,000 evaluations and changes the representation, network, and quality simultaneously, so omitting modern solver baselines makes its practical latency claim weak.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3 / NeurIPS 2022"
+    },
+    {
+      "canonical_id": "arxiv:2112.10752",
+      "title": "High-Resolution Image Synthesis with Latent Diffusion Models",
+      "url": "https://arxiv.org/abs/2112.10752v2",
+      "relationship": "compute-quality representation baseline",
+      "difference": "Rombach et al. reduce diffusion compute through a learned perceptual latent space while retaining high-resolution fidelity across unconditional and conditional tasks. FDDM's deterministic DCT avoids autoencoder training and preserves invertibility, but its FID gap, 64x64 ceiling, and lack of matched training-compute measurements do not establish a better complexity-detail tradeoff.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2 / CVPR 2022"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The work bridges RG, optimal transport, and information theory to create a novel Fourier-space diffusion model whose dispersion-informed noise schedule improves denoising and substantially reduces training time while preserving useful image quality.",
+    "evidence": "It specifies a patch-DCT channelization, Fermi-Dirac mode schedule, x0-prediction objective, and modified U-Net, then reports 2.7-8.5x higher inference-step throughput and 42-86% fewer MACs than one DDPM baseline on CelebA-64, with FID increasing from 3.26 to 18.17-20.65.",
+    "reviewer_inference": "The practical novelty is a simple combination of block-DCT channel rearrangement and mode-dependent noise, with a clear compute-quality knob. The headline theoretical bridge is not operational and is invalid in several printed equations, while the empirical speedup is confounded by the lower-spatial-resolution backbone and a large quality loss. Prior wavelet, blurring, inverse-RG, latent, and fast-solver work already covered the main constituent ideas; subsequent DCTdiff provides much stronger direct validation."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Read all 19 extracted PDF pages, including the full optimal-transport/RG derivation, model equations, algorithms, quantitative experiment, Appendix A, and references; visually checked the source PDF for the disputed free-energy, metric-sign, and negative-density equations. Checked arXiv v2 and current primary-source competitors through DCTdiff/ICML 2025 on 2026-08-23."
+}

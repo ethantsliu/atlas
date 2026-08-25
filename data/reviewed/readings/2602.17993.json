@@ -1,0 +1,481 @@
+{
+  "stable_id": "arxiv:2602.17993",
+  "reading_depth": "verified",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2602.17993",
+    "pdf_sha256": "129cdf7fdcba6139d624097ba3664b15028c6182ca7fbe8f017eb8cc09896dfe",
+    "text_sha256": "441cab9eaf7114111b5e3ff8b2a7d09e58ad438fe6371f0a8ef635f76395b43e",
+    "page_count": 20,
+    "extracted_at": "2026-08-23T12:48:50.290751+00:00",
+    "review_pass": "secondary-verified-v1"
+  },
+  "question": "Can pretrained decoder-only Transformers gain useful sequence-scaled latent computational depth by sending several higher-layer states from one token group into lower layers of the next group, while retaining ordinary autoregressive supervision and avoiding the per-generated-token cost of recurrent-depth or explicit chain-of-thought methods?",
+  "key_findings": [
+    {
+      "claim": "TurboConn turns higher-to-lower-layer feedback into an acyclic cross-token recurrence and uses grouping to trade latent path length for parallelism.",
+      "evidence": "For every selected source/destination layer pair, a learned projection of the source-layer state from token i-1 is added, with multiplier alpha, to the destination-layer computation for token i; group size g generalizes this to state from the preceding group so tokens within a group remain parallel. Zero-initialized bridge projections preserve the pretrained model at the start of fine-tuning. With a top-to-bottom bridge the authors count maximum path depth as approximately kL/g for sequence length k and L layers, versus L for a standard Transformer. Algorithm 1 implements the recurrence with per-bridge buffers and a training-time KV cache.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "3.2 Our Approach"
+        },
+        {
+          "page": 5,
+          "section": "3.3 Analysis of Computational Cost; 3.4 Grouping"
+        },
+        {
+          "page": 16,
+          "section": "Appendix A.1 Pseudocode Implementation; A.3 Model Implementation"
+        }
+      ]
+    },
+    {
+      "claim": "At group size 4 and alpha=100, every reported model/task pair improves over its LoRA-fine-tuned Transformer baseline, with the largest effect on Qwen3-1.7B parity.",
+      "evidence": "Llama-3.2-1B changes from 7.20 to 8.32 on GSM8K without CoT, 38.16 to 42.66 on multi-step arithmetic, and 92.87 to 100.0 on parity. Llama-3.1-8B changes 23.92 to 24.82, 48.32 to 51.86, and 89.40 to 100.0. Qwen3-1.7B changes 15.90 to 20.31, 36.10 to 45.81, and 53.78 to 100.0. These are absolute percentage-point differences of 0.90 to 46.22, but the paper reports no seeds, dispersion, significance tests, or exact test-set sizes for Table 2.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.3 Main Results"
+        },
+        {
+          "page": 8,
+          "section": "Table 2 Performance comparison across model sizes and datasets"
+        }
+      ]
+    },
+    {
+      "claim": "The grouping/multiplier sweep exposes a genuine stability trade-off: shallower grouped recurrence is faster, but a strong bridge multiplier can catastrophically hurt performance.",
+      "evidence": "On Llama-3.2-1B parity, alpha=100 reaches 100% with groups 4 and 6 but collapses to 51.42% and 51.40% with groups 8 and 16, far below the 92.87% baseline; alpha=1 remains 98.68-98.94% across groups. On GSM8K, group-16 alpha=100 scores 6.94% versus the 7.20% baseline. The authors attribute this to strong stale bridge signals overwhelming normal attention when effective depth is reduced. Group 4 costs 4.87x/4.42x/4.18x the baseline step time on parity/arithmetic/GSM8K, while group 16 costs 1.36x/1.44x/1.80x and gives smaller or negative gains.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.4 Effect of Group Sizes and Multiplier"
+        },
+        {
+          "page": 7,
+          "section": "Table 1 Training efficiency and performance analysis"
+        }
+      ]
+    },
+    {
+      "claim": "Dense multi-layer bridges beat the paper's one-vector soft-token control, but this comparison does not isolate connection density as the causal variable.",
+      "evidence": "For Llama-3.2-1B, the convex mixture of the current embedding with the previous prediction-weighted embedding scores 7.07 on GSM8K, 38.00 on arithmetic, and 96.51 on parity, compared with baselines 7.20/38.16/92.87 and TurboConn 8.32/42.66/100.0. The control differs from TurboConn not only in sparsity but also in injection layer, representation (vocabulary-distribution mean versus hidden states), scaling rule, trainable projection, and recurrent path structure. It therefore rejects this particular soft-token mechanism, not every sparse higher-to-lower feedback design.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "4.5 Comparison to Single Soft-Token Feedback"
+        },
+        {
+          "page": 8,
+          "section": "Table 3 dense feedback versus soft-token feedback"
+        }
+      ]
+    },
+    {
+      "claim": "A single parity experiment supports length extrapolation beyond the training range, but not a general claim of algorithmic length generalization.",
+      "evidence": "Llama-3.1-8B TurboConn with group size 1, a soft-token model, and a standard Transformer are trained only on parity strings of length at most 10. The paper states that all fit the training data but TurboConn remains perfect through length 30 and visually outperforms the controls on longer inputs. Only one task, backbone, wiring, and run are shown; Figure 4 provides no tabulated per-length values or uncertainty and does not establish extrapolation on arithmetic or natural-language reasoning.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "4.6 Length Generalization Experiment"
+        },
+        {
+          "page": 8,
+          "section": "Figure 4 Length Generalization Performance"
+        }
+      ]
+    },
+    {
+      "claim": "TurboConn sharpens the digit output distribution on multi-step arithmetic, although the paper's interpretation as an internal verification process is not directly tested.",
+      "evidence": "Qwen3-1.7B TurboConn raises accuracy from 36.10% to 45.81% and the mean count of digits with probability below 0.001 from 2.516 to 5.259. It slightly exceeds the 45.61% accuracy and 4.500 eliminated choices of an unmodified Qwen3-8B. The threshold is fixed post hoc, no calibration/selective-risk metric is reported, and low probability assigned to more alternatives can arise from confidence sharpening or miscalibration rather than explicit mathematical verification.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "4.7 Emergence of Discriminative Filtering"
+        },
+        {
+          "page": 9,
+          "section": "Table 4 Accuracy and discriminative filtering"
+        }
+      ]
+    },
+    {
+      "claim": "TurboConn can improve final-answer prediction from a fixed generated CoT, but the error-correction framing is strongest on NuminaMath and weak on GSM8K.",
+      "evidence": "Using the same Llama-3.2-1B-generated trajectories for both final-answer models, TurboConn raises NuminaMath-CoT accuracy from 30.96% to 33.98% and GSM8K from 36.45% to 36.96%. The NuminaMath-trained checkpoint transfers from 2.00% to 4.45% on pooled 2023 AMC and 2024-2025 AIME questions. Group size is 8 and evaluation temperature 0.01. No intermediate-error annotations or edits show that TurboConn actually corrects faulty reasoning steps; it may instead be a stronger sequence-to-answer classifier. The authors themselves attribute the small GSM8K gain to a GPT-4-augmentation distribution shift.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "4.8 Synergy with Chain-of-Thought Reasoning"
+        },
+        {
+          "page": 9,
+          "section": "Table 5 and 4.8.1 Generalization to Competition Mathematics"
+        },
+        {
+          "page": 20,
+          "section": "Appendix A.7 More Training Details for TurboConn + CoT Experiments"
+        }
+      ]
+    },
+    {
+      "claim": "The LoRA parameter budget is controlled in TurboConn's favor, but equal trainable-parameter count is not the same as an architecture-only or effective-depth-only intervention.",
+      "evidence": "The baseline uses LoRA rank 140 while TurboConn uses rank 120 plus low-rank bridge projections. Reported trainable totals are 98,631,680 versus 91,946,760 for Llama-3.2-1B, 367,001,600 versus 358,999,320 for Llama-3.1-8B, and 152,535,040 versus 141,111,768 for Qwen3-1.7B. This rules out simply giving TurboConn more trainable parameters, but simultaneously changes parameter placement, LoRA rank, recurrence, cross-layer feature access, optimization geometry, and parallel schedule.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.2 Training Hyperparameters"
+        },
+        {
+          "page": 18,
+          "section": "Appendix A.6 LoRA Setting"
+        },
+        {
+          "page": 19,
+          "section": "Appendix A.6.1-A.6.2 trainable-parameter calculations"
+        },
+        {
+          "page": 20,
+          "section": "Appendix A.6.2-A.6.3 trainable-parameter calculations"
+        }
+      ]
+    },
+    {
+      "claim": "The wiring is manually stabilized and effectively unablated, so the appendix's robustness inference is unsupported by its stated search procedure.",
+      "evidence": "Appendix A.5 says broad layer coverage and low overhead guide the 15, 45, and 21 bridges for the three backbones, but the bottom layers are excluded by increasing Lmin to a value that 'feels right' when training is unstable. Other connection hyperparameters were arbitrarily chosen, with one or zero trials per model. The authors infer robustness from that small search, yet do not report alternative random/top-heavy/bottom-heavy wirings, connection-count sweeps, variance over bridge initialization, or a parameter-matched non-recurrent dense control. Minimal tuning demonstrates feasibility, not insensitivity.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.2 dense connection setup"
+        },
+        {
+          "page": 17,
+          "section": "Appendix A.5 Connection Configurations"
+        },
+        {
+          "page": 18,
+          "section": "Appendix A.5.1-A.5.3 explicit wiring lists"
+        }
+      ]
+    },
+    {
+      "claim": "The claim that computational depth alone is empirically isolated exceeds the comparison design.",
+      "evidence": "The paper compares TurboConn primarily with an ordinary Transformer and one soft-token control; it does not compare with Feedback Transformer, Staircase Attention, Universal/looped Transformers, or a same-compute recurrent-depth retrofit. TurboConn also changes information routing and inductive bias, adds access to multiple intermediate representations, introduces trainable cross-layer projections, and changes LoRA rank. Its strongest results are on generator-defined parity and modulo-10 arithmetic. The experiments support usefulness of this bridge architecture, but cannot attribute gains uniquely to path length rather than representation reuse, optimization, recurrence, or task-aligned sequential bias.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "1 Introduction, contribution 4"
+        },
+        {
+          "page": 3,
+          "section": "2.3 Relationship between Depth and Reasoning"
+        },
+        {
+          "page": 7,
+          "section": "4.5 sparse-control comparison"
+        },
+        {
+          "page": 9,
+          "section": "5 Conclusions"
+        }
+      ]
+    },
+    {
+      "claim": "Claims of no added autoregressive-generation latency and no increased GPU memory are theoretical expectations rather than measured results in this paper.",
+      "evidence": "The authors correctly note that decoding is already token-sequential and state that bridge projections add little work, while training and prefill lose full token parallelism. However, Table 1 measures only training step time on one A100; no decode tokens/second, time-to-first-token, prefill benchmark, peak allocated memory, bridge-buffer memory, or long-context scaling measurement appears. The reported 1.36x-4.87x training overhead is real evidence; zero or negligible generation/memory overhead remains unverified.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "1 Introduction, contribution 1"
+        },
+        {
+          "page": 5,
+          "section": "3.3 Analysis of Computational Cost; 3.5 comparison with Universal Transformers"
+        },
+        {
+          "page": 6,
+          "section": "4.4.1 Training Latency Analysis"
+        },
+        {
+          "page": 7,
+          "section": "Table 1"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Retrofit a pretrained causal decoder with several learnable residual bridges that carry already-computed high-layer states from a past token or token group into lower layers of the next group. This creates recurrent high-to-low paths that unroll along sequence position without repeating the full model for each generated token.",
+    "mechanism": "A bridge (s to l) stores the source-layer hidden tensor from the preceding group, applies a low-rank learned projection D specific to that bridge, scales it by alpha, and adds it after the destination layer's normal computation for the current group. Projections can be initialized to zero. The forward pass processes groups left-to-right with a KV cache; group size one maximizes path depth and group size g permits within-group parallelism. Dense bridge lists cover many high-to-low pairs: 15 for 16-layer Llama-3.2-1B, 45 for 32-layer Llama-3.1-8B, and 21 for 28-layer Qwen3-1.7B. Fine-tuning uses the ordinary next-token loss, LoRA rank 120 for TurboConn versus 140 for baselines, batch 64, at most three epochs, and a periodic cosine schedule. Main results use g=4 and alpha=100; the CoT experiment uses g=8 and the length test g=1.",
+    "assumptions": [
+      "Longer directed paths in the unrolled computation graph correspond to useful latent reasoning steps rather than merely more opportunities to transform or copy features.",
+      "A higher-layer state from the previous token group contains a partially solved intermediate result that a lower layer can productively refine for the current group.",
+      "The bridge projection and multiplier do not overwhelm standard attention or destabilize pretrained representations; Table 1 shows this fails for some large-group, alpha=100 settings.",
+      "A hand-selected set of 15-45 bridges is representative of the architecture rather than a task/backbone-specific wiring choice.",
+      "Reducing ordinary LoRA rank from 140 to 120 while adding bridges preserves a fair optimization comparison because total trainable parameters are slightly lower.",
+      "Training on roughly 380,000 generator/augmented examples per task and evaluating an unspecified same-distribution split is sufficient to distinguish learned algorithms from memorized task regularities.",
+      "Parity, modulo-10 arithmetic, answer-only GSM8K, and generated-CoT final prediction cover the kinds of sequential reasoning for which the architectural claim is intended.",
+      "Group-level recurrence can be counted as kL/g effective depth even though actual useful paths depend on bridge placement and attention routing.",
+      "The training-time KV-cache implementation produces outputs equivalent to a causally masked grouped forward pass and does not leak future-group information.",
+      "Autoregressive decode is dominated by the standard decoder layers enough that dozens of bridge projections and buffers add negligible latency; this is not benchmarked.",
+      "Peak memory remains comparable after bridge buffers, projections, and training-time KV caching; this is asserted rather than profiled.",
+      "Performance from one reported run per setting is representative despite absent seed or uncertainty reporting."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "cross-token-high-to-low-bridges",
+      "role": "Adds directed residual paths from already-computed high-layer states of a past group to low layers of the current group without a same-token cycle."
+    },
+    {
+      "id": "zero-initialized-low-rank-projections",
+      "role": "Makes every bridge trainable and backbone-compatible while initially preserving the pretrained network's behavior."
+    },
+    {
+      "id": "group-sequential-unrolling",
+      "role": "Processes groups left-to-right to expose a tunable depth/parallelism trade-off: smaller groups yield more recurrent steps."
+    },
+    {
+      "id": "training-time-kv-cache",
+      "role": "Retains past attention keys/values during grouped sequential fine-tuning, using tensor lists to avoid repeated-concatenation duplication."
+    },
+    {
+      "id": "dense-layer-pair-wiring",
+      "role": "Routes many source/destination layer pairs rather than only the final hidden vector, aiming to preserve information at multiple abstraction levels."
+    },
+    {
+      "id": "soft-token-feedback-control",
+      "role": "Feeds the previous predictive distribution's expected embedding into the current input as a sparse continuous-feedback comparator."
+    },
+    {
+      "id": "lora-budget-reallocation",
+      "role": "Lowers backbone LoRA rank so bridge-augmented models have fewer total trainable parameters than the baselines."
+    },
+    {
+      "id": "fixed-cot-final-answer-test",
+      "role": "Holds generated reasoning trajectories constant and tests whether latent bridge recurrence improves derivation of the final answer."
+    },
+    {
+      "id": "eliminated-choice-diagnostic",
+      "role": "Counts digit alternatives below probability 0.001 to characterize output-distribution sharpening beyond top-1 accuracy."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Llama-3.2-1B, Llama-3.1-8B, and Qwen3-1.7B LoRA fine-tuning; group size 4, alpha=100; roughly 380K examples per task",
+      "metric": "Exact-answer accuracy on GSM8K without CoT / multi-step arithmetic modulo 10 / parity",
+      "result": "Llama-1B 8.32/42.66/100.0; Llama-8B 24.82/51.86/100.0; Qwen-1.7B 20.31/45.81/100.0",
+      "baseline": "Same-backbone Transformer LoRA: 7.20/38.16/92.87; 23.92/48.32/89.40; 15.90/36.10/53.78"
+    },
+    {
+      "setting": "Llama-3.2-1B parity, average sequence length 154.69, group/multiplier sweep on one 80GB A100",
+      "metric": "Accuracy and seconds per training step relative to 1.18-second baseline",
+      "result": "Groups 4/6/8/16 cost 5.75/3.07/2.66/1.61 s; alpha=1 scores 98.94/98.68/98.83/98.85; alpha=100 scores 100/100/51.42/51.40",
+      "baseline": "Transformer accuracy 92.87 at 1.18 s/step"
+    },
+    {
+      "setting": "Llama-3.2-1B multi-step arithmetic, average sequence length 125.75",
+      "metric": "Accuracy and seconds per training step across groups 4/6/8/16",
+      "result": "Times 4.46/2.29/1.82/1.45 s; alpha=1 accuracy 40.13/39.94/39.79/38.79; alpha=100 42.66/41.74/41.48/38.79",
+      "baseline": "Transformer 38.16 at 1.01 s/step"
+    },
+    {
+      "setting": "Llama-3.2-1B answer-only GSM8K, average sequence length 101.92",
+      "metric": "Accuracy and seconds per training step across groups 4/6/8/16",
+      "result": "Times 3.22/1.73/1.39/1.38 s; alpha=1 accuracy 7.67/7.87/7.55/7.41; alpha=100 8.32/7.95/8.17/6.94",
+      "baseline": "Transformer 7.20 at 0.77 s/step"
+    },
+    {
+      "setting": "Llama-3.2-1B sparse-feedback ablation",
+      "metric": "GSM8K / arithmetic / parity accuracy",
+      "result": "Soft-token 7.07/38.00/96.51 versus dense TurboConn 8.32/42.66/100.0",
+      "baseline": "Transformer 7.20/38.16/92.87"
+    },
+    {
+      "setting": "Llama-3.1-8B trained on parity lengths at most 10 and evaluated at longer lengths; TurboConn group size 1",
+      "metric": "Accuracy by sequence length",
+      "result": "All methods fit the training range; TurboConn is stated to remain perfect through length 30 and visually generalizes farther",
+      "baseline": "Standard Transformer and soft-token feedback; Figure 4 supplies curves but no numeric table or uncertainty"
+    },
+    {
+      "setting": "Qwen3 family on multi-step arithmetic after fine-tuning",
+      "metric": "Accuracy and mean number of digit classes with probability below 0.001",
+      "result": "Qwen3-1.7B TurboConn 45.81 and 5.259; its baseline 36.10 and 2.516",
+      "baseline": "Unmodified Qwen3-4B 43.68/4.609 and Qwen3-8B 45.61/4.500"
+    },
+    {
+      "setting": "Llama-3.2-1B final-answer prediction from identical generated CoTs; group size 8, evaluation temperature 0.01",
+      "metric": "Exact-answer accuracy",
+      "result": "NuminaMath-CoT 33.98 versus 30.96; GSM8K 36.96 versus 36.45; transferred AMC 2023 plus AIME 2024-2025 4.45 versus 2.00",
+      "baseline": "Same generated trajectories and standard Transformer final-answer model"
+    },
+    {
+      "setting": "Trainable-parameter accounting under LoRA rank 120 plus bridges versus rank-140 baseline",
+      "metric": "Trainable parameters",
+      "result": "TurboConn: 91,946,760 Llama-1B; 358,999,320 Llama-8B; 141,111,768 Qwen-1.7B",
+      "baseline": "98,631,680; 367,001,600; and 152,535,040 respectively"
+    }
+  ],
+  "limitations": [
+    "Author-stated: cross-group dependencies break full token parallelism during training and prompt prefill; grouping mitigates but does not remove this latency bottleneck.",
+    "Author-stated: experiments are resource-limited LoRA fine-tuning studies. TurboConn is compatible with ordinary pretraining loss, but the architecture is never pretrained from scratch or at large token scale.",
+    "Author-stated: high alpha with large groups can destabilize training and cause over-reliance on bridges at the expense of standard attention; parity falls from a 92.87 baseline to about 51.4 in two settings.",
+    "Author-stated: connection wiring is heuristic and partly adjusted by increasing the lowest connected layer to a value that 'feels right' when training is unstable; no optimal wiring search is claimed.",
+    "Author-stated: GSM8K CoT gains are small, plausibly because GPT-4-augmented training chains differ from the original evaluation distribution.",
+    "Reviewer-identified: no main accuracy result reports independent seeds, standard deviations, confidence intervals, significance tests, or exact evaluation-set sizes. Single-run differences as small as 0.51 or 0.90 points may not be stable.",
+    "Reviewer-identified: the causal claim about depth alone is undercontrolled. Bridges also alter information access, recurrence, parameter placement, LoRA rank, optimization, and inductive bias, and no comparable recurrent architecture is run.",
+    "Reviewer-identified: the 'density is critical' conclusion rests on one soft-token control that changes several variables beyond density; bridge-count and topology sweeps are absent.",
+    "Reviewer-identified: synthetic parity and modulo-10 arithmetic use train/test samples from the same generators, and the paper gives little split or de-duplication detail. Only parity receives a length extrapolation test.",
+    "Reviewer-identified: no benchmark measures autoregressive generation throughput, prompt prefill, long-context scaling, peak memory, or cache overhead, despite headline claims about latency and memory.",
+    "Reviewer-identified: the ordinary baseline receives higher-rank LoRA while TurboConn allocates parameters to bridges. The lower total parameter count is a useful control but not matched optimization capacity.",
+    "Reviewer-identified: no standard language-modeling perplexity, broad knowledge suite, instruction following, code, planning, or safety evaluation checks whether bridge recurrence harms non-reasoning behavior.",
+    "Reviewer-identified: Figure 4 is one parity run without tabulated lengthwise scores, and the discriminative-filtering metric uses one arbitrary 0.001 threshold without calibration or selective-prediction analysis.",
+    "Reviewer-identified: CoT 'error correction' is inferred from final accuracy; no labeled reasoning errors, correction localization, counterfactual chain perturbation, or intermediate-state intervention demonstrates correction.",
+    "Reviewer-identified: the method is tested only on three dense causal decoder backbones up to 8B, with manually distinct bridge layouts; transfer to MoE, sliding-window, multimodal, encoder-decoder, and larger models is unknown."
+  ],
+  "failure_modes": [
+    "Strong bridge scaling with insufficient recurrent steps can overwhelm native attention: parity at alpha=100 and group 8/16 collapses to about chance while alpha=1 remains strong.",
+    "TurboConn can underperform the baseline: GSM8K group-16 alpha=100 scores 6.94 versus 7.20, and the soft-token control also hurts GSM8K and arithmetic.",
+    "Larger groups recover parallelism by skipping token-level recurrence, precisely removing the effective-depth resource the method is designed to add.",
+    "Long prompts can make sequential prefill and training impractical even if token-by-token decode overhead is small; the paper's main group-4 settings already cost roughly four to five times baseline training steps.",
+    "A bridge state aligned to tokenizer groups rather than semantic reasoning steps may propagate lexical or formatting noise and can mix unrelated subproblems across group boundaries.",
+    "Hand-tuned layer ranges can fail on architectures whose useful abstractions occur at different depths, especially when bottom layers must be excluded to restore stability.",
+    "Zero initialization protects initial behavior but can leave some deep bridges weakly trained under short fine-tuning, while high alpha amplifies whatever signal they acquire.",
+    "The D projections and state buffers grow with the number of bridges and hidden width, reducing the claimed memory/latency advantage for larger models or much denser wiring.",
+    "A model may exploit task-specific recurrent shortcuts on parity/modulo arithmetic without improving semantic reasoning, factuality, or multi-step planning in natural language.",
+    "Sharpened digit distributions can be confidently wrong; the eliminated-choice count contains no correctness-conditional or calibration safeguard.",
+    "Training on generated CoTs can teach the final predictor artifacts of the trajectory generator rather than robust error correction, as suggested by the small shifted-GSM8K gain.",
+    "If useful computation must revise the current token before it is emitted, only sending high-level information to the next token/group may be too late; recurrent-depth methods can instead ponder within a token."
+  ],
+  "reusable_insights": [
+    "Turn a same-token cyclic architectural idea into a legal single-pass computation by shifting feedback to the next causal token or group.",
+    "Zero-initialize retrofit branches so a pretrained model begins fine-tuning exactly at the original function rather than suffering an abrupt architecture change.",
+    "Expose recurrence as a group-size knob: report both sequential steps and wall-clock cost because nominal path depth alone hides retained tensor and batch parallelism.",
+    "Reallocate adapter rank when adding architectural modules, preventing a gain from being dismissed as merely more trainable parameters.",
+    "Include deliberately harmful multiplier/group combinations. The parity collapse reveals a practical stability boundary that the headline best setting would conceal.",
+    "Hold explicit CoT text fixed across methods to separate a model's ability to consume a trajectory from its ability to generate one, while avoiding overclaiming actual error correction.",
+    "Compare full-distribution diagnostics as well as top-1 accuracy, but validate their thresholds and calibration before interpreting sharper outputs as deeper reasoning.",
+    "List exact bridge pairs and publish pseudocode for recurrent state buffering; architectural recurrence is otherwise difficult to reproduce from a conceptual diagram.",
+    "Benchmark training, prefill, and decode separately. An architecture can be cheap during autoregressive decode yet expensive for every long prompt and fine-tuning step.",
+    "Use held-out lengths or compositions for synthetic algorithmic tasks; same-generator accuracy alone cannot distinguish an algorithm from distribution-specific pattern fitting."
+  ],
+  "open_questions": [
+    "Do gains persist across seeds, exact fixed test sets, and stronger full-fine-tuning or equal-rank LoRA baselines?",
+    "Which bridge pairs are necessary, and can random wiring, learned sparsity, or layerwise gates match the hand-designed dense configurations?",
+    "Does performance track graph-theoretic path length after controlling bridge count, trainable parameters, FLOPs, representation access, and recurrent steps?",
+    "How does TurboConn compare at matched wall-clock and parameter budget with Feedback Transformer, Staircase Attention, Universal/looped Transformers, recurrent-depth LLMs, and Coconut/PonderLM?",
+    "What are measured prompt-prefill latency, decode tokens per second, peak memory, and energy use across sequence lengths and batch sizes?",
+    "Can a parallel training formulation approximate the cross-group recurrence without requiring a KV cache and sequential forward loop?",
+    "Does pretraining TurboConn from scratch improve general language modeling and broad downstream reasoning, or do bridges mainly help supervised task fine-tuning?",
+    "Can bridge multiplier and group size be learned or dynamically halted per token instead of fixed globally?",
+    "Does parity length generalization survive much longer strings, alternative formatting/tokenizers, adversarial distractors, and different random seeds?",
+    "Do dense bridges preserve knowledge, calibration, instruction following, and generation quality outside the fine-tuned task?",
+    "Can causal tracing show that bridge states contain intermediate solutions and that ablating specific bridges removes corresponding reasoning steps?",
+    "For generated CoT, can annotated corruptions establish whether TurboConn detects and repairs wrong intermediate steps rather than merely classifying the final trajectory?",
+    "What failure occurs when several independent problems or semantically discontinuous segments share one sequence and bridge state persists across their boundary?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1807.03819",
+      "title": "Universal Transformers",
+      "url": "https://arxiv.org/abs/1807.03819",
+      "relationship": "Foundational direct recurrent-depth Transformer architecture for algorithmic reasoning and length generalization.",
+      "difference": "Universal Transformers recurrently apply a shared transition block to all positions within a token-level depth loop and optionally halt per position, increasing per-token computation while retaining parallelism across positions at each recurrent step. TurboConn does not reuse the whole block within a token; it sends high-layer states across causal groups into lower layers, sacrificing prompt/training parallelism but aiming to avoid repeated full-block work during autoregressive generation and to retrofit distinct pretrained layers.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, 2019-03-05 (ICLR 2019)"
+    },
+    {
+      "canonical_id": "arxiv:2002.09402",
+      "title": "Addressing Some Limitations of Transformers with Feedback Memory",
+      "url": "https://arxiv.org/abs/2002.09402",
+      "relationship": "Closest architectural predecessor: future low-level representations directly access high-level representations of past tokens.",
+      "difference": "Feedback Transformer exposes representations from previous timesteps through one feedback memory/key-value set so the current token's lowest representation can use past high-level abstractions, and evaluates language modeling, translation, and reinforcement learning. TurboConn acknowledges this direction but uses many source-specific, destination-specific additive projections between selected high and low layers, zero-initializes them for pretrained-LLM fine-tuning, and evaluates reasoning tasks. The prior work substantially narrows any claim that cross-token top-down Transformer feedback itself is new.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, 2021-01-25"
+    },
+    {
+      "canonical_id": "arxiv:2106.04279",
+      "title": "Staircase Attention for Recurrent Processing of Sequences",
+      "url": "https://arxiv.org/abs/2106.04279",
+      "relationship": "Direct recurrence-across-sequence competitor that trades parallel processing for tracking and language-modeling capacity.",
+      "difference": "Staircase Attention recurrently processes overlapping backward and forward token sets, with a Ladder extreme that repeats a shared Transformer, and explicitly sweeps recurrence in time versus depth. TurboConn retains the pretrained stack once per group and communicates through selected high-to-low residual bridges. Staircase supplies broader language/dialogue perplexity evidence; TurboConn supplies a lightweight pretrained-LLM retrofit and reasoning-focused results but no matched comparison.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2021-06-08 (NeurIPS 2022)"
+    },
+    {
+      "canonical_id": "arxiv:2412.06769",
+      "title": "Training Large Language Models to Reason in a Continuous Latent Space",
+      "url": "https://arxiv.org/abs/2412.06769",
+      "relationship": "Direct continuous-reasoning competitor and source of the Coconut last-hidden-state feedback mechanism discussed by TurboConn.",
+      "difference": "Coconut feeds the final hidden state back as the next input embedding at dedicated continuous-thought steps and uses curriculum supervision to transition from language CoT, allowing multiple latent planning alternatives. TurboConn passes many intermediate hidden states to many lower layers between ordinary token groups, needs no thought tokens or changed loss, and finds its dense version better than one expected-embedding control; it does not compare with Coconut's trained continuous-thought procedure itself.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, 2025-11-03 (COLM 2025)"
+    },
+    {
+      "canonical_id": "arxiv:2409.15647",
+      "title": "Looped Transformers for Length Generalization",
+      "url": "https://arxiv.org/abs/2409.15647",
+      "relationship": "Direct algorithmic length-generalization competitor using adaptive recurrent depth.",
+      "difference": "Looped Transformers learn iterative RASP-L-style algorithms and adapt the number of shared-block loops to input length, directly targeting unseen-length arithmetic/algorithmic tasks. TurboConn instead makes path depth scale with causal sequence groups in fixed pretrained decoders and shows one parity extrapolation curve. The looped work has a more explicit iterative-algorithm training design; TurboConn avoids multiple full-block passes per generated token.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v5, 2025-05-12 (ICLR 2025)"
+    },
+    {
+      "canonical_id": "arxiv:2502.05171",
+      "title": "Scaling up Test-Time Compute with Latent Reasoning: A Recurrent Depth Approach",
+      "url": "https://arxiv.org/abs/2502.05171",
+      "relationship": "Direct billion-parameter latent-depth language-model competitor.",
+      "difference": "The recurrent-depth model is pretrained at 3.5B parameters on 800B tokens and can choose many extra shared-block iterations at test time, scaling compute up to a reported 50B-parameter-equivalent load. TurboConn is only fine-tuned, uses fixed group recurrence along existing sequence length, and does not offer within-token adjustable test-time compute; in exchange it claims low incremental decode latency and preserves distinct pretrained layers rather than training a recurrent block architecture from scratch.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2025-02-17"
+    },
+    {
+      "canonical_id": "arxiv:2502.17416",
+      "title": "Reasoning with Latent Thoughts: On the Power of Looped Transformers",
+      "url": "https://arxiv.org/abs/2502.17416",
+      "relationship": "Direct empirical and theoretical account of reasoning gains from effective depth without proportional parameter growth.",
+      "difference": "Saunshi et al. compare k-layer models looped L times with kL-layer non-looped models, analyze synthetic and language reasoning, and prove links between loops and latent simulation of CoT steps. TurboConn's central depth interpretation is aligned, but it creates distinct cross-token high-to-low paths rather than shared depth loops and provides no matched-depth theory or looped baseline. The competitor already supplies stronger evidence for 'depth, not parameters' as a general principle.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2025-02-24 (ICLR 2025)"
+    },
+    {
+      "canonical_id": "arxiv:2505.20674",
+      "title": "PonderLM: Pretraining Language Models to Ponder in Continuous Space",
+      "url": "https://arxiv.org/abs/2505.20674",
+      "relationship": "Current direct latent-pondering pretraining competitor; TurboConn cites its earlier title/version.",
+      "difference": "PonderLM repeatedly converts a within-token predictive distribution to an expected embedding and re-invokes the model, learning pondering self-supervised during pretraining across GPT-2, Pythia, and LLaMA. TurboConn's soft-token control resembles one feedback step but its main method uses dense hidden-state bridges between groups and only downstream LoRA fine-tuning. PonderLM pays repeated forward-pass cost at generation; TurboConn pays sequential prefill/training cost and fixed bridge work instead.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, 2026-02-20 (ICLR 2026; current title)"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim a novel way to overcome fixed Transformer path depth by densely routing higher-layer states of past tokens into lower layers of future tokens, retrofitting pretrained LLMs without CoT supervision, major memory growth, or added full-model iterations per generated token. They further claim the gains provide strong empirical evidence that latent computational depth is a key reasoning bottleneck.",
+    "evidence": "The implementation is concrete and reproducible at the architectural level: zero-initialized low-rank bridges, exact wiring lists for three backbones, grouped recurrence, pseudocode, parameter accounting, group/alpha sweeps, a sparse soft-token control, nine main model-task comparisons, parity extrapolation, CoT consumption, and wall-clock training costs. All nine Table 2 comparisons favor TurboConn and the strongest shift is Qwen3-1.7B parity from 53.78% to 100%. Explicit negatives reveal the stability boundary.",
+    "reviewer_inference": "The defensible novelty is the dense, source/destination-specific, zero-initialized bridge retrofit for distinct-layer pretrained causal LLMs and its grouping knob. Cross-token top-down feedback, recurrent processing across sequence, shared-block depth loops, continuous hidden-state feedback, and latent-depth reasoning all have direct predecessors; Feedback Transformer is particularly close. Because the experiment changes routing, recurrence, adapter allocation, and information access and omits matched recurrent competitors, it supports 'TurboConn helps these fine-tuning tasks' more strongly than 'depth alone caused the gains.' Claims of negligible decode/memory cost remain unmeasured."
+  },
+  "confidence": 0.85,
+  "reviewer_notes": "Secondary verification read all 20 PDF pages of arXiv v2, including references and Appendix A.1-A.7, and cross-checked the local PDF metadata, formulas, all six tables, Figure 4, explicit wiring lists, parameter arithmetic, pseudocode, and CoT protocol. Quantitative statements are directly printed; no curve points were reverse-engineered. Negative and contradiction audits retain alpha=100 parity collapse, group-16 GSM8K regression, weak soft-token results, tiny GSM8K-CoT gain, heuristic 'feels right' layer cutoff, absent seed/error reporting, unmeasured inference/memory claims, and the undercontrolled depth-only inference. Eight competitor records were inspected at their current canonical arXiv abstracts/full records on 2026-08-23. Confidence is below 0.9 because most accuracies appear to be single runs, evaluation split details are sparse, and the main causal and systems claims exceed the measurements.",
+  "verification": {
+    "reviewer_id": "reviewer-e0b667b71390",
+    "checked_at": "2026-08-23",
+    "passage_check": "Read data/cache/text/2602.17993.txt end-to-end for PDF pages 1-20, including references and Appendix A.1-A.7; re-read selected local PDF pages for formula/table layout and confirmed embedded arXiv:2602.17993v2 metadata. Checked every finding against the cited pages and copied source locator, hashes, page count, and extraction timestamp exactly from data/generated/fulltext_index.jsonl.",
+    "competitor_check": "Verified eight direct primary records on 2026-08-23: arXiv:1807.03819v3, 2002.09402v3, 2106.04279v1, 2412.06769v3, 2409.15647v5, 2502.05171v2, 2502.17416v1, and 2505.20674v3. Read each official record's abstract, scope, current title/version, and mechanism; compared recurrence location, parameter sharing, training regime, compute trade-off, and evidence rather than relying on search snippets. The target itself is excluded."
+  }
+}

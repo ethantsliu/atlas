@@ -1,0 +1,207 @@
+{
+  "stable_id": "arxiv:2503.04722",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2503.04722",
+    "pdf_sha256": "b2256e574fffaba31ae9b500630bd83cc87bc4414774e4dc72747bd0d65be112",
+    "text_sha256": "5e117c54b26a7fc8a89e8c661ad27f45793bd46ca643abaf9b55cce58bb4b9e7",
+    "page_count": 22,
+    "extracted_at": "2026-08-23T17:14:04.065445+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "When pretrained language models observe sequences of biased coin flips in context, do their next-token probabilities update like a Bayesian learner, and what roles do prior bias, scale, instruction tuning, recency, and attention play?",
+  "key_findings": [
+    {
+      "claim": "Across the tested open models, ordinary coin-flip completions begin strongly heads-biased and explicit numerical bias statements usually fail to set the requested predictive probability.",
+      "evidence": "Probabilities are extracted for heads/tails over 50 prompt phrasings and renormalized to that two-outcome support. Base models commonly retain roughly 60-80% heads probability across requested biases; instruction-tuned variants respond more at 0% and 100% but remain biased. Pythia models from 70M to 12B do not show a clear improvement in this prior with size.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "4 Understanding the LLM Prior"},
+        {"page": 5, "section": "Effect of explicit biasing and model size"},
+        {"page": 6, "section": "Figures 3-4"}
+      ]
+    },
+    {
+      "claim": "Observed demonstrations move predictive probabilities toward the empirical coin bias, but even 100 examples do not fully recover it and larger Pythia models are not more Bayesian by this metric.",
+      "evidence": "Mean total-variation distance generally falls as demonstrations increase, with visible improvement after three examples, yet Figure 5 retains residual error at 100 examples. Figure 6 and the full Pythia plots show negligible or sometimes adverse scale effects. Dice-roll extensions reproduce the broad benefit of more demonstrations but reveal model- and tuning-dependent behavior.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "5 Does In-Context Learning Improve Parameter Estimates?"},
+        {"page": 7, "section": "Figures 5-6"},
+        {"page": 17, "section": "G Rolling Dice"},
+        {"page": 22, "section": "Figure G.8"}
+      ]
+    },
+    {
+      "claim": "The paper's strongest trajectory result supports recency-weighted adaptation, not pure Bayesian updating with a fixed Beta prior.",
+      "evidence": "On a 100-flip sequence switching from heads probability 0.75 to 0.25, classical Beta-Bernoulli filtering with gamma=1 does not fit the model path. Fitted exponential forgetting ranges from gamma 0.3087 to 0.9107 across models, with instruction-tuned counterparts often more local. The main figure is explicitly a single rollout, and the appendix adds one 200-step rollout rather than a distribution of trajectory fits.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "5.2 Do models perform pure Bayesian updates?"},
+        {"page": 6, "section": "Table 1 and discounted filter fit"},
+        {"page": 8, "section": "Figure 7"},
+        {"page": 16, "section": "E.1 Longer Convergence Chains"}
+      ]
+    },
+    {
+      "claim": "The experiments do not identify a model posterior over the coin parameter, so 'Bayesian' here means resemblance of one normalized predictive point estimate to a posterior mean.",
+      "evidence": "The method treats the LLM as a point estimator of a Bernoulli parameter, renormalizes probability mass assigned to two preselected strings, and compares that scalar to the Beta posterior mean or the two-outcome posterior predictive. It never recovers uncertainty over theta, tests credible intervals, prior-likelihood coherence, exchangeability, or the martingale conditions required of a Bayesian predictive system.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "3 Preliminaries"},
+        {"page": 4, "section": "Equations 11-12 and scope statement"},
+        {"page": 13, "section": "C.1 Preliminaries"},
+        {"page": 14, "section": "C.2 Distribution Normalization"}
+      ]
+    },
+    {
+      "claim": "Attention mass is not a useful scalar explanation of update accuracy in this setup, although that null result does not rule out attention-mediated computation.",
+      "evidence": "Across switchover positions, total or fractional attention to each segment is nearly uncorrelated with deviation from the Bayesian mean (reported R values around 0.02 and -0.03). Attention shifts with whether later samples would change the distribution, but aggregating attention magnitude across tokens/layers discards direction, head specialization, value vectors, and causal effects.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "5.3 Does attention impact updates?"},
+        {"page": 7, "section": "Figures 8-10 discussion"},
+        {"page": 19, "section": "F Varying the Switchover Point"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Use a fully specified Beta-Bernoulli toy process to compare an LLM's heads-versus-tails next-token probabilities with normative sequential predictions as evidence accumulates.",
+    "mechanism": "Score every token in fixed outcome strings, linearly renormalize their joint probabilities over the outcome set, average across prompt variants, compute total-variation distance to the desired predictive distribution, and fit an exponentially discounted Beta filter to switched-bias trajectories.",
+    "assumptions": [
+      "Probability assigned to selected heads/tails strings faithfully represents the model's belief about a coin.",
+      "Conditioning on the outcome support does not distort the relevant comparison.",
+      "A scalar posterior-predictive mean is sufficient evidence of Bayesian-like updating.",
+      "Coin and die prompts are informative proxies for general in-context probabilistic reasoning.",
+      "Aggregated attention magnitude can reveal the computational role of attention."
+    ]
+  },
+  "techniques": [
+    {"id": "fixed-outcome-logit-scoring", "role": "Extracts exact next-token probabilities for heads/tails rather than relying on generated samples."},
+    {"id": "support-renormalization", "role": "Conditions model probability on the predefined random-process outcomes."},
+    {"id": "prompt-paraphrase-averaging", "role": "Reduces sensitivity to any single wording using 50 completion prompts."},
+    {"id": "discounted-beta-filter", "role": "Models a finite effective context horizon through exponential forgetting gamma."},
+    {"id": "attention-segment-correlation", "role": "Tests whether attention mass to old/new observations predicts calibration error."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Explicitly biased coin prompts across Gemma, Phi, Llama, Mistral, OLMoE, and instruction variants",
+      "metric": "mean total-variation distance over 50 phrasings",
+      "result": "base models remain about 60-80% heads-biased; instruction models improve mainly at extreme requested biases",
+      "baseline": "requested Bernoulli distribution and each model's unprompted prior"
+    },
+    {
+      "setting": "Coin-flip demonstrations of lengths up to 100",
+      "metric": "TVD to the generating Bernoulli distribution",
+      "result": "error generally declines with more examples but remains nonzero at 100",
+      "baseline": "zero-shot and explicit-bias prompting"
+    },
+    {
+      "setting": "Pythia suite from 70M to 12B",
+      "metric": "TVD across coin biases and context lengths",
+      "result": "no clear improvement with parameter count; the 12B model is often worse",
+      "baseline": "smaller models under controlled architecture/data ordering"
+    },
+    {
+      "setting": "100-step 0.75-to-0.25 switched Bernoulli trajectory",
+      "metric": "fit to posterior predictive path",
+      "result": "best-fit forgetting gamma spans 0.3087-0.9107 and fits better than gamma=1",
+      "baseline": "classical non-forgetting Beta-Bernoulli filtering"
+    },
+    {
+      "setting": "Attention analysis across switchover positions K=10-90",
+      "metric": "correlation of attention mass with posterior-mean deviation",
+      "result": "near-zero reported correlations and no significant K effect",
+      "baseline": "hypothesis that more attention to evidence predicts a better update"
+    }
+  ],
+  "limitations": [
+    "Only simple binary and six-way lexical stochastic processes are tested.",
+    "The method conditions away all probability outside hand-selected completion strings.",
+    "It evaluates a predictive scalar rather than a posterior distribution or calibrated epistemic uncertainty.",
+    "Dynamic filtering conclusions rely chiefly on one 100-step and one 200-step sampled trajectory.",
+    "Only open-weight models up to 12B are analyzed; closed frontier models are excluded by the logit requirement.",
+    "The attention analysis is correlational and aggressively aggregates a multi-layer, multi-head mechanism.",
+    "Prompt order, tokenization, linguistic frequency, and semantic plausibility can masquerade as probabilistic priors."
+  ],
+  "failure_modes": [
+    "A model can match the posterior mean while having incoherent uncertainty or violating exchangeability.",
+    "Linear conditioning on heads/tails can hide substantial mass on alternative completions and change calibration rankings.",
+    "A fitted forgetting factor can absorb prompt-position bias, finite context effects, or semantic recency rather than Bayesian dynamics.",
+    "Rare or multi-token labels can create apparent prior bias through tokenization and continuation probability.",
+    "Attention mass may be statistically null even when particular heads or value pathways are causally essential."
+  ],
+  "reusable_insights": [
+    "Separate prior calibration, evidence-update dynamics, and uncertainty coherence when assessing Bayesian behavior.",
+    "Use controlled change points to estimate an in-context learner's effective memory horizon.",
+    "Report unconditional outcome mass before and after support normalization.",
+    "Pair behavioral fits with necessary Bayesian diagnostics such as order invariance, martingales, and uncertainty contraction.",
+    "Treat demonstrations as stronger distributional controls than natural-language probability instructions unless calibration is verified."
+  ],
+  "open_questions": [
+    "Do the same models satisfy martingale and exchangeability tests on exactly these coin trajectories?",
+    "Can a prompt-independent prior and likelihood be recovered jointly rather than fitting only posterior means?",
+    "How much of the heads bias disappears under symbol-balanced or tokenizer-controlled outcomes?",
+    "Are fitted forgetting factors stable across trajectories, prompt permutations, layers, and domains?",
+    "Which attention heads or residual-stream components causally implement evidence accumulation?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2111.02080",
+      "title": "An Explanation of In-context Learning as Implicit Bayesian Inference",
+      "url": "https://arxiv.org/abs/2111.02080",
+      "relationship": "Foundational Bayesian account of ICL",
+      "difference": "Xie et al. prove latent-concept inference in mixtures of HMMs and train synthetic models; the coin-flip paper behaviorally probes pretrained open LLMs with an exactly known Beta-Bernoulli reference.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2305.19420",
+      "title": "What and How does In-Context Learning Learn? Bayesian Model Averaging, Parameterization, and Generalization",
+      "url": "https://arxiv.org/abs/2305.19420",
+      "relationship": "Theoretical Bayesian-model-averaging account",
+      "difference": "Zhang et al. prove BMA and regret results for perfectly pretrained latent-variable settings and connect them to attention; the coin study tests real pretrained models and finds aggregate attention magnitude uncorrelated with point-estimate quality.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "openreview:z4YTZ01NT4",
+      "title": "Are Large Language Models Bayesian? A Martingale Perspective on In-Context Learning",
+      "url": "https://openreview.net/forum?id=z4YTZ01NT4",
+      "relationship": "Directly conflicting empirical diagnosis",
+      "difference": "Falck et al. test a necessary martingale property and report violations that falsify Bayesian ICL in several synthetic settings; the coin paper uses resemblance to posterior means, a weaker criterion compatible with non-Bayesian predictors.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "OpenReview record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2506.12796",
+      "title": "Surprise Calibration for Better In-Context Learning",
+      "url": "https://arxiv.org/abs/2506.12796",
+      "relationship": "Post-publication calibration method",
+      "difference": "Surprise Calibration turns sequential-Bayesian prior-shift signals into an adaptive correction across NLP benchmarks; the coin paper diagnoses prior bias and forgetting but does not propose or validate a general correction method.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2303.03846",
+      "title": "Larger language models do in-context learning differently",
+      "url": "https://arxiv.org/abs/2303.03846",
+      "relationship": "Competing evidence on scale and priors",
+      "difference": "Wei et al. find that sufficiently large models can override semantic priors in classification mappings; the controlled Pythia coin experiment finds no comparable monotonic scale benefit for adapting stochastic predictive probabilities.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Controlled coin flips show that LLMs broadly perform Bayesian posterior updates, with errors caused mainly by miscalibrated priors, and that attention magnitude has negligible impact.",
+    "evidence": "Multiple open model families are evaluated over 50 prompt variants, context lengths, Pythia sizes, a switched process, attention summaries, and a dice extension.",
+    "reviewer_inference": "The controlled logit-level benchmark and estimated recency horizons are useful. Its title and conclusion are stronger than the test: convergence of a conditional next-outcome probability toward a discounted posterior mean neither recovers a posterior nor establishes Bayesian coherence, and the best-fit dynamics explicitly depart from the classical fixed-prior Bayesian filter."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Read all 22 pages, including normalization details, model descriptions, long-context, switchover, and dice appendices. Primary arXiv/OpenReview competitors were checked on 2026-08-23, with the martingale work used as the key necessary-condition counterpoint."
+}

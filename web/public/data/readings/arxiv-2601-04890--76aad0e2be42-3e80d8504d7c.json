@@ -1,0 +1,558 @@
+{
+  "stable_id": "arxiv:2601.04890",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2601.04890",
+    "pdf_sha256": "274b31cc83d845029f0b5d4aa83f6fc82ba65d62c51f75b32970aea590b39457",
+    "text_sha256": "a41c71e8082c33d193a5b3a007cb3504b74975e2222ddc093a20b12354a444d0",
+    "page_count": 27,
+    "extracted_at": "2026-08-23T14:11:39.249115+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Do learnable scalar or row/column multipliers genuinely let language-model matrix layers escape a noise-weight-decay scale equilibrium, reduce the forward/weight-decay tuning burden of maximal-update parametrization, and improve long-run pretraining under Adam and Muon without introducing new instability, training cost, or untested scaling assumptions?",
+  "key_findings": [
+    {
+      "claim": "The method changes optimization and implicit regularization, not the model's representable function class: every multiplier can be folded into its matrix at inference.",
+      "evidence": "The authors replace an effective matrix by sW or diag(r)Wdiag(c) and train the factors separately, then merge them for inference. This makes the same effective matrices representable before and after reparameterization. Any performance gain therefore comes from coordinate-dependent optimizer dynamics, weight decay applied differently to factors, gradient aggregation, or initialization—not from additional inference-time expressivity. The paper's language about 'richer representations' is consistent with a different solution being reached, but not with a larger hypothesis class.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "Overview and Equation 1"
+        },
+        {
+          "page": 3,
+          "section": "Section 2, Equations 2-4"
+        },
+        {
+          "page": 4,
+          "section": "Section 2, Implementation"
+        }
+      ]
+    },
+    {
+      "claim": "Controlled projector and MLP scale sweeps support the narrow claim that ordinary matrix norms often track the predicted square-root learning-rate/weight-decay equilibrium while non-decayed multipliers compensate for deliberately bad scales.",
+      "evidence": "Keeping eta_eff=sqrt(eta*lambda) fixed while varying S=sqrt(eta/lambda), the frozen-projector configuration's final loss rises from about 0.749 near S=1 to about 0.778 at the smallest setting and its logit norm changes from roughly 3 to 16; scalar/vector projector multipliers keep loss around 0.746-0.753 and logits around 5-9 by inversely changing their own norms. In the MLP sweep, high S drives Adam loss to about 0.781 and Muon to about 0.770 without learned scalars, versus about 0.749 and 0.737 with them. These interventions demonstrate scale compensation in this model, although the deliberately frozen RMSNorm controls are not a standard training baseline.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Section 3 and Figure 1"
+        },
+        {
+          "page": 6,
+          "section": "Section 3, projector and MLP experiments"
+        },
+        {
+          "page": 20,
+          "section": "Appendix B, Figure 8"
+        }
+      ]
+    },
+    {
+      "claim": "The Adam Brownian Motion match is suggestive evidence of noise-dominated norm dynamics, but it is not a causal derivation that data gradients contain no useful radial signal.",
+      "evidence": "For synthetic IID Gaussian gradients passed through AdamW with the same schedule, matrix-norm trajectories nearly coincide with training under strong weight decay and are close under weak weight decay, whereas multiplier trajectories differ strongly from the synthetic process. The comparison captures one marginal norm trajectory and assumes IID isotropic noise; it does not match gradient covariance, temporal dependence, feature alignment, or loss, and the weak-WD discrepancy is visible. It therefore supports the equilibrium model as a useful approximation rather than proving that weight decay universally prevents matrix-scale learning.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Figure 1, Adam Brownian Motion panels"
+        },
+        {
+          "page": 6,
+          "section": "Section 3, ABM discussion"
+        },
+        {
+          "page": 9,
+          "section": "Section 4.2, equilibrium matrix norms"
+        }
+      ]
+    },
+    {
+      "claim": "Learned multipliers produce substantial depth-wise and within-layer scale diversity, but the paper establishes association with the improved solution rather than causal usefulness of each learned scale.",
+      "evidence": "Across 36 blocks, residual-output norms with scalar multipliers are typically about 1.5-4 times the no-multiplier values, with attention spikes above 7 at one late layer; learned end-of-block attention scales vary by more than an order of magnitude. Effective row-norm histograms for attention, MLP-gate, and SSM inputs broaden markedly when vector multipliers are used. These plots show that the reparameterized optimizer reaches heterogeneous scales, but no intervention restores or randomizes the learned scale profile while holding the effective matrix directions fixed.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Section 3.1, depth-wise scales"
+        },
+        {
+          "page": 7,
+          "section": "Figures 2-3 and width-wise scales"
+        }
+      ]
+    },
+    {
+      "claim": "The reparameterization introduces serious multiplicative and normalization symmetries; stable training required multiplier weight decay, so the multipliers are not actually unconstrained scale learners.",
+      "evidence": "Without multiplier decay, query/key factors drift while their product remains stable, and the plotted log10 residual-output RMS rises above 6 by roughly 28K steps. The authors report divergence or NaNs in low precision and settle on lambda_lrm=2e-3. Removing redundant multipliers is conceptually cleaner but slightly worsens final performance, while no reliable exact fix is offered for residual normalization symmetry. Thus the practical recipe reintroduces a regularizer whose width/depth scaling and effect on the claimed free scale remain unknown.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "Section 4.1 and Figure 4"
+        },
+        {
+          "page": 9,
+          "section": "Section 4.1, symmetry remedies"
+        },
+        {
+          "page": 24,
+          "section": "Appendix C, placement trade-off"
+        }
+      ]
+    },
+    {
+      "claim": "Naively including multiplier gradients in global clipping erased or reversed the benefit; the positive recipe depends on excluding them from the clip norm.",
+      "evidence": "With a global clipping threshold of 1, multiplier-inclusive gradient norm peaks near 6.7 while the norm excluding multiplier gradients stays around 0.2. The resulting shared clipping factor shrinks every parameter update, and the authors say their first scalar-multiplier trials ranged from null to negative. Excluding multiplier gradients yields an eventual loss advantage of roughly 0.004-0.006 in Figure 6. This is an important negative result and an implementation requirement, not a peripheral optimization detail.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 11,
+          "section": "Section 4.3 and Figure 6"
+        }
+      ]
+    },
+    {
+      "claim": "Two plausible projector variants failed: per-logit row multipliers degraded performance, and removing column multipliers while sweeping a fixed scalar did not deliver the expected feature-learning gain.",
+      "evidence": "The authors attribute per-logit row-multiplier degradation to a shortcut that fits marginal token frequencies instead of updating backbone features. They then remove the final RMSNorm-derived column scales and sweep a fixed head scale, but report no expected improvement. The deployed recipe consequently leaves the projector unchanged rather than applying the claimed row/column construction to every matrix.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 11,
+          "section": "Section 4.4, Learning the projector scale"
+        },
+        {
+          "page": 24,
+          "section": "Appendix C.1, Embedding and projector"
+        }
+      ]
+    },
+    {
+      "claim": "The width experiment shows approximate automatic scale adjustment but also directly violates a standard muP alignment assumption, so it does not establish width transfer or an infinite-width scaling rule.",
+      "evidence": "In a smaller 12-layer model over widths 128-8192, matrix RMS norms mostly plateau around 0.07-0.078 and selected projector, attention-QK, and SSM-dt output norms stay roughly width-stable as multipliers fall near the expected d^-1 or d^-2 trends. However, the learned slopes are slower than predicted, embeddings and residual outputs grow with width, and the inferred input-weight alignment alpha decays with width. The authors explicitly say this contradicts the established muP regime and leave complete scaling rules—including multiplier learning rate and decay—open.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "Section 4.2 and Table 1"
+        },
+        {
+          "page": 10,
+          "section": "Section 4.2 and Figure 5"
+        },
+        {
+          "page": 11,
+          "section": "Section 4.2, alignment conclusion"
+        },
+        {
+          "page": 26,
+          "section": "Appendix D, Figure 10"
+        }
+      ]
+    },
+    {
+      "claim": "The tuning ablation supports replacing forward/weight-decay multiplier tuning only after retaining learning-rate multiplier tuning and a separate learning-rate sweep for every configuration.",
+      "evidence": "At the end of the Figure 7 runs, approximate Adam losses are 0.746/0.743/0.743/0.743 for NONE/LR/LRWD/FULL and 0.743/0.740/0.739/0.739 with LRM; Muon is about 0.736/0.734/0.733/0.733 and 0.732/0.729/0.730/0.729 with LRM. LRM improves every plotted parent, and LR-tuned LRM variants form the best tier, while forward and WD tuning add little on this changed data mix. But Appendix A says every multiplier configuration receives a log-grid learning-rate sweep, LR multipliers remain essential, and learned multipliers can initialize from the previously tuned forward values. The result reduces one tuning axis; it does not demonstrate tuning-free training.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 12,
+          "section": "Section 5.1 and Figure 7"
+        },
+        {
+          "page": 19,
+          "section": "Appendix A, Experiment settings"
+        }
+      ]
+    },
+    {
+      "claim": "The long-run downstream result is positive on average under both optimizers, with the largest reported gains on BBH and GSM8K, but it comes from one trajectory per condition and checkpoint averaging rather than independent replications.",
+      "evidence": "Adam rises from a seven-benchmark average of 30.80% to 32.01% (+1.21 points), including +2.33 BBH, +1.66 MMLU-Pro, and +1.55 MATH-level-5. Muon rises from 31.88% to 32.98% (+1.10), including +3.39 BBH and +2.61 GSM8K, but MMLU falls by 0.02. Scores average checkpoints from the final 40B-token, minimal-learning-rate segment of a single run; no across-seed standard error, paired significance test, or compute-matched repeated pretraining is reported.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 13,
+          "section": "Section 5.2 and Table 2"
+        },
+        {
+          "page": 27,
+          "section": "Appendix D, Figure 11"
+        }
+      ]
+    },
+    {
+      "claim": "The paper's '200GT duration' description conflicts with the actual 240GT evaluation trajectory.",
+      "evidence": "Section 5.2 calls the final validation a 200GT run and approximately 20 times Chinchilla-optimal. Appendix A instead specifies 240GT and 24 times compute-optimal. Figure 11 resolves the schedule: exponential decay runs from 160GT to 200GT, followed by 40GT at minimal learning rate, with the reported Table 2 scores averaged over those post-decay checkpoints. Downstream synthesis should call this a 240GT run and distinguish the 200GT end of decay from the end of training.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 13,
+          "section": "Section 5.2, Long training validation"
+        },
+        {
+          "page": 19,
+          "section": "Appendix A, Experiment settings"
+        },
+        {
+          "page": 27,
+          "section": "Appendix D, Figure 11 caption"
+        }
+      ]
+    },
+    {
+      "claim": "The MLP intervention does not cleanly isolate a universal matrix-scale trap because the no-LRM model adapts through attention matrices, SSM Conv1d/D parameters, embeddings, and matrix-signal escape.",
+      "evidence": "Appendix B documents that the deliberately frozen-RMSNorm control nevertheless realigns residual block outputs: MLP matrices deviate from the equilibrium trend, attention W_V/W_out norms and alignments grow, SSM Conv1d and skip parameter D act as latent vector multipliers, and frequent embedding rows partially escape. The authors say this complex adaptation defeats the intended clean separation and propose MHA or internal SSM RMSNorm as better future controls. The main loss gap therefore reflects the cost of many compensatory paths in this Falcon-H1 configuration, not a pure test of matrix scale alone.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 20,
+          "section": "Appendix B, Figure 8"
+        },
+        {
+          "page": 21,
+          "section": "Appendix B, adaptation mechanisms"
+        },
+        {
+          "page": 22,
+          "section": "Appendix B, Remark on experiment design"
+        }
+      ]
+    },
+    {
+      "claim": "Two mathematical presentation details weaken the proposed noise mechanism: the matrix shape is transposed relative to its index equation, and a gradient sum is called averaging without a variance calculation.",
+      "evidence": "Section 2 writes y_i=sum_j W_ij x_j with r indexed over d_out and c over d_in, which conventionally makes W shape d_out by d_in, yet declares W in R^(d_in by d_out). Equation 4 correctly shows multiplier gradients as sums over a row, column, or whole matrix, but the text says this 'extra averaging' reduces noise; there is no division by dimension or covariance assumption proving that the signal-to-noise ratio improves. The empirical ABM comparison is useful, but it does not establish the general tensor-order criterion claimed in the conclusion.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Section 2, Equations 2-4"
+        },
+        {
+          "page": 14,
+          "section": "Section 6, matrix-versus-vector dynamics"
+        }
+      ]
+    },
+    {
+      "claim": "The universal, cost-free conclusion outruns the evaluated scope: inference fusion is exact, but training overhead, larger-scale stability, architecture transfer, and statistical robustness are not demonstrated.",
+      "evidence": "All experiments use one Falcon-H1-0.5B hybrid architecture and its available set of 35 tuned muP multipliers; the width study uses a smaller 12-layer variant. The paper estimates explicit training overhead at 'at most a couple percent' without measuring throughput, and the optimizer-level fused implementation is proposed rather than benchmarked. It tests Adam and Muon but no dense Transformer family, model above 0.5B, alternative corpus, independent seed, or wall-clock/energy-to-quality comparison. Exact inference folding supports zero serving overhead, not the broader claim of universal pretraining improvement without sacrifice.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Section 2, Implementation and muP connection"
+        },
+        {
+          "page": 13,
+          "section": "Section 6, universal conclusion"
+        },
+        {
+          "page": 19,
+          "section": "Appendix A, Experiment settings"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Factor each language-model matrix into an ordinary weight matrix and learned scalar or row/column scale factors so weight decay can keep the high-dimensional matrix in a noise-controlled norm regime while low-dimensional factors learn data-dependent effective scales.",
+    "mechanism": "For a linear layer, the effective weight is either sW or diag(r)Wdiag(c). The matrix is updated with the usual AdamW or Muon recipe and weight decay; multipliers receive their own learning rate and light or zero decay. Multiplier gradients sum effective-matrix gradients across a row, column, or the full tensor, which the authors hypothesize has higher signal-to-noise than individual matrix coordinates. The study first perturbs eta/lambda at fixed sqrt(eta*lambda), compares learned norms to an Adam-on-IID-noise simulation, and inspects depth/width scale distributions. It then diagnoses factor symmetries, excludes multiplier gradients from global clipping, explores width scaling, and ablates NONE/LR/LRWD/FULL muP tuning. Final validation trains Falcon-H1-0.5B with Adam or Muon for 240B tokens (despite a 200B description in the main text), folds the multipliers into matrices for inference, and averages downstream checkpoints over the last 40B tokens.",
+    "assumptions": [
+      "High-dimensional matrix-coordinate gradients are assumed sufficiently noise-dominated for RMS norm to follow sqrt(eta/lambda), while scalar/vector factors are assumed signal-dominated.",
+      "Sums of gradients over rows, columns, or a whole matrix are assumed to improve signal-to-noise despite no normalization or covariance theorem being given.",
+      "Adam Brownian Motion with IID Gaussian gradients is assumed to be a useful proxy for real optimizer noise and radial matrix dynamics.",
+      "Changing eta and lambda at fixed sqrt(eta*lambda) is assumed to isolate norm scale from learning speed under both Adam and Muon.",
+      "Frozen RMSNorm weights are assumed to create an interpretable scale-control experiment even though attention, SSM, embeddings, and alignment supply alternate compensation paths.",
+      "Broader row/effective-norm distributions are assumed beneficial rather than merely a coordinate artifact of factorization.",
+      "A learned effective-scale solution is assumed better because it lowers loss, without a matched intervention proving the learned scale profile itself is causal.",
+      "Light multiplier decay is assumed to control symmetry drift without materially re-trapping useful scales.",
+      "Excluding multiplier gradients from the global clip norm is assumed safe even when their gradients signal an unstable global update.",
+      "Each configuration's own learning-rate sweep and inherited Falcon-H1 tuned LR multipliers are assumed compatible with claims of reduced tuning burden.",
+      "Width-stable selected output norms in a 12-layer model are assumed informative about scaling even though alignment violates the stated muP limit and residual norms drift.",
+      "Checkpoint averaging along one post-decay trajectory is assumed to average benchmark stochasticity sufficiently, despite temporal correlation and absent seed replication.",
+      "A 0.5B hybrid attention-SSM model and one data mix are assumed representative of dense Transformers, other sizes, and other corpora.",
+      "Exact inference fusion is assumed to preserve deployed behavior, which is valid algebraically, while the unmeasured training overhead is assumed negligible.",
+      "Downstream percentage-point gains are assumed meaningful without uncertainty estimates or correction across seven benchmarks and four model configurations."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "scalar-learnable-multiplier",
+      "role": "Reparameterizes an effective matrix as sW so one low-dimensional factor can learn the global layer scale."
+    },
+    {
+      "id": "row-column-learnable-multipliers",
+      "role": "Uses diag(r)Wdiag(c) to expose per-output and per-input feature scales while keeping matrix coordinates decayed."
+    },
+    {
+      "id": "fixed-effective-rate-scale-sweep",
+      "role": "Varies eta/lambda while holding sqrt(eta*lambda) constant to perturb equilibrium norm more than nominal update speed."
+    },
+    {
+      "id": "adam-brownian-motion-control",
+      "role": "Runs AdamW on IID zero-mean Gaussian gradients with the training schedule to compare pure-noise norm trajectories."
+    },
+    {
+      "id": "effective-row-norm-audit",
+      "role": "Measures within-layer row-norm distributions after folding multipliers into effective matrices."
+    },
+    {
+      "id": "symmetry-drift-diagnostic",
+      "role": "Tracks Q/K factor ratios and residual RMS growth along multiplicative and normalization-invariant directions."
+    },
+    {
+      "id": "light-multiplier-weight-decay",
+      "role": "Applies lambda_lrm=2e-3 to suppress low-precision factor drift and NaNs."
+    },
+    {
+      "id": "multiplier-excluded-global-clipping",
+      "role": "Computes the global clip norm without multiplier gradients so large factor gradients do not shrink all other updates."
+    },
+    {
+      "id": "width-scaling-probe",
+      "role": "Varies width from 128 to 8192 at fixed matrix eta/lambda and compares learned scales with muP predictions."
+    },
+    {
+      "id": "mup-tuning-factorial-ablation",
+      "role": "Crosses Adam/Muon and LRM/no-LRM with NONE, LR, LRWD, and FULL multiplier-tuning recipes."
+    },
+    {
+      "id": "symmetry-aware-placement-analysis",
+      "role": "Derives nonredundant multiplier placements for gated MLP, GQA, and Mamba2 blocks, while documenting that the cleaner placement performs slightly worse."
+    },
+    {
+      "id": "inference-factor-fusion",
+      "role": "Multiplies trained scales into the stored matrix to remove serving-time parameters and operations."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Falcon-H1-0.5B final projector, five S=sqrt(eta/lambda) settings at fixed eta_eff",
+      "metric": "Post-decay loss and logit norm",
+      "result": "Frozen-projector loss is about 0.778 at the smallest S versus about 0.749 near S=1, with logits spanning roughly 3-16; scalar/vector multiplier losses remain about 0.746-0.753 with much stabler logits",
+      "baseline": "Frozen RMSNorm/projector-column weights versus scalar and vector projector multipliers"
+    },
+    {
+      "setting": "Falcon-H1-0.5B gated MLP norm-scale sweep under Adam and Muon",
+      "metric": "Loss after learning-rate decay",
+      "result": "At the largest S, Adam is about 0.781 without learned scalars versus 0.749 with them; Muon is about 0.770 versus 0.737",
+      "baseline": "Frozen backbone RMSNorm weights without versus with three scalar MLP multipliers"
+    },
+    {
+      "setting": "Projector norm trajectories under strong S=1/64 and weak S=64 weight decay settings",
+      "metric": "Matrix and multiplier RMS norm over 30B tokens",
+      "result": "Real and Adam-Brownian matrix trajectories nearly overlap under strong WD and are directionally close under weak WD; learned multiplier trajectories do not resemble the IID-noise control",
+      "baseline": "AdamW driven by IID N(0,1) gradients with the same lambda and eta schedule"
+    },
+    {
+      "setting": "All Falcon-H1 residual blocks with scalar multipliers",
+      "metric": "LRM-to-baseline output-norm ratio and learned scalar values",
+      "result": "Most block-output ratios rise from about 1.5 in early layers to 3-4 in later layers, with an attention spike above 7 and more than order-of-magnitude depth variation in some learned factors",
+      "baseline": "Same architecture without learnable scalar multipliers"
+    },
+    {
+      "setting": "Attention/SSM input and MLP-gate effective matrices across layers",
+      "metric": "Mean-normalized row-norm histograms",
+      "result": "Vector-LRM histograms broaden substantially around the standard parameterization's sharp mode near 1; no numerical dispersion statistic or uncertainty is reported",
+      "baseline": "Standard parameterization"
+    },
+    {
+      "setting": "Q/K and residual-output symmetry diagnostics over roughly 28K steps",
+      "metric": "Log10 factor ratio and log10 output RMS",
+      "result": "No-WD Q/K ratios drift near log10 2 while light-WD ratios cluster near 0; no-WD residual RMS rises above log10 6 while light-WD traces remain below about 1",
+      "baseline": "No multiplier decay versus lambda_lrm=2e-3"
+    },
+    {
+      "setting": "12-layer width sweep, d=128-8192",
+      "metric": "Matrix RMS norms, selected output norms, multiplier slopes, and inferred alignment",
+      "result": "Matrix norms mostly plateau around 0.07-0.078 and projector/QK/SSM-dt outputs remain roughly stable; multipliers fall near but slower than d^-1/d^-2 and inferred input-weight alignment decays with width",
+      "baseline": "Theoretical muP width trends under fixed alignment"
+    },
+    {
+      "setting": "First 600 training steps with global gradient clipping at 1",
+      "metric": "Gradient norm and later loss difference",
+      "result": "Including multiplier gradients peaks near norm 6.7 versus about 0.2 when excluded; exclusion yields roughly 0.004-0.006 lower loss after the transient",
+      "baseline": "Multiplier-inclusive global clip norm"
+    },
+    {
+      "setting": "Adam/Muon by NONE/LR/LRWD/FULL tuning with and without LRM",
+      "metric": "Final pretraining loss",
+      "result": "Every plotted LRM parent is lower; best Adam+LRM losses are about 0.739 and best Muon+LRM about 0.729, while tuning LR is the material remaining requirement",
+      "baseline": "Corresponding non-LRM recipe and fully tuned Falcon-H1 multipliers from Zuo et al."
+    },
+    {
+      "setting": "Adam Falcon-H1-0.5B long run, actual total 240B tokens",
+      "metric": "Mean percentage score over HellaSwag, ARC-C, MMLU, MMLU-Pro, BBH, GSM8K, MATH level 5",
+      "result": "30.80 to 32.01 (+1.21 points); individual gains +0.03 to +2.33",
+      "baseline": "Same fully tuned Adam configuration without LRM"
+    },
+    {
+      "setting": "Muon Falcon-H1-0.5B long run, actual total 240B tokens",
+      "metric": "Same seven-benchmark mean",
+      "result": "31.88 to 32.98 (+1.10 points); BBH +3.39 and GSM8K +2.61, but MMLU -0.02",
+      "baseline": "Same fully tuned Muon configuration without LRM"
+    },
+    {
+      "setting": "Final downstream reporting window",
+      "metric": "Checkpoint-averaging protocol",
+      "result": "Checkpoints are evaluated every 1B tokens from 100B; a 32x LR decay runs 160B-200B, then scores are averaged over 40B more tokens at minimal LR using 20-checkpoint running windows",
+      "baseline": "No independent-seed or independent-run uncertainty estimate"
+    }
+  ],
+  "limitations": [
+    "Author-stated: the continuous signal-to-noise spectrum lacks a criterion identifying when a tensor can learn its own scale.",
+    "Author-stated: a minimal mathematical model separating matrix noise-dominated and vector/scalar signal-dominated regimes is absent.",
+    "Author-stated: complete muP scaling rules for multiplier learning rate and multiplier weight decay remain open.",
+    "Author-stated: inferred input-weight alignment decays with width, contradicting the established muP regime used for the paper's scaling prediction.",
+    "Author-stated: the capability pattern—larger gains on reasoning than knowledge benchmarks—is preliminary and needs comprehensive investigation.",
+    "Author-stated: training stability and improvement as model size grows are not established.",
+    "Author-stated: symmetry-aware removal of redundant multipliers slightly reduces performance, and residual normalization symmetry has no reliable exact fix.",
+    "Author-stated: row multipliers on the LM head degrade performance and the fixed-projector-scale sweep gives no expected gain.",
+    "Author-stated: initial scalar-multiplier experiments were null or negative until multiplier gradients were excluded from global clipping.",
+    "Author-stated: log-scale multipliers offer at most a slight advantage and create stability problems.",
+    "Author-stated: the frozen-RMSNorm MLP experiment fails to prevent alternative scale adaptation through attention, SSM, and embeddings.",
+    "Reviewer-identified: the function class is unchanged, so gains establish a useful optimizer/regularization bias rather than added expressivity.",
+    "Reviewer-identified: all experiments use Falcon-H1-0.5B or a smaller 12-layer width variant; no larger model, dense Transformer, alternate state-space architecture, or independent corpus is tested.",
+    "Reviewer-identified: each configuration receives its own learning-rate sweep, tuned LR multipliers remain essential, and some learned factors initialize from previously tuned Falcon-H1 values.",
+    "Reviewer-identified: no direct comparison is run against weight normalization, u-muP, CompleteP, explicit rotation control, altered WD/warmup, or other scale-decoupling alternatives.",
+    "Reviewer-identified: the long-run main text says 200B tokens, while the appendix and plotted schedule show 240B including the reporting window.",
+    "Reviewer-identified: downstream results appear to use one training trajectory per condition and temporally correlated checkpoint averages rather than replicated seeds.",
+    "Reviewer-identified: no confidence intervals, significance tests, or correction across benchmarks accompany 0.02-3.39 point changes.",
+    "Reviewer-identified: estimated training overhead of a couple percent is not measured, and the optimizer-level fused training implementation is not benchmarked.",
+    "Reviewer-identified: applying light WD to stabilize multipliers weakens the claim that they freely learn unconstrained optimal scale, and its scale transfer is unknown.",
+    "Reviewer-identified: the IID Gaussian ABM match tests norm trajectories but not real gradient covariance, loss dynamics, or causal necessity of WD trapping.",
+    "Reviewer-identified: the stated W shape is transposed relative to y_i=sum_j W_ij x_j and the declared row/column multiplier dimensions.",
+    "Reviewer-identified: multiplier gradients are sums, not literal averages; reduced noise requires untested assumptions about correlation and signal scaling.",
+    "Reviewer-identified: broader row-norm distributions are not causally linked to performance and could partly reflect factorization symmetries.",
+    "Reviewer-identified: the paper reports zero inference overhead after fusion but no end-to-end training wall-clock, energy, or total tuning-compute comparison."
+  ],
+  "failure_modes": [
+    "Redundant row/column factors drift along product-preserving symmetries until bfloat16 error causes divergence or NaNs.",
+    "Residual-producing factors grow without bound because the final RMSNorm removes their common scale.",
+    "Multiplier gradients dominate the global norm and cause every matrix update to be over-clipped, erasing the gain.",
+    "Light multiplier weight decay suppresses a genuinely useful scale together with symmetry drift, reintroducing the original scale constraint.",
+    "Per-logit projector multipliers learn token marginals as a shortcut and weaken backbone feature learning.",
+    "A learned scale recipe tuned on Falcon-H1's hybrid GQA/Mamba2 blocks does not transfer to dense attention, MoE, gated normalization, or a different data mix.",
+    "An apparent LRM advantage disappears when a competing parameterization or WD/warmup schedule receives an equally broad tuning budget.",
+    "Checkpoint averaging along one trajectory makes a small noisy benchmark change look replicated when it is not.",
+    "The 0.5B gain shrinks or reverses at larger widths because multiplier slopes and alignment already depart from the assumed muP limit.",
+    "The no-LRM model finds alternate scale channels through attention alignment, SSM Conv1d/D, frequent embeddings, or matrix signal, making the intervention architecture-dependent.",
+    "Row/column factorization changes Adam or Muon's preconditioning so strongly that a learning rate stable for one factorization becomes unstable for another.",
+    "Inference fusion is performed incorrectly around shared RMSNorm, grouped-query heads, tied embeddings, or quantization, changing the trained function.",
+    "A claimed training-efficiency win vanishes after accounting for per-configuration LR sweeps, 35 inherited multiplier values, extra factor operations, and failed runs.",
+    "Reasoning-benchmark gains do not reproduce because seven tasks and many checkpoint choices create a selection opportunity without a held-out confirmation suite."
+  ],
+  "reusable_insights": [
+    "Separate representational capacity from optimization geometry whenever a proposed layer can be algebraically folded into an existing matrix.",
+    "Perturb eta/lambda at fixed sqrt(eta*lambda) to diagnose optimizer-norm equilibrium while monitoring actual update norms rather than assuming perfect isolation.",
+    "Compare real norm trajectories with a schedule-matched pure-noise optimizer control, but audit covariance mismatch before giving it a causal interpretation.",
+    "Treat scalar/vector factors as a different optimizer parameter group with explicit learning rate, decay, clipping, precision, and fusion rules.",
+    "Exclude exceptional factor gradients from global clipping only after reporting both groups' norms and verifying that local clipping or adaptive thresholds are not safer.",
+    "Map all product and normalization symmetries before adding trainable scale factors; test gauge fixing, projection, and light regularization explicitly.",
+    "Preserve negative projector variants because scale learning can create shortcuts rather than better features.",
+    "When claiming reduced tuning, report the complete search budget including LR sweeps, inherited initial values, failed runs, and data-mix retuning.",
+    "Use effective folded matrices—not raw factors—to compare learned norm diversity across parameterizations.",
+    "Validate automatic width scaling with both activation magnitude and feature-alignment statistics; stable outputs alone can conceal a changed regime.",
+    "Distinguish end-of-decay tokens from total tokens and from the checkpoint-averaging window in all long-run comparisons.",
+    "Use independent pretraining seeds or block-bootstrap over independent runs; adjacent checkpoints from one trajectory are not replications.",
+    "Benchmark exact training throughput and end-to-end quality-per-FLOP even when inference fusion is algebraically free.",
+    "Compare factor learning against weight normalization, explicit rotation control, muP/u-muP/CompleteP, and optimized WD/warmup under matched compute."
+  ],
+  "open_questions": [
+    "What measurable gradient signal-to-noise statistic predicts whether a matrix, row, embedding, or scalar can learn radial scale?",
+    "Can a stochastic model derive the claimed noise reduction of summed multiplier gradients under realistic covariance and adaptive optimization?",
+    "Do LRMs retain gains in 1B-70B dense Transformers, MoE models, pure SSMs, and other corpora after matched tuning?",
+    "Can multiplier symmetries be gauge-fixed or projected exactly without the slight performance loss seen from factor removal?",
+    "How should multiplier learning rate and decay scale with width, depth, batch size, and precision?",
+    "Does a full model-specific discovery of multiplier slopes restore muP transfer when input-weight alignment decays?",
+    "Are the learned depth/row scale profiles causally useful if transplanted, randomized, flattened, or restored after training?",
+    "Can explicit control of matrix rotation or a better weight-decay schedule match LRM gains without redundant parameters?",
+    "How does weight normalization compare when applied to the same Falcon-H1 matrices under Adam and Muon?",
+    "Why do per-logit projector scales hurt, and can a constrained/shared head scale avoid the marginal-frequency shortcut?",
+    "Are BBH/GSM8K gains robust across seeds, benchmark prompts, data mixes, and a preregistered held-out capability suite?",
+    "What is the measured wall-clock, memory, energy, and tuning-compute cost of explicit-factor versus optimizer-fused training?",
+    "Does excluding multiplier gradients from global clipping hide useful instability signals, and would per-group clipping be more principled?",
+    "Can symmetry-free placement recover the all-factor performance gap with improved initialization or optimizer geometry?",
+    "Does LRM still help when the no-LRM control is allowed alternate normalization or vector parameters expressly designed to adapt scale?",
+    "Which components of the effective matrix beyond row and column norms remain optimizer-constrained and could be exposed without pathological redundancy?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2305.17212",
+      "title": "Rotational Equilibrium: How Weight Decay Balances Learning Across Neural Networks",
+      "url": "https://arxiv.org/abs/2305.17212v4",
+      "relationship": "direct-noise-weight-decay-mechanism-predecessor",
+      "difference": "Kosson et al. derive and test steady-state magnitude/angular updates under Adam, Lion, and momentum SGD and explicitly control rotation to reproduce WD benefits with less warmup. Learnable Multipliers adopts its square-root norm premise but changes factorization so effective scale can move; it does not compare against explicit rotation control or provide an equally general derivation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v4; submitted 2023-05-26; last revised/source_date=2024-06-03; ICML 2024"
+    },
+    {
+      "canonical_id": "arxiv:2510.19093",
+      "title": "Weight Decay may matter more than muP for Learning Rate Transfer in Practice",
+      "url": "https://arxiv.org/abs/2510.19093v2",
+      "relationship": "closest-width-scaling-and-weight-decay-baseline",
+      "difference": "Kosson et al. show that muP alignment assumptions hold only early and that weight decay plus modified warmup better stabilizes representation updates and LR transfer later in practical LLM training. The present paper confirms its own alignment mismatch and instead learns forward scales; it neither tests learning-rate transfer to a larger target model nor compares the warmup/WD alternative under matched compute.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2; submitted 2025-10-21; last revised/source_date=2026-02-13; ICLR 2026"
+    },
+    {
+      "canonical_id": "arxiv:2203.03466",
+      "title": "Tensor Programs V: Tuning Large Neural Networks via Zero-Shot Hyperparameter Transfer",
+      "url": "https://arxiv.org/abs/2203.03466v2",
+      "relationship": "foundational-mup-tuning-competitor",
+      "difference": "Yang et al. use fixed maximal-update scaling to transfer optimal hyperparameters from small proxy models to larger Transformers and ResNets, reporting a 7% tuning-cost example for GPT-3-scale transfer. Learnable Multipliers makes forward scales data-adaptive and reduces two multiplier-tuning families, but retains tuned LR multipliers and per-configuration LR sweeps and never demonstrates zero-shot transfer across model sizes.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2; submitted 2022-03-07; last revised/source_date=2022-03-28; NeurIPS 2021 paper"
+    },
+    {
+      "canonical_id": "arxiv:2407.17465",
+      "title": "u-muP: The Unit-Scaled Maximal Update Parametrization",
+      "url": "https://arxiv.org/abs/2407.17465v3",
+      "relationship": "scale-stable-low-precision-parameterization-competitor",
+      "difference": "Blake et al. combine muP with unit scaling so activations, weights, and gradients start near unit scale, default hyperparameters are near-optimal, and FP8 training works out of the box, with loss equal to or below comparable muP models. LRMs instead learn scales from data and encounter bfloat16 symmetry drift requiring decay; no FP8, matched-sweep, or larger-scale u-muP comparison is supplied.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3; submitted 2024-07-24; last revised/source_date=2025-01-10"
+    },
+    {
+      "canonical_id": "arxiv:1602.07868",
+      "title": "Weight Normalization: A Simple Reparameterization to Accelerate Training of Deep Neural Networks",
+      "url": "https://arxiv.org/abs/1602.07868v3",
+      "relationship": "closest-classical-learned-scale-reparameterization",
+      "difference": "Salimans and Kingma explicitly decouple each weight vector's learned magnitude g from a normalized direction v/||v|| to improve conditioning and convergence without batch dependence. LRMs retain an unnormalized decayed W and multiply global or row/column factors to explain a noise-WD mechanism in LLMs; the new paper cites but does not experimentally compare this direct learned-norm baseline.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3; submitted 2016-02-25; last revised/source_date=2016-06-04"
+    },
+    {
+      "canonical_id": "arxiv:2505.01618",
+      "title": "Don't be lazy: CompleteP enables compute-efficient deep transformers",
+      "url": "https://arxiv.org/abs/2505.01618v4",
+      "relationship": "feature-learning-and-parameterization-competitor",
+      "difference": "Dey et al. derive a parameterization targeting depth-wise hyperparameter transfer and non-lazy feature learning in every layer and report 12-34% compute-efficiency gains on CS-3 systems. Learnable Multipliers frames bad scale as a lazy/feature-learning issue and learns factors, but provides no depth-transfer theorem, actual training-efficiency metric, or CompleteP baseline and remains confined to a 0.5B hybrid model.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v4; submitted 2025-05-02; last revised/source_date=2026-01-19; NeurIPS 2025"
+    },
+    {
+      "canonical_id": "arxiv:2502.16982",
+      "title": "Muon is Scalable for LLM Training",
+      "url": "https://arxiv.org/abs/2502.16982v1",
+      "relationship": "optimizer-and-update-scale-baseline",
+      "difference": "Liu et al. make Muon scalable through weight decay and per-parameter update-scale adjustment, report about 2x compute efficiency versus AdamW in scaling-law experiments, and train a 3B/16B MoE on 5.7T tokens. The present paper shows LRMs add about 1.10 benchmark points to Muon at 0.5B, but it does not test whether the gain survives Muon's full large-scale recipe or compare quality per FLOP.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1; submitted/source_date=2025-02-24"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim that standard LLM matrices are trapped at a noise-weight-decay equilibrium that prevents data-dependent scale learning, and that comprehensively placed scalar/vector learnable multipliers provide a universal, inference-free way to recover richer representation scales, reduce muP multiplier tuning, and improve Adam and Muon pretraining.",
+    "evidence": "Scale sweeps, schedule-matched noise controls, broadened effective row norms, and positive Adam/Muon loss and downstream results make the mechanism plausible in Falcon-H1-0.5B. The ablations also expose real requirements: multiplier decay, exclusion from global clipping, retaining LR tuning, and leaving the projector mostly unchanged. The main long-run comparison improves seven-task averages by 1.21 and 1.10 percentage points, but uses one architecture/data mix and apparently one trajectory per condition, while one Muon task is slightly negative.",
+    "reviewer_inference": "The credible novelty is a comprehensive LLM-specific deployment and diagnostic of learned scale factors through the lens of noise-WD equilibrium, plus the practical interaction with clipping and factor symmetries. Learned norm factors, muP scalings, weight normalization, explicit rotation control, and scale-aware Muon recipes are prior art. Because the function class is identical after folding and the width experiment violates its own fixed-alignment premise, the paper should be read as a promising optimizer/implicit-regularization recipe for one 0.5B hybrid architecture—not a universal escape from an established theorem or a demonstrated replacement for hyperparameter transfer."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "All 27 pages of the pinned extraction were read, including Appendix A's schedules, Appendix B's confounded MLP control, Appendix C's full Falcon-H1 placement equations, and Appendix D's width/evaluation trajectories. PDF pages 2-13 and 19-27 were inspected directly where equations, axes, loss bars, and schedules were ambiguous. Seven exact current official arXiv primary records were checked on 2026-08-23. The audit preserves null/negative findings: log-scale instability, naive clipping's null-to-negative result, per-logit projector degradation, no gain from a fixed projector-scale sweep, slightly worse symmetry-free placement, weak effect from forward/WD tuning on the changed mix, a Muon MMLU delta of -0.02, and the failure of the MLP control to suppress alternative adaptation. Two corrections are especially important downstream: the effective function class is unchanged, and the advertised 200B-token final run is 240B once the documented 40B post-decay reporting segment is counted. The source hashes, page count, and extraction timestamp exactly match data/generated/fulltext_index.jsonl. Confidence is high in the paper-level audit; confidence in cross-architecture or large-scale universality is low."
+}

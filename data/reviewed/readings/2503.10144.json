@@ -1,0 +1,469 @@
+{
+  "stable_id": "arxiv:2503.10144",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2503.10144",
+    "pdf_sha256": "1ce83bd3f39eafa9f2b42900b0c5e65949b63f3b49f295d5866942f09abfbdc3",
+    "text_sha256": "5d0510b05a532ac647fc1c16d7086c2d4c60f258d82861ba24b62207b898e4d8",
+    "page_count": 33,
+    "extracted_at": "2026-08-23T17:11:53.596371+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Does Expectation Reflection provide a numerically stable, local, loss-free, and scalable multiplicative alternative to backpropagation whose claimed single-iteration advantage remains meaningful after matching compute, conditioning, regularization, and modern baselines?",
+  "key_findings": [
+    {
+      "claim": "The technically distinctive construction combines ratio-corrected preactivations with layerwise pseudoinverse transport and sequential forward recomputation.",
+      "evidence": "At the output ER sets Delta Z_L to the label residual, rescales it by S_L/Z_L, propagates it through W_l dagger, and solves each weight correction through Z_(l-1) dagger. Algorithm 1 then updates layers from input to output and recomputes every downstream activation after each solve. This is a concrete multilayer algorithm, although its final parameter update is additive rather than a multiplicative update of weights.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 13, "section": "Section 3.2, Equations 17-18"},
+        {"page": 14, "section": "Section 3.1, Equations 19a-19e"},
+        {"page": 20, "section": "Algorithm 1"}
+      ]
+    },
+    {
+      "claim": "The abstract's claim of optimal weight determination in a single iteration is not established by either the derivation or the experiment.",
+      "evidence": "Each pseudoinverse is only a layerwise least-squares solution conditional on current activations, not a solution of the joint nonconvex network problem. Figure 2 visually places Algorithm 1 near 3-4% training error after its first full-batch update and shows continued improvement over later updates. The experiment therefore demonstrates a large first update, not globally optimal network weights or one-step convergence.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Abstract, single-iteration claim"},
+        {"page": 19, "section": "Section 3.4, sequential conditional solves"},
+        {"page": 32, "section": "Figure 2, full-batch training trajectories"}
+      ]
+    },
+    {
+      "claim": "Update count is not a valid efficiency comparison here because one ER update and one BP update have radically different computational content.",
+      "evidence": "One full-batch ER update processes all 60000 examples while repeatedly forming and solving layerwise normal equations or pseudoinverses for widths 784, 1750, 475, and 10; the BP comparator uses ordinary forward/backward matrix products. The paper reports no FLOPs, wall time, peak memory, hardware, energy, conditioning cost, or solver complexity. Figure 2 therefore supports iteration efficiency only, not faster or more scalable training.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 20, "section": "Algorithm 1, per-update pseudoinverse operations"},
+        {"page": 21, "section": "Section 4.1, 60000-example full-batch protocol"},
+        {"page": 32, "section": "Figure 2, x-axis counts unmatched parameter updates"}
+      ]
+    },
+    {
+      "claim": "The displayed formula for the Moore-Penrose pseudoinverse is valid only under a full-column-rank condition that the paper does not state and that its mini-batch shapes violate.",
+      "evidence": "The paper identifies X dagger with (X transpose X)^(-1)X transpose. That equality requires X to have full column rank; rank-deficient and wide matrices require an SVD/general Moore-Penrose construction or another appropriate form. With batch size 600 and input or hidden widths 784 and 1750, X transpose X is necessarily singular, which is why the mini-batch section must replace the formula with ridge regularization.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "Equation 9, pseudoinverse definition"},
+        {"page": 23, "section": "Section 4.2, singular covariance and ridge replacement"}
+      ]
+    },
+    {
+      "claim": "The near-zero ratio has a removable mathematical limit but is not automatically numerically stable as implemented by the written formula.",
+      "evidence": "The limit of S/tanh(S) is one, so an algebraically stabilized implementation can branch or evaluate that ratio safely. The literal operation (Y-hat/Y) times S nevertheless produces 0/0 at exact S=0 and can lose accuracy near zero. No implementation, epsilon rule, series expansion, precision study, or code is provided to show that the claimed natural avoidance occurs in floating point.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "Section 2.3, Equation 8 and zero-limit argument"},
+        {"page": 20, "section": "Algorithm 1, literal S/Z operation"}
+      ]
+    },
+    {
+      "claim": "The claimed coincidence with linearized target propagation is only an approximation near the activation origin, not an identity for tanh.",
+      "evidence": "An exact linearization of the inverse activation gives Delta S=(sigma prime(S))^(-1) Delta Z. ER instead uses (S/sigma(S)) Delta Z after calling sigma(S)/S a naive slope approximation. For tanh these factors are S/tanh(S) and cosh(S)^2: they agree to leading order near zero but diverge strongly in saturation. The later statement that the expressions coincide elides this approximation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 15, "section": "Section 3.2, secant-slope approximation"},
+        {"page": 16, "section": "Section 3.2, inverse-function Taylor expansion and coincidence claim"}
+      ]
+    },
+    {
+      "claim": "Amplifying saturated errors avoids tanh's vanishing derivative but can replace vanishing gradients with unbounded and ill-conditioned corrections.",
+      "evidence": "For a wrong-sign saturated unit the paper celebrates Delta S tending to infinity so the sign can flip in one update. Such an unbounded correction is not a stability guarantee: finite-precision overflow, explosive layer coupling, and poorly conditioned pseudoinverse solves are plausible consequences. The conclusion later acknowledges numerical instability on small batches and CIFAR-10.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 16, "section": "Section 3.2, wrong-sign saturation example"},
+        {"page": 25, "section": "Conclusion, instability limitation"}
+      ]
+    },
+    {
+      "claim": "The ridge-regression derivation contains both a terminology error and a factor-of-two inconsistency.",
+      "evidence": "Equation 20 calls a squared Frobenius penalty a control on sparsity, although L2 shrinkage does not induce exact parameter sparsity. Moreover, differentiating the displayed objective ||S'-ZW||^2 + (1/(2 eta))||W||^2 yields a normal matrix Z transpose Z + (1/(2 eta))I, whereas the stated analytic solution uses Z transpose Z + (1/eta)I unless an unprinted one-half multiplies the data-fit term.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 17, "section": "Section 3.3, Equation 20 and analytic solution"},
+        {"page": 18, "section": "Section 3.3, limiting BP/ER interpretation"}
+      ]
+    },
+    {
+      "claim": "Calling the updates strictly local overstates both their computational and biological locality.",
+      "evidence": "Although a weight solve touches neighboring activations, W_l dagger is a whole-layer inverse and Z_(l-1) dagger depends on covariance across units and the entire current batch; the headline run uses all 60000 examples simultaneously. Exact pseudoinverse feedback also requires detailed access to the forward weights. These operations are more global than a synapse-local plasticity rule and do not resolve weight transport merely by replacing transpose with inverse.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 11, "section": "Section 3.1, Equation 14 and strict-locality claim"},
+        {"page": 20, "section": "Algorithm 1, layerwide inverse operations"},
+        {"page": 21, "section": "Section 4.1, full-batch setting"}
+      ]
+    },
+    {
+      "claim": "The no-hyperparameter claim applies only to the specially chosen full-batch experiment and disappears in the practical stochastic setting.",
+      "evidence": "Full-batch ER fixes its implicit step multiplier at one and is described as having no tunable hyperparameters. Mini-batch ER adds ridge alpha=1, trust/aggregation eta=0.1, and batch size 600. The paper supplies no sweep or sensitivity analysis for these choices, and it omits initialization, target encoding, preprocessing, solver tolerances, and bias handling.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 21, "section": "Section 4.1, no-tunable-hyperparameters claim"},
+        {"page": 23, "section": "Section 4.2, alpha, eta, and batch size"}
+      ]
+    },
+    {
+      "claim": "The loss-free distinction is semantic in the presented classification setup.",
+      "evidence": "The output residual Y-hat-Z is exactly the negative output gradient of one-half squared error, as the paper itself states. Choosing tanh, numeric class targets, and this residual still selects an output geometry and objective; it merely avoids writing a separate loss call. No experiment tests robustness to losses or target codings where squared error is unsuitable.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 14, "section": "Equation 19a and loss-function claim"},
+        {"page": 15, "section": "Section 3.1, explicit L2-loss equivalence"}
+      ]
+    },
+    {
+      "claim": "The dimensional-consistency criticism of backpropagation is under-specified and does not establish an optimization defect.",
+      "evidence": "Gradients inherit reciprocal units from the loss and variables, while learning rates or preconditioners can carry the units needed for a parameter update. The paper compares an activation difference with a loss gradient without defining the physical units of the loss or targets. Its secant ratio is dimensionless only under particular conventions, so the argument does not independently justify ER.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 15, "section": "Section 3.2, dimensional-consistency argument"}
+      ]
+    },
+    {
+      "claim": "The main empirical evidence is a single old benchmark and a single fully connected architecture, while the only named harder dataset is reported as unstable.",
+      "evidence": "All plotted results use MNIST with a 784-1750-475-10 MLP. There are no CNN, residual network, transformer, recurrent network, language, generative, or modern large-scale tasks. The conclusion specifically says ill-conditioning is pronounced on CIFAR-10 but provides no CIFAR-10 result, so the paper does not substantiate its scalable-alternative claim.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 21, "section": "Section 4.1, MNIST architecture"},
+        {"page": 25, "section": "Conclusion, CIFAR-10 instability"}
+      ]
+    },
+    {
+      "claim": "The reported held-out advantage cannot be independently evaluated because the test trajectories are deliberately omitted.",
+      "evidence": "The text reports final test errors of 3% for ER Algorithm 1 and 5% for BP at eta=1, but says the test curves are data not shown and focuses Figure 2 on training error. There is no checkpoint rule, replicate distribution, uncertainty, validation protocol, or comparison against the best-tuned modern baseline, so the numbers do not establish better generalization.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 21, "section": "Section 4.1, unplotted test-error report"},
+        {"page": 32, "section": "Figure 2, training error only"}
+      ]
+    },
+    {
+      "claim": "The BP comparator is too weak to support a state-of-the-art efficiency claim.",
+      "evidence": "The baseline is vanilla full-batch BP with raw learning rates 0.01, 0.1, and 1. Adam is explicitly excluded, even though the conclusion says Adam can reach similar final performance. There are no momentum, AdamW, line-search, L-BFGS, Gauss-Newton, K-FAC, Shampoo, target-propagation, ProxProp, or LocoProp baselines, nor a matched-compute hyperparameter budget.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 21, "section": "Section 4.1, BP learning-rate grid"},
+        {"page": 22, "section": "Section 4.1, deliberate exclusion of Adam"},
+        {"page": 25, "section": "Conclusion, Adam comparison assertion"}
+      ]
+    },
+    {
+      "claim": "The results are not reproducible enough to distinguish algorithmic behavior from initialization or implementation effects.",
+      "evidence": "No random seeds, error bars, initialization distribution, input normalization, label coding, bias treatment, exact pseudoinverse solver, numerical dtype, hardware, stopping criterion, or source code is given. The architecture-robustness claim is not accompanied by additional architectures. Every plotted curve appears to be a single trajectory, so variance and failure rate are unknown.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 21, "section": "Section 4.1, experimental protocol"},
+        {"page": 23, "section": "Section 4.2, mini-batch modifications"},
+        {"page": 32, "section": "Figure 2, single trajectories"},
+        {"page": 33, "section": "Figure 3, single trajectories"}
+      ]
+    },
+    {
+      "claim": "The paper does not provide a descent, convergence, or scaling theorem for multilayer ER.",
+      "evidence": "The theory section is an algebraic reformulation and analogy to ridge regression/target propagation. It never proves that a layerwise pseudoinverse step decreases the global loss after coupled sequential recomputation, converges from typical initialization, remains bounded, or has favorable asymptotic complexity. The paper's own unstable vanilla algorithm and CIFAR-10 caveat show why such guarantees matter.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 12, "section": "Section 3.1, accumulated inverse-error instability"},
+        {"page": 18, "section": "Section 3.3, ridge limiting analogy"},
+        {"page": 25, "section": "Conclusion, stated numerical limitation"}
+      ]
+    },
+    {
+      "claim": "Describing the pseudoinverse as an approximate inverse obscures the actual projection error and the conditions under which a layer target is realizable.",
+      "evidence": "A correctly computed Moore-Penrose pseudoinverse is an exact generalized inverse with projection identities; failure to satisfy S'=ZW exactly occurs when the proposed target lies outside the relevant column space or numerical conditioning corrupts the solve. The paper attributes the mismatch to the pseudoinverse being only approximate, without measuring residual projections, ranks, or condition numbers.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 12, "section": "Section 3.1, inverse-error motivation"},
+        {"page": 19, "section": "Section 3.4, approximate-inverse explanation"}
+      ]
+    },
+    {
+      "claim": "Earlier and contemporaneous primary work substantially narrows the novelty and raises the empirical bar.",
+      "evidence": "A 2023 paper already proposed multiplicative and hybrid update rules for deep networks across multiple optimizers, architectures, and image tasks but is not cited. Regularized-inversion TP, scaled DTP, LocoProp, ProxProp, DFC, and reciprocal pseudoinverse feedback provide closer inverse/local-solve alternatives with theory or broader tests. K-FAC, Shampoo, and SOAP report compute-aware preconditioned optimization, including wall-clock measurements at language-model scale. ER's specific ratio-plus-sequential-solve recipe is distinct, but the broad claims of first multiplicative deep learning, locality, speed, and scalability are not competitively demonstrated.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "Introduction, multiplicative-learning positioning"},
+        {"page": 24, "section": "Conclusion, target-propagation and locality positioning"},
+        {"page": 25, "section": "Conclusion, efficiency and scalability claims"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Replace derivative-scaled error propagation with an observation-to-prediction ratio correction in preactivation space, transport corrections through layer pseudoinverses, and obtain new weights or weight increments from local least-squares solves.",
+    "mechanism": "For tanh output Z, ER rewrites the ratio update as Delta S=(S/Z) elementwise times Delta Z. Hidden-layer corrections propagate as Delta Z_(l-1)=Delta S_l W_l dagger, and parameter corrections are Delta W_l=Z_(l-1) dagger Delta S_l. The enhanced algorithm computes all backward corrections first, then updates layers sequentially and recomputes activations so each higher solve sees the latest lower representation. Mini-batch ER replaces exact normal equations with ridge-regularized solves and exponentially aggregates batch estimates.",
+    "assumptions": [
+      "The activation is tanh or another origin-passing monotone function for which S/Z is meaningful and numerically stabilized near zero.",
+      "Labels are encoded compatibly with the tanh output and the output residual is treated as the desired correction.",
+      "Layer activation matrices and weight matrices admit sufficiently stable pseudoinverse or ridge solves.",
+      "Proposed corrected preactivations are close enough to the realizable column spaces that layerwise projection residuals remain small.",
+      "Sequential layer updates and recomputation do not destabilize corrections calculated using the old weights.",
+      "The full-batch method can afford storing all examples and repeatedly forming or solving whole-layer normal equations.",
+      "The mini-batch method chooses effective ridge strength, trust factor, and batch size despite the full-batch no-tuning claim.",
+      "Claims connecting ER to target propagation use the secant approximation sigma(S)/S approximately equal to sigma prime(S), which is accurate only locally near the origin for tanh.",
+      "The MNIST MLP result is assumed to indicate behavior beyond the one tested architecture and dataset, although this extrapolation is not validated."
+    ]
+  },
+  "techniques": [
+    {"id": "ratio-correct", "role": "Uses observed-to-predicted output ratios to correct preactivations multiplicatively."},
+    {"id": "resid-rewrite", "role": "Rewrites the ratio correction as an additive residual scaled by S/Z for comparison with backpropagation."},
+    {"id": "pinv-back", "role": "Propagates a layer correction through the Moore-Penrose pseudoinverse rather than a weight transpose."},
+    {"id": "pinv-fit", "role": "Fits each layer's weight correction with a least-squares pseudoinverse solve."},
+    {"id": "diff-correct", "role": "Adds Difference Target Propagation-inspired cancellation terms to reduce inverse reconstruction error."},
+    {"id": "seq-refresh", "role": "Updates layers from input to output and recomputes activations after each weight change."},
+    {"id": "ridge-pinv", "role": "Regularizes singular or ill-conditioned mini-batch covariance matrices with alpha times identity."},
+    {"id": "trust-avg", "role": "Averages noisy mini-batch solve estimates into current weights using a trust coefficient."},
+    {"id": "secant-scale", "role": "Uses the origin-to-current secant S/Z as a proxy for the derivative of the inverse activation."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Full-batch MNIST classification with all 60000 training examples, 10000 test examples, tanh MLP 784-1750-475-10, and ER Algorithm 1.",
+      "metric": "Training classification error versus number of parameter updates.",
+      "result": "By visual reading of Figure 2, error falls from about 90% to roughly 3-4% after the first ER update and approaches zero over later updates.",
+      "baseline": "Vanilla ER Algorithm 0 and full-batch BP at learning rates 0.01, 0.1, and 1."
+    },
+    {
+      "setting": "Full-batch comparison of vanilla Algorithm 0 and sequentially refreshed Algorithm 1 on the same MNIST MLP.",
+      "metric": "Training classification error trajectory.",
+      "result": "Algorithm 1 reaches roughly 3-4% after one update, while Algorithm 0 is around 14% and then converges more slowly; the paper characterizes the eventual improvement as modest.",
+      "baseline": "Algorithm 0 without the forward-consistent sequential activation refresh."
+    },
+    {
+      "setting": "Full-batch BP learning-rate comparison on the same MNIST architecture.",
+      "metric": "Training classification error across up to 10000 parameter updates.",
+      "result": "Eta=1 improves fastest initially but fluctuates and ends around the mid-single digits; eta=0.1 and 0.01 are smoother/slower and remain materially above ER over much of the plotted update axis.",
+      "baseline": "Three manually selected raw learning rates; no momentum, Adam, line search, preconditioner, or matched-compute alternative."
+    },
+    {
+      "setting": "Held-out MNIST test set after full-batch training.",
+      "metric": "Final test classification error.",
+      "result": "The text reports 3% for ER Algorithm 1 and 5% for BP with eta=1, but the test trajectories and uncertainty are explicitly not shown.",
+      "baseline": "Only BP eta=1 is numerically reported."
+    },
+    {
+      "setting": "Mini-batch MNIST with batch size 600, ridge alpha=1, aggregation eta=0.1, and ER Algorithm 1.",
+      "metric": "Training classification error over 10000 updates.",
+      "result": "Figure 3 shows noisy ER convergence from about 90% to low-single-digit error, eventually comparable to the full-batch endpoint but requiring thousands of updates.",
+      "baseline": "Full-batch ER Algorithm 1 shown as a reference curve."
+    },
+    {
+      "setting": "Mini-batch ER versus mini-batch BP with batch size 600 on MNIST.",
+      "metric": "Training classification error versus update count.",
+      "result": "ER descends faster by updates and generally stays below BP in Figure 3; both finish at low-single-digit training error, but compute per update is not measured or matched.",
+      "baseline": "Mini-batch BP with learning rate 1."
+    },
+    {
+      "setting": "Claimed architecture robustness and extension to harder image data.",
+      "metric": "Qualitative sensitivity and stability statements only.",
+      "result": "The authors say results are qualitatively similar across architectures but show none; they identify CIFAR-10 as a setting where pseudoinverse instability is pronounced and provide no CIFAR-10 curve or table.",
+      "baseline": "No additional architecture or harder-dataset baseline is reported."
+    }
+  ],
+  "limitations": [
+    "All quantitative evidence comes from MNIST and one fully connected tanh architecture.",
+    "Iteration counts are not normalized by FLOPs, wall time, memory, solver cost, hardware, or data processed.",
+    "No descent, convergence, boundedness, numerical-stability, or scaling theorem is proved for multilayer ER.",
+    "Exact and ridge pseudoinverse solves can be singular, ill-conditioned, memory intensive, and expensive at realistic widths and batch sizes.",
+    "Mini-batch ER reintroduces ridge, trust, and batch-size hyperparameters without sensitivity analysis.",
+    "The test trajectory, seeds, uncertainty, initialization, preprocessing, target coding, solver details, and implementation artifact are absent.",
+    "The BP baseline excludes modern first-order, preconditioned, implicit, and target-propagation alternatives.",
+    "The exact-target-propagation interpretation confuses a secant approximation with an inverse-derivative identity.",
+    "The claimed biological locality still requires global batch statistics, whole-layer inverses, and precise access to forward weights.",
+    "The paper acknowledges instability on CIFAR-10 but does not report the failed or unstable experiments."
+  ],
+  "failure_modes": [
+    "Exact zero preactivations cause undefined 0/0 in a literal ratio implementation unless explicitly stabilized.",
+    "Wrong-sign saturated tanh units can generate unbounded corrections that overflow or magnify downstream conditioning errors.",
+    "Wide or rank-deficient activation matrices make the displayed normal-equation inverse nonexistent.",
+    "Corrected preactivations outside an activation matrix's column space are projected away, accumulating layerwise residual error.",
+    "Sequentially updating weights using corrections calculated from stale upper-layer weights can increase the global objective.",
+    "Small batches make covariance estimates singular and make solve targets vary abruptly between batches.",
+    "Ridge stabilization can overshrink directions carrying label signal, while weak ridge leaves noise amplification intact.",
+    "A trust coefficient small enough to stabilize mini-batches removes the claimed single-update advantage.",
+    "Full-batch inverse formation can exceed memory or runtime budgets even when its update count is small.",
+    "Squared-error residuals with saturated tanh and unspecified class coding can be poorly calibrated for multiclass classification."
+  ],
+  "reusable_insights": [
+    "Iteration efficiency should never be treated as computational efficiency when an update contains a matrix solve; report FLOPs, factorization reuse, wall time, memory, and hardware.",
+    "Layerwise least-squares updates are best interpreted as projected local targets, and the projection residual and condition number should be logged at every layer.",
+    "Ratio updates through origin-passing activations should be implemented as stable analytic quotients with exact-zero branches or series expansions.",
+    "Secant-to-derivative substitutions can avoid vanishing gradients but need explicit approximation-error bounds across the activation range.",
+    "A credible stochastic version of solve-based learning needs adaptive damping and trust-region control whose tuning cost is included in comparisons.",
+    "Compute-matched comparisons should include strong first-order, layerwise-local, implicit/proximal, target-propagation, and matrix-preconditioned baselines.",
+    "Claims of biological locality should separately audit spatial locality, temporal locality, batch/global statistics, weight transport, and matrix inversion.",
+    "Single-step claims should distinguish exact minimization of a conditional subproblem from reduction of the end-to-end nonconvex objective."
+  ],
+  "open_questions": [
+    "Can a damped or trust-region ER step guarantee descent of the end-to-end loss after sequential layer recomputation?",
+    "What is the exact per-update time, memory, and communication complexity under SVD, QR, Cholesky, iterative, and randomized pseudoinverse implementations?",
+    "Can layerwise projection residuals and condition numbers predict when ER will help, stall, or diverge before expensive training?",
+    "Does the rapid full-batch interpolation generalize after matching compute and regularization against AdamW, K-FAC, Shampoo, SOAP, LocoProp, and ProxProp?",
+    "Can an adaptive damping rule remove manual alpha and eta choices while remaining stable across batch size, width, depth, and activation family?",
+    "How should ER be formulated for softmax, cross-entropy, multilabel, regression, sequence, and generative objectives without reducing loss-free to squared-error semantics?",
+    "What approximation bound relates S/tanh(S) to the true inverse derivative, and can a clipped hybrid preserve signal without unbounded saturation updates?",
+    "Can learned, sparse, or iterative feedback operators provide genuinely local inverse transport without exact weight access?",
+    "Do convolutional, residual, attention, normalization, and recurrent architectures preserve any of the claimed fast-solve behavior?",
+    "What are the distributions of success, conditioning, and test performance across seeds and initializations, especially on CIFAR-10 and larger datasets?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2307.07189",
+      "title": "Multiplicative update rules for accelerating deep learning training and increasing robustness",
+      "url": "https://arxiv.org/abs/2307.07189",
+      "relationship": "Direct earlier multiplicative-update competitor for deep-network training.",
+      "difference": "Kirtas, Passalis, and Tefas propose multiplicative and hybrid parameter updates compatible with multiple optimizers and evaluate convex/nonconvex objectives, image tasks, architectures, and robustness; ER instead applies a ratio correction to preactivations and solves weights by pseudoinverse. The reviewed paper does not cite this direct predecessor.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv current version checked"
+    },
+    {
+      "canonical_id": "arxiv:1412.7525",
+      "title": "Difference Target Propagation",
+      "url": "https://arxiv.org/abs/1412.7525",
+      "relationship": "Foundational inverse-target and reconstruction-error predecessor explicitly adapted by ER.",
+      "difference": "DTP learns approximate inverse mappings and corrects their reconstruction error, including stochastic/discrete units; ER uses exact layer pseudoinverses, a secant-scaled residual, and sequential least-squares weight solves.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv current version checked; ECML PKDD 2015 paper"
+    },
+    {
+      "canonical_id": "neurips:2020:e7a425c6ece20cbc9056f98699b53c6f",
+      "title": "A Theoretical Framework for Target Propagation",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2020/hash/e7a425c6ece20cbc9056f98699b53c6f-Abstract.html",
+      "relationship": "Direct theory comparator for claims connecting inverse target propagation to Gauss-Newton optimization.",
+      "difference": "Meulemans et al. state precise invertibility and non-invertibility limits, introduce a difference reconstruction loss, and test MNIST, Fashion-MNIST, and CIFAR-10; ER provides an algebraic analogy but no comparable convergence or approximation theory.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2020 proceedings"
+    },
+    {
+      "canonical_id": "arxiv:2112.01453",
+      "title": "Target Propagation via Regularized Inversion",
+      "url": "https://arxiv.org/abs/2112.01453",
+      "relationship": "Closest regularized layer-inversion target-propagation alternative.",
+      "difference": "Roulet and Harchaoui formulate regularized inverses variationally, explicitly compare TP and BP complexity, identify favorable regimes, and test recurrent sequence models; ER uses normal-equation pseudoinverses and does not account for complexity or conditioning quantitatively.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv current version checked; later TMLR 2023"
+    },
+    {
+      "canonical_id": "pmlr:v162-ernoult22a",
+      "title": "Towards Scaling Difference Target Propagation by Learning Backprop Targets",
+      "url": "https://proceedings.mlr.press/v162/ernoult22a.html",
+      "relationship": "Direct larger-scale target-propagation competitor cited by the paper.",
+      "difference": "Ernoult et al. learn layerwise feedback to approximate BP targets with formal alignment guarantees and report CIFAR-10 plus ImageNet-32 results; ER uses exact pseudoinverses and evaluates only an MNIST MLP.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2022, PMLR 162:5968-5987"
+    },
+    {
+      "canonical_id": "pmlr:v151-amid22a",
+      "title": "LocoProp: Enhancing BackProp via Local Loss Optimization",
+      "url": "https://proceedings.mlr.press/v151/amid22a.html",
+      "relationship": "Direct layerwise local-loss and local-optimization alternative.",
+      "difference": "LocoProp constructs local targets, Bregman losses, and regularizers and performs parallelizable first-order local optimization on benchmark models; ER uses closed-form pseudoinverse corrections whose solve cost and stability are not benchmarked.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "AISTATS 2022, PMLR 151:9626-9642"
+    },
+    {
+      "canonical_id": "openreview:ByeqORgAW",
+      "title": "Proximal Backpropagation",
+      "url": "https://openreview.net/forum?id=ByeqORgAW",
+      "relationship": "Implicit layer-update alternative motivated by the step-size limitation of explicit backpropagation.",
+      "difference": "ProxProp proves its implicit update is a descent direction, combines it with convergent optimizers including Adam, and releases code; ER fixes an implicit unit step but gives no descent theorem, strong optimizer integration, or artifact.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2018 conference paper"
+    },
+    {
+      "canonical_id": "neurips:2021:25048eb6a33209cb5a815bff0cf6887c",
+      "title": "Credit Assignment in Neural Networks through Deep Feedback Control",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2021/hash/25048eb6a33209cb5a815bff0cf6887c-Abstract.html",
+      "relationship": "Biologically motivated inverse/control competitor with a Gauss-Newton connection.",
+      "difference": "DFC uses a dynamical feedback controller and derives spatially and temporally local plasticity under explicit conditions, with theory and computer-vision benchmarks; ER requires whole-layer batch pseudoinverses while labeling them local.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2021 proceedings"
+    },
+    {
+      "canonical_id": "openreview:B5Dj4EhZPP",
+      "title": "A biologically-plausible alternative to back-propagation using pseudoinverse feedback connections",
+      "url": "https://openreview.net/forum?id=B5Dj4EhZPP",
+      "relationship": "Contemporaneous direct pseudoinverse-feedback competitor.",
+      "difference": "Reciprocal Feedback learns Moore-Penrose-like feedback connections through a recirculation mechanism and tests MNIST and CIFAR-10 with a Newton-like local update; ER computes exact data/weight pseudoinverses directly and has no CIFAR-10 result.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2025 submission, modified 2025-02-05"
+    },
+    {
+      "canonical_id": "openreview:HBa4FcegJY",
+      "title": "Dendritic Localized Learning: Toward Biologically Plausible Algorithm",
+      "url": "https://openreview.net/forum?id=HBa4FcegJY",
+      "relationship": "Current local credit-assignment alternative with broader architecture coverage.",
+      "difference": "DLL is designed against weight-symmetry, global-error, and dual-phase criteria and evaluates MLP, CNN, and recurrent networks; ER's layerwise inverses remain global across units/batches and are demonstrated only on an MLP.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2025 poster"
+    },
+    {
+      "canonical_id": "neurips:2018:63c3ddcc7b23daa1e42dc41f9a44a873",
+      "title": "Assessing the Scalability of Biologically-Motivated Deep Learning Algorithms and Architectures",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2018/hash/63c3ddcc7b23daa1e42dc41f9a44a873-Abstract.html",
+      "relationship": "Established empirical scaling bar for target propagation and feedback alignment.",
+      "difference": "Bartunov et al. systematically evaluate MNIST, CIFAR-10, and ImageNet and expose large gaps to BP; ER relies on MNIST update count and does not confront the harder benchmarks that define scalability.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2018 proceedings"
+    },
+    {
+      "canonical_id": "pmlr:v37-martens15",
+      "title": "Optimizing Neural Networks with Kronecker-factored Approximate Curvature",
+      "url": "https://proceedings.mlr.press/v37/martens15.html",
+      "relationship": "Compute-aware layerwise inverse/preconditioning baseline for faster neural optimization.",
+      "difference": "K-FAC approximates Fisher blocks with tractable Kronecker factors and measures practical cost in stochastic regimes; ER solves activation and weight pseudoinverses but reports no runtime, memory, or curvature baseline.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2015, PMLR 37:2408-2417"
+    },
+    {
+      "canonical_id": "pmlr:v80-gupta18a",
+      "title": "Shampoo: Preconditioned Stochastic Tensor Optimization",
+      "url": "https://proceedings.mlr.press/v80/gupta18a.html",
+      "relationship": "Structured matrix-preconditioned optimizer baseline for claimed fast and scale-aware learning.",
+      "difference": "Shampoo preserves tensor structure, proves stochastic-convex guarantees, and compares convergence and runtime against common optimizers; ER's update-count plots ignore the cost of its dense matrix solves.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2018, PMLR 80:1842-1850"
+    },
+    {
+      "canonical_id": "openreview:IDxZhXrpNf",
+      "title": "SOAP: Improving and Stabilizing Shampoo Using Adam for Language Modeling",
+      "url": "https://openreview.net/forum?id=IDxZhXrpNf",
+      "relationship": "Modern scalable higher-order optimizer defining the current efficiency bar.",
+      "difference": "SOAP reports iteration and wall-clock gains over AdamW and Shampoo on 360M- and 660M-parameter language-model pretraining with released code; ER tests one MNIST MLP and equates fewer updates with scalability.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2025 conference paper"
+    },
+    {
+      "canonical_id": "arxiv:1407.7906",
+      "title": "How Auto-Encoders Could Provide Credit Assignment in Deep Networks via Target Propagation",
+      "url": "https://arxiv.org/abs/1407.7906",
+      "relationship": "Foundational target-propagation framing for layer-local reconstruction signals.",
+      "difference": "Bengio proposes learned autoencoder inverses that can support nonlinear, noisy, and discrete transformations; ER replaces learned inverses with dense pseudoinverses and specializes its scaling rule to tanh secants.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv current version checked"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "A loss-free, learning-rate-free multiplicative paradigm for multilayer networks that corrects activations from observation-prediction ratios, substitutes pseudoinverses for transposes, determines optimal weights in one iteration, and scales as a fast alternative to backpropagation.",
+    "evidence": "The ratio-scaled residual, pseudoinverse correction chain, DTP-inspired inverse-error adjustment, and sequential forward-refresh algorithm form a recognizable recipe, and Figure 2 shows an unusually large first full-batch reduction on the tested MNIST MLP.",
+    "reviewer_inference": "Novelty is moderate at the algorithmic-combination level and low for the broad framing. Earlier multiplicative deep-learning updates are uncited; multiple inverse-target, local-solve, proximal, feedback-control, and pseudoinverse-feedback methods already offer closer theory or broader experiments. The actual weight update is additive, the residual is squared-error gradient, and the one-step advantage is not compute matched. The defensible contribution is a specific secant-scaled, pseudoinverse, sequential-recompute heuristic whose stability and scaling remain open."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Primary full-text review of all 33 pages in the hash-pinned cached arXiv PDF. I read the 25-page main paper, all five reference pages, Algorithm 1, and the three end-positioned figure pages, and visually audited every page through four all-page contact sheets plus original-resolution checks of pages 20 and 31-33. The visual audit confirmed three figures, no tables, Algorithm 1's exact solve/recompute sequence, the roughly 3-4% Algorithm 1 training error after one full-batch update, and the unmatched update-count axes in Figures 2-3. The cached PDF title is 'Multiplicative learning from observation-prediction ratios' while the current arXiv abstract page is titled 'Multiplicative Learning.' PDF link inspection found only the arXiv abstract link; targeted title, author, and GitHub searches found no attributable implementation as of 2026-08-23. Current primary-source competitor checking covered arXiv, OpenReview, NeurIPS, and PMLR, with special attention to the uncited 2023 multiplicative-update paper, regularized inversion/target propagation, reciprocal pseudoinverse feedback, local/proximal training, and compute-aware matrix optimizers. Figure values described as approximate are visual readings because no numeric result table is supplied."
+}

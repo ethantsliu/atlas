@@ -1,0 +1,211 @@
+{
+  "stable_id": "arxiv:2305.07687",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2305.07687",
+    "pdf_sha256": "7364881cba394c13f8fdcbe6c50f24b5d224fd2df526e4085833203da9a5180a",
+    "text_sha256": "3a9aaedcf4649b778ff409c58cf62a133319507710ae0bf3ff6cb10a40667aeb",
+    "page_count": 24,
+    "extracted_at": "2026-08-23T19:51:28.556603+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a convolutional deep-Q agent learn intentional node-removal strategies for several percolation-like lattice objectives, and what does cross-objective transfer reveal about those objectives?",
+  "key_findings": [
+    {
+      "claim": "The paper turns intentional percolation into a deterministic shortest-horizon single-player environment with one legal action per active lattice site.",
+      "evidence": "Each action removes one active square, receives reward minus one, and can deactivate an entire component according to a mode-specific rule. The undiscounted return therefore equals negative remaining move count, making the learned Q value an estimate of steps to termination.",
+      "anchors": [{"page": 1, "section": "I"}, {"page": 2, "section": "Game definition"}, {"page": 7, "section": "IV.A and Equations 3-4"}]
+    },
+    {
+      "claim": "Three superficially related rule sets induce meaningfully different learned strategies.",
+      "evidence": "Network mode terminates when the formerly largest active component is overtaken by an inactive component; flow mode terminates when no top-to-bottom path remains; noodle mode deactivates components above a boundary-face-to-site threshold. Visualized policies target bridges, horizontal cuts, or tortuous boundaries respectively.",
+      "anchors": [{"page": 2, "section": "Figure 2 and mode definitions"}, {"page": 4, "section": "Noodle mode"}, {"page": 6, "section": "Discussion of objectives"}]
+    },
+    {
+      "claim": "Mode-trained DQNs require fewer moves than random deletion on held-out 20-by-20 Bernoulli lattices, especially far above the percolation threshold.",
+      "evidence": "For each density p, the authors average 1,000 games and plot standard deviations. Learned and random policies are similar near p=0.6, where a random action often ends the already-fragile game, but their completion-step curves separate as p approaches one.",
+      "anchors": [{"page": 3, "section": "Figure 3 and on-task performance"}, {"page": 5, "section": "Figure 7"}]
+    },
+    {
+      "claim": "Transfer is asymmetric between connectivity objectives: the network policy often solves flow, while the flow policy has a long failure tail on network mode.",
+      "evidence": "A horizontal barrier is sufficient for flow but need not create the large inactive component required by network mode. The network objective forces bridge and component-size reasoning that often also removes top-to-bottom connectivity, suggesting a task-specific partial order rather than universal robustness skill.",
+      "anchors": [{"page": 3, "section": "Figure 4"}, {"page": 4, "section": "Off-task performance"}]
+    },
+    {
+      "claim": "Network and noodle policies do not transfer well to one another, supporting objective sensitivity rather than a shared deletion heuristic.",
+      "evidence": "The noodle rule is based on component boundary-to-volume ratio rather than global connectivity. On 1,000 simulated boards per density, each specialized agent performs poorly under the other's termination rule.",
+      "anchors": [{"page": 4, "section": "Noodle mode"}, {"page": 5, "section": "Figure 7"}]
+    },
+    {
+      "claim": "A fully convolutional local embedding plus global channel pooling gives every action both neighborhood and board-level context.",
+      "evidence": "Ten 3-by-3 ReLU convolution layers with width 64 encode the four-state board. For each candidate cell, its feature is concatenated with channelwise minimum, maximum, sum, and mean over the board and mapped to a scalar; illegal actions are masked to negative infinity.",
+      "anchors": [{"page": 7, "section": "Network Architecture and Table I"}]
+    },
+    {
+      "claim": "The evidence establishes learned improvement over random play, not optimal attack despite repeated optimality language.",
+      "evidence": "There is no exact solver on small boards, approximation bound, search-enhanced oracle, or comparison with dismantling heuristics such as CoreHD, MinSum, collective influence, FINDER, or GDM. Q heatmaps and human intuition explain plausible moves but do not certify shortest solutions or Q calibration.",
+      "anchors": [{"page": 3, "section": "On-task performance"}, {"page": 4, "section": "Figure 5"}, {"page": 5, "section": "III"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Define several lattice-deactivation games with identical state and action spaces but different notions of system failure, then learn each shortest-path policy with a convolutional double-DQN and compare on-task and cross-task behavior.",
+    "mechanism": "A board is a four-channel active, inactive, attacked, or blocked tensor. Bernoulli obstacles determine the initial density. Removing an active site deterministically updates connected components or boundary ratio and costs one step. A convolutional network embeds every site, global pooling summarizes the board, and an action head estimates Q for each legal site. Experience replay, epsilon-greedy rollouts, a slowly copied target network, and double-Q targets train separate agents for network, flow, and noodle termination rules.",
+    "assumptions": [
+      "Minimum actions to a hand-designed terminal condition is a meaningful proxy for intentional network attack or robustness.",
+      "Square lattices with four-neighbor connectivity capture useful strategic structure despite excluding heterogeneous real networks.",
+      "The four-state board representation is Markov and component updates are deterministic and correctly implemented.",
+      "A fixed 20-by-20 training distribution over independent blocked sites is sufficiently diverse to learn each objective.",
+      "Convolutional receptive fields and four global pooling summaries contain enough information for near-shortest action ranking.",
+      "Random deletion is an adequate minimum baseline for demonstrating that nontrivial strategy was learned."
+    ]
+  },
+  "techniques": [
+    {"id": "percolation-game-construction", "role": "Converts a network-failure definition into an episodic node-removal environment with a directly countable objective."},
+    {"id": "fully-convolutional-action-values", "role": "Produces one Q estimate per lattice site while sharing local spatial features."},
+    {"id": "global-pooling-action-context", "role": "Augments a candidate site's feature with boardwide min, max, sum, and mean statistics."},
+    {"id": "double-dqn", "role": "Reduces action-value overestimation during bootstrapped learning."},
+    {"id": "experience-replay-rollouts", "role": "Alternates self-play data refresh with off-policy Bellman updates."},
+    {"id": "cross-objective-policy-transfer", "role": "Uses the same agent interface across termination rules to expose strategy overlap and asymmetry."},
+    {"id": "q-value-heatmap", "role": "Visualizes which candidate cuts the trained policy considers equivalent or strategically important."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Network-mode deletion on random 20-by-20 lattices over p from 0.5 to 1.0",
+      "metric": "Mean steps to completion and standard deviation over 1,000 boards per density",
+      "result": "Network-trained DQN beats random deletion, with the gap largest on dense boards",
+      "baseline": "Uniform random legal action"
+    },
+    {
+      "setting": "Flow-mode top-to-bottom disconnection on the same lattice family",
+      "metric": "Mean completion steps and standard deviation over 1,000 boards per density",
+      "result": "Flow-trained DQN beats random deletion and is best on its own objective",
+      "baseline": "Uniform random legal action and network-trained policy"
+    },
+    {
+      "setting": "Network and flow cross-task transfer",
+      "metric": "Completion-step distributions",
+      "result": "Network-to-flow transfer is useful; flow-to-network has a pronounced long tail and can require many actions",
+      "baseline": "Each task's specialized agent"
+    },
+    {
+      "setting": "Noodle boundary-to-volume objective",
+      "metric": "Mean steps to completion over 1,000 boards per density",
+      "result": "Noodle-trained DQN learns a non-connectivity strategy and outperforms random play",
+      "baseline": "Uniform random legal action"
+    },
+    {
+      "setting": "Network and noodle cross-task transfer",
+      "metric": "Completion-step curves across density",
+      "result": "Neither specialized policy performs well on the other's objective",
+      "baseline": "On-task specialized agent"
+    },
+    {
+      "setting": "Representative network, flow, and noodle trajectories",
+      "metric": "Board evolution and per-action Q heatmaps",
+      "result": "Policies visually prioritize bridges, spanning barriers, or boundary-increasing cuts",
+      "baseline": "Human-interpretable geometric strategy"
+    }
+  ],
+  "limitations": [
+    "The paper calls the learned attack optimal without exact optimum labels, optimality gaps, lower bounds, or exhaustive small-board verification.",
+    "Random deletion is the only quantitative attack baseline; strong classical, message-passing, graph-embedding, search, and earlier deep-RL dismantling methods are not tested.",
+    "All reported aggregate experiments use one 20-by-20 square-lattice family with independent blocked sites; generalization to size, topology, disorder process, or real networks is not measured.",
+    "The network-mode stopping rule—an inactive component overtaking the active one—is constructed for playability and differs from standard dismantling thresholds or cumulative connectivity costs.",
+    "No validation set selection protocol, multiple training seeds, confidence intervals over training, or statistical tests distinguish environment variance from policy variance.",
+    "The Q estimates are visualized but not compared with realized returns, so value calibration and overestimation after double-Q learning remain unknown.",
+    "Human play is described anecdotally with no participant protocol or performance data.",
+    "The pooled sum is board-size dependent and the fixed receptive field is local; the architecture's apparent variable-size interface does not guarantee transfer.",
+    "Runtime, training compute, inference latency, sample efficiency, and comparison with combinatorial optimization budgets are not reported."
+  ],
+  "failure_modes": [
+    "A policy exploits quirks of a terminal rule while leaving the physical network functional under another robustness definition.",
+    "Local convolution misses a distant alternative path or global articulation structure not captured by pooled extrema and moments.",
+    "Off-distribution board sizes change pooled sums and path lengths, shifting Q values and action rankings.",
+    "Rare high-value cuts are underrepresented in epsilon-greedy replay and never discovered reliably.",
+    "Bootstrapping over many negative-reward steps accumulates value error and produces confident but non-shortest actions.",
+    "A policy learned on lattice geometry fails on hubs, communities, directionality, weights, multiplex dependencies, or cascading dynamics.",
+    "Cross-task success is mistaken for a more general policy even when it follows from a one-way logical implication between stopping rules.",
+    "Random-baseline improvement is mistaken for near-optimality despite a large remaining combinatorial gap."
+  ],
+  "reusable_insights": [
+    "Make the system-failure predicate explicit before optimizing an attack; small definitional changes can reverse strategy rankings.",
+    "Validate an RL optimization environment on exhaustively solvable small instances before claiming that its learned value is an optimality signal.",
+    "Use cross-objective evaluation to build a transfer matrix and distinguish general structural reasoning from rule-specific exploitation.",
+    "Benchmark learned combinatorial policies against both cheap heuristics and matched-time exact or search-based methods.",
+    "Audit Q calibration against realized completion time, not only greedy-policy performance and appealing heatmaps.",
+    "Separate environment quality from agent quality by testing multiple learners, training seeds, board families, sizes, and held-out topology generators."
+  ],
+  "open_questions": [
+    "What are the exact optimality gaps of the learned policies on boards small enough for dynamic programming, integer programming, or exhaustive search?",
+    "Can a graph neural policy trained across topology generators transfer from lattices to heterogeneous, directed, temporal, or multiplex real networks?",
+    "Which failure objectives form genuine implication or difficulty hierarchies, and which merely share superficial state geometry?",
+    "Can curriculum or evolutionary environment search generate rules that reveal qualitatively new strategies without rewarding trivial shortcuts?",
+    "How should attack and defense be modeled jointly as a two-player partially observed game with repair, cost, and cascading dynamics?",
+    "Can interpretable structural features extracted from learned Q functions improve or falsify analytic percolation heuristics?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "doi:10.1038/s42256-020-0177-2",
+      "title": "Finding key players in complex networks through deep reinforcement learning",
+      "url": "https://www.nature.com/articles/s42256-020-0177-2",
+      "relationship": "FINDER is an earlier graph-embedding deep-RL framework for node-removal and influence objectives trained on small synthetic networks.",
+      "difference": "It benchmarks against many dismantling methods and transfers to large real graphs; the reviewed paper uses lattice convolutions, novel playable terminal rules, and only random-action comparisons."
+    },
+    {
+      "canonical_id": "arxiv:2101.02453",
+      "title": "Machine learning dismantling and early-warning signals of disintegration in complex systems",
+      "url": "https://arxiv.org/abs/2101.02453",
+      "relationship": "GDM learns graph-convolutional dismantling scores and collapse probabilities from small systems for large real networks.",
+      "difference": "It targets standard cumulative dismantling quality and early warning with diverse baselines; the reviewed paper optimizes final move count for three lattice-specific games."
+    },
+    {
+      "canonical_id": "arxiv:2208.01087",
+      "title": "Embedding-aided network dismantling",
+      "url": "https://arxiv.org/abs/2208.01087",
+      "relationship": "Uses Euclidean or hyperbolic network embeddings and simple geometric removal strategies across several optimal-percolation variants.",
+      "difference": "It offers a non-RL, topology-general baseline with systematic synthetic and real-network tests; the reviewed method learns pixel-like policies for one lattice distribution."
+    },
+    {
+      "canonical_id": "arxiv:2104.14332",
+      "title": "Hypernetwork Dismantling via Deep Reinforcement Learning",
+      "url": "https://arxiv.org/abs/2104.14332",
+      "relationship": "Extends sequential deep-RL dismantling to group-wise interactions with inductive hypernetwork embeddings.",
+      "difference": "It targets transfer across real hypernetworks; the reviewed paper's state is a fixed pairwise grid but explores multiple custom failure predicates."
+    },
+    {
+      "canonical_id": "doi:10.1038/s42256-025-01070-2",
+      "title": "Deep-learning-aided dismantling of interdependent networks",
+      "url": "https://www.nature.com/articles/s42256-025-01070-2",
+      "relationship": "MultiDismantler uses multiplex representations and deep RL for cascading failures in multilayer interdependent systems.",
+      "difference": "It evaluates synthetic and real multiplex networks, disease containment, and infrastructure cascades against existing algorithms; the reviewed paper is a single-layer lattice proof of concept."
+    },
+    {
+      "canonical_id": "arxiv:2508.00706",
+      "title": "Learning Network Dismantling without Handcrafted Inputs",
+      "url": "https://arxiv.org/abs/2508.00706",
+      "relationship": "MIND learns message-iteration and attention representations for dismantling without handcrafted node features.",
+      "difference": "It emphasizes generalization to unseen real graphs with millions of nodes and state-of-the-art comparisons; the reviewed paper emphasizes gamification and objective sensitivity."
+    },
+    {
+      "canonical_id": "doi:10.1038/s41467-026-74467-1",
+      "title": "Optimal dismantling of directed networks",
+      "url": "https://www.nature.com/articles/s41467-026-74467-1",
+      "relationship": "A later topology-aware method dismantles strongly connected components in directed networks and benchmarks classical and learned approaches.",
+      "difference": "It explicitly handles directionality, cycles, avalanches, and eight baselines; the reviewed paper assumes undirected four-neighbor lattices and does not establish optimality."
+    },
+    {
+      "canonical_id": "doi:10.1038/s41467-026-70745-0",
+      "title": "Design of robust networks via reinforcement learning prompts the emergence of multi-backbones",
+      "url": "https://www.nature.com/articles/s41467-026-70745-0",
+      "relationship": "Uses RL on the complementary defense problem to redesign networks against multiple dismantling strategies.",
+      "difference": "It optimizes topology under adversarial attack and analyzes emergent backbones; the reviewed paper holds topology fixed and learns a one-sided attacker under one rule at a time."
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper presents a universal deep-Q approach to intentional percolation attack and uses new playable network, flow, and surface-to-volume games to compare how robustness definitions shape learned strategy.",
+    "evidence": "Separate convolutional DQNs beat random deletion across lattice densities, reveal asymmetric flow/network transfer, fail across network/noodle objectives, and produce interpretable action-value maps and open code/game implementations.",
+    "reviewer_inference": "Gamifying multiple percolation predicates with a common action space is engaging and makes objective sensitivity unusually visible. Deep-RL network dismantling substantially predates the paper and is evaluated far more broadly elsewhere. Because no competitive or exact baseline is used, the results support 'learned nonrandom strategies on one lattice family,' not the claimed optimal attack. The reusable novelty is the controlled objective-transfer testbed rather than a state-of-the-art dismantling algorithm."
+  },
+  "confidence": 0.94,
+  "reviewer_notes": "Read all 24 extracted pages, including the OCR-recovered main paper, Bellman and architecture details, replay and double-Q training algorithm, data generation, and all 15 supplementary trajectory/Q-value figures. Current competing primary records were checked on arXiv, OpenReview, and Nature journals on 2026-08-23."
+}

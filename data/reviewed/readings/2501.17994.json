@@ -1,0 +1,509 @@
+{
+  "stable_id": "arxiv:2501.17994",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2501.17994",
+    "pdf_sha256": "4d3bd4ec76f9cf1597d28fe329a7df6e077953c3e8bdee035b3f6caf3052950f",
+    "text_sha256": "33fb8d976254c704619837fcb4624b9df0eadc8bfad38c1aa595dd6b35be0d9e",
+    "page_count": 17,
+    "extracted_at": "2026-08-23T17:25:09.099850+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a small supervised predictor over the final-token hidden states from every layer of a frozen language model elicit multiple-choice answers more accurately and cheaply than the model's native output head or parameter-efficient fine-tuning?",
+  "key_findings": [
+    {
+      "claim": "InnerThoughts replaces answer-token scoring with a compact task-specific classifier over every layer's last-token residual state.",
+      "evidence": "For an 80-layer Llama3 70B model, the method caches an 80-by-8192 tensor per prompt, compresses each layer state to 32 dimensions, compresses the layer axis to 8 dimensions, flattens the resulting 256 features, and predicts the four or five answer choices. The base LLM is frozen, so training the head requires one initial LLM forward pass per labeled example and then repeated optimization only over cached features.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "Figure 1 and proposed method"
+        },
+        {
+          "page": 4,
+          "section": "3 Methodology and Figure 2"
+        },
+        {
+          "page": 5,
+          "section": "4.1 Setup"
+        }
+      ]
+    },
+    {
+      "claim": "Accuracy gains over the native head are real but highly heterogeneous across the six tasks.",
+      "evidence": "Against Direct Llama3 70B scoring, InnerThoughts improves AQuA from 36.47 to 47.24 and HellaSwag from 82.20 to 87.24, with intermediate gains on LogiQA from 64.25 to 66.57 and CosmosQA from 78.38 to 80.27. On MMLU and MedMCQA the gains are only 0.21 and 0.40 points. Thus the headline average is driven mainly by two datasets and is not a general replacement for the native output head.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Table 3"
+        }
+      ]
+    },
+    {
+      "claim": "Most experiments do not isolate the value of using all layers from the value of training a nonlinear supervised head.",
+      "evidence": "Relative to the strongest reported restricted-feature neural head, the all-layer increment is 1.70 points on AQuA, 0.25 on CosmosQA, 0.20 on MMLU, 0.10 on MedMCQA, 1.53 on LogiQA, and 2.11 on HellaSwag. The paper tests significance only against the weaker Direct baseline, not against last-state or last-ten-state neural heads, and cannot fit a linear all-layer baseline. Therefore Table 3 supports a trained hidden-state predictor strongly, but supports all-layer aggregation clearly only on a subset of tasks.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "4.2 Baselines and Variants"
+        },
+        {
+          "page": 6,
+          "section": "Table 3"
+        }
+      ]
+    },
+    {
+      "claim": "The method trades extensive task labels and benchmark-specific training for lower gradient cost through the base model.",
+      "evidence": "Training sets range from 12,567 LogiQA examples to 127,975 MedMCQA examples in the final splits, whereas Linear Probe Calibration is motivated by very small labeled sets. AQuA and MedMCQA are randomly repartitioned 70/15/15 from their training collections, and CosmosQA and HellaSwag training collections are split 80/20 for head training and validation. No learning curve, cross-dataset transfer, official-split sensitivity, duplicate audit, or few-label regime is reported, so the label and task-specialization costs are central omitted axes.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Table 2"
+        },
+        {
+          "page": 5,
+          "section": "4.1 Setup"
+        }
+      ]
+    },
+    {
+      "claim": "The QLoRA comparison establishes a training-cost tradeoff under one weak configuration, not an upper bound or an accuracy-matched efficiency frontier.",
+      "evidence": "InnerThoughts averages 35.0 hours and a 3.44-point gain, versus 307.6 hours and an 8.36-point gain for QLoRA. But QLoRA is run for only three epochs, with adapter rank one, default hyperparameters, and no comparable tuning study; the authors explicitly stop because it is expensive. QLoRA beats InnerThoughts by 0.91-12.26 points on every dataset. Calling this run an upper bound is unjustified, and comparing gain ratios at fixed recipes does not show which method is better at matched accuracy, time, device-hours, or memory.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "4.1 Setup"
+        },
+        {
+          "page": 6,
+          "section": "Tables 3-4"
+        }
+      ]
+    },
+    {
+      "claim": "Feature extraction, not predictor training, dominates the claimed cost savings and leaves storage and serving costs unmeasured.",
+      "evidence": "The appendix reports that 98% of every predictor method's time is spent extracting hidden states; even logistic regression on final logits costs nearly as much as InnerThoughts. The table reports elapsed hours on a machine with four V100s and eighteen CPUs, but not GPU-hours, utilization, energy, peak memory, cached-feature precision, storage volume, or inference overhead. An 80-by-8192 representation for up to roughly 100,000 examples is itself a large artifact, so 'single forward pass' is incomplete resource accounting.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "3 Methodology cost discussion"
+        },
+        {
+          "page": 6,
+          "section": "Table 4"
+        },
+        {
+          "page": 15,
+          "section": "B Computational cost of the methods, Table 12"
+        }
+      ]
+    },
+    {
+      "claim": "The confidence-margin explanation is a six-point post-hoc association confounded by baseline error and available headroom.",
+      "evidence": "The paper visually orders six dataset-level margin histograms and notes that tasks with low native confidence tend to obtain larger gains, with two near-zero tasks reversed. It reports no correlation coefficient, uncertainty, held-out prediction, within-dataset analysis, or adjustment for how many Direct errors are available to fix. Increased confidence after training is also expected from a supervised discriminative head and does not show that it recovered latent knowledge or a missing nonlinguistic skill.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "5.1 Which datasets are most likely to benefit? and Figure 3"
+        },
+        {
+          "page": 8,
+          "section": "Figure 4 and interpretation"
+        }
+      ]
+    },
+    {
+      "claim": "Raw vocabulary projection does not establish that a capability suddenly emerges at layer 35.",
+      "evidence": "Figure 5 applies the model's native output normalization and token embedding matrix directly to each earlier hidden state and observes a jump near layer 35. Earlier residual spaces are not trained to align with the final unembedding, and the paper itself cites Tuned Lens and learned linear shortcuts, which were introduced because raw logit-lens projections are biased by representation drift. The jump can therefore reflect readout alignment rather than new task information; no tuned-lens comparison or causal intervention validates the claim.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "5.2 Why use all the layers' hidden states?"
+        },
+        {
+          "page": 9,
+          "section": "Figure 5"
+        }
+      ]
+    },
+    {
+      "claim": "The appendix's cumulative-state versus residual-increment comparison cannot demonstrate disentanglement.",
+      "evidence": "Hidden states across layers and their successive additive differences are deterministically related by cumulative summation and differencing. A sufficiently expressive head can transform one sequence into the other, so similar InnerThoughts and DiffInnerThoughts accuracy is expected even if no semantically distinct layer contribution is identified. The experiment tests input parameterization, not whether the predictor separates factual knowledge, task skill, dataset artifacts, or the base model's own decision process.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "5.2 summary of supplemental analyses"
+        },
+        {
+          "page": 15,
+          "section": "D How do the predictor networks use the inner representations?"
+        },
+        {
+          "page": 16,
+          "section": "Table 14"
+        }
+      ]
+    },
+    {
+      "claim": "Gradient influence across layers is neither scale-invariant nor causal evidence that earlier states supply unique information.",
+      "evidence": "The influence score sums squared partial derivatives of the head output with respect to each layer's 8,192 coordinates. Such gradients depend on feature scale, normalization, correlated inputs, saturation, and the trained head's parameterization. Similar middle- and late-layer scores can arise from redundant features; without layer ablation, permutation, activation patching, or conditional-information tests, the score does not show that each layer contributes uniquely to correct answers.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 16,
+          "section": "Influence metric and Figure 6"
+        }
+      ]
+    },
+    {
+      "claim": "Higher answer margins do not imply better probabilistic calibration, and the appendix confirms mixed or worse calibration.",
+      "evidence": "InnerThoughts increases confidence most where it changes predictions, but Brier scores show no consistent benefit: it improves MMLU from 0.165 to 0.080 and AQuA from 0.138 to 0.124, is unchanged on MedMCQA, and worsens LogiQA from 0.216 to 0.239 and HellaSwag from 0.133 to 0.140. The main text's use of 'confidence' should therefore not be read as calibrated uncertainty.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "Figure 4"
+        },
+        {
+          "page": 15,
+          "section": "C Statistical calibration, Table 13"
+        }
+      ]
+    },
+    {
+      "claim": "The claimed strict expressiveness advantage applies only to a larger hypothetical architecture, not the 32-dimensional bottleneck actually evaluated.",
+      "evidence": "The paper says the predictor family can recover the original LLM head by setting n1 equal to the full hidden width d, using identity and layer-selection maps, and reusing the output projection. The experiments instead set n1=32 while d=8192, an information bottleneck that cannot implement that identity construction. Empirical improvement is valid, but the tested model is not shown to contain the native answer head as a special case.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "3 Methodology, expressiveness construction"
+        },
+        {
+          "page": 5,
+          "section": "4.1 Setup"
+        }
+      ]
+    },
+    {
+      "claim": "The statistical reporting does not support the strongest comparative claim.",
+      "evidence": "Table 3 gives bootstrap confidence-interval widths and marks one-sided Wilcoxon signed-rank tests only for the best cell versus Direct, but never specifies the resampling/test unit or tests InnerThoughts against the strongest trained alternative. Multiple datasets and method comparisons are not corrected for multiplicity. This is especially material for 0.10-0.25 point all-layer increments that are much smaller than the reported interval widths.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Table 3 caption and results"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Treat the frozen transformer as a reusable multi-layer feature extractor and train a lightweight supervised answer head that can read intermediate residual states rather than relying on the pretrained next-token head.",
+    "mechanism": "Format each labeled multiple-choice item as a zero-shot question with lettered options and an 'Answer:' suffix. Run Llama3 70B once, retain the last-token hidden state from all 80 layers, and cache the resulting 80-by-8192 tensor. Apply a normalization-linear-ReLU block independently over hidden width to reduce 8192 to 32, a second normalization-linear-ReLU block over the layer axis to reduce 80 to 8, flatten to 256 features, and apply a normalized linear softmax classifier over answer choices. Train this head for up to 50 epochs with early stopping while leaving the base model frozen.",
+    "assumptions": [
+      "The last token at every layer contains the task-relevant information needed to select an answer.",
+      "Intermediate states retain useful information not conveniently recoverable from the final state or logits.",
+      "A supervised nonlinear probe improves elicitation rather than learning benchmark-specific shortcuts or label-position priors.",
+      "Large labeled in-domain datasets are available and their acquisition cost is outside the efficiency comparison.",
+      "Randomly repartitioned training examples provide a faithful estimate of deployment generalization.",
+      "Fixed prompt wording, answer labels, and choice ordering do not materially inflate the learned head's performance.",
+      "One Llama3 70B model is representative of other sizes, families, instruction-tuning regimes, and tokenizers.",
+      "Cached hidden-state extraction and storage are operationally affordable.",
+      "Elapsed hours on one four-V100 machine are a meaningful measure of comparative computational cost.",
+      "Rank-one, three-epoch QLoRA with default settings is an adequate PEFT reference.",
+      "Raw unembedding of early states faithfully measures their predictive content despite layerwise representation drift.",
+      "Gradient magnitude with respect to correlated hidden states measures unique layer contribution.",
+      "Higher native uncertainty identifies tasks where a supervised hidden-state head will generalize.",
+      "Accuracy from a probe can be interpreted as disentangling representation from prediction without causal or control-task tests."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "all-layer-last-token-feature-extraction",
+      "role": "Caches the final prompt-position residual state from every transformer block."
+    },
+    {
+      "id": "factorized-layer-width-mlp",
+      "role": "Compresses hidden width and layer depth separately to avoid a fully connected map over 655,360 raw inputs."
+    },
+    {
+      "id": "frozen-backbone-supervised-probing",
+      "role": "Learns task labels without backward propagation through the 70B-parameter base model."
+    },
+    {
+      "id": "cached-feature-training",
+      "role": "Amortizes a single expensive feature-extraction pass over 50 epochs of small-head optimization."
+    },
+    {
+      "id": "restricted-feature-ablation",
+      "role": "Compares logits, final state, and last ten states under logistic or neural heads."
+    },
+    {
+      "id": "confidence-margin-analysis",
+      "role": "Relates dataset-level native answer separation to observed improvement after supervised probing."
+    },
+    {
+      "id": "raw-layerwise-vocabulary-projection",
+      "role": "Uses the native unembedding to visualize when intermediate states begin predicting answer symbols."
+    },
+    {
+      "id": "input-gradient-layer-influence",
+      "role": "Ranks layer states by the squared gradient of the predictor output with respect to their coordinates."
+    },
+    {
+      "id": "residual-difference-reparameterization",
+      "role": "Retrains the head on successive layer contributions instead of cumulative hidden states."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Llama3 70B on AQuA with a random 70/15/15 repartition of the original training collection",
+      "metric": "Multiple-choice accuracy with bootstrap interval width",
+      "result": "InnerThoughts reaches 47.24 versus 36.47 Direct, 45.54 for a neural head on the last ten states, and 48.50 for rank-one QLoRA",
+      "baseline": "Direct scoring, contextual calibration, logistic and neural heads on restricted features, and QLoRA"
+    },
+    {
+      "setting": "Llama3 70B on CosmosQA, MMLU, MedMCQA, and LogiQA",
+      "metric": "Multiple-choice accuracy",
+      "result": "InnerThoughts gains 1.89, 0.21, 0.40, and 2.32 points over Direct, respectively, while QLoRA is higher on every task",
+      "baseline": "Direct scoring, contextual calibration, linear probe calibration, restricted hidden-state heads, and QLoRA"
+    },
+    {
+      "setting": "Llama3 70B on HellaSwag with an 80/20 training split and the labelled validation set used as test",
+      "metric": "Multiple-choice accuracy",
+      "result": "InnerThoughts reaches 87.24 versus 82.20 Direct, 85.13 for a neural head on the final state, and 95.45 for QLoRA",
+      "baseline": "Direct scoring, contextual calibration, logistic and neural heads on restricted features, and QLoRA"
+    },
+    {
+      "setting": "All six datasets on eighteen Xeon 6140 CPUs and four V100 32GB GPUs",
+      "metric": "Reported elapsed training hours and accuracy gain over Direct",
+      "result": "InnerThoughts averages 35.0 hours and +3.44 points versus 307.6 hours and +8.36 points for the configured QLoRA; its average cost and gain ratios are reported as 0.16 and 0.35",
+      "baseline": "Rank-one QLoRA trained for three epochs"
+    },
+    {
+      "setting": "All six datasets under logits-only, last-state, last-ten-state, and all-state heads",
+      "metric": "Accuracy by feature set and classifier family",
+      "result": "The all-layer head is best among probe variants, but its advantage over the strongest restricted neural head ranges from 0.10 to 2.11 points and is not directly significance-tested",
+      "baseline": "Logistic regression or neural networks on final logits, final hidden state, and last ten hidden states"
+    },
+    {
+      "setting": "Dataset-level native and InnerThoughts answer distributions",
+      "metric": "Histograms of logit-transformed top-two confidence margins",
+      "result": "Lower native margins visually co-occur with larger dataset-level gains, and trained heads generally increase margins where accuracy changes",
+      "baseline": "Direct Llama3 answer probabilities"
+    },
+    {
+      "setting": "Raw layerwise unembedding on six benchmarks",
+      "metric": "Each layer's accuracy as a percentage of final Direct accuracy",
+      "result": "Projected answer accuracy is marginal in early layers and jumps near layer 35, although no tuned readout or causal test is used",
+      "baseline": "Native output normalization and vocabulary projection applied to each intermediate state"
+    },
+    {
+      "setting": "Cumulative hidden states versus successive residual contributions",
+      "metric": "Accuracy across six datasets",
+      "result": "DiffInnerThoughts is within 0.10-0.54 points on five tasks and 2.10 points better on LogiQA, which the paper interprets as successful disentanglement",
+      "baseline": "Regular InnerThoughts"
+    },
+    {
+      "setting": "Alternative single-head self-attention aggregator over 80 projected layer states",
+      "metric": "Accuracy across six datasets",
+      "result": "The self-attention head is 0.08-1.51 points worse on every dataset without extensive tuning",
+      "baseline": "Factorized InnerThoughts MLP"
+    },
+    {
+      "setting": "Statistical calibration on all six datasets",
+      "metric": "Brier score",
+      "result": "InnerThoughts improves strongly on MMLU and modestly on AQuA, is effectively unchanged on two tasks, and worsens on LogiQA and HellaSwag",
+      "baseline": "Direct, contextual calibration, and linear probe calibration"
+    }
+  ],
+  "limitations": [
+    "Only one 70B base model is evaluated, so model-family and scale generalization are unknown.",
+    "The method is restricted to supervised, zero-shot-formatted multiple-choice classification.",
+    "It needs thousands to more than one hundred thousand labeled task examples and reports no sample-efficiency curve.",
+    "Several benchmarks are randomly repartitioned rather than evaluated solely on their canonical train/validation/test protocol.",
+    "Choice-order, answer-symbol, prompt-template, few-shot, and domain-shift robustness are not tested.",
+    "The nonlinear head can learn dataset artifacts, but no random-feature, random-label, question-removed, or answer-order control task is included.",
+    "The value of all layers is not significance-tested against the strongest restricted-feature neural heads.",
+    "A regularized or low-rank linear all-layer baseline is omitted because the authors' chosen PCA route is deemed intractable.",
+    "QLoRA uses rank one, defaults, and only three epochs, without an accuracy-compute curve.",
+    "Reported hours omit device-hours, utilization, energy, storage, peak memory, and inference overhead.",
+    "Raw logit-lens projections can confuse readout alignment with information emergence.",
+    "Input-gradient influence is noncausal and sensitive to scaling and feature correlation.",
+    "The confidence-margin analysis uses only six post-hoc dataset points and does not control for baseline headroom.",
+    "The actual 32-dimensional bottleneck does not implement the paper's claimed native-head special case.",
+    "Statistical calibration is inconsistent and sometimes worse despite larger confidence margins.",
+    "The paper does not release evidence here about open-ended generation, regression, chain of thought, or joint fine-tuning extensions."
+  ],
+  "failure_modes": [
+    "A new dataset has no large labeled training collection, eliminating the method's main adaptation mechanism.",
+    "Random train/test splits share templates or near-duplicates, allowing the probe to memorize benchmark regularities.",
+    "Answer-label frequencies or fixed option order provide shortcuts that disappear when choices are permuted.",
+    "The all-layer cache exceeds available host memory or storage for long-running or multi-task deployments.",
+    "A different LLM family organizes useful features across tokens rather than at the final prompt position.",
+    "The final hidden state already contains linearly accessible information, making the all-layer extraction cost unnecessary.",
+    "The nonlinear head improves in-domain accuracy by learning the task rather than eliciting knowledge present in the frozen representation.",
+    "Native uncertainty reflects intrinsic ambiguity or missing knowledge, so a confident supervised head becomes confidently wrong under shift.",
+    "Early-layer residual spaces rotate relative to the unembedding, producing spurious layer-emergence conclusions.",
+    "Correlated copies of the same feature across layers all receive high gradient influence, falsely suggesting complementary evidence.",
+    "QLoRA or ReFT tuned at the same accuracy target reaches a better cost-performance point.",
+    "A change in prompt template, answer symbols, choice count, or tokenizer invalidates the task-specific head.",
+    "Test-time storage or activation-retention overhead erases the claimed operational savings.",
+    "The head overfits one benchmark and cannot be reused as the proposed library of general task predictors."
+  ],
+  "reusable_insights": [
+    "Cache expensive frozen-model features once when many epochs of a small supervised readout are required.",
+    "Factorize aggregation across hidden width and layer depth to control the parameter count of full-stack probes.",
+    "Evaluate the incremental value of each representation source under the same classifier capacity and direct significance tests.",
+    "Treat labels, feature storage, peak memory, and deployment coupling as first-class costs alongside backward-pass compute.",
+    "Use answer-choice permutation, prompt-template shift, question removal, random labels, and random features as probe control tasks.",
+    "Replace raw logit-lens evidence with tuned readouts and causal activation interventions before making layer-localization claims.",
+    "Measure conditional information or leave-one-layer-out performance in addition to input gradients when features are correlated.",
+    "Separate accuracy confidence from statistical calibration and report both margins and proper scoring rules.",
+    "Benchmark frozen probes, representation interventions, PEFT, and full fine-tuning on an accuracy-cost Pareto curve.",
+    "Test whether a low native margin predicts benefit within a held-out task, rather than fitting a story across a handful of datasets."
+  ],
+  "open_questions": [
+    "How much of the all-layer gain survives answer-order randomization, new verbalizers, prompt paraphrases, and cross-domain evaluation?",
+    "Can a token-and-layer selector match accuracy while avoiding storage of every 8192-dimensional layer state?",
+    "What is the accuracy-label-compute frontier from five examples through the full training set?",
+    "Do control tasks show that the head extracts base-model knowledge rather than benchmark artifacts or memorized templates?",
+    "Would a tuned lens, low-rank all-layer linear probe, or select-and-copy attention-head score match the nonlinear MLP?",
+    "Which layers add conditional predictive information after accounting for the final state and all other layers?",
+    "Can activation patching establish that intermediate information causally improves the base model's own answer rather than only an external classifier?",
+    "How does the method scale across Llama, Qwen, Mistral, encoder models, instruction-tuned models, and 1B-400B parameter regimes?",
+    "What precision, compression, and streaming scheme minimizes the all-layer feature cache without losing accuracy?",
+    "At matched accuracy, how do InnerThoughts, LoReFT, QLoRA, linear calibration, and inference-only head-level methods compare in device-hours and peak memory?",
+    "Can one shared head transfer across benchmarks or models, or is every predictor tied to one dataset, prompt, and backbone revision?",
+    "Does native uncertainty remain a useful routing signal after correcting for task difficulty, base error rate, class imbalance, and calibration?",
+    "Can the approach extend to open-ended generation without reducing rich outputs to a fixed supervised label set?",
+    "Would joint end-to-end training still preserve the claimed disentanglement, or simply become another adapter architecture?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "acl:D19-1275",
+      "title": "Designing and Interpreting Probes with Control Tasks",
+      "url": "https://aclanthology.org/D19-1275/",
+      "relationship": "evaluation-prior",
+      "difference": "Hewitt and Liang show that a powerful probe can learn or memorize a supervised task rather than reveal what a representation encodes, and introduce selectivity controls. InnerThoughts uses a nonlinear, high-supervision probe to make better predictions but omits random-label, random-feature, and artifact controls, so its accuracy supports utility more strongly than representational disentanglement.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "openreview:ETKGuby0hcs",
+      "title": "Discovering Latent Knowledge in Language Models Without Supervision",
+      "url": "https://openreview.net/forum?id=ETKGuby0hcs",
+      "relationship": "methodological-prior",
+      "difference": "Contrast-Consistent Search extracts binary answers from hidden activations without labels by enforcing consistency across affirmative and negated prompts, explicitly targeting what a model knows rather than says. InnerThoughts handles multiclass tasks and achieves larger supervised adaptation capacity, but needs large labeled datasets and no longer identifies knowledge separately from task learning.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "acl:2023.findings-emnlp.68",
+      "title": "The Internal State of an LLM Knows When It's Lying",
+      "url": "https://aclanthology.org/2023.findings-emnlp.68/",
+      "relationship": "direct-prior",
+      "difference": "SAPLMA already trains a small feedforward classifier on LLM hidden activations and shows that internal states outperform output probabilities for truth classification. InnerThoughts broadens the readout to all layers and general MCQA labels, but should distinguish its factorized aggregation contribution from this established frozen-state probing recipe.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2303.08112",
+      "title": "Eliciting Latent Predictions from Transformers with the Tuned Lens",
+      "url": "https://arxiv.org/abs/2303.08112",
+      "relationship": "readout-prior",
+      "difference": "Tuned Lens learns an affine translator for every layer and demonstrates that raw logit-lens projections are brittle and biased by representation drift, with causal validation that translated features resemble those used by the model. InnerThoughts learns a stronger task-specific joint head, but its layer-35 analysis reverts to the raw projection that Tuned Lens warns against.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "pmlr:v238:abbas24a",
+      "title": "Enhancing In-context Learning via Linear Probe Calibration",
+      "url": "https://proceedings.mlr.press/v238/abbas24a.html",
+      "relationship": "closest-output-space-prior",
+      "difference": "LinC learns a linear map over output probabilities, reports gains with as few as five labels, evaluates expected calibration and robustness to label proportions, templates, and demonstration permutations, and is the paper's closest baseline. InnerThoughts accesses much richer hidden features and can win at full-data accuracy, but does not compare label-efficiency or robustness curves.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "openreview:Th6NyL07na",
+      "title": "DoLa: Decoding by Contrasting Layers Improves Factuality in Large Language Models",
+      "url": "https://openreview.net/forum?id=Th6NyL07na",
+      "relationship": "inference-only-prior",
+      "difference": "DoLa contrasts later- and earlier-layer vocabulary distributions during decoding and improves truthfulness without supervised training or changing weights. It supports the utility of intermediate states for prediction and handles open-ended generation; InnerThoughts can learn a dataset-specific nonlinear combination but requires labels, caching, and fixed answer classes.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "neurips:2024:75008a0fba53bf13b0bb3b7bff986e0e",
+      "title": "ReFT: Representation Finetuning for Language Models",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2024/hash/75008a0fba53bf13b0bb3b7bff986e0e-Abstract-Conference.html",
+      "relationship": "direct-adaptation-competitor",
+      "difference": "LoReFT learns low-rank interventions on frozen-model hidden representations and reports a stronger parameter-efficiency/performance balance than contemporary PEFT across reasoning, arithmetic, instruction tuning, and GLUE. It pays repeated model passes but can change downstream computation and generate text; InnerThoughts trains more cheaply on cached features but is limited to a post-hoc classifier and does not compare against this strongest representation-tuning baseline.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2410.02343",
+      "title": "Listening to the Wise Few: Select-and-Copy Attention Heads for Multiple-Choice QA",
+      "url": "https://arxiv.org/abs/2410.02343",
+      "relationship": "direct-mcqa-competitor",
+      "difference": "This method extracts query-key or attention scores from a small set of select-and-copy heads and reports up to 10-16 point MCQA gains across models from 7B to 70B, including option-permutation and few-shot tests. It targets the exact answer-symbol bottleneck with a more mechanistic and potentially lower-storage signal; InnerThoughts offers a generic learned readout but tests only one model and fixed formatting.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2407.15018",
+      "title": "Answer, Assemble, Ace: Understanding How LMs Answer Multiple Choice Questions",
+      "url": "https://arxiv.org/abs/2407.15018",
+      "relationship": "causal-analysis-competitor",
+      "difference": "This ICLR 2025 work uses vocabulary projection, activation patching, alternative symbols, and a synthetic control task to causally separate answer-content computation from symbol selection, locating a few middle layers and specialized attention heads. It provides the mechanistic and format-robustness evidence missing from InnerThoughts' raw layer projection and input-gradient analysis.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2305.14314",
+      "title": "QLoRA: Efficient Finetuning of Quantized LLMs",
+      "url": "https://arxiv.org/abs/2305.14314",
+      "relationship": "adaptation-baseline",
+      "difference": "QLoRA backpropagates through a frozen quantized base into low-rank adapters and supports general generation, whereas InnerThoughts avoids base-model backward passes by training a terminal classifier. The paper's rank-one, three-epoch QLoRA run beats InnerThoughts everywhere but is not tuned into an accuracy-cost frontier, so neither method dominates from the reported cells alone.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "acl:2025.acl-long.444",
+      "title": "Improving Preference Extraction In LLMs By Identifying Latent Knowledge Through Classifying Probes",
+      "url": "https://aclanthology.org/2025.acl-long.444/",
+      "relationship": "subsequent-probe-competitor",
+      "difference": "This subsequent work trains supervised and unsupervised contrastive linear probes to recover latent preferences for LLM-as-judge and commonsense tasks, tests four model families, six datasets, domain shift, and comparisons with fine-tuned evaluators. Its robustness and cross-model evidence address key omissions in InnerThoughts, while the latter's nonlinear all-layer head may offer higher in-domain capacity.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "acl:2026.acl-long.1955",
+      "title": "A BERTology View of LLM Orchestrations: Token- and Layer-Selective Probes for Efficient Single-Pass Classification",
+      "url": "https://aclanthology.org/2026.acl-long.1955/",
+      "relationship": "subsequent-direct-competitor",
+      "difference": "This 2026 system generalizes frozen probing to the full token-by-layer tensor and learns lightweight token and layer selection for same-pass production classifiers, explicitly optimizing latency, VRAM, and serving reuse. It is a direct evolution beyond InnerThoughts' fixed last-token/all-layer choice and offers the operational measurements and selective aggregation needed to test whether retaining every layer is worthwhile.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "InnerThoughts disentangles an LLM's representational ability from its prediction ability by training a small all-layer hidden-state head, substantially improves hard MCQA benchmarks, sometimes approaches QLoRA, and does so at a fraction of fine-tuning cost.",
+    "evidence": "A factorized head over cached Llama3 70B states improves all six Direct accuracies, with large 10.77- and 5.04-point gains on AQuA and HellaSwag and smaller gains elsewhere. It averages 16% of the configured QLoRA elapsed time for 35% of its gain, while all-layer heads outperform the reported restricted-feature probes. Appendix analyses explore feature differences, gradient influence, calibration, and another aggregator.",
+    "reviewer_inference": "The useful novelty is a pragmatic factorized classifier that aggregates all layer states with no base-model backward pass. Frozen hidden-state probes, linear calibration, layerwise lenses, representation tuning, and hidden-state truth classifiers all predate it. The paper demonstrates in-domain supervised utility, not a clean representation/prediction disentanglement: large label sets, modified splits, a nonlinear probe, fixed prompts, no control tasks, no cross-model test, and noncausal analyses leave benchmark learning and answer-position shortcuts viable. Its advantage over same-capacity restricted heads is tiny on four tasks, and the rank-one QLoRA comparison is not a Pareto frontier. Subsequent head-level MCQA methods, causal analyses, robust preference probes, and token-layer-selective serving probes substantially narrow or extend the contribution."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "All 17 cached pages were read, including the architecture, data repartitioning, every accuracy and cost table, confidence analysis, layer projection, calibration appendix, residual-difference and gradient-influence studies, alternative self-attention head, and references. Numerical deltas and cost ratios were recomputed from Tables 3, 4, 12, 13, 14, and 15. Twelve primary-source competitors and evaluation priors were checked through 2026-08-23 on ACL Anthology, arXiv, OpenReview, PMLR, and NeurIPS, including subsequent 2025-2026 probing and MCQA work."
+}

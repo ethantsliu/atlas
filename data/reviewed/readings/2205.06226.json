@@ -1,0 +1,206 @@
+{
+  "stable_id": "arxiv:2205.06226",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2205.06226",
+    "pdf_sha256": "49b3fbeeec68e972d17651b3a7ffc2f286ee3b0180da2a230549afa90f9cb5d1",
+    "text_sha256": "f46148c554be9f9532ff03b03d13865e76251d068891cc312d679bf5e5ba4252",
+    "page_count": 89,
+    "extracted_at": "2026-08-23T21:02:55.811302+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "How can a trainable prediction head steer gradient descent away from dimensionally collapsed global optima in non-contrastive self-supervised learning and toward representations that preserve both strong and weak features?",
+  "key_findings": [
+    {
+      "claim": "A linear prediction head initialized at identity can remain effective when only its off-diagonal entries are trainable, and its useful behavior occurs during training rather than being explained by its final value.",
+      "evidence": "On CIFAR-10, CIFAR-100, and STL-10, the identity-initialized off-diagonal-only head yields linear-probe performance described as comparable to a standard two-layer nonlinear MLP or randomly initialized linear head under several BN, L2-normalization, and EMA variants. Across three runs, the off-diagonal norm follows a consistent rise-then-fall trajectory; CIFAR-10/100 heads can be substantially asymmetric, and some heads later return near identity.",
+      "anchors": [
+        {"page": 5, "section": "Figure 2 prediction-head comparison"},
+        {"page": 6, "section": "Figure 3 prediction-head trajectories"},
+        {"page": 8, "section": "Figure 4 three-run trajectory bands"},
+        {"page": 21, "section": "8 Experiment Details"}
+      ]
+    },
+    {
+      "claim": "In the paper's two-feature nonlinear model, training the prediction head together with the encoder provably assigns the strong and weak features to different neurons and reaches near-optimal population loss without dimensional collapse.",
+      "evidence": "Theorem 4.1 and Corollary 4.2 show that after polynomially many fresh-batch SGD steps, the two cubic convolutional neurons align to distinct orthogonal features up to approximately d^-1/2 residuals, their correlation is O(d^-1/2), and the population objective is within inverse-polynomial error of its global minimum despite a polylogarithmic feature-strength imbalance.",
+      "anchors": [
+        {"page": 15, "section": "Theorem 4.1 and Corollary 4.2"},
+        {"page": 73, "section": "Theorem E.2 end-phase convergence"},
+        {"page": 74, "section": "Corollary E.3 objective convergence"}
+      ]
+    },
+    {
+      "claim": "Removing the trainable prediction head leaves all sufficiently few neurons aligned to the stronger feature, producing a dimensionally collapsed representation that is nevertheless globally loss-optimal.",
+      "evidence": "Theorem 4.3 covers m=o(alpha_1/alpha_2) neurons with BN and an identity fixed head: every neuron converges to the strong feature with small residual, pairwise correlations approach magnitude one, and the same positive-pair objective reaches its global minimum. Appendix F sketches the corresponding convergence and denoising argument.",
+      "anchors": [
+        {"page": 15, "section": "Theorem 4.3 and Corollary 4.4"},
+        {"page": 16, "section": "Figure 7 synthetic feature-learning comparison"},
+        {"page": 80, "section": "F Learning Without Prediction Head"}
+      ]
+    },
+    {
+      "claim": "The proposed mechanism has four phases: a neuron first wins the strong feature, the head borrows that feature for another neuron, stop-gradient plus normalization accelerate the weak feature in the second neuron, and the head's off-diagonals then decay.",
+      "evidence": "Phase I uses an initialization advantage to learn the strong feature in one neuron. In Phase II, the off-diagonal head entry grows faster than relearning that feature and substitutes the first neuron's signal into the second online coordinate. In Phase III, stop-gradient keeps the borrowed feature out of the target coordinate while BN makes it rescale the second neuron's gradient, causing the weak feature to overtake the strong one. The convergence phase preserves both alignments, denoises the weights, and returns the head close to identity.",
+      "anchors": [
+        {"page": 16, "section": "5 Four Phases and 5.1 Strong-feature learning"},
+        {"page": 17, "section": "5.2 Substitution effect"},
+        {"page": 18, "section": "5.3 Acceleration effect and 5.4 Convergence"},
+        {"page": 49, "section": "Lemma C.8 Phase II"},
+        {"page": 64, "section": "Lemma D.8 Phase III"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Analyze the entire optimization trajectory of an identity-initialized trainable predictor rather than only the non-contrastive loss landscape or predictor endpoint, using a synthetic feature-learning model where neuron and head gradients can be controlled phase by phase.",
+    "mechanism": "The theoretical data consist of polylogarithmically many patches carrying one of two orthogonal linear features of different magnitudes plus independent noise orthogonal to both features. Complementary random masks form positive pairs. A two-neuron cubic convolutional encoder, a linear predictor with frozen unit diagonal and trainable off-diagonals, batch-normalized outputs, stop-gradient, and fresh-batch SGD are analyzed through strong-feature, substitution, acceleration, and convergence inductions. Real-image experiments use ResNet-18, a two-layer 512-unit projection MLP, a 64-by-64 predictor, and linear evaluation.",
+    "assumptions": [
+      "There are exactly two orthogonal unit feature directions, one polylogarithmically stronger than the other, and each sample contains only one of them in multiple identical-sign patches.",
+      "Noise lies entirely in the orthogonal complement of both features, is independent across patches, has controlled sixth moments, and has negligible cross-neuron odd-moment correlations.",
+      "Complementary non-overlapping masks preserve some feature patches in both views while preventing shared local noise from aligning the views.",
+      "The encoder has cubic activations and initially Gaussian weights; a small initialization gap selects a single strong-feature winner.",
+      "The prediction head starts at identity, keeps every diagonal fixed at one, and trains only off-diagonal entries at a carefully bounded learning rate distinct from the encoder rate.",
+      "Batch normalization and stop-gradient have the exact population/fresh-batch form used in the derivation.",
+      "Every iteration receives a fresh polynomial-size batch, population gradients concentrate to inverse-polynomial error, and training stops after polynomially many steps.",
+      "Learning both planted feature directions in separate neurons is the desired representation, even though the features could be recovered by clustering under the stated model."
+    ]
+  },
+  "techniques": [
+    {"id": "identity-offdiagonal-predictor", "role": "Isolates symmetry-breaking dynamics by fixing the predictor diagonal and training only cross-neuron couplings."},
+    {"id": "strong-weak-patch-model", "role": "Creates a controlled feature-imbalance setting in which collapse means ignoring the planted weak direction."},
+    {"id": "complementary-mask-positive-pairs", "role": "Makes planted features shared across views while independent local noise cannot satisfy the alignment loss."},
+    {"id": "four-phase-gradient-induction", "role": "Tracks encoder signals, noise energy, cross-neuron correlations, and predictor entries through distinct optimization regimes."},
+    {"id": "substitution-effect", "role": "Lets a predictor off-diagonal borrow a learned strong feature rather than redundantly learning it in another neuron."},
+    {"id": "normalization-stopgradient-acceleration", "role": "Uses asymmetry and variance normalization to turn the borrowed feature into a multiplier favoring weak-feature growth."},
+    {"id": "tensor-power-growth-bounds", "role": "Separates feature-learning timescales and controls competing polynomial-gradient recursions."},
+    {"id": "linear-probe-and-head-trajectory-ablation", "role": "Compares predictor parameterizations and monitors off-diagonal norm/asymmetry on three image datasets."}
+  ],
+  "evaluations": [
+    {
+      "setting": "ResNet-18 non-contrastive pretraining on CIFAR-10, CIFAR-100, and STL-10",
+      "metric": "Frozen-encoder linear-probe accuracy and pretraining loss",
+      "result": "An identity-initialized 64-by-64 linear predictor with frozen diagonal is reported to perform comparably to standard nonlinear and randomly initialized linear predictors across tested BN, L2-normalization, and EMA variants.",
+      "baseline": "Two-layer nonlinear MLP predictor, randomly initialized trainable linear predictor, and no-predictor configurations"
+    },
+    {
+      "setting": "Identity-initialized predictor trajectories on three image datasets",
+      "metric": "Off-diagonal Frobenius norm, average/maximum off-diagonal value, and relative matrix asymmetry over training",
+      "result": "Three-run min-max bands show a consistent off-diagonal rise and fall; trajectories need not be symmetric, and some but not all return close to identity.",
+      "baseline": "Endpoint-only eigenspace-alignment or symmetric-predictor explanations"
+    },
+    {
+      "setting": "Synthetic two-feature patched data with trainable predictor and batch normalization",
+      "metric": "Encoder-feature alignment, cross-neuron correlation, residual noise, predictor convergence, and population objective gap",
+      "result": "Both planted directions are learned by different neurons, correlation is O(d^-1/2), noise and predictor off-diagonals become inverse-polynomially small, and the objective approaches its global optimum in polynomial time.",
+      "baseline": "Same model with the prediction head held at identity"
+    },
+    {
+      "setting": "Synthetic model without a trainable prediction head",
+      "metric": "Feature alignment, pairwise neuron correlation, and objective gap",
+      "result": "For fewer than the feature-strength ratio in neurons, all neurons select the strong direction, correlations approach magnitude one, and the collapsed solution still reaches the global loss optimum.",
+      "baseline": "Trainable off-diagonal prediction head"
+    },
+    {
+      "setting": "Wide-ResNet-16x5 features in a BYOL-style adversarial-robust training framework",
+      "metric": "Qualitative feature visualization",
+      "result": "Visualizations appear more varied with a predictor than without one, supporting diversity qualitatively but not quantifying semantic or downstream coverage.",
+      "baseline": "Matched network trained without the prediction head"
+    }
+  ],
+  "limitations": [
+    "The theorem learns only two planted orthogonal linear features in a one-hidden-layer cubic network; 'all features' in the proof does not mean the open-ended, correlated, hierarchical features of natural images.",
+    "The stronger/weaker separation, orthogonal noise, repeated identical-sign signal patches, and complementary masks make feature identification unusually clean; the authors explicitly note that clustering could recover the features.",
+    "The theoretical predictor is not a standard fully trainable BYOL/SimSiam MLP: it starts at identity, freezes all diagonal entries, trains only off-diagonals, and uses a separately constrained learning rate.",
+    "Population-gradient arguments are transferred to SGD by asserting fresh polynomial-size batches and standard concentration; finite-data reuse, realistic batch sizes, batch dependence, and cumulative concentration constants are not worked out empirically.",
+    "The acceleration theorem specifically uses batch normalization. The paper leaves L2 output normalization—common in practical cosine-loss systems—as an open problem despite experiments showing a performance gap.",
+    "EMA targets, deep encoders, nonlinear semantic features, projection-head behavior, and multi-layer backward feature correction lie outside the guarantee.",
+    "The empirical section is limited to CIFAR-10/100 and STL-10 for the main predictor comparison, with curves rather than a detailed table of exact means, standard deviations, compute, and statistical tests.",
+    "A rise-and-fall off-diagonal norm and linear-probe parity are compatible with multiple mechanisms, including spectral learning-rate effects or implicit variance regularization; the experiments do not intervene directly on substitution and acceleration in real data.",
+    "Avoiding complete or dimensional collapse does not guarantee semantic usefulness, as non-collapsed bad optima can exist; the theorem succeeds because the desired representation is planted and explicitly defined.",
+    "The result describes an asymptotic polynomial regime with opaque exponents and very small learning rates, so it does not yield practical sample, step, or compute predictions for modern SSL training."
+  ],
+  "failure_modes": [
+    "Correlated or co-occurring features cause the predictor to mix directions in a way that no longer cleanly substitutes one feature and accelerates another.",
+    "A rare but important feature has weak or augmentation-unstable cross-view signal, so complementary-view alignment correctly suppresses it under the objective even though a downstream task needs it.",
+    "Noise overlaps the feature subspace or persists across both augmentations, allowing the predictor to borrow and amplify a shortcut instead of a semantic feature.",
+    "All neurons learn at similar speed, removing the initialization asymmetry required to nominate a strong-feature donor and weak-feature receiver.",
+    "A practical predictor learning rate, trainable diagonal, nonlinear MLP, or optimizer such as Adam produces dynamics outside the four-phase induction.",
+    "Small reused batches make BN statistics and predictor gradients noisy enough that the clean substitution window never forms.",
+    "L2 normalization changes the gradient multiplier, so the claimed BN acceleration mechanism does not transfer even when end performance looks similar.",
+    "The encoder avoids rank collapse but converges to a non-collapsed shortcut basis that performs poorly under distribution shift.",
+    "The head returns near identity at the endpoint, tempting an endpoint-only audit to conclude it was irrelevant despite path-dependent training effects."
+  ],
+  "reusable_insights": [
+    "Analyze predictor trajectories and encoder features jointly; endpoint spectra can erase the transient couplings that changed what the encoder learned.",
+    "Separate complete collapse, dimensional collapse, and non-collapsed bad representations in both theory and evaluation.",
+    "Intervene on head entries, stop-gradient placement, normalization, and relative learning rates to test a proposed mechanism rather than only comparing final accuracy.",
+    "Use planted strong/weak features as a falsifiable diagnostic, but add correlation, co-occurrence, persistent shortcuts, nonlinear features, and finite-data reuse before extrapolating to natural data.",
+    "Measure per-feature learning times and cross-head borrowing to distinguish substitution/acceleration from generic variance or spectral effects.",
+    "Report rank, covariance spectrum, semantic probes, transfer, robustness, and OOD behavior alongside positive-pair loss and linear-probe accuracy.",
+    "Keep normalization and stochastic-estimation assumptions explicit because they alter the gradient mechanism, not merely numerical stability."
+  ],
+  "open_questions": [
+    "Does an analogous substitution-and-acceleration mechanism operate with cosine similarity and L2 normalization rather than population BN?",
+    "Can the proof handle many correlated, hierarchical, co-occurring, nonlinear, and unequal-frequency features without a privileged planted basis?",
+    "What happens when every predictor parameter, including its diagonal, is trained in a nonlinear MLP with the same optimizer and schedule as the encoder?",
+    "Can finite-batch and finite-dataset theory predict the minimum batch size, sample reuse, and learning-rate ratio needed for the four phases?",
+    "Which real-data intervention can distinguish this mechanism from eigenspace alignment, implicit variance regularization, or covariance decorrelation?",
+    "Can predictor dynamics be designed to preserve rare augmentation-unstable features instead of treating them as noise?",
+    "Does transient head asymmetry predict downstream transfer or OOD robustness across modern vision, audio, language, and multimodal encoders?",
+    "Can a collapse-proof objective also rule out non-collapsed semantically bad minima and provide identifiable representations?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "pmlr:v139:tian21a",
+      "title": "Understanding self-supervised learning dynamics without contrastive pairs",
+      "url": "https://proceedings.mlr.press/v139/tian21a.html",
+      "relationship": "direct theoretical predecessor",
+      "difference": "Tian, Chen, and Ganguli analyze simple linear-network dynamics, predictor/covariance eigenspace alignment, stop-gradient, EMA, and weight decay, and derive the closed-form DirectPred predictor with ImageNet evidence. The reviewed paper argues that endpoint alignment is insufficient and instead proves transient asymmetric substitution and weak-feature acceleration in a nonlinear planted-feature model."
+    },
+    {
+      "canonical_id": "arxiv:2110.04947",
+      "title": "Towards Demystifying Representation Learning with Non-contrastive Self-supervision",
+      "url": "https://arxiv.org/abs/2110.04947",
+      "relationship": "competing linear feature-selection theory",
+      "difference": "Wang et al. show that a linear system learns a desirable projection, interpret weight decay as an augmentation-variance threshold, and propose DirectCopy without eigendecomposition. It supplies downstream sample-complexity and practical predictor evidence, while the reviewed work gives a deeper nonlinear optimization trajectory under much narrower data structure."
+    },
+    {
+      "canonical_id": "pmlr:v151:pokle22a",
+      "title": "Contrasting the landscape of contrastive and non-contrastive learning",
+      "url": "https://proceedings.mlr.press/v151/pokle22a.html",
+      "relationship": "contemporaneous counterpoint",
+      "difference": "Pokle et al. prove and demonstrate that non-contrastive objectives contain many non-collapsed bad minima and that training need not avoid them. This limits any inference from rank preservation alone; the reviewed theorem avoids bad solutions only in a model whose two desired directions and predictor dynamics are tightly specified."
+    },
+    {
+      "canonical_id": "arxiv:2105.04906",
+      "title": "VICReg: Variance-Invariance-Covariance Regularization for Self-Supervised Learning",
+      "url": "https://arxiv.org/abs/2105.04906",
+      "relationship": "explicit anti-collapse alternative",
+      "difference": "VICReg prevents collapse through explicit per-dimension variance and covariance penalties rather than relying on a transient trainable-predictor bias. Its mechanism is easier to inspect and applies at scale, though it does not explain why BYOL/SimSiam predictors can work without those explicit terms."
+    },
+    {
+      "canonical_id": "arxiv:2212.04858",
+      "title": "Implicit variance regularization in non-contrastive SSL",
+      "url": "https://arxiv.org/abs/2212.04858",
+      "relationship": "later competing mechanism",
+      "difference": "Halvagal et al. analyze Euclidean and practically relevant cosine losses in the predictor eigenspace and attribute non-collapse to implicit variance regularization, with eigenvalues acting as learning-rate multipliers; IsoLoss follows from that account. This provides an alternative explanation and covers cosine dynamics omitted by the reviewed BN-specific theorem."
+    },
+    {
+      "canonical_id": "openreview:QXLKnrymE1",
+      "title": "Representation Learning Dynamics of Self-Supervised Models",
+      "url": "https://openreview.net/forum?id=QXLKnrymE1",
+      "relationship": "later exact-dynamics framework",
+      "difference": "Esser et al. derive width-independent contrastive and non-contrastive dynamics under orthogonality constraints on a Grassmann manifold and show why naive multivariate-regression extensions collapse. Their geometric framework is broader across SSL losses but imposes explicit orthogonality rather than deriving the reviewed predictor's transient feature allocation."
+    },
+    {
+      "canonical_id": "pmlr:v267:sansone25a",
+      "title": "Collapse-Proof Non-Contrastive Self-Supervised Learning",
+      "url": "https://proceedings.mlr.press/v267/sansone25a.html",
+      "relationship": "current collapse-proof design",
+      "difference": "Sansone et al. design a hyperdimensional projector/loss with sufficient conditions against representation, dimensional, cluster, and intracluster collapse and validate on SVHN through ImageNet-100. It moves from explaining one predictor trajectory to an explicitly guaranteed method, while still not eliminating the broader identifiability gap between non-collapse and semantic usefulness."
+    }
+  ],
+  "novelty_assessment": "The paper's clearest novelty is its end-to-end nonlinear optimization proof for a trainable, normalized non-contrastive predictor and the accompanying substitution/acceleration vocabulary. Earlier work already supplied BYOL/SimSiam, eigenspace-alignment theory, closed-form predictors, explicit variance/covariance regularization, and warnings about bad non-collapsed optima. This work differentiates itself by showing how transient asymmetric off-diagonal entries can redistribute feature-learning speed and later vanish, an insight endpoint analyses miss. The result is mathematically substantial but highly model-specific; later cosine-loss variance theory, constrained geometric dynamics, and collapse-proof designs offer competing explanations or broader guarantees. Its mechanism should be treated as a precise existence proof and experimental hypothesis, not a settled universal explanation of prediction heads in modern SSL.",
+  "confidence": 0.95,
+  "reviewer_notes": "Read all 89 extracted pages, including the empirical setup, main theorems, four phase narratives, population-gradient derivation, induction invariants, tensor-power bounds, convergence proof, no-predictor proof, and references. Checked seven primary arXiv/OpenReview/PMLR predecessors, counterpoints, and extensions through 2026. Distinguished the exact two-feature BN theorem from the qualitative CIFAR/STL evidence and did not infer that avoiding dimensional collapse guarantees a semantically good representation."
+}

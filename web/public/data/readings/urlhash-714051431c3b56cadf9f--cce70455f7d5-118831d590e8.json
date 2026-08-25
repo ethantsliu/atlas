@@ -1,0 +1,174 @@
+{
+  "stable_id": "urlhash:714051431c3b56cadf9f",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://ml4physicalsciences.github.io/2022/files/NeurIPS_ML4PS_2022_100.pdf",
+    "pdf_sha256": "f246d7e68b2ca8a391cfef28531b3a09bc4cfe9f516c9421c0996bdce9bf3969",
+    "text_sha256": "274e53bc38b2daa014c1519a22c95eebb5530ebc5d5e4857bd622ce790b93650",
+    "page_count": 8,
+    "extracted_at": "2026-08-23T23:01:47.107140+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a learned symplectic transformation discover action-angle coordinates from canonical trajectories so that an integrable Hamiltonian system can be advanced to any requested time in one linear latent-space step?",
+  "key_findings": [
+    {
+      "claim": "The proposed simulator encodes canonical state into learned action-angle coordinates, holds actions constant, advances angles linearly, and decodes with the inverse symplectic map.",
+      "evidence": "A modified G-SympNet composes invertible symplectic shear layers, followed by a polar conversion that avoids directly mapping Euclidean coordinates onto a torus. An MLP predicts angular velocities only from the actions, and the future angle is theta plus delta-t times that velocity modulo 2pi.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "Action-angle background"},
+        {"page": 3, "section": "Section 2, equations 4-7 and Figure 1"}
+      ]
+    },
+    {
+      "claim": "Training combines trajectory prediction with a global action-variance penalty and a curriculum over prediction horizon.",
+      "evidence": "The study generates 1000-step trajectories, trains on the first 500 points and tests on the last 500. Equation 8 samples pairs separated by delta-t, equation 9 penalizes action variance over the trajectory, and equation 10 increases the maximum sampled delta-t gradually to 10 during training.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "Section 2.1, equations 8-10"}
+      ]
+    },
+    {
+      "claim": "On the reported coupled-harmonic-oscillator experiment, the model is qualitatively more data-efficient and more stable at long jump sizes than Euler-update, Neural ODE, and Hamiltonian-network baselines.",
+      "evidence": "Figures 2 and 3 show lower test prediction error as training samples and delta-t vary. Table 1 reports about 8.5K parameters and O(1) inference in delta-t for the Action-Angle Network, versus roughly 100K and 200K parameters and O(delta-t) integration for the Neural ODE and HNN. Figure 4 shows predicted frequency modes close to the true frequencies.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "Section 3 and Table 1"},
+        {"page": 5, "section": "Figures 2-4"}
+      ]
+    },
+    {
+      "claim": "The constant-time extrapolation is exact only after an exact action-angle transformation and exact frequency model; the learned simulator itself still has representation and estimation error.",
+      "evidence": "The forward angle update needs no numerical integration because true action-angle dynamics are linear. But T and F are fitted from one observed trajectory. The authors note that all baselines could technically emulate the same construction by learning that encoding, and no theorem establishes that optimization recovers it.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Evolve and decode steps"},
+        {"page": 8, "section": "Appendix A.1, baseline expressivity qualification"}
+      ]
+    },
+    {
+      "claim": "The empirical evidence is preliminary: it covers only a simple integrable oscillator, uses unmatched baseline sizes, and reports no error bars.",
+      "evidence": "The conclusion explicitly limits the experiments to very simple integrable systems. The checklist says no error bars were reported. Parameter counts differ by more than an order of magnitude for Neural ODE and HNN, and the figures provide no multi-seed uncertainty or matched-capacity ablation.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "Table 1 and conclusion"},
+        {"page": 7, "section": "Reproducibility checklist, error bars"},
+        {"page": 8, "section": "Appendix A.2, oscillator system"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Hard-code the normal form of integrable Hamiltonian dynamics and learn only the symplectic coordinates and action-dependent frequencies needed to express a trajectory in that form.",
+    "mechanism": "Map q,p through modified G-SympNet layers and a polar transform to I,theta; predict angular velocity F(I); apply a single theta update for any delta-t; invert the polar map and symplectic flow; optimize state reconstruction/prediction plus global constancy of I.",
+    "assumptions": [
+      "The observed dynamics are Hamiltonian and integrable on the sampled invariant region.",
+      "A smooth action-angle chart is representable by the selected symplectic flow and polar parameterization.",
+      "One trajectory supplies enough variation to identify the relevant transformation and frequencies.",
+      "The fitted action coordinates remain meaningful for horizons and states outside the training half-trajectory."
+    ]
+  },
+  "techniques": [
+    {"id": "modified-g-sympnet", "role": "Parameterizes an invertible symplectic encoder/decoder and permits identity initialization."},
+    {"id": "polar-action-angle-map", "role": "Represents toroidal angle coordinates without asking a Euclidean network to cross a topological singularity directly."},
+    {"id": "action-dependent-frequency-mlp", "role": "Predicts constant angular velocities from conserved actions."},
+    {"id": "global-action-variance-regularizer", "role": "Encourages the inferred actions to stay constant along a trajectory."},
+    {"id": "prediction-horizon-curriculum", "role": "Gradually raises sampled delta-t during optimization."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Synthetic trajectory of coupled harmonic oscillators, first 500 of 1000 steps for training and last 500 for testing",
+      "metric": "State prediction error versus number of training samples",
+      "result": "The plotted Action-Angle curve is lower than Euler-update, Neural ODE, and HNN curves across the displayed sample range.",
+      "baseline": "Euler Update Network, Neural ODE, and Hamiltonian Neural Network"
+    },
+    {
+      "setting": "Future queries across increasing delta-t, including values beyond the training maximum of 10",
+      "metric": "Prediction error and wall-clock inference time",
+      "result": "The Action-Angle model's inference cost is approximately independent of delta-t and its plotted error grows more slowly than integration-based baselines.",
+      "baseline": "Dormand-Prince-integrated Neural ODE and HNN, plus Euler update"
+    },
+    {
+      "setting": "Learned latent dynamics of the oscillator",
+      "metric": "Kernel-density estimate of inferred angular frequencies",
+      "result": "Reported frequency-density modes visually align with the true normal-mode frequencies.",
+      "baseline": "Analytic frequencies from the oscillator eigenvalue problem"
+    }
+  ],
+  "limitations": [
+    "Only one simple synthetic integrable family, coupled harmonic oscillators, is evaluated.",
+    "No random-seed error bars or statistical tests are reported.",
+    "Baseline parameter counts are not matched and baseline tuning is largely delegated to code rather than analyzed in the paper.",
+    "Global action-angle coordinates need not exist across separatrices, singular tori, chaotic regions, or generic non-integrable systems.",
+    "Noise, irregular sampling, multiple invariant tori, and cross-trajectory generalization are not empirically tested.",
+    "The workshop paper supplies qualitative plots but few numerical result values."
+  ],
+  "failure_modes": [
+    "A trajectory near a separatrix can make the action-angle chart singular or discontinuous.",
+    "For non-integrable or chaotic motion, constant actions and linear angles are a misspecified latent dynamics model.",
+    "The variance penalty can collapse actions to uninformative constants unless prediction loss supplies enough identifiability.",
+    "A single invariant torus may not identify how frequency varies with action away from that trajectory.",
+    "Small coordinate errors accumulate linearly with a very large requested delta-t even without numerical integration error."
+  ],
+  "reusable_insights": [
+    "When physics supplies a normal form, learn the coordinate change rather than repeatedly integrate a generic latent vector field.",
+    "Separate integration error from representation error by evaluating direct long-jump queries.",
+    "Use global conservation penalties over a trajectory when local pairwise consistency is too weak.",
+    "Audit whether constant inference complexity is obtained by narrowing the admissible system class."
+  ],
+  "open_questions": [
+    "Can action-angle charts be patched across multiple tori and separatrices with a learned atlas?",
+    "How should approximate integrability be detected before trusting long-jump predictions?",
+    "Does the method retain its advantage under noisy observations and multiple initial conditions?",
+    "What matched-capacity, multi-seed comparison holds against modern symplectic and Koopman learners?",
+    "Can the learned actions be validated as identifiable physical invariants rather than prediction-serving latent codes?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1906.04645",
+      "title": "Learning Symmetries of Classical Integrable Systems",
+      "url": "https://arxiv.org/abs/1906.04645",
+      "relationship": "Direct action-angle and symplectic-flow precursor",
+      "difference": "Bondesan and Lamacraft learn symplectic transformations exposing integrable structure; Action-Angle Networks add an explicit frequency model and decoder to answer complete future-state queries.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv abstract and revision record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:1910.00024",
+      "title": "Neural Canonical Transformation with Symplectic Flows",
+      "url": "https://arxiv.org/abs/1910.00024",
+      "relationship": "Learned canonical-coordinate competitor",
+      "difference": "Li et al. transform phase-space distributions toward independent harmonic modes using Hamiltonian or density objectives; this paper learns from a trajectory-prediction objective and directly advances angles at constant cost.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv abstract and revision record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2001.03750",
+      "title": "SympNets: Intrinsic structure-preserving symplectic networks for identifying Hamiltonian systems",
+      "url": "https://arxiv.org/abs/2001.03750",
+      "relationship": "General structure-preserving dynamics learner and architectural basis",
+      "difference": "SympNets approximate general symplectic maps and test pendulum, double-pendulum, and three-body systems; this paper reuses G-SympNet layers but imposes the narrower integrable action-angle normal form for O(1)-in-horizon inference.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv abstract and revision record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2406.02154",
+      "title": "Learning Hamiltonian neural Koopman operator and simultaneously sustaining and discovering conservation law",
+      "url": "https://arxiv.org/abs/2406.02154",
+      "relationship": "Current linear-latent Hamiltonian alternative",
+      "difference": "HNKO embeds Hamiltonian dynamics in a Koopman framework and demonstrates conservation discovery across much higher-dimensional systems and noise; Action-Angle Networks use the more specific torus geometry and exact linear angle evolution but only preliminary oscillator evidence.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv abstract and revision record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Action-Angle Networks are an efficient learned simulator that discovers a symplectic transformation to action-angle space and avoids higher-order numerical integration for integrable systems.",
+    "evidence": "The architecture couples symplectic normalizing flows, polar coordinates, a conserved-action regularizer, and direct linear angle updates; the oscillator plots show promising long-horizon efficiency and accuracy.",
+    "reviewer_inference": "Adding complete dynamics and direct future queries to learned action-angle coordinates is a clear construction. Its advantage remains provisional until matched, multi-system, multi-seed tests establish chart recovery and robustness beyond one oscillator trajectory."
+  },
+  "confidence": 0.94,
+  "reviewer_notes": "Read all eight extracted pages, including methods, every figure, checklist, and baseline/oscillator appendices. Primary action-angle, canonical-flow, SympNet, and Hamiltonian-Koopman records were checked on arXiv on 2026-08-23."
+}

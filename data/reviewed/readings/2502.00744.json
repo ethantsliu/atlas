@@ -1,0 +1,194 @@
+{
+  "stable_id": "arxiv:2502.00744",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2502.00744",
+    "pdf_sha256": "72bc043c9669d0f0665f340814f8b24fed58717e6f00903a30fca34fefbd5a6f",
+    "text_sha256": "b6301988d999bb5593b2282d9143e0fd7736e17cb6a37050e553d3d45202107d",
+    "page_count": 24,
+    "extracted_at": "2026-08-23T17:23:37.010633+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a differentiable whole-network path-connectivity objective induce sparse, non-collapsed structures and improve existing structured pruners from small MLPs through CNNs, GNNs, and LLMs?",
+  "key_findings": [
+    {
+      "claim": "CoNNect defines connectivity as the total product mass of normalized absolute-weight paths from any input to any output.",
+      "evidence": "Each layer's absolute weights are divided by that layer's total L1 mass. Summing powers of the resulting adjacency matrix over the network depth and selecting input-output entries equals a sum over normalized path products; a modified all-ones forward pass computes it.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "3.3.1 Weight-Level Regularization"},
+        {"page": 17, "section": "A.1 Proof of Theorem 3.1"},
+        {"page": 18, "section": "B CoNNect Implementation Details"}
+      ]
+    },
+    {
+      "claim": "The normalized connectivity-only optimum is maximally sparse through internal layers, but that fact is narrower than equivalence to task-constrained L0 pruning.",
+      "evidence": "Theorem 3.1 shows a global minimizer of negative connectivity uses at most |V1|+|VK|+K-3 nonzero weights, concentrating internal mass onto one aligned path while allowing multiple first/last edges. It analyzes the regularizer alone, not the combined task loss, accuracy at a sparsity budget, or an L0-constrained optimum.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Theorem 3.1"},
+        {"page": 7, "section": "Lemma 3.2 and Theorem 3.3"},
+        {"page": 17, "section": "A.1 proof"}
+      ]
+    },
+    {
+      "claim": "The strongest landscape claim is under-justified.",
+      "evidence": "Theorem 3.3 says every connected stable stationary point is globally optimal, but its proof is explicitly omitted as following from an informal mass-transfer observation. The analysis excludes disconnected points, absolute-value nondifferentiability at zero, the logarithmic objective's boundary, and stationary points of the combined data-loss regularizer used in practice.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "Stationarity setup"},
+        {"page": 7, "section": "Theorem 3.3 and log transform"},
+        {"page": 17, "section": "A.2 Proof of Lemma 3.2"}
+      ]
+    },
+    {
+      "claim": "The large-model implementation no longer matches the normalized regularizer covered by the theory.",
+      "evidence": "For DepGraph and LLM-Pruner, the paper replaces normalized theta(W) with raw absolute weights, retains modules and absolute biases, and describes the quantity as signal flow for stability and speed. This removes the per-layer probability-simplex geometry that yields the sparsity theorem and makes the score scale-sensitive.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "4.2 Pre-Trained Model Pruning"},
+        {"page": 19, "section": "C.3 Experimental Settings"},
+        {"page": 20, "section": "C.4 LLM settings"}
+      ]
+    },
+    {
+      "claim": "CoNNect improves the host pruners on the reported tasks, but most LLM margins are modest and latency is not measured.",
+      "evidence": "On CNNs, it raises accuracy by 0.46-5.08 points at roughly matched reported MAC speedups. On LLaMA-7B it raises the seven-task mean over LLM-Pruner by 1.38/0.93 points at 20% before/after tuning and 1.25/0.89 at 40%. The only LLM efficiency table reports parameter count, memory, and GMAC ratios of 1.3x and 1.7x, not end-to-end tokens per second or latency.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 11, "section": "Tables 1-2"},
+        {"page": 24, "section": "Tables 6-7"}
+      ]
+    },
+    {
+      "claim": "Connectivity is treated as topology rather than functional information flow.",
+      "evidence": "The theoretical forward pass discards signs, biases, nonlinearities, batch normalization, dropout, and residual connections, and replaces max pooling by averaging. Thus a path can score highly even when real activations gate it off, signed contributions cancel, or a fixed skip path carries the useful signal.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "CoNNect definition"},
+        {"page": 8, "section": "3.3.2 Channel-Level Regularization"},
+        {"page": 18, "section": "B module treatment"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Regularize a network toward a small set of aligned input-output paths so sparsity cannot sever all task pathways, then add the same connectivity derivative to existing pruning importance scores.",
+    "mechanism": "Normalize absolute edge weights within each layer, compute total input-output path mass, penalize its negative logarithm during training, introduce learned channel gates for structured sparsity, or combine a raw-weight signal-flow variant with DepGraph/LLM-Pruner group scores before hard pruning and optional fine-tuning.",
+    "assumptions": [
+      "Topological paths measured with absolute weights are useful proxies for task-relevant information flow.",
+      "Per-layer normalization does not create harmful scale invariance or optimization coupling.",
+      "A sparse set of maximally connected internal paths is compatible with the task loss.",
+      "The unnormalized large-model variant inherits useful behavior despite losing the theorem's geometry.",
+      "Small calibration samples produce representative gradients for task-agnostic LLM pruning."
+    ]
+  },
+  "techniques": [
+    {"id": "path-mass", "role": "Aggregates all normalized input-output path products into one connectivity objective."},
+    {"id": "log-barrier", "role": "Makes complete disconnection infinitely costly within the idealized connected domain."},
+    {"id": "channel-gate", "role": "Turns an edge-level regularizer into structured channel importance."},
+    {"id": "group-score", "role": "Adds connectivity sensitivity to dependency-aware one-shot pruning groups."},
+    {"id": "ones-pass", "role": "Computes structural path mass with an inexpensive modified forward pass."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Small synthetic MLP with informative and nuisance inputs, 96% per-layer pruning, and 100 initializations.",
+      "metric": "Loss, fine-tuned accuracy, layer collapse, and recovered paths.",
+      "result": "CoNNect more often preserves both informative routes and exceeds L1/no regularization after magnitude or SynFlow pruning.",
+      "baseline": "No regularization, L1, magnitude pruning, and local SynFlow."
+    },
+    {
+      "setting": "Seven-layer GCN on Cora with channel pruning.",
+      "metric": "Accuracy over compression ratios before and after 100-epoch fine-tuning.",
+      "result": "CoNNect is strongest at high compression under the selected regularization coefficients.",
+      "baseline": "L1 and no sparsity regularizer across coefficient sweeps."
+    },
+    {
+      "setting": "DepGraph pruning of ResNet-56/CIFAR-10 and VGG-19/CIFAR-100.",
+      "metric": "Post-pruning accuracy, MAC speedup target, and pruning ratio.",
+      "result": "The connectivity-augmented score improves accuracy at all four reported targets, especially near 16x MAC reduction.",
+      "baseline": "Vanilla DepGraph."
+    },
+    {
+      "setting": "LLM-Pruner on LLaMA-7B and community LLaMA-13B at 20% and 40% parameter removal.",
+      "metric": "WikiText/PTB perplexity, seven zero-shot task accuracies, parameter memory, and GMACs before and after two-epoch Alpaca LoRA tuning.",
+      "result": "CoNNect usually improves perplexity and task mean over LLM-Pruner, with sub-two-point average gains; 40% pruning reports 1.7x theoretical GMAC speedup.",
+      "baseline": "LLM-Pruner, L1, L2, and random grouped pruning for 7B; LLM-Pruner for 13B."
+    }
+  ],
+  "limitations": [
+    "The theoretical optimum concerns the regularizer alone and is not equivalent to solving task-constrained L0 pruning.",
+    "The stable-stationary theorem omits its proof and ignores nonsmooth zero weights and the combined task objective.",
+    "The practical CNN/LLM signal-flow score removes normalization and changes module treatment, so the theory does not apply.",
+    "Absolute path products ignore activation gating, cancellation, data distribution, and fixed residual pathways.",
+    "LLM calibration uses only ten length-128 BookCorpus samples and excludes first three/final layers by rule.",
+    "No LLM wall-clock latency, throughput, energy, long-context, generation-quality, or safety evaluation is reported.",
+    "Comparisons omit several strong structured LLM pruners and use older LLaMA checkpoints."
+  ],
+  "failure_modes": [
+    "The score preserves a high-magnitude path whose neurons are inactive on real inputs.",
+    "Raw-weight scaling changes importance without changing the represented function, making rankings reparameterization-sensitive.",
+    "Concentrating path mass creates a bottleneck that is connected but has insufficient task capacity.",
+    "Ignored residual paths make a transformer block appear disconnected or misattribute useful flow.",
+    "A tiny calibration sample protects domain-specific circuits and removes rare but important capabilities.",
+    "The log term becomes numerically unstable near zero or competes destructively with the data loss."
+  ],
+  "reusable_insights": [
+    "Report effective connectivity as well as nominal sparsity; retained but orphaned parameters should not count as useful capacity.",
+    "Keep the theorem-to-implementation chain explicit whenever a scalable approximation changes normalization or module semantics.",
+    "Structured pruning scores should test invariance to harmless rescalings of adjacent layers.",
+    "A connected graph is necessary but not sufficient for functional signal flow; activation-conditioned and topology-only audits complement each other.",
+    "Efficiency claims need measured latency and throughput on the actual sparse kernel, not only MAC estimates."
+  ],
+  "open_questions": [
+    "Can an activation-aware connectivity objective retain a tractable landscape while respecting signs, gates, and residuals?",
+    "What guarantees survive for the raw absolute-weight variant actually used on pretrained models?",
+    "Is CoNNect invariant under function-preserving layer rescaling, permutation, and normalization transformations?",
+    "How does it compare with 2025 structured LLM pruners under matched calibration, retraining, and hardware?",
+    "Which rare capabilities disappear when calibration expands from ten samples to diverse multilingual and long-context data?",
+    "Can multi-path or flow-capacity constraints avoid a fragile single-route optimum while still preventing collapse?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2107.02306",
+      "title": "Connectivity Matters: Neural Network Pruning Through the Lens of Effective Sparsity",
+      "url": "https://arxiv.org/abs/2107.02306",
+      "relationship": "direct-connectivity-predecessor",
+      "difference": "Vysogorets and Kempe formalize effective sparsity, quantify orphaned parameters, and add a low-cost connectivity correction to pruners; CoNNect instead optimizes global path mass as a differentiable regularizer and score."
+    },
+    {
+      "canonical_id": "arxiv:2301.12900",
+      "title": "DepGraph: Towards Any Structural Pruning",
+      "url": "https://arxiv.org/abs/2301.12900",
+      "relationship": "host-method-and-baseline",
+      "difference": "DepGraph automatically groups structurally coupled parameters across arbitrary architectures and works with simple norm criteria; CoNNect contributes an additional global path score inside that grouping framework."
+    },
+    {
+      "canonical_id": "arxiv:2401.15024",
+      "title": "SliceGPT: Compress Large Language Models by Deleting Rows and Columns",
+      "url": "https://arxiv.org/abs/2401.15024",
+      "relationship": "hardware-oriented-llm-competitor",
+      "difference": "SliceGPT uses transformer computational invariance to delete dense rows and columns and reports measured multi-GPU speedups up to 70B; CoNNect ranks pre-existing structural groups through connectivity and reports only GMAC speedups for LLaMA."
+    },
+    {
+      "canonical_id": "pmlr:v267-guo25a",
+      "title": "SlimLLM: Accurate Structured Pruning for Large Language Models",
+      "url": "https://proceedings.mlr.press/v267/guo25a.html",
+      "relationship": "current-structured-pruning-competitor",
+      "difference": "SlimLLM scores whole channels and heads, allocates layer-specific ratios, and reconstructs outputs by linear regression; CoNNect uses cross-layer path connectivity plus optional LoRA recovery."
+    },
+    {
+      "canonical_id": "pmlr:v280-li25b",
+      "title": "Greedy Output Approximation: Towards Efficient Structured Pruning for LLMs Without Retraining",
+      "url": "https://proceedings.mlr.press/v280/li25b.html",
+      "relationship": "current-one-shot-competitor",
+      "difference": "Greedy Output Approximation derives inference-aware output criteria and two-step reconstruction without retraining, directly targeting functional approximation rather than topology-only signal flow."
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "CoNNect is a differentiable L0-like connectivity regularizer with benign stationary points that prevents collapse and improves structural pruning from small networks to LLMs.",
+    "evidence": "The paper derives normalized path-mass optima, adds channel gates, runs initialization and coefficient ablations, and augments DepGraph and LLM-Pruner on CNN, GNN, and LLaMA evaluations.",
+    "reviewer_inference": "Using whole-network path mass as a modular pruning term is a clear synthesis and the host-pruner gains are consistent. The L0 and landscape language is much broader than the proved idealized objective, and the scalable implementation changes exactly the normalization and module semantics on which those claims depend."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Read all 24 pages, including proofs, module semantics, coefficient sweeps, hardware settings, and all CNN/GNN/LLM tables. Visually checked the theoretical statement and LLaMA tables to resolve extraction overlap. Primary arXiv and PMLR competitors were checked on 2026-08-23."
+}

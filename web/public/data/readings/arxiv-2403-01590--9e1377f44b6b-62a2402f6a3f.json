@@ -1,0 +1,156 @@
+{
+  "stable_id": "arxiv:2403.01590",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2403.01590",
+    "pdf_sha256": "18880458caa07b5e1adb891e668c5f906b5f4054eceaad4fabc93ac742beeffe",
+    "text_sha256": "4a05ee347947a8eaac816181e28a62d59c832c54add15f725d6352ed0f66f6fe",
+    "page_count": 27,
+    "extracted_at": "2026-08-23T18:16:29.643043+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a selective state-space layer be unrolled into token-to-token input-dependent mixing matrices, and can those matrices support attention-style analysis and explanations of Mamba models?",
+  "key_findings": [
+    {
+      "claim": "A selective SSM has an exact lower-triangular, input-conditioned linear-operator representation for a fixed input and channel.",
+      "evidence": "Unrolling h_t=Abar_t h_(t-1)+Bbar_t x_t gives y_i=sum_{j<=i} C_i(product_{k=j+1}^i Abar_k)Bbar_j x_j. The coefficient alpha-tilde_ij therefore maps source token j to output i and depends on the whole intervening input through the selective discretization parameters.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 5, "section": "3.1 Hidden attention matrices"}, {"page": 6, "section": "Equations 14-19"}]
+    },
+    {
+      "claim": "Calling these coefficients 'attention' is a useful linear-attention analogy, but they are not standard attention probabilities or complete input attributions.",
+      "evidence": "Unlike softmax attention, alpha-tilde is causal, unnormalized, potentially signed, channel-specific, and its coefficient itself changes with the input. The full Mamba block additionally includes input projection, local convolution, SiLU gates, output projection, residual, and normalization. Raw alpha-tilde x is the frozen-input SSM mixing path, not the total derivative or a causal explanation of the block's prediction.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 4, "section": "Mamba block"}, {"page": 6, "section": "Simplifying hidden matrices"}, {"page": 7, "section": "Comparison with self-attention"}, {"page": 14, "section": "Conclusions"}]
+    },
+    {
+      "claim": "Attention-style rollout and a gradient-weighted Mamba attribution heuristic produce useful image localization maps, but do not dominate transformer explanations.",
+      "evidence": "On ImageNet segmentation, Mamba rollout reaches 71.01 pixel accuracy, 80.78 mAP, and 51.51 mIoU versus transformer rollout's 66.84/80.34/47.85; Mamba attribution scores 74.72/81.70/54.24 versus Transformer Attribution's 79.26/84.85/60.63. Positive deletion sometimes favors Mamba, whereas every reported negative-deletion AUC favors the transformer. The paper notes black-patch sensitivity as a confound.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 11, "section": "4.2 Explainability"}, {"page": 12, "section": "Perturbation and segmentation tests"}, {"page": 13, "section": "Tables 1-2"}]
+    },
+    {
+      "claim": "The 'three orders of magnitude more attention matrices' claim counts latent state-coordinate terms, not independent heads or separately observable mechanisms.",
+      "evidence": "Each channel's coefficient is written as a sum of N coordinate products, yielding D*N inner matrices compared with H transformer heads. These terms share the same B/C projections and selective delta structure, are summed before producing the channel output, and are not independently trained outputs; quantity therefore does not establish greater semantic diversity or capacity.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 6, "section": "Equation 14 and matrix-count argument"}, {"page": 7, "section": "Shared patterns across channels"}]
+    },
+    {
+      "claim": "The expressiveness theorem is substantially narrower than its headline: the proof establishes a simplified causal, scalar, softmax-free comparison, not dominance over an ordinary transformer head.",
+      "evidence": "Appendix D explicitly removes discretization, fixes scalar hidden dimension, and drops softmax. Lemma 3 sets the recurrence transition to identity and equates the remaining factorized kernel with causal attention. This does not show representation of softmax's row-wise normalization, vector/multihead attention, positional mechanisms, or a full transformer layer. The count-in-a-row separation is only against one scalar head on length three under these restrictions.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 14, "section": "Theorem 2"}, {"page": 24, "section": "Appendix D assumptions"}, {"page": 25, "section": "Count-in-row"}, {"page": 26, "section": "Lemmas 2-3"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Unroll the input-dependent SSM recurrence into an explicit sequence-mixing matrix, then adapt transformer attention visualization, rollout, and gradient attribution to that matrix.",
+    "mechanism": "For each layer/channel, compute C_i product(Abar) Bbar_j coefficients; optionally decompose over diagonal state coordinates; average channels and multiply residual-augmented maps across layers for rollout; combine averaged maps with output-path gradients for class-specific attribution; test on pretrained vision and language Mambas; and compare mixer classes and simplified expressivity analytically.",
+    "assumptions": [
+      "A frozen-input data-controlled linear operator may productively be interpreted as attention.",
+      "Channel averaging and identity addition preserve meaningful information flow across residual blocks.",
+      "Pixel/token perturbation and segmentation alignment are adequate proxies for explanation faithfulness.",
+      "Comparably sized Mamba and transformer checkpoints are comparable despite architecture and training differences.",
+      "The simplified scalar, softmax-free setting captures the relevant expressivity distinction.",
+      "Attention-like coefficients can be interpreted independently of the gates and other block paths."
+    ]
+  },
+  "techniques": [
+    {"id": "selective-recurrence-unrolling", "role": "Converts recurrent dynamics into an explicit lower-triangular token mixer."},
+    {"id": "state-coordinate-decomposition", "role": "Decomposes each channel mixer into N diagonal-state contributions."},
+    {"id": "mamba-attention-rollout", "role": "Averages channel mixers, adds residual identity, and composes layers into a token relevance map."},
+    {"id": "mamba-attribution", "role": "Weights hidden mixer maps by class-dependent gradients through the gated block output."},
+    {"id": "data-controlled-mixer-taxonomy", "role": "Distinguishes fixed mixing, diagonal input gating, and non-diagonal input-controlled mixing across SSM families."}
+  ],
+  "evaluations": [
+    {"setting": "Tiny/small ViM and DeiT on ImageNet", "metric": "qualitative hidden matrices and CLS relevance maps", "result": "both show local bands, deeper long-range structure, and salient object regions", "baseline": "ordinary transformer attention"},
+    {"setting": "ImageNet pixel deletion", "metric": "positive and negative perturbation AUC", "result": "Mamba wins two of three positive-deletion comparisons but loses all three negative-deletion comparisons", "baseline": "raw, rollout, and gradient-attribution transformer counterparts"},
+    {"setting": "ImageNet-Segmentation", "metric": "pixel accuracy, mAP, mIoU", "result": "Mamba raw/rollout often outperform transformer equivalents; Mamba Attribution underperforms Transformer Attribution", "baseline": "same three explanation families on ViT-small"},
+    {"setting": "IMDb sentiment", "metric": "UNK-token activation and pruning curves", "result": "Mamba Attribution is described as comparable or sometimes better and qualitatively sparser", "baseline": "BERT Transformer Attribution, plotted separately because logits and perturbation response differ"},
+    {"setting": "Analytic model comparison", "metric": "mixer dependence and simplified function representation", "result": "selective SSM is an input-controlled non-diagonal mixer and solves a scalar consecutive-ones task that one scalar head cannot", "baseline": "S4/DSS/S5, GSS/Hyena, and restricted causal softmax-free attention"}
+  ],
+  "limitations": [
+    "Hidden mixers are not normalized attention distributions and can be signed.",
+    "The attribution methods omit or heuristically aggregate important input-dependent coefficient, convolution, gate, normalization, and residual effects.",
+    "No ground-truth causal-feature benchmark, sanity check, randomization test, or counterfactual faithfulness test is reported.",
+    "Vision comparisons conflate explanation quality with different models' sensitivity to zeroed patches.",
+    "NLP methods compare different checkpoints and are plotted separately, preventing a numerical cross-model conclusion.",
+    "The theorem headline is stronger than the assumptions and proof support.",
+    "Only selected pretrained vision/NLP models and classification-style explanations are evaluated.",
+    "Materializing L-by-L maps loses Mamba's linear-memory advantage and is impractical for the long contexts that motivate the architecture."
+  ],
+  "failure_modes": [
+    "Large mixer magnitude can reflect compensating signed paths rather than positive source relevance.",
+    "Averaging channels can cancel antagonistic effects or erase sparse specialized channels.",
+    "Multiplying residual-augmented matrices assumes a linear information-flow graph despite nonlinear gates and normalization.",
+    "Patch deletion can create out-of-distribution inputs and reward general fragility rather than faithful localization.",
+    "A CLS token's sequential position induces strong recency bias, which can dominate semantic attribution.",
+    "Coordinate-level 'inner attention' counts can be mistaken for independently meaningful heads.",
+    "Softmax-free theoretical equivalence can be incorrectly generalized to standard attention architectures.",
+    "Explicit attention extraction becomes quadratic and can exhaust memory on long sequences."
+  ],
+  "reusable_insights": [
+    "Any input-conditioned linear recurrence can be audited through its frozen-input sequence Jacobian-like mixer, while carefully distinguishing it from the full derivative.",
+    "Architecture dualities are most informative when normalization, gating, state rank, and computational schedule are itemized rather than hidden under one label.",
+    "Explanation comparisons should include both remove-most and remove-least tests and report model-specific perturbation sensitivity.",
+    "A recurrent model's global summary token placement is a causal architectural choice, not a neutral convention.",
+    "Use conservation-based or causal attribution when raw mixing weights omit important nonlinear paths.",
+    "State-coordinate decompositions can reveal timescales, but independence and identifiability must be demonstrated before calling them heads."
+  ],
+  "open_questions": [
+    "Can hidden mixers be computed or queried implicitly in subquadratic memory for long-context explanations?",
+    "Which coefficients remain causally necessary under activation patching or exact path-integrated derivatives?",
+    "How should signed, unnormalized, input-dependent recurrence weights be normalized without destroying faithfulness?",
+    "Do individual state coordinates acquire reproducible semantic roles across seeds and scales?",
+    "Can a complete relevance-conserving rule cover selective discretization, convolution, gates, normalization, and residuals?",
+    "What is the exact expressivity relation when softmax normalization, vector heads, position, and comparable state width are retained?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2312.00752",
+      "title": "Mamba: Linear-Time Sequence Modeling with Selective State Spaces",
+      "url": "https://arxiv.org/abs/2312.00752",
+      "relationship": "Base architecture",
+      "difference": "Gu and Dao introduce selective input-dependent SSM parameters and hardware-aware scan/recurrent implementations; this paper supplies an explicit token-mixer view and attention-inspired explanation tools for that layer.",
+      "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2405.16605",
+      "title": "Demystify Mamba in Vision: A Linear Attention Perspective",
+      "url": "https://arxiv.org/abs/2405.16605",
+      "relationship": "Concurrent structural duality and ablation",
+      "difference": "Han et al. explicitly contrast Mamba with linear attention across six design differences and ablate them, finding the forget gate and block design most important; Hidden Attention focuses on per-input token maps and XAI with a looser attention analogy.",
+      "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv/NeurIPS record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2405.21060",
+      "title": "Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality",
+      "url": "https://arxiv.org/abs/2405.21060",
+      "relationship": "Formal post-publication duality",
+      "difference": "Dao and Gu characterize attention and SSM mixers via structured semiseparable matrices and use the duality to build Mamba-2; this paper's unrolling is simpler and visualization-oriented but does not deliver the same algebraic framework or efficient dual algorithms.",
+      "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2406.07592",
+      "title": "MambaLRP: Explaining Selective State Space Sequence Models",
+      "url": "https://arxiv.org/abs/2406.07592",
+      "relationship": "Direct competing explanation method",
+      "difference": "MambaLRP derives relevance-conserving propagation rules and identifies components that make naive explanations unfaithful, with broader datasets and models; Hidden Attention adapts rollout and gradient attention heuristics from transformers and acknowledges its attribution rule needs adjustment.",
+      "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv/NeurIPS record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2410.06672",
+      "title": "Towards Universality: Studying Mechanistic Similarity Across Language Model Architectures",
+      "url": "https://arxiv.org/abs/2410.06672",
+      "relationship": "Post-publication mechanistic comparison",
+      "difference": "Wang et al. use sparse autoencoders and circuit analysis to compare learned features and induction mechanisms in matched Transformer/Mamba language models, including an off-by-one state-writing motif; Hidden Attention compares aggregate mixers and perturbation explanations rather than learned circuits.",
+      "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv/ICLR record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Selective SSMs implement hidden attention, yield vastly more attention matrices than transformers, support comparable explainability, and are strictly more expressive than a transformer layer.",
+    "evidence": "The exact recurrence unrolling is sound, visualization/localization metrics show practical use, and the mixer taxonomy identifies selectivity as non-diagonal input control.",
+    "reviewer_inference": "The explicit per-input mixer and first wave of Mamba XAI are timely contributions. 'Attention' should be read as an analogy to causal linear mixing, the matrix-count claim lacks independent-head meaning, and the expressivity headline is unsupported for standard softmax attention. Subsequent SSD theory and MambaLRP provide stronger formal and faithfulness-focused treatments."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Read all 27 pages, including every recurrence derivation, perturbation/segmentation result, NLP appendix, and both theorem proofs. The audit flags the softmax-free theorem scope and frozen-input-mixer versus attribution distinction. Primary arXiv, NeurIPS, ICLR/OpenReview, and ACL records were checked on 2026-08-23."
+}

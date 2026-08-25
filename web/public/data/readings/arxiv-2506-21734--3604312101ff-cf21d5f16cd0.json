@@ -1,0 +1,265 @@
+{
+  "stable_id": "arxiv:2506.21734",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2506.21734",
+    "pdf_sha256": "81b05b03ebd92748b1bc0e59d4b6e0d8271e1e56b84d1d589a03430db79b6e25",
+    "text_sha256": "b3e24ff7d3fd8785ea83214242fad8f4adfe206ab54862b4e3c122eb149d3fd8",
+    "page_count": 24,
+    "extracted_at": "2026-08-23T16:22:47.200101+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a small recurrent network learn long search-and-backtracking computations from input-output supervision alone by separating fast local refinement from slow global state updates, while avoiding full backpropagation through time?",
+  "key_findings": [
+    {
+      "claim": "HRM replaces explicit token-by-token reasoning with two coupled recurrent Transformer modules that operate at different rates.",
+      "evidence": "A low-level module performs T updates while the high-level state is fixed; the high-level module then incorporates the final low-level state, producing N nested cycles per forward pass. Updating the high-level state changes the low-level module's local equilibrium, yielding repeated phases of computation rather than the rapid residual decay observed for the paper's ordinary RNN baseline.",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Section 2, HRM dynamics"
+        },
+        {
+          "page": 5,
+          "section": "Section 2, hierarchical convergence and Figure 3"
+        }
+      ]
+    },
+    {
+      "claim": "The training rule deliberately uses a one-step approximation rather than differentiating through the full recurrent trajectory.",
+      "evidence": "All but the final low- and high-level updates are evaluated without gradient tracking, so the retained path is output head to final high state to final low state to input embedding. The paper motivates this as the zeroth term of a Neumann-series approximation to an implicit fixed-point gradient, reducing stored activation memory from O(T) to O(1), but it neither computes the omitted Jacobian terms nor bounds the approximation error for the non-converged finite-step model.",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Section 2, approximate gradient"
+        },
+        {
+          "page": 6,
+          "section": "Section 2, Equations 1-2 and Figure 4"
+        },
+        {
+          "page": 7,
+          "section": "Section 2, Equation 3"
+        }
+      ]
+    },
+    {
+      "claim": "Detached deep-supervision segments and a learned halt/continue head extend computation while limiting the gradient horizon.",
+      "evidence": "Each segment starts from the detached state of the prior segment, incurs an output loss, and immediately updates parameters. A sigmoid Q-head receives binary correctness for halting and bootstrapped value for continuing; randomized minimum runtimes encourage exploration. On Sudoku, the displayed ACT variant uses fewer average segments than fixed computation at similar accuracy, and raising the inference cap beyond its training cap improves accuracy in the reported setting.",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "Section 2, deep supervision and ACT"
+        },
+        {
+          "page": 8,
+          "section": "Section 2, ACT loss and inference-time scaling"
+        },
+        {
+          "page": 9,
+          "section": "Figure 5 and Q-learning stability discussion"
+        }
+      ]
+    },
+    {
+      "claim": "The paper reports unusually strong small-data performance on three grid-output benchmarks, but the protocols are highly task-specific.",
+      "evidence": "Separate randomly initialized roughly 27M-parameter models train on about 1,000 examples per task. The reported results include near-perfect performance on the paper's difficult Sudoku and 30x30 shortest-maze tasks and 40.3% on ARC-AGI. ARC uses task-identity tokens, geometric and color augmentation, 1,000 transformed variants per test input, inverse transforms, and a two-answer vote; Sudoku also receives symmetry augmentation, whereas Maze does not.",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Section 1, headline benchmark results"
+        },
+        {
+          "page": 11,
+          "section": "Sections 3.1-3.2, dataset construction and evaluation"
+        },
+        {
+          "page": 12,
+          "section": "Section 3.2, augmentation and baseline comparison"
+        }
+      ]
+    },
+    {
+      "claim": "Intermediate decoded states resemble search and iterative refinement, but they do not establish that the model implements the named algorithms.",
+      "evidence": "Visualizations show candidate maze routes being removed, Sudoku entries changing after violations, and ARC grids being incrementally edited. The authors describe these patterns as resembling depth-first search, backtracking, and hill climbing, while explicitly leaving a definitive algorithmic account for future work; the decoder itself is a preliminary extra high-level update applied to each recorded state.",
+      "anchors": [
+        {
+          "page": 12,
+          "section": "Section 3.3, visualization procedure"
+        },
+        {
+          "page": 13,
+          "section": "Figure 7 and interpretation of trajectories"
+        }
+      ]
+    },
+    {
+      "claim": "A post-training dimensionality analysis finds different representational ranks in the two modules, but the paper's brain correspondence remains correlational.",
+      "evidence": "Across 100 Sudoku trajectories, participation ratio is reported as 89.95 for the high-level state and 30.22 for the low-level state, while an untrained control has similar values of 40.75 and 42.09. The high-level ratio also grows with the number of sampled trajectories. The authors acknowledge that this does not show the hierarchy is causally necessary and that constraining dimensionality would confound training.",
+      "anchors": [
+        {
+          "page": 14,
+          "section": "Figure 8, trained and untrained controls"
+        },
+        {
+          "page": 15,
+          "section": "Section 4, participation-ratio analysis"
+        },
+        {
+          "page": 16,
+          "section": "Section 4, causal caveat"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Create effective depth with nested latent-state recurrence: a fast module repeatedly refines a detailed state under a fixed slow context, then a slow module updates that context and restarts the fast computation.",
+    "mechanism": "Embed a complete input grid, initialize learned hidden states, and alternate T low-level encoder-only Transformer updates with one high-level update for N cycles. Decode the high-level state to an output grid. Train only through the last update of each module, repeat detached deep-supervision segments, and use a bootstrapped Q-head to choose halt or continue. The implementation combines rotary positions, gated linear units, RMSNorm, post-normalization, stablemax in small-data experiments, norm-controlled initialization, Adam-atan2, augmentation, and task-specific sequence encodings.",
+    "assumptions": [
+      "The low-level recurrence approaches a useful local equilibrium within each cycle and a high-level update moves it to a productive new basin.",
+      "The one-step implicit-gradient approximation supplies enough credit despite omitting nearly the entire executed trajectory.",
+      "Detached segment-level supervision can teach iterative refinement without an explicit intermediate reasoning target.",
+      "Binary exact-output correctness is an adequate target for the halt/continue Q-head.",
+      "Grid-token prediction and task-specific augmentation preserve the structure required for the target reasoning algorithm.",
+      "Training examples and test examples are not linked by equivalent Sudoku or maze transformations after the stated split controls.",
+      "Extra recurrent steps at inference remain in a useful dynamical regime rather than converging to a wrong attractor.",
+      "Performance on ARC, Sudoku, and mazes transfers to broader reasoning rather than reflecting specialized grid priors."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "dual-timescale-latent-recurrence",
+      "role": "Alternates fast local-state refinement with slower context updates to create nested effective depth."
+    },
+    {
+      "id": "one-step-implicit-gradient",
+      "role": "Backpropagates only through each module's final update as a constant-memory approximation to the fixed-point gradient."
+    },
+    {
+      "id": "detached-deep-supervision",
+      "role": "Applies output supervision after multiple stateful segments while severing gradients between segments."
+    },
+    {
+      "id": "q-learning-adaptive-computation",
+      "role": "Learns whether to halt or continue from exact correctness and bootstrapped continuation targets."
+    },
+    {
+      "id": "grid-symmetry-augmentation",
+      "role": "Expands small datasets with puzzle-preserving transforms and aggregates inverse-transformed ARC predictions."
+    },
+    {
+      "id": "intermediate-state-decoding",
+      "role": "Projects latent trajectories into candidate grids to inspect apparent search and correction patterns."
+    },
+    {
+      "id": "participation-ratio-analysis",
+      "role": "Compares effective representational dimensionality between trained high- and low-level modules and an untrained control."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "ARC-AGI-1 and ARC-AGI-2 with roughly 1,000 official examples, per-task identity embeddings, symmetry augmentation, and 1,000 transformed test variants",
+      "metric": "Exact grid accuracy with two voted attempts",
+      "result": "The paper reports 40.3% for HRM and a more than twofold improvement over its direct-prediction Transformer comparison",
+      "baseline": "Official leaderboard chain-of-thought systems and a same-training-setup direct Transformer"
+    },
+    {
+      "setting": "Sudoku-Extreme with 1,000 training puzzles and a transformation-disjoint split; additional analyses use Sudoku-Extreme-Full with 3,831,994 examples",
+      "metric": "Exact solution accuracy, search-backtrack difficulty, residual dynamics, adaptive-compute use, and inference-cap scaling",
+      "result": "HRM is reported to solve the small-data benchmark at a level unattained by the API and direct-prediction baselines, and approaches perfect accuracy in the full-data depth study",
+      "baseline": "Direct Transformers of varying width/depth, recurrent models, and prompted language-model APIs"
+    },
+    {
+      "setting": "Maze-Hard with 1,000 training and 1,000 test 30x30 mazes filtered to shortest paths longer than 110 steps",
+      "metric": "Fraction of outputs that form a valid optimal start-to-goal path",
+      "result": "The paper reports near-perfect HRM performance while its evaluated chain-of-thought and direct-prediction baselines almost never solve the task",
+      "baseline": "Language-model APIs, same-size direct Transformer, and prior large-Transformer search-dynamics results"
+    },
+    {
+      "setting": "Trained and random HRMs processing 10 to 100 Sudoku solution trajectories",
+      "metric": "Participation ratio of high- and low-level hidden-state covariance",
+      "result": "The trained model shows high/low ratios of 89.95/30.22 and task-count-dependent growth only in the high-level state, whereas the random control is 40.75/42.09",
+      "baseline": "Architecturally identical untrained network"
+    }
+  ],
+  "limitations": [
+    "Author-stated: the decoded intermediate states only suggest search strategies; identifying the learned algorithms is outside the study's scope.",
+    "Author-stated: the participation-ratio evidence is correlational, and causal intervention on state dimensionality would confound the training process.",
+    "Author-stated: simple element-wise addition combines module inputs; learned gating and hierarchical memory are left for future work.",
+    "Reviewer-identified: the fixed-point derivation assumes convergence and an invertible Jacobian, but the implemented model runs finite cycles, omits the inverse-Jacobian terms, and supplies no approximation-error or stability bound.",
+    "Reviewer-identified: headline general-purpose reasoning language is supported by only three structured grid domains, each trained separately from scratch with output formats and augmentation chosen for that domain.",
+    "Reviewer-identified: the ARC protocol performs 1,000 augmented solves and majority voting per input, so parameter count and context length alone substantially understate its inference compute.",
+    "Reviewer-identified: the hierarchy, one-step gradient, ACT, stablemax, optimizer, post-norm design, augmentation, and deep supervision are bundled; the paper does not provide a fully matched factorial ablation isolating which components are necessary.",
+    "Reviewer-identified: comparisons to language-model APIs mix pretrained generalist systems with a task-specific supervised solver and do not match training data, output constraints, augmentation, or inference compute.",
+    "Reviewer-identified: claims about Turing completeness concern asymptotic expressivity with unbounded time and memory, not an empirical property established by these finite models.",
+    "Reviewer-identified: binary exact-correctness halting targets require labels during training and may be sparse, miscalibrated, or unavailable for open-ended tasks.",
+    "Reviewer-identified: the neuroscience analogy supplies architectural motivation but no biological model validation; matching a ratio of participation ratios does not identify homologous computation.",
+    "Reviewer-identified: later primary-source studies report that simpler recurrence can outperform HRM and that the model can enter incorrect fixed points, weakening the necessity and reliability claims for the two-timescale architecture."
+  ],
+  "failure_modes": [
+    "The low-level state reaches an incorrect local fixed point and the high-level update fails to move it to another basin.",
+    "One-step gradients assign credit to the final refinement but not to earlier state transitions that created the useful trajectory.",
+    "Additional inference segments reinforce a wrong attractor, so more test-time compute reduces rather than improves accuracy.",
+    "The halt head stops on a plausible but incorrect grid because its bootstrapped values are miscalibrated.",
+    "Randomized minimum runtimes spend excess compute on easy examples or bias training toward trajectories unlike deterministic inference.",
+    "Augmentation voting hides instability across equivalent transforms and fails when the target domain lacks a known symmetry group.",
+    "A model memorizes task-identity embeddings or format regularities rather than inducing a transferable algorithm.",
+    "A nominally valid output violates a global constraint because tokenwise training loss does not enforce exact structured feasibility.",
+    "Post-norm recurrence or approximate Q-learning becomes unstable when scaled to deeper, noisier, continuous, or language-valued tasks.",
+    "Separate fast and slow states collapse to redundant computation, leaving the added hierarchy more expensive than a single recurrent block."
+  ],
+  "reusable_insights": [
+    "Separate the amount of computation from parameter count by reusing a block at latent depth and explicitly test extrapolation to more steps than seen in training.",
+    "Measure whether extra iterations correct errors, merely delay convergence, or lock into wrong attractors on individually traceable cases.",
+    "Ablate the recurrence schedule under matched block-pass, parameter, augmentation, and supervision budgets before attributing gains to hierarchy.",
+    "Include transformations of trivial and adversarially simple problems; complicated benchmark averages can conceal fixed-point pathologies.",
+    "Decode intermediate states for diagnostics, but validate any algorithmic interpretation with causal interventions and held-out structural regimes.",
+    "Report inference compute including augmentation ensembles and recurrent passes, not just parameter count and context length.",
+    "Treat a one-step implicit gradient as an estimator whose bias should be measured against truncated BPTT or exact implicit differentiation.",
+    "Design halting evaluation around accuracy-compute Pareto curves, calibration, and monotonicity under a larger compute cap."
+  ],
+  "open_questions": [
+    "Which HRM components remain beneficial under a factorial ablation with equal block passes, optimization steps, parameters, and augmentations?",
+    "Can contraction, fixed-point multiplicity, and wrong-attractor risk be estimated online and used to restart or diversify latent trajectories?",
+    "How does one-step training compare with truncated BPTT, unbiased gradient estimators, and exact implicit gradients as reasoning depth grows?",
+    "Does learned hierarchical recurrence extrapolate to larger grids, longer shortest paths, harder Sudoku families, and unseen algorithmic compositions?",
+    "Can one jointly train a single HRM across heterogeneous tasks without task-identity tokens or hand-specified symmetry groups?",
+    "What confidence or self-verification target can replace labeled exact correctness for halting on open-ended reasoning tasks?",
+    "Does the fast/slow state split offer an advantage over a single recurrent block after matching all compute and supervision?",
+    "Can task-level causal probes show that high-level dimensionality, rather than recurrence alone, is necessary for generalization?",
+    "How should recurrent latent reasoning combine with pretrained semantic priors while retaining stable test-time depth scaling?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2502.05171",
+      "title": "Scaling up Test-Time Compute with Latent Reasoning: A Recurrent Depth Approach",
+      "url": "https://arxiv.org/abs/2502.05171",
+      "relationship": "prior recurrent-latent reasoning architecture",
+      "difference": "Geiping et al. repeatedly apply one shared Transformer block and scale the approach to a 3.5B-parameter language model trained on 800B tokens, showing gains from additional latent depth without puzzle-specific output recurrence. HRM instead uses two timescales, one-step gradients, detached supervision, and adaptive halting in small task-specific grid solvers, but does not establish that hierarchy is superior under matched recurrent block passes."
+    },
+    {
+      "canonical_id": "arxiv:2510.00355",
+      "title": "Hierarchical Reasoning Model: A Critical Supplementary Material",
+      "url": "https://arxiv.org/abs/2510.00355",
+      "relationship": "direct independent ablation and replication",
+      "difference": "Ge, Liao, and Poggio critically test HRM's design choices and report variants that substantially improve Sudoku-Extreme and Maze-Hard performance. Their evidence reframes the published recipe as an early point in a broader recurrent-model design space and directly challenges attributing performance to the full biologically motivated bundle."
+    },
+    {
+      "canonical_id": "arxiv:2510.04871",
+      "title": "Less is More: Recursive Reasoning with Tiny Networks",
+      "url": "https://arxiv.org/abs/2510.04871",
+      "relationship": "direct simpler-architecture competitor",
+      "difference": "TRM removes the explicit two-network hierarchy in favor of a single two-layer recursive network with about 7M parameters and reports higher generalization than HRM, including 45% ARC-AGI-1 and 8% ARC-AGI-2. This tests whether recursive refinement and supervision, rather than dual-timescale biological structure, account for the central benefit."
+    },
+    {
+      "canonical_id": "arxiv:2601.10679",
+      "title": "Are Your Reasoning Models Reasoning or Guessing? A Mechanistic Analysis of Hierarchical Reasoning Models",
+      "url": "https://arxiv.org/abs/2601.10679",
+      "relationship": "direct mechanistic stress test and extension",
+      "difference": "Ren and Liu show that HRM can fail one-unknown-cell puzzles, undergo abrupt grokking across steps, and settle into multiple fixed points; they interpret it as attractor guessing and improve Sudoku-Extreme accuracy from 54.5% to 96.9% through augmentation, input perturbation, and model bootstrapping. This supplies concrete counterexamples to monotonic deliberate refinement while also showing how diverse guesses can strengthen the model."
+    }
+  ],
+  "novelty_assessment": "Author claim: HRM is a new brain-inspired path to efficient, potentially universal reasoning, combining hierarchical multi-timescale recurrence, constant-memory approximate gradients, and adaptive computation to learn difficult search procedures from about 1,000 examples without pretraining or chain-of-thought traces. Reviewer inference: its strongest contribution is the integrated demonstration that substantial latent recurrent depth plus detached output supervision can train compact structured solvers and expose useful accuracy-compute scaling. Recurrent algorithm learners, Universal Transformers, adaptive computation, deep equilibrium gradients, recurrent-depth language models, and hierarchical-timescale RNNs all predate HRM. The paper does not isolate whether its two-module hierarchy is necessary, and subsequent TRM, ablation, and fixed-point studies directly weaken that claim. The unusually strong grid results and released implementation nevertheless made HRM an important empirical reference point for post-CoT latent reasoning.",
+  "confidence": 0.97,
+  "reviewer_notes": "All 24 extracted pages were checked, including the architectural equations, one-step-gradient derivation, deep-supervision and Q-learning procedure, task construction and augmentation, intermediate-state visualizations, representational analysis, related work, discussion, and references. Claims were separated from the paper's search-language interpretations where no causal mechanism was established. Direct competitors and follow-up results were independently checked against primary arXiv or OpenReview records current through 2026-08-23."
+}

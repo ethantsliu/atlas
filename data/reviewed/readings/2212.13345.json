@@ -1,0 +1,235 @@
+{
+  "stable_id": "arxiv:2212.13345",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2212.13345",
+    "pdf_sha256": "059f700a44f78227bfd8f6219b5460484502985808ff1e23874be4f53b468e4f",
+    "text_sha256": "a06a3030fda63bffde1d4499a4e4aa42005617cdcf41f00cbbdbe2e459f27ce8",
+    "page_count": 16,
+    "extracted_at": "2026-08-23T20:17:08.666864+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can deep networks learn useful representations through layer-local contrastive objectives and positive/negative forward phases, avoiding end-to-end error backpropagation in biologically or analog-hardware-friendly settings?",
+  "key_findings": [
+    {
+      "claim": "Forward-Forward trains each layer to separate positive from negative inputs using a local scalar goodness, while passing only normalized activity orientation to the next layer.",
+      "evidence": "The main implementation uses the sum of squared pre-normalization ReLU activities and a logistic threshold. Positive examples push goodness up and negative examples push it down; length normalization removes the previous layer's scalar cue so later layers must learn new relative-activity features.",
+      "anchors": [{"page": 2, "section": "2 The Forward-Forward Algorithm"}, {"page": 3, "section": "2.1 Learning multiple layers"}]
+    },
+    {
+      "claim": "With handcrafted hybrid-image negatives, four fully connected layers learn MNIST representations whose linear classifier is close to the paper's informal backpropagation reference.",
+      "evidence": "Four 2,000-ReLU layers trained for 100 epochs yield 1.37% test error from the last three normalized representations; a single local-receptive-field architecture trained for 60 epochs yields 1.16%. The reference is a stated typical permutation-invariant backprop network near 1.4%, not a matched run in the reported experiment.",
+      "anchors": [{"page": 3, "section": "3.1 The backpropagation baseline"}, {"page": 4, "section": "3.2 A simple unsupervised example"}]
+    },
+    {
+      "claim": "Supervised Forward-Forward can classify MNIST by embedding a candidate label in the input, but it trains more slowly and often requires one inference pass per label.",
+      "evidence": "A four-by-2,000 network reaches 1.36% error after 60 epochs versus about 20 claimed for similar backprop performance; evaluating goodness for all ten labels is better than a neutral-label one-pass softmax. With 25-way translation augmentation, 500 epochs reach 0.64%, without a matched augmented backprop run.",
+      "anchors": [{"page": 5, "section": "3.3 A simple supervised example"}, {"page": 6, "section": "Figure 2"}]
+    },
+    {
+      "claim": "A recurrent, top-down version works on static repeated MNIST but does not demonstrate online video or sequence learning.",
+      "evidence": "Two or three 2,000-unit intermediate layers run eight damped synchronous iterations for each of ten labels and achieve 1.31% test error. The input is the same static digit at every time step, so the experiment does not test temporal credit, streaming adaptation, or the proposed contextual prediction on video.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 5, "section": "3.4 Top-down effects"}, {"page": 7, "section": "Recurrent MNIST result"}]
+    },
+    {
+      "claim": "On CIFAR-10, Forward-Forward is only close to a deliberately nonconvolutional backprop baseline whose absolute performance is poor.",
+      "evidence": "Local-receptive-field networks without weight sharing give backprop 37% and 39% test error for two and three layers. The best listed Forward-Forward versions give 41% test error with 20-24% training error; one-pass inference gives 44-46%. No modern convolutional, residual, or competitive CIFAR baseline is tested.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 7, "section": "4 Experiments with CIFAR-10"}, {"page": 8, "section": "Table 1"}]
+    },
+    {
+      "claim": "The experiment needed for the proposed wake/sleep separation failed replication, leaving a central biological motivation unsupported.",
+      "evidence": "An earlier next-character result was removed because it was suspected to be a bug. Thousands of consecutive positive then negative updates work only with very low learning rate and extremely high momentum, and the paper calls temporal phase separation its most important outstanding biological question.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 9, "section": "5 Sleep"}]
+    },
+    {
+      "claim": "Forward-Forward avoids network-wide reverse credit assignment, but it is not derivative-free and its biological-locality claim depends on additional nonlocal machinery.",
+      "evidence": "Each layer still differentiates its local goodness through its weights and activations; experiments use minibatches, normalization across a layer or peers, externally constructed negative examples, labels embedded at the input, candidate-label search, and conventional optimization. No neural data or circuit implementation validates these operations in cortex.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 2, "section": "Local goodness optimization"}, {"page": 3, "section": "Layer normalization"}, {"page": 4, "section": "Negative-data construction"}, {"page": 12, "section": "7 Learning fast and slow"}]
+    },
+    {
+      "claim": "Claims about black-box robustness, analog energy efficiency, generative modeling, mode-collapse avoidance, and mortal computation are hypotheses rather than evaluated results.",
+      "evidence": "No experiment inserts an unknown physical nonlinearity, measures memory, wall time, power, device mismatch, or transfers between hardware instances. The paper produces no learned generative samples and merely asserts that shared representations eliminate GAN mode collapse; it closes by saying large-network scaling remains unknown.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 2, "section": "Motivation and claimed advantages"}, {"page": 10, "section": "6.2 Relationship to GANs"}, {"page": 13, "section": "8 Analog hardware and 9 Mortal Computation"}, {"page": 14, "section": "Future work"}]
+    },
+    {
+      "claim": "A special fully connected update has an appealing simultaneous-online property, but the paper does not use or test it.",
+      "evidence": "For one normalized input, the derived goodness update scales all layer activities proportionally and therefore leaves their normalized orientation unchanged, suggesting simultaneous exact per-layer updates. The author explicitly says current experiments still use minibatches and do not exploit the property.",
+      "anchors": [{"page": 12, "section": "7 Learning fast and slow, Equations 3-4"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Replace end-to-end reverse-mode credit assignment with greedy, layer-local discrimination between positive and negative data using the same forward computation in both phases.",
+    "mechanism": "Each layer computes pre-normalization activations, optimizes a local goodness above or below a threshold, normalizes away that scalar signal before the next layer, and optionally incorporates top-down recurrent input; supervised labels or corrupted/generated examples define positive and negative cases.",
+    "assumptions": [
+      "Useful global representations emerge from independently optimized local discrimination objectives.",
+      "A suitable and scalable source of negative data is available without reintroducing costly global training.",
+      "Layer and peer normalization are compatible with the intended biological or analog substrate.",
+      "Positive and negative phases can eventually be scheduled in a biologically useful way.",
+      "Local goodness gradients remain effective as depth, class count, task complexity, and distribution breadth grow.",
+      "Avoiding network-wide backpropagation produces real device-level energy or memory benefits after all inference and negative-generation costs are counted."
+    ]
+  },
+  "techniques": [
+    {"id": "layer-local-goodness-classification", "role": "Uses pre-normalization activation energy to distinguish positive and negative cases independently at each layer."},
+    {"id": "orientation-only-layer-normalization", "role": "Removes the previous layer's goodness magnitude so deeper layers cannot solve the same local task trivially."},
+    {"id": "hybrid-image-negatives", "role": "Combines masked regions from two MNIST digits to preserve local texture while disrupting global shape."},
+    {"id": "label-as-input-contrast", "role": "Defines supervised positives with correct labels and negatives with incorrect candidate labels."},
+    {"id": "recurrent-top-down-forward-phases", "role": "Uses damped synchronous iterations so neighboring layers provide bottom-up and top-down context."},
+    {"id": "local-receptive-fields-without-sharing", "role": "Limits CIFAR parameter count while preserving the no-weight-transport motivation."},
+    {"id": "simultaneous-normalized-online-update", "role": "Derives a special per-example update whose local activity rescaling does not immediately alter downstream normalized input."}
+  ],
+  "evaluations": [
+    {"setting": "Unsupervised permutation-invariant MNIST with handcrafted hybrid negatives", "metric": "test error of a supervised softmax on frozen hidden representations", "result": "1.37% for four fully connected layers and 1.16% for one tried local-connectivity architecture.", "baseline": "An informal typical fully connected backprop reference of about 1.4%, not a matched seeded run."},
+    {"setting": "Supervised MNIST with label embedded in the input", "metric": "test error and training epochs", "result": "1.36% after 60 epochs; 1.46% after 40 higher-rate epochs; 0.64% after 500 epochs with 25 translated variants per image.", "baseline": "Claimed similar backprop error after about 20 epochs; no matched augmentation or compute accounting."},
+    {"setting": "Damped recurrent Forward-Forward on static repeated MNIST", "metric": "test error after candidate-label iterative inference", "result": "1.31% after training 60 epochs and running eight iterations for each label.", "baseline": "No recurrent backprop, predictive-coding, or actual video baseline."},
+    {"setting": "CIFAR-10 with two or three 3,072-unit locally connected hidden layers", "metric": "training and test classification error", "result": "Best Forward-Forward test error is 41% with 20-24% training error; one-pass variants give 44-46% test error.", "baseline": "Matched local-receptive-field backprop gives 37-39% test error and 0-2% training error."},
+    {"setting": "Separated wake-like positive and sleep-like negative phases", "metric": "replication of sequence-learning result", "result": "The reported early result could not be replicated and was suspected to arise from a bug.", "baseline": "Fine-grained positive/negative interleaving."},
+    {"setting": "Analog hardware, energy, unknown nonlinearities, large models, generative samples, and streaming video", "metric": "none", "result": "Motivated or proposed, not evaluated.", "baseline": "None."}
+  ],
+  "limitations": [
+    "Only MNIST and a weak CIFAR-10 setup are evaluated; there is no ImageNet, language, long-sequence, transformer, or genuinely large-network result.",
+    "The unsupervised MNIST result depends on hand-designed negative images and evaluates representations using labels afterward.",
+    "The supervised implementation scales candidate-label inference and negative construction poorly when the label space is large.",
+    "Matched backprop baselines, random seeds, uncertainty, wall-clock time, operation counts, peak memory, and energy are not reported.",
+    "The author's MNIST baseline is explicitly a 'non-existent typical net' drawn from experience rather than a controlled experimental run.",
+    "Temporal separation of positive and negative phases failed, undermining the wake/sleep motivation.",
+    "Local learning does not by itself establish biological plausibility; normalization, phase control, negative generation, and optimizer dynamics remain unexplained.",
+    "The online-update derivation assumes a special fully connected normalized layer and is not used in the minibatch experiments.",
+    "Analog-hardware tolerance and power savings are asserted without device measurements or mismatch/noise benchmarks.",
+    "The method still uses local reverse-mode differentiation within each trainable layer, despite the rhetorical shorthand of two forward passes.",
+    "Greedy local objectives can discard information needed by later or transfer tasks, a risk not tested in the paper."
+  ],
+  "failure_modes": [
+    "Negatives contain an easy artifact, so every layer learns the corruption process rather than semantic structure.",
+    "Self-generated negatives omit important modes, making high goodness unrelated to the true data distribution.",
+    "Early local layers discard task-relevant information because no downstream error can correct them.",
+    "Inference becomes prohibitive with thousands or millions of labels because goodness is evaluated label by label.",
+    "Positive and negative phases drift when separated, causing catastrophic bias or oscillation.",
+    "Layer or peer normalization is expensive, nonlocal, noisy, or unavailable on the intended substrate.",
+    "A black-box transformation destroys information, and local learning downstream cannot recover it despite requiring no derivative through the box.",
+    "Hardware savings disappear after accounting for two phases, negative generation, repeated recurrent/candidate passes, and local gradient circuits.",
+    "A local goodness shortcut gives excellent in-domain classification but weak transfer representations.",
+    "Deep greedy training saturates because later layers receive representations optimized only for earlier binary discrimination."
+  ],
+  "reusable_insights": [
+    "Any forward-only benchmark should distinguish network-wide credit assignment from local differentiation and report both honestly.",
+    "Treat negative-data design as part of the learned system and audit it for shortcuts, coverage, and computational cost.",
+    "Evaluate local objectives on transfer and compositional tasks, not only the task used to create positives and negatives.",
+    "Measure end-to-end memory, latency, energy, and hardware noise rather than inferring efficiency from the absence of a global backward pass.",
+    "Use matched architectures, augmentation, tuning budgets, seeds, and inference costs when comparing with backpropagation.",
+    "Separate claims of algorithmic locality, biological plausibility, and physical implementability; each requires different evidence.",
+    "Negative replication results—such as failed phase separation—are high-value boundary conditions for follow-up research.",
+    "Block-local or collaborative losses may preserve more downstream information than fully greedy single-layer objectives."
+  ],
+  "open_questions": [
+    "Can negatives be generated online without shortcuts, mode omission, or a separately backprop-trained model?",
+    "Can positive and negative phases be separated stably under realistic continual nonstationarity?",
+    "How does Forward-Forward scale in accuracy, memory, operations, and energy on modern residual networks, transformers, and ImageNet or language tasks?",
+    "Which goodness functions preserve transferable information while remaining local and hardware-friendly?",
+    "Can global credit be introduced through block-local collaboration without restoring full activation storage and weight transport?",
+    "What circuit could implement normalization, local derivatives, phase identity, and hard-negative selection in cortex?",
+    "Does an actual analog or neuromorphic implementation outperform backprop-compatible training after converters, calibration, and device variation are counted?",
+    "Can label-conditional inference avoid a number of passes proportional to the class or vocabulary size?",
+    "What formal objective, convergence guarantee, or probabilistic model—if any—is optimized by a deep stack of local goodness learners?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2204.01723",
+      "title": "Signal Propagation: A Framework for Learning and Inference In a Forward Pass",
+      "url": "https://arxiv.org/abs/2204.01723",
+      "relationship": "direct-forward-only-predecessor",
+      "difference": "Signal propagation predates Forward-Forward and carries a global supervised signal through the forward path, including continuous-time and spiking demonstrations. Forward-Forward instead uses binary local contrast with positive/negative data and does not establish end-to-end global credit.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2210.03310",
+      "title": "Scaling Forward Gradient With Local Losses",
+      "url": "https://arxiv.org/abs/2210.03310",
+      "relationship": "scalable-forward-gradient-alternative",
+      "difference": "Ren et al. reduce forward-gradient variance with activation perturbations and many local losses, matching backprop on MNIST/CIFAR-10 and reaching ImageNet. It offers substantially stronger scale evidence, though its noisy directional gradients differ from goodness-based Forward-Forward.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:1602.05179",
+      "title": "Equilibrium Propagation: Bridging the Gap Between Energy-Based Models and Backpropagation",
+      "url": "https://arxiv.org/abs/1602.05179",
+      "relationship": "biologically-local-credit-alternative",
+      "difference": "Equilibrium propagation uses two similar neural settling phases and a spatially local update while computing the gradient of a defined global objective. It requires equilibrium dynamics, whereas Forward-Forward is feedforward/local but lacks equivalent global-credit and objective guarantees.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2006.04182",
+      "title": "Predictive Coding Approximates Backprop along Arbitrary Computation Graphs",
+      "url": "https://arxiv.org/abs/2006.04182",
+      "relationship": "local-predictive-coding-alternative",
+      "difference": "Millidge et al. show local predictive-coding updates approach exact backprop gradients on arbitrary graphs and demonstrate CNNs, RNNs, and LSTMs. Forward-Forward avoids iterative error settling but its greedy objectives sacrifice the same end-to-end gradient fidelity.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2309.11955",
+      "title": "A Study of Forward-Forward Algorithm for Self-Supervised Learning",
+      "url": "https://arxiv.org/abs/2309.11955",
+      "relationship": "independent-empirical-audit",
+      "difference": "Across MNIST, Fashion-MNIST, SVHN, CIFAR-10, and three pretext tasks, Brenig and Timofte find similar training-task performance but significantly worse transfer than backprop. This directly confirms the reviewed paper's untested risk that layer-local discrimination discards generally useful information.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2408.14925",
+      "title": "Distance-Forward Learning: Enhancing the Forward-Forward Algorithm Towards High-Performance On-Chip Learning",
+      "url": "https://arxiv.org/abs/2408.14925",
+      "relationship": "direct-method-extension",
+      "difference": "Distance-Forward reframes goodness as metric learning, adds N-pair margins and inter-layer collaboration, and reports broader vision, memory, and hardware-noise benchmarks. Its changes specifically target poor generalization and information loss under greedy local updates left unresolved here.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2501.03176",
+      "title": "Scalable Forward-Forward Algorithm",
+      "url": "https://arxiv.org/abs/2501.03176",
+      "relationship": "direct-scaling-follow-up",
+      "difference": "This follow-up extends local losses to MobileNetV3 and ResNet-18 and finds block-local hybrids can be stronger than single-layer FF. It is evidence that architectural scaling is possible, but also that some within-block backprop and collaboration may be needed for competitive performance.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2502.00571",
+      "title": "Contrastive Forward-Forward: A Training Algorithm of Vision Transformer",
+      "url": "https://arxiv.org/abs/2502.00571",
+      "relationship": "transformer-extension",
+      "difference": "Contrastive Forward-Forward adapts the method to vision transformers and reports substantially faster convergence and up to ten accuracy points over baseline FF. The size of that improvement highlights how under-specified goodness and negative design are in the original algorithm.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2506.11030",
+      "title": "Forward Target Propagation: A Forward-Only Approach to Global Error Credit Assignment via Local Losses",
+      "url": "https://arxiv.org/abs/2506.11030",
+      "relationship": "forward-only-global-credit-competitor",
+      "difference": "Forward Target Propagation explicitly estimates layerwise targets from a second forward computation and tests MLPs, CNNs, RNNs, long dependencies, quantization, and hardware constraints. It attacks the global-credit gap that vanilla Forward-Forward leaves open.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2406.16479",
+      "title": "Emerging NeoHebbian Dynamics in Forward-Forward Learning: Implications for Neuromorphic Computing",
+      "url": "https://arxiv.org/abs/2406.16479",
+      "relationship": "biological-mechanism-follow-up",
+      "difference": "Terres-Escudero et al. derive a neo-Hebbian interpretation of squared-goodness FF and compare analog and spiking variants. It strengthens the local-rule connection but still does not by itself validate cortex-level phase, negative-data, or normalization mechanisms.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": "Reviewer inference after all 16 pages and current primary-source comparison: Forward-Forward is a memorable synthesis of local contrastive learning, normalization, and positive/negative phases, with unusually candid preliminary failures. Yet forward-only and biologically local alternatives predate it, experiments are confined to MNIST and a very weak CIFAR setup, the key wake/sleep result failed, and hardware/scale claims are unmeasured. Later work confirms both transfer loss and the need for richer goodness, layer collaboration, or target propagation. The paper is influential as a research program, not evidence of a competitive general replacement for backpropagation.",
+  "confidence": 0.99,
+  "reviewer_notes": "Reviewed every page, including the failed sleep replication, CIFAR table, special online-update derivation, analog/mortal-computation discussion, and future-work list. Checked ten primary arXiv competitors and follow-ups through 2026-08-23."
+}

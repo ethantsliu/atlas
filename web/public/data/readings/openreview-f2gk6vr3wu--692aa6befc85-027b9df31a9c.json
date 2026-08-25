@@ -1,0 +1,238 @@
+{
+  "stable_id": "openreview:F2Gk6Vr3wu",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2109.15048",
+    "pdf_sha256": "c0f2e40157ffceea0240ff4005938922925778ede5d807c1c90cd6984e7d40aa",
+    "text_sha256": "95259df2007c012ff652e4e76640573f9f0425d44411c6750ab782a4e23fb6a2",
+    "page_count": 27,
+    "extracted_at": "2026-08-24T00:35:16.681188+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can neural networks learn inverse solutions for ill-conditioned physical systems more reliably if a local higher-order or domain-specific inverse solver supplies the update in physical state space, while a conventional optimizer maps that update into network-parameter space?",
+  "key_findings": [
+    {
+      "claim": "Scale-invariant physics training replaces the adjoint vector through the simulator with one detached local inverse-solver update, leaving ordinary SGD or Adam to update the neural network.",
+      "evidence": "For prediction x0, the algorithm evaluates U(y*|x0), sets the target x_tilde=x0+U, and minimizes one-half the squared distance between the prediction and this detached target. The resulting parameter gradient contains U times the network Jacobian instead of the residual times the physics Jacobian. Conditioning the inverse update on the current prediction is intended to retain a local solution basin in multimodal inverse problems, and only the first inverse-solver step is used at each iteration.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "3.1 Derivation / Equations 3-4"},
+        {"page": 4, "section": "3.1-3.2 Derivation and update rule / Equations 5-6"},
+        {"page": 5, "section": "3.2 Update rule / Equations 7-8"}
+      ]
+    },
+    {
+      "claim": "The formal convergence result does not cover the paper's usual one-network-step-per-solver-step algorithm without an additional directional assumption.",
+      "evidence": "Theorem 3 requires a uniformly loss-reducing, bounded inverse update plus an unusually strong network premise: gradient descent must be able to reach every target state for every example. Its constructed strategy may take many parameter updates after one U evaluation until physical loss falls. The main text explicitly says there is no per-iteration guarantee for re-evaluating U after each parameter step; Appendix A.2 obtains only an expected decrease when network updates do not systematically distort the state-space direction. Universal approximation by itself establishes existence of a representation, not this optimization property.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "3.3 Convergence / Equation 9 and Theorems 1-2"},
+        {"page": 6, "section": "3.3 Convergence / Theorem 3 and discussion"},
+        {"page": 14, "section": "Appendix A.1-A.2 Assumptions and probable loss decrease"}
+      ]
+    },
+    {
+      "claim": "A controlled two-dimensional sine problem supports the conditioning argument, but the text contains an impossible parameter value and SIP is about three times slower per iteration in the well-conditioned case.",
+      "evidence": "With xi=1, conventional optimizers converge and Adam is fastest; as conditioning reaches xi=32, SIP retains relative accuracy and Adam works only when the two state coordinates are uncoupled, whereas SIP uses the full Hessian and remains effective under rotation-induced coupling. The narrative calls xi=0 perfectly conditioned even though P divides one coordinate by xi; the figure and caption use xi=1. The authors also report SIP iterations taking approximately three times as long as Adam in this experiment.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "3.4 Experimental characterization"},
+        {"page": 7, "section": "Figure 5 and conditioning/coupling discussion"},
+        {"page": 15, "section": "Appendix B.1 Sine experiment protocol"}
+      ]
+    },
+    {
+      "claim": "On the Poisson task, SIP's large accuracy advantage is inseparable from privileged access to an analytic inverse that directly reveals the supervised target.",
+      "evidence": "For P(x)=inverse-Laplacian(x), SIP applies the Laplacian to the residual, and with unit inverse step this direction points directly to x*. The paper reports a factor-three advantage over Adam at iteration 60 and about an order of magnitude after 5,000 iterations. However, this inverse is cheaper than the adjoint's implicit solve and converts every simulator-generated observation into its exact label. Comparisons also mix a 37,697-parameter U-Net with a 1,188,353-parameter FNO; Hessian-free updates take 300-1,700 seconds and fewer than six updates fit in the plotted window.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 7, "section": "3.5 Poisson's equation"},
+        {"page": 16, "section": "Appendix B.2 Analytic SIP gradients and neural-network training"},
+        {"page": 18, "section": "Appendix B.2 FNO architecture"}
+      ]
+    },
+    {
+      "claim": "For a near-singular heat inverse problem, a prior-damped inverse update improves state reconstruction and remains better than Adam across the paper's finite-data sweep, but its robustness to wrong priors or real noise is not tested.",
+      "evidence": "Direct inversion exponentially amplifies high frequencies, so SIP dampens each frequency using assumed Gaussian signal and noise distributions. It is reported as 34% more accurate than Adam at iteration 100 and 130% more accurate after 10,000 iterations. Both methods favor learning rate 0.001 and batch size 128 and overfit at 128 or fewer examples; SIP's test error remains lower for all tested sizes. The data are synthetic rectangles passed through the exact 64-by-64 periodic simulator at t*nu=8, with no prior misspecification or measurement-distribution shift.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 8, "section": "3.5 Heat equation / Figure 6"},
+        {"page": 18, "section": "Appendix B.3 Stable SIP gradients"},
+        {"page": 20, "section": "Appendix B.3 Hyperparameter and finite-data studies"},
+        {"page": 22, "section": "Figure 12 finite training-set sweep"}
+      ]
+    },
+    {
+      "claim": "The Navier-Stokes result demonstrates useful amortization but depends on a hand-engineered low-dimensional flow prior that is not supplied to the baselines.",
+      "evidence": "The inverse estimator runs the simulation backward to fit translation and one coarse vortex, explicitly assumes solutions lie on a much lower-dimensional manifold, and ignores small-scale velocity fluctuations. SIP is reported 2.3 times more accurate after 200 training iterations, five times after 20,000, and needs 55 iterations to match Adam at 20,000. A trained network infers in 0.11 ms versus 2.2 s for seven inverse iterations and more than four hours for 20,000 gradient steps, but network training itself takes 17.6 hours and every SIP step invokes the privileged simulator-derived estimator.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 9, "section": "3.5 Navier-Stokes results / Table 1"},
+        {"page": 21, "section": "Appendix B.4 Computation of SIP gradients"},
+        {"page": 23, "section": "Appendix B.4 Reverse simulation and network training"},
+        {"page": 25, "section": "Figure 15 training-step timing"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Use an inverse-problem solver to precondition updates in the physical solution space, then treat the updated physical state as a detached pseudo-label for standard neural-network optimization.",
+    "mechanism": "Given an observation y* and prediction x0=NN(y*;theta), a higher-order, analytic, damped, or domain-specific local inverse solver returns U(y*|x0). SIP forms x_tilde=x0+U, stops gradients through x_tilde, and minimizes one-half ||NN(y*;theta)-x_tilde|| squared with SGD or Adam. This substitutes U for the simulator adjoint while avoiding a Hessian with respect to millions of network parameters. Low-dimensional experiments use saddle-free Newton; the Poisson problem uses an analytic Laplacian inverse; heat uses a Bayesian frequency damping of the unstable inverse; and fluids use a reverse-simulation estimator for coarse translation and vortex components.",
+    "assumptions": [
+      "A differentiable forward simulator is available and synthetic observation-solution pairs can be sampled on demand.",
+      "A usable local inverse update exists and is substantially better conditioned than the adjoint gradient.",
+      "Conditioning the inverse update on the current network prediction selects an acceptable basin when the inverse is multimodal.",
+      "The inverse update decreases physical loss by a uniform relative amount and shrinks near a minimum if the formal convergence argument is invoked.",
+      "The network is not merely expressive but can reach every per-example target under gradient descent, as required by Equation 9.",
+      "A single update in parameter space preserves the intended direction in physical state space on average, which is assumed rather than guaranteed for the deployed algorithm.",
+      "Euclidean error in the inferred physical state is the relevant target even when it weights examples differently from the original physical loss.",
+      "The heat signal/noise distributions and the fluid translation-plus-vortex manifold prior are correctly specified enough to produce helpful inverse steps."
+    ]
+  },
+  "techniques": [
+    {"id": "detached-inverse-physics-target", "role": "Turns one local inverse-solver step into a pseudo-label without differentiating through the inverse solver."},
+    {"id": "state-space-preconditioning", "role": "Moves higher-order conditioning into the low-dimensional or structured physical state rather than the full network parameter space."},
+    {"id": "saddle-free-newton-update", "role": "Flips Hessian-eigenvector directions in the synthetic problem so the inverse update avoids maxima and saddles."},
+    {"id": "analytic-poisson-inversion", "role": "Applies a Laplacian to the observation residual, producing an exact state-space direction without an additional implicit solve."},
+    {"id": "bayesian-frequency-damping", "role": "Stabilizes inverse heat dynamics by suppressing frequencies likely to be noise under specified priors."},
+    {"id": "reverse-flow-domain-solver", "role": "Estimates coarse translation and vortex components by reversing a Navier-Stokes simulation."},
+    {"id": "amortized-inverse-inference", "role": "Pays simulator and inverse-solver cost during training so a U-Net can return future solutions in one fast forward pass."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Three-hidden-layer MLP inverting a rotated, rescaled two-dimensional sine process",
+      "metric": "Relative state-space error versus conditioning xi and parameter coupling phi",
+      "result": "SIP retains accuracy as xi rises to 32 and coordinates become coupled; Adam succeeds in the ill-conditioned case mainly when coupling is absent, while SIP is around three times slower per iteration in the well-conditioned experiment.",
+      "baseline": "SGD, Adam, Adadelta, Adagrad, RMSprop, and saddle-free Newton SIP with separately selected learning rates"
+    },
+    {
+      "setting": "80-by-60 synthetic Poisson inversion with a 37,697-parameter U-Net",
+      "metric": "Mean absolute state error over training iterations",
+      "result": "Analytic-inverse SIP is reported about three times better than Adam at iteration 60 and about ten times better after 5,000 iterations, with a near-linear-convergence curve.",
+      "baseline": "SGD with momentum, Adam, AdaHessian, a 1,188,353-parameter FNO, and Hessian-free optimization"
+    },
+    {
+      "setting": "64-by-64 periodic heat inversion with four to ten rectangular sources and t*nu=8",
+      "metric": "Mean absolute error to the simulator's ground-truth initial field",
+      "result": "Prior-damped SIP is reported 34% more accurate than Adam at iteration 100 and 130% more accurate after 10,000 iterations.",
+      "baseline": "SGD, Adam, AdaHessian, FNO, Hessian-free optimization, and iterative gradient descent or L-BFGS-B"
+    },
+    {
+      "setting": "Heat inversion with learning-rate, batch-size, and 32-to-2,048-example training-set sweeps",
+      "metric": "Training and held-out state error",
+      "result": "Both SIP and Adam perform best at learning rate 0.001 and batch size 128 and both overfit at 128 or fewer examples; SIP has lower test error in every displayed finite-data configuration.",
+      "baseline": "Identical U-Net trained by ordinary Adam"
+    },
+    {
+      "setting": "64-by-64 two-dimensional incompressible Navier-Stokes velocity reconstruction from initial and final marker fields",
+      "metric": "State-space error, iterations to matched quality, and inference time",
+      "result": "SIP is reported 2.3 times better after 200 iterations and five times after 20,000; 55 SIP iterations match 20,000 Adam iterations. The trained network takes 0.11 ms per batched example, versus 2.2 s for seven inverse-solver iterations and more than four hours for 20,000 gradient iterations.",
+      "baseline": "The same 49,570-parameter U-Net trained with ordinary Adam, plus per-example inverse and gradient solvers"
+    },
+    {
+      "setting": "Noisy one-dimensional wave-packet localization with a fixed centered solver initialization",
+      "metric": "Curve-fit loss and localization error",
+      "result": "The amortized convolutional network surpasses L-BFGS-B after roughly 30-40 training iterations and more often escapes phase-shift and noise-fitting local minima, although this appendix does not evaluate SIP itself.",
+      "baseline": "Per-example L-BFGS-B from the same centered initialization and random guessing"
+    }
+  ],
+  "limitations": [
+    "A scale-invariant inverse update is required; high-dimensional complex systems may not have an analytic, affordable, or trustworthy approximation.",
+    "The strongest convergence theorem may require many network updates per inverse-solver evaluation, whereas the experiments re-evaluate the solver after one update and rely on an unverified expected-direction assumption.",
+    "Equation 9 is much stronger than universal approximation: it assumes gradient descent can reach every target state for every example.",
+    "SIP still uses a first-order optimizer in network-parameter space, so poor scaling in network outputs or its Jacobian remains.",
+    "The method minimizes equal Euclidean state errors; the authors acknowledge that it can yield a worse original physical loss and may be inappropriate when only control loss matters.",
+    "All headline data are synthetically generated from known simulators, mostly on the fly, rather than noisy real measurements with forward-model error, missing observations, changing boundary conditions, or sensor shift.",
+    "The Poisson inverse exposes the exact label, the heat inverse encodes signal/noise priors, and the fluid inverse encodes a low-dimensional motion prior; no baseline receives matched privileged structure.",
+    "The experiments are limited to small two-dimensional grids, shallow MLPs or U-Nets, and one RTX 2070 Super; resolution, architecture, hardware, and system-size scaling are not established.",
+    "Curves show a few additional initializations but generally lack confidence intervals, formal statistical tests, and a resource-normalized comparison that includes solver-development cost.",
+    "The claim of exponentially faster convergence describes fitted learning-curve behavior, not a proven asymptotic compute or sample-complexity separation for the deployed one-step algorithm.",
+    "The method selects one local solution around the current prediction and does not represent posterior uncertainty or multiple valid inverse states."
+  ],
+  "failure_modes": [
+    "An inaccurate inverse solver proposes a state update that reduces its surrogate criterion but increases the true physical loss.",
+    "The network Jacobian rotates or collapses the detached state-space direction, invalidating the one-step expected-decrease premise.",
+    "A multimodal inverse has distant valid basins and conditioning on the current prediction locks training into a systematically wrong mode.",
+    "Heat noise or signal spectra differ from the assumed Gaussian priors, causing damping to erase recoverable details or amplify measurement noise.",
+    "Fluid motion lies outside the translation-plus-single-vortex manifold, so the privileged estimator gives biased gradients and ignores important small-scale dynamics.",
+    "The exact simulator differs from deployment physics, so an amortized inverse becomes confidently wrong under discretization, parameter, forcing, or boundary-condition shift.",
+    "State coordinates have incompatible units or relevance, making an unweighted Euclidean pseudo-label loss scientifically misleading.",
+    "The physical loss is the deployment objective rather than state recovery, and SIP improves x-space error while degrading high-curvature or high-value examples.",
+    "Inverse-solver cost dominates training for larger systems or higher-fidelity solvers, erasing iteration-count gains.",
+    "A claimed well-conditioned configuration uses xi=0 from the prose, which makes the stated synthetic forward map undefined; implementations must follow xi=1 from the figure instead."
+  ],
+  "reusable_insights": [
+    "When a composite differentiable system is ill-conditioned, precondition the update in the smaller structured state space before mapping it through a large learned component.",
+    "Detach solver-generated targets explicitly so the algorithm does not accidentally optimize through an approximate inverse and turn its fixed points into unintended attractors.",
+    "Separate gains from preconditioning, privileged domain knowledge, and amortization by giving baselines matched solvers or pseudo-labels wherever possible.",
+    "Evaluate both the original physical objective and scientifically meaningful state metrics; neither should silently stand in for the other.",
+    "For unstable inverse operators, express regularization as an auditable prior and stress-test it under misspecified noise spectra and distribution shift.",
+    "Distinguish representation existence, reachability by an optimizer, many-inner-step convergence, and actual one-step training guarantees in theory claims.",
+    "Measure wall-clock, simulator calls, inverse-solver calls, memory, and post-training inference separately when arguing for amortized inverse methods.",
+    "Include local-baseline restarts and posterior or ensemble baselines when the inverse map is genuinely multimodal."
+  ],
+  "open_questions": [
+    "Can a trust-region or line-search test accept, reject, or shorten each detached inverse update using the true physical loss without losing amortized efficiency?",
+    "What observable diagnostic detects when a network parameter update has distorted the intended state-space direction enough to violate the one-step assumption?",
+    "Can inverse updates be learned from data while preserving monotone-loss or stability certificates under simulator shift?",
+    "How does SIP compare when every baseline receives the same analytic inverse, domain prior, simulator-call budget, and architecture size?",
+    "Can the method represent several valid inverse states or a posterior rather than selecting the basin nearest one deterministic prediction?",
+    "Which conclusions survive real sensor noise, partial observations, uncertain coefficients, non-periodic boundaries, three-dimensional turbulence, and changing grid resolution?",
+    "Does improvement persist as physical dimension and network scale increase, and what scaling law links solver accuracy, solver cost, and downstream state error?",
+    "Can unit-aware or task-weighted state metrics retain conditioning benefits while aligning the pseudo-label objective with the actual downstream loss?",
+    "Is half-inversion of the joint Jacobian more robust than replacing only the physics adjoint, and under what spectra do the two methods coincide?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1711.10561",
+      "title": "Physics Informed Deep Learning (Part I): Data-driven Solutions of Nonlinear Partial Differential Equations",
+      "url": "https://arxiv.org/abs/1711.10561",
+      "relationship": "physics-residual predecessor",
+      "difference": "This physics-informed neural-network formulation places PDE residuals and observations directly in a differentiable loss to learn PDE solutions without a separate inverse-update routine. SIP instead assumes a simulator plus a useful local inverse update to precondition the physical state; broader PINN work extends residual training to inverse parameter discovery, but that is not the specific contribution of this Part I record."
+    },
+    {
+      "canonical_id": "arxiv:2001.07457",
+      "title": "Learning to Control PDEs with Differentiable Physics",
+      "url": "https://arxiv.org/abs/2001.07457",
+      "relationship": "same-team differentiable-physics precursor",
+      "difference": "Holl et al.'s earlier predictor-corrector controller is trained end to end through a differentiable PDE solver using ordinary adjoint gradients. The reviewed paper keeps that amortized differentiable-physics setting but replaces the simulator adjoint with an inverse-solver step specifically to address conditioning."
+    },
+    {
+      "canonical_id": "arxiv:2010.08895",
+      "title": "Fourier Neural Operator for Parametric Partial Differential Equations",
+      "url": "https://arxiv.org/abs/2010.08895",
+      "relationship": "operator-learning alternative and baseline family",
+      "difference": "FNO learns mesh-aware mappings between function spaces from paired data and offers resolution transfer and fast inference without embedding a per-step inverse routine. SIP is architecture-agnostic and changes training gradients using known physics, but its paper compares against a much larger FNO only on the same fixed grids and does not isolate architecture from optimizer effects."
+    },
+    {
+      "canonical_id": "arxiv:2203.10131",
+      "title": "Half-Inverse Gradients for Physical Deep Learning",
+      "url": "https://arxiv.org/abs/2203.10131",
+      "relationship": "closest contemporaneous conditioning method",
+      "difference": "Half-Inverse Gradients, also from the same research group, approximately half-inverts the Jacobian of the combined neural and physical system and evaluates nonlinear oscillators, Schrodinger dynamics, and Poisson. It addresses scaling without requiring a bespoke full physics inverse for every task, whereas SIP inserts a domain-specific inverse update only at the physical-state interface."
+    },
+    {
+      "canonical_id": "arxiv:2301.11167",
+      "title": "Neural Inverse Operators for Solving PDE Inverse Problems",
+      "url": "https://arxiv.org/abs/2301.11167",
+      "relationship": "direct learned-inverse successor",
+      "difference": "Neural Inverse Operators compose DeepONet and FNO modules to learn the mathematically appropriate operator-to-function inverse map and report large speedups over direct PDE-constrained optimization. They learn inverse structure from labeled families rather than requiring SIP's per-task local inverse solver during training, but inherit data-generation and identifiability demands."
+    },
+    {
+      "canonical_id": "arxiv:2406.03923",
+      "title": "Latent Neural Operator for Solving Forward and Inverse PDE Problems",
+      "url": "https://arxiv.org/abs/2406.03923",
+      "relationship": "modern efficient operator alternative",
+      "difference": "The Latent Neural Operator uses physics cross-attention to compress geometric samples, learns the operator in latent space, and decodes arbitrary query locations for both forward and inverse problems. It targets memory, resolution, and geometric scalability, while SIP targets optimizer conditioning and was tested only on small regular grids."
+    },
+    {
+      "canonical_id": "arxiv:2412.03161",
+      "title": "Physics-Informed Deep Inverse Operator Networks for Solving PDE Inverse Problems",
+      "url": "https://arxiv.org/abs/2412.03161",
+      "relationship": "label-free inverse-operator successor",
+      "difference": "PI-DION learns inverse solution operators without labeled targets using physics-informed objectives and provides finite-sample and finite-grid stability estimates. This reduces SIP's dependence on exact synthetic inverse labels in cases like Poisson, although it still faces physics-loss optimization and does not use SIP's domain-solver preconditioning mechanism."
+    }
+  ],
+  "novelty_assessment": "The defensible novelty is the clean detached-pseudo-label interface that injects one higher-order or domain-specific inverse update in physical state space while retaining ordinary first-order neural-network training. Differentiable-physics learning, amortized inverse inference, Newton preconditioning, physics-informed losses, and neural operators all predate it, and the same group quickly proposed the closely related Half-Inverse Gradients. The experiments convincingly illustrate how privileged inverse structure can overcome badly scaled adjoints, but they do not establish that SIP is a generally available optimizer: each high-dimensional result relies on a different analytic inverse or handcrafted prior, the strongest theorem covers many inner parameter steps rather than the deployed one-step loop, and modern inverse operators address label, geometry, and scaling questions outside this evaluation. Claims should therefore be framed as a modular recipe for exploiting a trusted inverse solver, not a solver-free universal solution to nonlinear inverse learning.",
+  "confidence": 0.96,
+  "reviewer_notes": "Read all 27 extracted pages, including the convergence appendix, full simulator and network protocols, finite-data and hyperparameter sweeps, timing figures, wave-packet control experiment, and exponential-gradient appendix. The xi=0 singularity, theorem-to-algorithm gap, exact-label character of the Poisson inverse, and privileged heat/fluid priors are retained as explicit audits. Seven primary arXiv records spanning the closest same-group method, predecessors, operator alternatives, and 2023-2024 successors were checked on 2026-08-23."
+}

@@ -1,0 +1,86 @@
+{
+  "stable_id": "arxiv:2205.02904",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2205.02904",
+    "pdf_sha256": "fcf1a1463dd89b285fa72fb0db9501437a4bcf26b782929853b1f4219142b5be",
+    "text_sha256": "6792a8f2d5c4c4c46e223f1c39a0fb64a3f509726fc68182c788ef559d78c71b",
+    "page_count": 17,
+    "extracted_at": "2026-08-23T21:06:26.647252+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a neural network predict an intrinsic, triangulation-agnostic differential representation of a surface map and recover the final mesh mapping through a differentiable Poisson solve?",
+  "key_findings": [
+    {
+      "claim": "Neural Jacobian Fields separates learned local map derivatives from mesh-specific integration.",
+      "evidence": "An MLP receives a global shape code and one triangle's centroid, normal, and wave-kernel-signature features, predicts an ambient 3x3 matrix, restricts it to the triangle's 3x2 tangent frame, and reconstructs vertex positions through a Poisson system.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "3 Background"}, {"page": 5, "section": "4 Neural Jacobian Fields"}, {"page": 6, "section": "4.2 Reconstructing mappings"}]
+    },
+    {
+      "claim": "The representation is empirically robust to remeshing but is not exactly discretization invariant.",
+      "evidence": "The remeshing test produces similar deformations across triangulations, while the authors explicitly distinguish triangulation agnosticism from invariance because finite-element gradient and output spaces still change with the mesh.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 14, "section": "5.6 Triangulation agnosticism"}]
+    },
+    {
+      "claim": "Gradient-domain decoding improves delicate mapping tasks relative to direct coordinate prediction in the reported comparisons.",
+      "evidence": "On UV parameterization, direct DiffusionNet output is substantially worse, and on deformation tasks Neural Cages and direct displacement fields lose accuracy or detail; the Poisson step enforces a globally integrated map closest to the predicted field.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 8, "section": "5.1 UV parameterization"}, {"page": 12, "section": "5.5 Comparisons"}, {"page": 13, "section": "Table 5 and direct-prediction comparison"}]
+    },
+    {
+      "claim": "The UV model does not guarantee a valid injective parameterization.",
+      "evidence": "Table 1 reports an average 3.44 flipped triangles per Thingi10K test mesh and at least one flip in 19% of meshes; the generalization split reports 0.774 flips per mesh and 10% with a flip, and difficult unseen surfaces can self-overlap.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 8, "section": "5.1 UV parameterization and Table 1"}]
+    },
+    {
+      "claim": "The learned ARAP surrogate trades optimization guarantees for large inference-time acceleration.",
+      "evidence": "The paper reports approximately one second for network inference plus the linear solve versus roughly ten minutes for optimization, with quantitative comparisons to a fixed-global MLP and traditional ARAP targets.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 11, "section": "5.4 Non-rigid surface deformation"}, {"page": 13, "section": "Table 4"}]
+    },
+    {
+      "claim": "Generalization depends materially on the global encoder and the similarity of intrinsic shape distributions.",
+      "evidence": "A human-trained reposing model can deform Big Buck Bunny, but it fails on strongly shifted shapes such as Armadillo; the PointNet ablation and discussion identify global encoding and radically different intrinsic geometry as bottlenecks.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 10, "section": "5.2 Pose transfer and generalization"}, {"page": 12, "section": "5.5 Comparison to cages"}, {"page": 15, "section": "6 Limitations and conclusions"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Predict a continuous field of local surface-map Jacobians with a shared neural function, then use classical differential operators to integrate that field into a globally coherent piecewise-linear map.",
+    "mechanism": "Encode the whole input shape with PointNet; concatenate that code with per-face geometric features; predict ambient matrices with a residual MLP; restrict them through each face tangent basis; solve a cached sparse Poisson system; train end to end with weighted vertex and Jacobian reconstruction losses.",
+    "assumptions": ["Inputs admit a manifold triangle-mesh discretization and stable gradient/Laplacian operators", "The desired mapping is continuous and its local derivatives are representable by a shared per-triangle MLP", "A global PointNet code captures topology and long-range context absent from local features", "Supervised target mappings or Jacobians are available", "Choice of input coordinates and normals need not be rigid- or scale-invariant"]
+  },
+  "techniques": [
+    {"id": "neural-jacobian-field", "role": "Represents a mapping through learned per-triangle derivatives rather than direct vertices."},
+    {"id": "differentiable-poisson-integration", "role": "Projects a potentially nonintegrable predicted field onto a coherent vertex map."},
+    {"id": "triangle-local-mlp", "role": "Shares the decoder across faces and triangulations using centroid, normal, and WKS features."},
+    {"id": "global-pointnet-conditioning", "role": "Supplies whole-shape context needed to disambiguate local differential predictions."},
+    {"id": "cached-sparse-factorization", "role": "Makes repeated differentiable solves practical for a fixed mesh."}
+  ],
+  "evaluations": [
+    {"setting": "UV maps for 100,000 disk-like Thingi10K patches with SLIM supervision", "metric": "distortion, flipped triangles, and meshes containing flips", "result": "competitive distortion but nonzero invalidity: 3.44 flips per test mesh and 19% of meshes with a flip in the main split", "baseline": "SLIM targets and direct DiffusionNet prediction"},
+    {"setting": "human STAR/SMPL reposing, registration, and morphing, plus cross-category examples", "metric": "vertex/Jacobian error and qualitative detail preservation", "result": "accurate in-distribution maps and some cross-category transfer, with failures under large intrinsic distribution shift", "baseline": "Neural Cages, direct displacement prediction, and fixed-global MLP variants"},
+    {"setting": "learned ARAP deformation", "metric": "mapping error and runtime", "result": "roughly one-second inference plus solve versus about ten-minute optimization, with a modest approximation tradeoff", "baseline": "iterative ARAP optimization"},
+    {"setting": "collision-aware deformation", "metric": "mapping error and inference frequency", "result": "slightly more accurate in the reported comparison but about 109 Hz versus the comparator's 980 Hz", "baseline": "Romero et al. collision-handling network"},
+    {"setting": "remeshed versions of the same surface", "metric": "visual and quantitative consistency of predicted deformation", "result": "approximately consistent output, supporting agnosticism but not exact invariance", "baseline": "the original triangulation"}
+  ],
+  "limitations": ["The method requires discrete surface differential operators; raw point clouds and nonmanifold inputs need a proxy mesh or different solver.", "Coordinates and normals make the model sensitive to rigid motion and scale unless data or architecture handles them.", "PointNet can struggle with disconnected components, topology, and fine global correspondence.", "The formulation produces continuous maps and cannot directly choose UV cuts or strictly reproduce sharp derivative discontinuities.", "Supervised target maps are needed for the demonstrated tasks.", "The Poisson reconstruction does not enforce injectivity, orientation preservation, collision freedom, or task constraints.", "Cached factorizations and per-mesh operators complicate deployment on large changing meshes."],
+  "failure_modes": ["Predicted nonintegrable Jacobians are averaged by the Poisson projection and can blur important local constraints.", "UV outputs can contain flips and global self-overlaps even with low average distortion.", "A shape far outside the encoder's intrinsic training distribution can receive an implausible global code and deformation.", "Remeshing can change finite-element spaces enough to produce measurably different outputs.", "Surfaces with components, nonmanifold junctions, or missing connectivity can break the assumed operators.", "Sharp folds or discontinuous maps are smoothed because the field and integrated mapping are continuous."],
+  "reusable_insights": ["Learn difficult structured outputs in a differential representation and let a known global solver enforce consistency.", "Separate discretization-agnostic prediction from discretization-specific operators, while reporting residual discretization error honestly.", "Validity constraints such as injectivity require explicit losses, barriers, or constrained integration; low reconstruction error is insufficient.", "A local decoder still needs a strong, topology-aware global conditioning mechanism.", "Factorization caching is a powerful performance optimization when many right-hand sides share a mesh operator."],
+  "open_questions": ["Can constrained Poisson integration guarantee injective or orientation-preserving maps?", "Can SE(3)- and scale-equivariant features remove coordinate-frame sensitivity without sacrificing accuracy?", "How can the method operate directly on point clouds, nonmanifold meshes, or changing topology?", "Would graph- or diffusion-based global encoders improve transfer beyond PointNet?", "Can uncertainty in predicted Jacobians identify out-of-distribution surfaces before integration?", "How stable are gradients and runtime on million-face meshes or rapidly changing discretizations?"] ,
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:1912.06395", "title": "Neural Cages for Detail-Preserving 3D Deformations", "url": "https://arxiv.org/abs/1912.06395", "relationship": "direct learned-mesh-deformation competitor", "difference": "Neural Cages learns an ambient cage and deformation weights, preserving detail within a cage-induced subspace; Neural Jacobian Fields removes the cage and predicts intrinsic local derivatives for a broader family of mappings, but lacks cage-style global validity structure.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv v2, revised 2020-03-18"},
+    {"canonical_id": "arxiv:2012.00888", "title": "DiffusionNet: Discretization Agnostic Learning on Surfaces", "url": "https://arxiv.org/abs/2012.00888", "relationship": "surface-learning architecture and direct-output baseline", "difference": "DiffusionNet provides discretization-agnostic intrinsic feature propagation across meshes and point clouds; this paper specializes the decoder to gradient-domain map prediction and a Poisson solve, which its experiments find advantageous for delicate UV outputs.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv v3, revised 2022-01-07"},
+    {"canonical_id": "arxiv:2006.07982", "title": "ShapeFlow: Learnable Deformations Among 3D Shapes", "url": "https://arxiv.org/abs/2006.07982", "relationship": "alternative continuous deformation representation", "difference": "ShapeFlow learns ambient continuous flows with topology-agnostic and optional bijectivity or volume-preservation structure; Neural Jacobian Fields uses intrinsic mesh Jacobians and Poisson integration for local detail and triangulation robustness but provides no comparable global bijectivity guarantee.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv v2, revised 2021-06-23"}
+  ],
+  "novelty_assessment": {
+    "author_claim": "Neural Jacobian Fields is a general, triangulation-agnostic representation for learning maps between arbitrary meshes by predicting local Jacobians and integrating them.",
+    "evidence": "A single gradient-domain architecture is applied to UV parameterization, pose transfer, registration, morphing, ARAP approximation, collision handling, and remeshing tests, with comparisons to direct and cage-based predictors.",
+    "reviewer_inference": "The novel contribution is a clean modular interface between a shared neural differential field and classical Poisson reconstruction. The evidence supports versatility and approximate remeshing robustness, but 'arbitrary meshes' is bounded by manifold operators, supervised data, encoder coverage, continuity, and absent global validity guarantees."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Read the complete 17-page cached extraction, including quantitative tables, ablations, remeshing discussion, and stated limitations. Competitor metadata was checked against primary arXiv records on 2026-08-23. Claims of triangulation agnosticism are kept distinct from exact invariance, and UV flip rates are retained as a key validity caveat."
+}

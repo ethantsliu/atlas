@@ -1,0 +1,167 @@
+{
+  "stable_id": "arxiv:2302.13163",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2302.13163",
+    "pdf_sha256": "14dae64331124f95a8d9b0ef9263a1a469ac41a202a680a373e8b95d97ee4785",
+    "text_sha256": "f64603700f202ff9f893074562cc5acf8dc1a186a5d978aff3a2b98650665a7e",
+    "page_count": 15,
+    "extracted_at": "2026-08-23T19:55:14.483446+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a natural-gradient metric built from the PDE energy Hessian overcome PINN optimization plateaus and deliver genuinely high-accuracy neural PDE solutions?",
+  "key_findings": [
+    {
+      "claim": "Energy natural gradient descent is a projected function-space Newton method, not merely generic parameter preconditioning.",
+      "evidence": "The energy Gram matrix evaluates the function-space Hessian on parameter-tangent vectors. Under a coercive Hessian, pushing its parameter update into function space equals the Hessian-metric projection of the Newton direction; for a quadratic energy, this is the projection of the current solution error onto the model tangent space.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "Natural Gradients and Energy Natural Gradients"}, {"page": 5, "section": "Theorem 2 and Equation 12"}]
+    },
+    {
+      "claim": "On the two-dimensional Poisson PINN, E-NGD reaches roughly four more digits of accuracy than Adam despite using 400 times fewer iterations.",
+      "evidence": "Across ten initializations, median relative L2 error is 2.4e-7 for 500 E-NGD steps versus 1.1e-3 for 200,000 Adam steps, 8.2e-3 for GD, and 4.4e-4 for BFGS. The reported end-to-end times are 43 seconds for E-NGD, 66 minutes for Adam, and 15 minutes for BFGS on one RTX 3080 Laptop GPU.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 6, "section": "Two-dimensional Poisson equation, Table 1"}, {"page": 7, "section": "Table 2"}]
+    },
+    {
+      "claim": "The advantage recurs across five-dimensional Poisson, heat-equation, and nonlinear deep-Ritz examples, but is not uniformly reliable across random starts.",
+      "evidence": "E-NGD is reported about two orders more accurate than first-order methods in the batched five-dimensional example. For the heat equation its median error is 6.3e-6 versus 1.0e-3 for Adam, yet its maximum error is 5.6e-1, and the authors say occasional failure can require GD/Adam pretraining. In the nonlinear variational problem, both Hilbert and energy NGD have median errors near 1e-8 but maxima of 1.0.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 7, "section": "Example in Higher Dimensions"}, {"page": 8, "section": "Heat equation and Table 3"}, {"page": 9, "section": "Nonlinear example and Table 5"}]
+    },
+    {
+      "claim": "The paper's strongest theorem assumptions do not literally cover its flagship strong-residual PINN example.",
+      "evidence": "The projected-Newton identity assumes the function-space Hessian is coercive. For the two-dimensional residual loss, the authors explicitly note that their energy inner product is not coercive in H2, only relative to a weaker H1/2 norm. Thus the computation remains well defined after discretization, but the stated H2 theorem does not directly certify that experiment.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 5, "section": "Theorem 2 assumptions"}, {"page": 6, "section": "Poisson energy inner product and footnote 6"}]
+    },
+    {
+      "claim": "The demonstrated accuracy depends on small parameter counts, dense linear algebra, double precision, and unusually accurate quadrature.",
+      "evidence": "Each step assembles a p-by-p Gram matrix and solves a least-squares system by SVD, with stated O(p^3) solve complexity versus O(p) gradient cost. Experiments use shallow tanh networks (for example, 257 parameters for 2D Poisson), double precision, exact manufactured solutions, and up to 20,000 trapezoidal points; the authors identify scalable implementations and initialization as future work.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 5, "section": "Complexity and Algorithm 1"}, {"page": 6, "section": "Computation details"}, {"page": 9, "section": "Nonlinear example and Conclusion"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Use the Hessian of the infinite-dimensional PDE objective to define a problem-specific natural-gradient geometry for the neural solution manifold.",
+    "mechanism": "Differentiate the neural function with respect to every parameter, form a Gram matrix by applying the energy Hessian bilinear form to every pair of tangent functions, solve a pseudoinverse/least-squares system against the parameter gradient, and choose a step by logarithmic grid line search on [0,1]. The resulting parameter direction approximates a function-space Newton step projected onto the current network tangent space.",
+    "assumptions": [
+      "The energy Hessian is positive definite and sufficiently coercive to induce the claimed function-space metric.",
+      "Quadrature or collocation accurately represents both the objective and energy Gram matrix.",
+      "The neural tangent space contains a useful projection of the Newton direction at the current parameters.",
+      "Dense Gram assembly and a stable pseudoinverse are affordable for the chosen model size.",
+      "Manufactured-solution error and repeated initializations transfer to harder PDEs without known ground truth."
+    ]
+  },
+  "techniques": [
+    {"id": "energy-hessian-metric", "role": "Defines the natural-gradient geometry from the PDE objective rather than a generic Hilbert or Fisher metric."},
+    {"id": "tangent-space-projection", "role": "Connects the parameter update to a projected Newton direction in function space."},
+    {"id": "svd-least-squares", "role": "Handles singular or ill-conditioned energy Gram matrices through a pseudoinverse solve."},
+    {"id": "log-grid-line-search", "role": "Compensates for nonlinear parameterization when a unit function-space Newton step is unsafe."},
+    {"id": "double-precision-quadrature", "role": "Supports error measurements far below the plateaus of standard optimizers."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Two-dimensional Poisson strong-residual PINN, shallow width-64 tanh network, ten initializations.",
+      "metric": "Relative L2 error, iteration count, and GPU wall time.",
+      "result": "E-NGD median error 2.4e-7 after 500 steps and 43 seconds.",
+      "baseline": "GD 8.2e-3, Adam 1.1e-3, BFGS 4.4e-4, and nonconvergent Hilbert NGD under their longer stated budgets."
+    },
+    {
+      "setting": "Five-dimensional Poisson PINN with fresh random collocation batches and one-dimensional heat-equation PINN.",
+      "metric": "Relative L2 error over time and ten initializations.",
+      "result": "E-NGD is reported roughly two orders more accurate in 5D and has 6.3e-6 median heat-equation error, though one heat run fails at 5.6e-1.",
+      "baseline": "GD, Adam, BFGS, and Hilbert NGD."
+    },
+    {
+      "setting": "One-dimensional nonlinear elliptic variational problem trained with the deep Ritz method.",
+      "metric": "Relative L2 error and computation time over ten initializations.",
+      "result": "E-NGD reaches 1.3e-8 median error in 43 seconds; both energy and Hilbert NGD have worst-case error 1.0.",
+      "baseline": "GD 2.2e-4, Adam 5.3e-5, BFGS 1.2e-5, and Hilbert NGD 1.0e-8 median."
+    }
+  ],
+  "limitations": [
+    "Dense p-by-p Gram construction and O(p^3) SVD make the implementation unsuitable for modern large networks without approximation.",
+    "All main tests are manufactured, low-dimensional PDEs with shallow networks, known solutions, and a single consumer GPU.",
+    "The coercivity premise behind the geometric theorem is violated in the stated H2 space for the flagship residual PINN.",
+    "The optimizer occasionally fails catastrophically from random initialization and can need an unformalized pretraining stage.",
+    "Comparisons do not include contemporary loss balancing, causal curricula, domain decomposition, or scalable Newton-CG methods.",
+    "Very fine quadrature and double precision contribute to high accuracy and may dominate cost in high dimensions."
+  ],
+  "failure_modes": [
+    "The Gram matrix becomes rank deficient or extremely ill conditioned as tangent features align, making the pseudoinverse unstable.",
+    "A nonconvex energy has an indefinite Hessian, so it cannot define the assumed Riemannian metric.",
+    "The projected Newton direction is poor because the current tangent space misses important components of solution error.",
+    "Collocation under-resolves the PDE residual, allowing tiny training energy but large off-grid solution error.",
+    "Line-search evaluation multiplies PDE/quadrature work and removes the reported speed advantage at scale.",
+    "Initialization lands in the empirically observed failed basin and no cheap pretraining rule detects it early."
+  ],
+  "reusable_insights": [
+    "Judge PDE optimizers by solution error and wall-clock-to-accuracy, not residual loss or iteration count alone.",
+    "Choose preconditioner geometry from the governing functional when its Hessian has a meaningful physical/operator interpretation.",
+    "Report both median and worst-start accuracy: second-order methods can look spectacular while retaining catastrophic initialization tails.",
+    "Separate optimization error, discretization error, tangent-space approximation error, and floating-point error in high-accuracy claims.",
+    "Exploit sample-space Woodbury or iterative matrix-vector products before materializing a dense parameter-space Gram matrix."
+  ],
+  "open_questions": [
+    "Can matrix-free, randomized, or Woodbury ENGD retain 1e-8-level accuracy on million-parameter networks and multidimensional PDEs?",
+    "What convergence result applies when the residual energy is noncoercive in the nominal Sobolev space?",
+    "Can a condition-number or projection-residual diagnostic predict failed starts and trigger pretraining automatically?",
+    "How does ENGD compare at equal wall time with NysNewton-CG, causal curricula, domain decomposition, and adaptive loss balancing?",
+    "Does the method remain superior on inverse, noisy, chaotic, and real-geometry PDEs where ground truth and fine quadrature are unavailable?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2202.06236",
+      "title": "Efficient Natural Gradient Descent Methods for Large-Scale Optimization Problems",
+      "url": "https://arxiv.org/abs/2202.06236",
+      "relationship": "direct-foundation",
+      "difference": "Nurbekyan, Lei, and Yang derive efficient function-space natural gradients for several geometries and large parameterizations. The target instead chooses the PDE energy Hessian specifically so the update becomes a projected function-space Newton step, but implements a dense solve.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "pmlr:v202-yao23c",
+      "title": "MultiAdam: Parameter-wise Scale-invariant Optimizer for Multiscale Training of Physics-informed Neural Networks",
+      "url": "https://proceedings.mlr.press/v202/yao23c.html",
+      "relationship": "concurrent-alternative",
+      "difference": "MultiAdam attacks imbalance among PDE and boundary losses with parameter-wise moment normalization and remains first-order. ENGD uses full problem curvature and attains smaller errors on its tests, at much higher per-step memory and linear-algebra cost.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "pmlr:v235-rathore24a",
+      "title": "Challenges in Training PINNs: A Loss Landscape Perspective",
+      "url": "https://proceedings.mlr.press/v235/rathore24a.html",
+      "relationship": "followup-direct-competitor",
+      "difference": "Rathore et al. explain PINN ill-conditioning through differential operators and introduce NysNewton-CG, a Nyström-preconditioned second-order method designed for scalability. It optimizes parameter loss curvature rather than the target's explicit energy-induced function geometry.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2505.12149",
+      "title": "Improving Energy Natural Gradient Descent through Woodbury, Momentum, and Randomization",
+      "url": "https://arxiv.org/abs/2505.12149",
+      "relationship": "direct-followup",
+      "difference": "This follow-up preserves ENGD but moves solves into sample space with Woodbury, adds projected-increment momentum, and tests randomization, reporting up to 75-times speedups at matched L2 error. It directly addresses the target paper's central scalability limitation while finding randomization is not universally helpful.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2510.27018",
+      "title": "Domain decomposition architectures and Gauss-Newton training for physics-informed neural networks",
+      "url": "https://arxiv.org/abs/2510.27018",
+      "relationship": "later-scalable-alternative",
+      "difference": "Heinlein and Kapoor combine localized subnetworks with Gauss-Newton so domain decomposition creates a block-sparse curvature system. ENGD supplies a sharper function-space geometric interpretation, whereas localization offers an architectural route around its otherwise dense system.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors present energy natural gradients as a new, highly accurate optimizer for PINNs and deep Ritz models whose function-space update is a projected Newton direction.",
+    "evidence": "Theorems 1-2 and Equations 5-13 establish the geometry; four PDE experiments report accuracy several orders beyond GD, Adam, and BFGS.",
+    "reviewer_inference": "The energy-specific geometry and projected-Newton interpretation are substantive and spawned direct efficiency follow-ups. The empirical result is compelling for small manufactured systems, but dense cubic solves, fragile starts, fine quadrature, and a coercivity mismatch prevent the paper itself from establishing large-scale or general PDE superiority."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Read all 15 cached pages, including appendices and experiment tables. Audited theorem assumptions against the 2D PINN bilinear form and preserved the authors' own noncoercivity caveat. Competitor check used primary arXiv and official PMLR sources through 2025 on 2026-08-23."
+}

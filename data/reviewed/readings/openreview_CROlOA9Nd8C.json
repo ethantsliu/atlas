@@ -1,0 +1,213 @@
+{
+  "stable_id": "openreview:CROlOA9Nd8C",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2307.06962",
+    "pdf_sha256": "9670e4956f64b17e0574b7cb3e9ea91149df3eaa65b77d1597a20d5fe22cef57",
+    "text_sha256": "8c623f4c84af5b31188ec656654e7339c08db58b00901cb33b67b820eee2fad0",
+    "page_count": 16,
+    "extracted_at": "2026-08-24T00:31:01.740813+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can open-ended language generation be reformulated as autoregressive retrieval of variable-length contextualized phrases, yielding plug-and-play domain adaptation and fewer decoding steps than token generation?",
+  "key_findings": [
+    {
+      "claim": "Copy-Generator replaces most next-token choices with retrieval over a dynamic vocabulary of contextualized source spans while retaining ordinary token embeddings as a fallback.",
+      "evidence": "A GPT-2-base causal prefix encoder produces a query, a BERT-base phrase encoder represents every candidate span by transformed start and end states, and maximum inner-product search chooses either a source phrase or one of 50,257 fixed-vocabulary tokens. The selected multi-token phrase is appended in one autoregressive step.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 1, "section": "Introduction"}, {"page": 3, "section": "Copy-Generator formulation"}, {"page": 4, "section": "Phrase encoder"}, {"page": 13, "section": "Appendix B: dynamic vocabulary size"}]
+    },
+    {
+      "claim": "Training depends on a greedy, retriever-constrained phrase oracle rather than globally optimal phrase segmentation.",
+      "evidence": "Each training document is segmented left-to-right by taking the longest prefix found in another document; because exhaustive search is too expensive, candidate documents are first limited to the top 1,024 returned by DPR and FAISS. The model then combines an InfoNCE phrase-prediction loss over batch/source candidates with a conventional token language-model loss.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "Model training"}, {"page": 5, "section": "Training objective and coarse-to-fine retrieval"}, {"page": 13, "section": "Appendix D: phrase segmentation"}, {"page": 14, "section": "Algorithm 1"}]
+    },
+    {
+      "claim": "On WikiText-103, the headline gain is confined to MAUVE; nucleus-sampled COG is worse than the Transformer on repetition, diversity, and measured online latency.",
+      "evidence": "COG nucleus scores 26.14 MAUVE versus 23.43, but Rep-2/3/4 are 7.31/2.66/1.28 versus 5.10/1.33/0.50, diversity is 89.07 versus 93.22, and latency is 1.54 versus 1.48 seconds. The paper calls the 23.43-to-26.14 change a 2.71% improvement, although 2.71 is an absolute score-point difference and the relative increase is about 11.6%.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 6, "section": "WikiText-103 results and Table 1"}]
+    },
+    {
+      "claim": "The reported latency parity excludes substantial offline and memory-system work.",
+      "evidence": "COG appears close to Transformer latency because a retrieved phrase advances several tokens, but phrase-document encoding is explicitly excluded. Every test prefix first retrieves 1,024 documents and considers an average of 950,942.4 phrase representations, while index construction time, storage footprint, corpus update cost, and retrieval hardware are not reported.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 5, "section": "Coarse-to-fine phrase search"}, {"page": 7, "section": "Inference speed"}, {"page": 13, "section": "Appendix B: inference vocabulary"}]
+    },
+    {
+      "claim": "Plug-and-play corpus switching improves MAUVE in the tested law and enlarged-Wikipedia settings, but the evaluation does not isolate retrieval quality, corpus overlap, or model-size effects.",
+      "evidence": "Without domain-specific parameter updates, COG reaches 28.14 MAUVE on Law-MT versus 26.85 for a fine-tuned Transformer, and an En-Wiki index yields 26.97 on WikiText-103. COG has 248M parameters from GPT-2 plus BERT versus roughly 124M for the token baselines; RETRO is reimplemented and trained from scratch; and no deduplication or overlap audit is reported between the Wikipedia-derived index and WikiText test text.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 5, "section": "Implementation details"}, {"page": 8, "section": "Law-MT and enlarged-index results"}, {"page": 9, "section": "En-Wiki Table 6"}, {"page": 12, "section": "Appendix A: dataset statistics"}]
+    },
+    {
+      "claim": "Human preference supports a quality signal but is too small and consensus-driven to characterize reliability broadly.",
+      "evidence": "Three native-speaking graders judge 100 prompts, then discuss disagreements until one final decision. COG is preferred to the Transformer on 48% of WikiText prompts versus 28% for the baseline and 24% ties; on Law-MT the split is 52% versus 36% with 12% ties. No independent inter-annotator agreement, uncertainty interval, significance test, source-faithfulness criterion, or factuality rubric is reported.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 7, "section": "WikiText human evaluation"}, {"page": 8, "section": "Law-MT human evaluation"}]
+    },
+    {
+      "claim": "Direct copying makes provenance available but does not guarantee local coherence, correctness, or rights-safe generation.",
+      "evidence": "The authors warn that copied spans may create copyright and privacy disputes and recommend source checks and attribution, but provide no enforcement mechanism. Appendix examples show a retrieved 75 mph fragment following an incompatible 106 km/h value and a truncated Rhine and Main phrase that yields an inaccurate continuation.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 3, "section": "Ethical consideration"}, {"page": 15, "section": "Appendix E: failure cases"}, {"page": 16, "section": "Appendix E: generated example"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Make retrieved, context-bearing text spans first-class autoregressive output units so retrieval itself performs generation and a source corpus acts as a swappable external vocabulary.",
+    "mechanism": "Greedily segment training documents into longest spans found in retrieved peer documents, jointly train a causal GPT-2 prefix encoder and bidirectional BERT phrase encoder with contrastive phrase selection plus token LM loss, pre-encode corpus documents, and at inference retrieve 1,024 relevant documents before scoring their variable-length spans and fixed tokens by inner product. Greedy or nucleus decoding then emits the selected span in one step.",
+    "assumptions": [
+      "Relevant and coherent continuations usually occur verbatim as spans in the indexed corpus.",
+      "DPR's top-1,024 documents have sufficient recall for both phrase-oracle construction and inference.",
+      "A start/end representation retains enough internal phrase semantics and surrounding context for generation.",
+      "Greedy longest-match segmentation supplies useful training targets despite not optimizing sequence-level likelihood or coherence.",
+      "A softmax over the retrieved dynamic candidate set is an adequate local decoding distribution even though it is not a fixed normalized language-model vocabulary.",
+      "Offline encoding, storage, search, and corpus governance costs are acceptable for the deployment setting.",
+      "Source corpora are licensed, privacy-screened, and sufficiently deduplicated from evaluation data."
+    ]
+  },
+  "techniques": [
+    {"id": "dynamic-phrase-vocabulary", "role": "Adds contextualized variable-length source spans to the fixed token vocabulary."},
+    {"id": "dual-encoder-phrase-generation", "role": "Matches a causal prefix query directly to bidirectionally encoded phrase candidates."},
+    {"id": "boundary-span-representation", "role": "Represents each phrase by transformed start and end token states while sharing document encodings."},
+    {"id": "forward-maximum-matching", "role": "Constructs training phrase targets by greedy longest matching across documents."},
+    {"id": "contrastive-phrase-loss", "role": "Aligns a prefix with its next source phrase against token and phrase negatives."},
+    {"id": "coarse-to-fine-mips", "role": "Uses DPR document retrieval to reduce the phrase pool before FAISS inner-product selection."},
+    {"id": "multi-token-autoregressive-decoding", "role": "Reduces the number of decoding iterations by emitting one retrieved span per step."},
+    {"id": "corpus-swap-domain-adaptation", "role": "Changes external knowledge and style without updating model parameters."}
+  ],
+  "evaluations": [
+    {
+      "setting": "WikiText-103 continuation from a 32-token prefix for 128 generated tokens; GPT-2/BERT-based COG trained 400,000 steps on eight V100 GPUs.",
+      "metric": "MAUVE, Rep-2/3/4, diversity, online latency, external GPT-2-Large perplexity, and preference on 100 prompts.",
+      "result": "Nucleus COG obtains 26.14 MAUVE and 48% human preference versus 23.43 and 28% for the Transformer, while losing on repetition, diversity, and latency; external-LM perplexity is 27.24 versus 37.11 and 18.64 for ground truth.",
+      "baseline": "A roughly half-sized GPT-2 Transformer, kNN-LM, and a from-scratch third-party RETRO reproduction."
+    },
+    {
+      "setting": "Training-free domain adaptation from WikiText-103 to the English side of Law-MT by replacing the external datastore.",
+      "metric": "MAUVE, diversity, and preference on 100 prompts.",
+      "result": "Nucleus COG reaches 28.14 MAUVE and 92.56 diversity; the fine-tuned Transformer reaches 26.85 and 90.14. Human judgments prefer COG on 52%, the fine-tuned Transformer on 36%, with 12% ties.",
+      "baseline": "Transformer with and without Law-MT fine-tuning, kNN-LM, and RETRO using Law-MT memory."
+    },
+    {
+      "setting": "WikiText-103 test generation with an En-Wiki datastore of more than 4.8 million documents and over three billion words.",
+      "metric": "MAUVE and diversity, plus MAUVE over random datastore subsets from 0.1% to 100%.",
+      "result": "Nucleus COG reaches 26.97 MAUVE and 90.00 diversity versus 23.43 and 93.22 for the non-fine-tuned Transformer; MAUVE rises after the index exceeds about 1% in the plotted subsampling study.",
+      "baseline": "Transformer with and without En-Wiki fine-tuning, kNN-LM, and RETRO, although RETRO uses only a subset because of hardware limits."
+    }
+  ],
+  "limitations": [
+    "COG doubles learned parameter count relative to the token baselines by combining GPT-2-base and BERT-base, confounding architectural and capacity gains.",
+    "Its normalized probability is only over a query-dependent retrieved candidate set, so standard next-token likelihood and perplexity are unavailable and model quality is difficult to compare comprehensively.",
+    "The main WikiText advantage is MAUVE; the strongest comparable nucleus Transformer has lower repetition, higher diversity, and slightly lower reported online latency.",
+    "Latency omits corpus encoding and index work, while memory footprint, index build time, update time, bandwidth, and retrieval hardware are not reported.",
+    "The average inference pool approaches one million phrase candidates after retrieving 1,024 documents, creating substantial systems complexity.",
+    "The retriever is an external bottleneck: missed documents make their phrases unreachable and errors propagate directly into generation.",
+    "The paper does not audit exact overlap or near-duplicates between the En-Wiki index and WikiText test articles.",
+    "Only English open-ended continuation and one legal-text domain shift are tested; factual QA, citation accuracy, multilingual generation, and long-form consistency are absent.",
+    "Human evaluation uses 100 prompts and forces discussion-based consensus without agreement statistics or uncertainty estimates.",
+    "Copyright, privacy, attribution, poisoning, and source-removal concerns are acknowledged but not technically mitigated."
+  ],
+  "failure_modes": [
+    "A locally high-scoring phrase can contradict quantities, entities, tense, or syntax established by the preceding copied phrase.",
+    "Greedy longest matching can create poor phrase boundaries and teach the model to retrieve incomplete semantic units.",
+    "A DPR miss leaves no path to the best phrase, even if phrase scoring itself is accurate.",
+    "Large or duplicated corpora can inflate apparent quality through evaluation-text overlap or repetitive near-neighbor spans.",
+    "A poisoned, outdated, private, or copyrighted indexed passage can be reproduced verbatim in the output.",
+    "Nucleus sampling over a changing candidate set can make probabilities and behavior sensitive to index composition rather than only the learned model.",
+    "Corpus swaps may alter style and topic but also introduce distribution shifts the prefix and phrase encoders were never trained to align.",
+    "Index size and retrieval load can erase multi-token decoding savings at realistic deployment scale.",
+    "Traceable copying can still produce unsupported composite claims when individually sourced phrases are stitched together."
+  ],
+  "reusable_insights": [
+    "Treat reusable multi-token spans as decoding units when source attribution and fewer model forward passes are valuable.",
+    "Keep a token fallback so retrieval coverage failures do not make generation impossible.",
+    "Represent many spans from one document encoding through shared boundary vectors rather than encoding every span independently.",
+    "Measure end-to-end retrieval systems with index build, storage, update, search, network, and model costs included.",
+    "Evaluate corpus-swap adaptation against both fine-tuning and retrieval baselines under matched parameter, index, and hardware budgets.",
+    "Track provenance at every emitted span and validate cross-span entailment before presenting the assembled text as supported.",
+    "Deduplicate train, index, and test corpora at exact and semantic levels before claiming benefits from datastore scaling.",
+    "Report MAUVE, repetition, diversity, factuality, attribution, and human preference separately rather than collapsing generation quality to one metric."
+  ],
+  "open_questions": [
+    "Can phrase retrieval be globally normalized or calibrated well enough to support likelihood-based evaluation?",
+    "How much of COG's gain remains under a parameter-matched BERT-plus-GPT baseline and an official, comparably trained RETRO implementation?",
+    "What are index size, build time, update latency, energy, and throughput when the full corpus and concurrent users are included?",
+    "How should phrase targets be learned without a greedy longest-match oracle or dependence on a separate document retriever?",
+    "Can a verifier reject copied spans that contradict the prefix, neighboring spans, or their source context?",
+    "What overlap exists between the En-Wiki datastore and WikiText-103 test articles, and do gains survive strict document-level deduplication?",
+    "Can source licensing, deletion, privacy policy, and attribution be enforced automatically at retrieval time?",
+    "When does direct phrase emission outperform speculative decoding or chunk retrieval while preserving the base model's distribution?",
+    "Does phrase-level generation scale to stronger contemporary LMs, multilingual corpora, code, and knowledge-intensive tasks?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "openreview:HklBjCEKvH",
+      "title": "Generalization through Memorization: Nearest Neighbor Language Models",
+      "url": "https://openreview.net/forum?id=HklBjCEKvH",
+      "relationship": "token-retrieval antecedent",
+      "difference": "kNN-LM interpolates a pretrained model's next-token distribution with nearest-neighbor tokens and supports datastore swaps without retraining; COG retrieves variable-length contextualized spans directly, reducing decode steps but requiring a dedicated phrase encoder and much larger candidate structure.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2020 OpenReview record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2112.04426",
+      "title": "Improving language models by retrieving from trillions of tokens",
+      "url": "https://arxiv.org/abs/2112.04426",
+      "relationship": "large-scale retrieval-augmented LM antecedent",
+      "difference": "RETRO retrieves fixed-size neighbor chunks and integrates them through cross-attention while continuing token generation; COG makes a retrieved span itself the output action and demonstrates corpus switching at much smaller model and datastore scale.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2212.01349",
+      "title": "Nonparametric Masked Language Modeling",
+      "url": "https://arxiv.org/abs/2212.01349",
+      "relationship": "concurrent phrase-vocabulary approach",
+      "difference": "NPM replaces a masked model's softmax with a nonparametric distribution over corpus phrases for understanding and retrieval tasks; COG targets causal open-ended generation with repeated autoregressive phrase selection.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "openreview:oXYZJXDdo7",
+      "title": "Retrieval is Accurate Generation",
+      "url": "https://openreview.net/forum?id=oXYZJXDdo7",
+      "relationship": "direct phrase-generation successor",
+      "difference": "CoG-2 removes COG's initial document-retrieval stage and learns direct context-aware phrase retrieval with heuristic initialization and self-reinforced training oracles, explicitly addressing COG's dependence on DPR and greedy local segmentation.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2024 OpenReview record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "openreview:nrvoWOWcyg",
+      "title": "Chunk-Distilled Language Modeling",
+      "url": "https://openreview.net/forum?id=nrvoWOWcyg",
+      "relationship": "efficient chunk-retrieval successor",
+      "difference": "CD-LM is training-free, reuses an off-the-shelf LM's own representation space, stores selected high-probability chunks in a trie, and reports a datastore hundreds of times smaller than COG's, targeting both knowledge injection and speed without a separate phrase encoder.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2025 OpenReview record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "acl:2023.emnlp-main.482",
+      "title": "Shall We Pretrain Autoregressive Language Models with Retrieval? A Comprehensive Study",
+      "url": "https://aclanthology.org/2023.emnlp-main.482/",
+      "relationship": "scaling and evaluation competitor",
+      "difference": "RETRO++ studies retrieval pretraining up to 9.5B parameters with a 330B-token corpus and evaluates perplexity, degeneration, factuality, toxicity, and downstream tasks; it offers a much broader scale and evidence base than COG's GPT-2-sized MAUVE-centered continuation study, while retaining token decoding.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "EMNLP 2023 ACL Anthology record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Text generation can be recast as a sequence of copy-and-paste operations over contextualized corpus phrases, improving quality and enabling efficient, training-free adaptation by changing or scaling the source collection.",
+    "evidence": "The paper implements genuine variable-length phrase emission, reports higher MAUVE and human preference on WikiText-103 and Law-MT, and obtains further MAUVE gains from a larger datastore while keeping measured online latency close to GPT-2.",
+    "reviewer_inference": "COG is an inventive and influential bridge between phrase retrieval, nonparametric memory, and autoregressive decoding, with provenance and corpus swapping as real advantages. Its empirical headline is narrower than the rhetoric: the model is twice the learned size, wins only MAUVE against the strongest WikiText decoding comparison, excludes offline systems cost, lacks leakage and factuality audits, and can stitch incompatible copied fragments. Later CoG-2 and CD-LM directly target its two-stage search, oracle, datastore-size, and latency limitations."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Read all 16 extracted pages, including algorithm, complete tables, external-LM perplexity, dataset statistics, segmentation pseudocode, ethics discussion, and qualitative failure cases. Arithmetic labels, parameter matching, RETRO implementation, candidate count, excluded offline cost, human protocol, and possible Wikipedia overlap were audited explicitly. Six primary-source antecedents, direct successors, and scale competitors were checked on OpenReview, arXiv, or ACL Anthology on 2026-08-23."
+}

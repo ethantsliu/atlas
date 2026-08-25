@@ -1,0 +1,273 @@
+{
+  "stable_id": "arxiv:2608.07408",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://arxiv.org/pdf/2608.07408",
+    "pdf_sha256": "d9fb2a5a98fe0b3bac20df23d223d3f9494b9785d26a3edf800eb6d66161f37d",
+    "text_sha256": "18d7fd081ad1fc7423eaecb4997e31755c230886aba2fc14436221be6dd58fb0",
+    "page_count": 34,
+    "extracted_at": "2026-08-23T09:06:46.740092+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a frozen autoregressive video world model preserve both temporal coherence and the appearance of revisited scenes beyond its trained context by giving a fixed-size compressed KV cache stable, in-distribution RoPE addresses and content-aware memory writers?",
+  "key_findings": [
+    {
+      "claim": "Long-horizon cache failure has separable addressability and content-corruption components, so retaining old keys is not sufficient.",
+      "evidence": "For MG2-1.3B, temporal query-key offsets beyond the trained maximum of five latent frames push fast RoPE components into unseen phases; at an illustrative offset of 30, the three fastest pairs exceed 3π. Independently, averaging already rotated keys mixes distinct phases and can cancel their signal. The paper's frequency analysis and mean-score proposition explain why canonicalizing keys before aggregation avoids the latter failure.",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "2.1-2.2"
+        },
+        {
+          "page": 24,
+          "section": "Appendix C"
+        }
+      ]
+    },
+    {
+      "claim": "WorldTrace makes an arbitrary fixed number of summaries individually readable at any rollout horizon by assigning positions from cache-slot rank rather than source time.",
+      "evidence": "Each summary slot s is read at q-(L_attn-1-s), which stays inside the trained offset range and remains distinct as q advances. Source keys are first unrotated to canonical coordinates and then freshly rotated to that virtual slot, separating stored content from its original timestamp.",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "3.1"
+        },
+        {
+          "page": 5,
+          "section": "Definition 1"
+        },
+        {
+          "page": 7,
+          "section": "3.5"
+        }
+      ]
+    },
+    {
+      "claim": "With content compression fixed, horizon-stable slot-rank addressing improves coherence over capped or horizon-dependent positions.",
+      "evidence": "Using canonical averaging in every arm, WorldTrace reaches TempSSIM 0.413 and 0.545 at N=8 and N=16, versus 0.390/0.530 for Block-relative and 0.377/0.479 for Centroid-linear. At N=48 in the longer coherence panel, WorldTrace-Field scores 0.545 versus 0.472 for sliding-window caching, a 15.5% relative gain, and has the lowest reported Local Scene Drift, 0.0295 versus 0.0305.",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "4.2, Table 1"
+        },
+        {
+          "page": 9,
+          "section": "4.2, Table 2"
+        }
+      ]
+    },
+    {
+      "claim": "Canonical-space averaging reduces phase-cancellation error, but the Field writer is a coherence mechanism rather than a strong episodic-recall mechanism.",
+      "evidence": "At N=16 and four summary slots, canonical averaging reduces LatentDiff from 0.312 to 0.233 relative to averaging rotated keys. Yet on the long ABA recall sweep, WorldTrace-Field remains in the compression-only tier, scoring PAC 0.602 at N=256, close to the sliding-window score 0.631 and far below verbatim landmarks at 0.989.",
+      "anchors": [
+        {
+          "page": 11,
+          "section": "4.4, Table 5"
+        },
+        {
+          "page": 28,
+          "section": "Appendix E.3, Table 10"
+        }
+      ]
+    },
+    {
+      "claim": "Verbatim scene-entry landmarks substantially improve revisit fidelity over a sliding window across several controlled loop geometries, while gains become small for the hardest full-pan condition.",
+      "evidence": "On ABA at N=16, WorldTrace-Landmark raises PAC from 0.723±0.013 to 0.864±0.009, a 19.5% relative improvement; it also raises PAC from 0.673 to 0.792 on ABCA and from 0.666 to 0.799 on ABCDA. It improves every reported LoopBench condition, but the 360-degree pan gain is only 0.018 absolute, 0.577 versus 0.559.",
+      "anchors": [
+        {
+          "page": 10,
+          "section": "4.3, Table 3"
+        }
+      ]
+    },
+    {
+      "claim": "The landmark result transfers to a second, much larger backbone, whereas Field averaging adds little when camera conditioning already supplies a recall signal.",
+      "evidence": "On the 14B LingBot-World backbone, landmarks improve PAC over sliding-window retention by 8.9%, 14.1%, and 7.3% at 4×, 6×, and 8× training horizon, with no significant gain at 2×. WorldTrace-Field remains within 0.005 of the baseline at 4× and is only modestly above it at the other horizons.",
+      "anchors": [
+        {
+          "page": 28,
+          "section": "Appendix E.4"
+        },
+        {
+          "page": 29,
+          "section": "Table 11"
+        }
+      ]
+    },
+    {
+      "claim": "The attended cache and per-step GPU cost stay bounded, but the primary Field writer moves an O(T) history burden to host memory; a streaming writer removes that burden with a small quality tradeoff.",
+      "evidence": "At N=64/256/512, the recompute Field writer matches sliding-window peak GPU memory exactly, while retaining 5.4 MB of canonical keys per evicted latent frame in host memory. Its streaming alternative uses constant writer state and scores TempSSIM 0.606/0.538 at N=32/48, versus 0.613/0.545 for recomputation and 0.571/0.472 for sliding-window caching. All methods remain within 6% of the baseline wall-clock time per chunk in the reported short-horizon runtime test.",
+      "anchors": [
+        {
+          "page": 29,
+          "section": "Appendix E.6-E.7"
+        },
+        {
+          "page": 30,
+          "section": "Tables 13-14"
+        },
+        {
+          "page": 33,
+          "section": "Appendix G.3, Table 15"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Treat a compressed video KV cache as two coupled design problems: an address must remain inside the frozen model's trained positional distribution, and a writer must retain the kind of history future queries will need.",
+    "mechanism": "Split the six-frame MG2 attention budget into recent verbatim slots and distant summary slots. Read every summary at a unique slot-rank-relative temporal position. Store keys in unrotated canonical coordinates and re-rotate them only when read. WorldTrace-Field uniformly averages contiguous historical groups for smooth continuation; WorldTrace-Landmark detects canonical-key cosine-distance spikes and preserves the most recent scene-entry frames verbatim. LoopBench drives the model away from and back to its own earlier view and scores pose-aligned return frames against that generated reference.",
+    "assumptions": [
+      "The frozen generator is autoregressive, uses temporal RoPE on keys, and exposes a known local training-time attention range.",
+      "Future continuation queries distribute attention smoothly within temporal groups when Field averaging is used.",
+      "Recall queries concentrate on one of at most N_s detected scene-entry frames when landmarks are used.",
+      "Canonical-key cosine discontinuities are a usable geometry-free proxy for scene entry.",
+      "Reassigning old content to a recent virtual slot is less harmful than asking the model to extrapolate to an unseen absolute offset.",
+      "Position-Aligned CLIP and consecutive-frame SSIM are adequate proxies for spatial recall and temporal coherence in the controlled camera paths."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "slot-rank-rope-addressing",
+      "role": "Assigns every summary a distinct fixed relative offset inside the trained temporal range, independent of rollout length."
+    },
+    {
+      "id": "canonical-key-reencoding",
+      "role": "Removes source-time RoPE phase before compression and applies one fresh rotation at the current virtual address."
+    },
+    {
+      "id": "structured-attention-projection",
+      "role": "Represents a bounded cache as a row-stochastic projection from the full history, exposing averaging and one-hot retention as two choices of the same operator."
+    },
+    {
+      "id": "contiguous-field-averaging",
+      "role": "Compresses old frames into uniform temporal groups to favor group-level coherence."
+    },
+    {
+      "id": "scene-entry-landmarks",
+      "role": "Uses spikes in canonical-key cosine distance to retain sparse verbatim scene traces for later recall."
+    },
+    {
+      "id": "frozen-landmark-keys",
+      "role": "Caches one canonical landmark key and re-rotates from that source each time, avoiding repeated BF16 unrotate-rerotate drift."
+    },
+    {
+      "id": "self-referential-loop-benchmark",
+      "role": "Creates navigation loops whose first visit supplies the reference for scoring a later revisit without an external target video."
+    },
+    {
+      "id": "streaming-summary-buckets",
+      "role": "Maintains per-slot sums and counts with exact bucket merges so Field writer state can remain constant in horizon."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "MG2-1.3B, canonical averaging held fixed, N=8 and N=16 rollouts",
+      "metric": "TempSSIM",
+      "result": "WorldTrace positions score 0.413/0.545",
+      "baseline": "Block-relative at 0.390/0.530 and Centroid-linear at 0.377/0.479"
+    },
+    {
+      "setting": "MG2-1.3B open-ended coherence rollouts, N=32 and N=48",
+      "metric": "TempSSIM and Local Scene Drift",
+      "result": "WorldTrace-Field scores 0.613/0.0250 at N=32 and 0.545/0.0295 at N=48",
+      "baseline": "Sliding window scores 0.571/0.0229 and 0.472/0.0305"
+    },
+    {
+      "setting": "LoopBench on 100 initial scenes per condition, varying topology, horizon, camera pan, and revisit pattern",
+      "metric": "Position-Aligned CLIP and TempSSIM",
+      "result": "Landmarks improve PAC in every reported condition, including 0.864 versus 0.723 on ABA N=16",
+      "baseline": "Default sliding-window KV cache"
+    },
+    {
+      "setting": "ABA recall sweep through N=256",
+      "metric": "Position-Aligned CLIP",
+      "result": "WorldTrace-Landmark reaches 0.989 at N=256; canonical-K anchoring reaches 0.610 and WorldTrace-Field 0.602",
+      "baseline": "Sliding-window 0.631 and naive Block-relative averaging 0.598"
+    },
+    {
+      "setting": "LingBot-World 14B at 2×, 4×, 6×, and 8× trained horizon",
+      "metric": "Position-Aligned CLIP",
+      "result": "Landmarks score 0.651, 0.680, 0.674, and 0.678",
+      "baseline": "Sliding window scores 0.657, 0.624, 0.591, and 0.632"
+    },
+    {
+      "setting": "MG2-1.3B memory and runtime audit on one A100 80GB",
+      "metric": "Peak GPU memory and seconds per AR chunk",
+      "result": "Field matches baseline GPU memory; Field/Landmark take 0.99/1.00 seconds versus 0.95 seconds per chunk",
+      "baseline": "Sliding-window cache"
+    }
+  ],
+  "limitations": [
+    "Author-stated: the intervention cannot improve motion, per-chunk visual quality, or action following inherited from the frozen backbone.",
+    "Author-stated: the method assumes an autoregressive generator with temporal RoPE and a known local attention window; it does not directly apply to other positional systems or architectures.",
+    "Author-stated: Field summaries become progressively lossier because each slot averages roughly T/N_s frames and therefore blurs frame-level scene detail.",
+    "Author-stated: landmark recall succeeds only when the detector stores the right scene, and at most N_s distinct landmarks survive oldest-first eviction.",
+    "Author-stated: the projection near-optimality statements are conditional definitions for two query families under a relaxed objective; the paper does not measure those conditions on the frozen model.",
+    "Reviewer-identified: the main recompute Field writer has linearly growing host-memory state, so the headline fixed-memory property applies to the GPU attention cache, not the complete system; the streaming variant is the truly horizon-constant writer.",
+    "Reviewer-identified: most evidence comes from one 1.3B game world model, with one smaller cross-architecture table on a 14B model; there is no broad model, environment, or action-policy study.",
+    "Reviewer-identified: LoopBench compares a return against the model's own earlier generation, so it measures self-consistency rather than correctness against persistent external world state, and CLIP similarity may miss object identity or geometric errors.",
+    "Reviewer-identified: WorldTrace-Field is not uniformly better on both coherence metrics or recall; at N=32 its Scene Drift is worse than sliding window, and several mixed Field/Landmark allocations fall below baseline."
+  ],
+  "failure_modes": [
+    "A gradual scene transition may never cross the cosine threshold, while a harmless lighting or motion discontinuity may consume a landmark slot.",
+    "More than N_s relevant places evict old landmarks, so long tours or branching environments can forget a location before revisit.",
+    "A virtual slot discards the source frame's true temporal distance; queries whose dynamics depend on elapsed time can misinterpret the relocated content.",
+    "Canonical averaging reduces key norm as heterogeneous sources cancel, which can underweight distant summaries after softmax even though their mean pre-softmax score is preserved at a shared position.",
+    "Uniform temporal groups blur rare but important events, while verbatim landmarks sacrifice the broad context needed for smooth continuation.",
+    "The recompute writer can become host-memory- or transfer-bound on extremely long rollouts despite constant GPU attention state.",
+    "Pose-aligned CLIP can reward semantically similar but geometrically wrong return frames, and using an earlier generated frame as reference can preserve the model's own artifact rather than a true scene.",
+    "Backbones whose camera-conditioning signal dominates cache reads may gain little from Field summaries, as the LingBot result already suggests."
+  ],
+  "reusable_insights": [
+    "Audit memory addressability separately from memory content; a retained value is useless if the frozen reader only sees it at an out-of-distribution address.",
+    "Compress position-dependent representations only after mapping them into a position-neutral coordinate system.",
+    "Expose memory policies through a common projection interface so dense summaries, sparse exemplars, and learned mixtures can be compared under one budget.",
+    "Evaluate long-term generative memory with explicit leave-and-return interventions, not only adjacent-frame smoothness or generic video quality.",
+    "Report memory outside the accelerator cache as well as GPU allocation; offloading can hide horizon-dependent system state.",
+    "Use separate writers for distributed context and episodic recall because one averaging rule is unlikely to serve both query distributions.",
+    "Include difficult cases where the proposed memory should not help, such as short horizons or strong pose-conditioned backbones, to locate the actual bottleneck."
+  ],
+  "open_questions": [
+    "Can a learned streaming projection interpolate between Field and Landmark rows while remaining stable under a frozen model's attention distribution?",
+    "Can revisit likelihood, action history, and camera geometry drive landmark replacement without requiring backbone fine-tuning?",
+    "How should virtual positions encode both addressability and coarse elapsed time when future dynamics depend on temporal distance?",
+    "Does LoopBench ranking predict downstream agent success, map consistency, or human judgments in large branching environments?",
+    "Can a fully constant-memory writer retain recoverable residual traces after landmark eviction?",
+    "How do slot rank, cache size, precision, and model training horizon interact across substantially different RoPE world-model families?",
+    "Would training with randomized slot-rank memories make the frozen-reader approximation more faithful without sacrificing short-horizon quality?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2603.12513",
+      "title": "MemRoPE: Training-Free Infinite Video Generation via Evolving Memory Tokens",
+      "url": "https://arxiv.org/abs/2603.12513",
+      "relationship": "prior",
+      "difference": "MemRoPE already stores keys unrotated, applies RoPE at attention time, and compresses history into fixed dual-rate EMA tokens. WorldTrace's narrower addition is an arbitrary N-slot rank-address scheme plus distinct averaging and verbatim-recall writers and a controlled revisit benchmark; canonical storage itself is not new."
+    },
+    {
+      "canonical_id": "arxiv:2511.20649",
+      "title": "Infinity-RoPE: Action-Controllable Infinite Video Generation Emerges From Autoregressive Self-Rollout",
+      "url": "https://arxiv.org/abs/2511.20649",
+      "relationship": "prior",
+      "difference": "Infinity-RoPE uses a moving Block-Relative RoPE frame, aggressively flushes the cache to a sink and latest frame, and adds controllable temporal cuts. It targets indefinite controllable generation but does not preserve an arbitrary set of distinct compressed historical slots or explicit revisit traces."
+    },
+    {
+      "canonical_id": "arxiv:2512.02473",
+      "title": "WorldPack: Dynamic Frame Compression for Long-context Video World Modeling",
+      "url": "https://arxiv.org/abs/2512.02473",
+      "relationship": "prior",
+      "difference": "WorldPack expands effective context from four to 22 frames by allocating compression according to camera pose and field-of-view overlap, and evaluates spatial recall on LoopNav. WorldTrace is geometry-free and training-free, keeps a fixed six-slot read budget at arbitrary horizon, and intervenes on RoPE addressability rather than learning a spatially aware world model."
+    },
+    {
+      "canonical_id": "arxiv:2512.04040",
+      "title": "RELIC: Interactive Video World Model with Long-Horizon Memory",
+      "url": "https://arxiv.org/abs/2512.04040",
+      "relationship": "prior",
+      "difference": "RELIC trains and distills a 14B real-time world model with camera- and action-aware compressed latent memory. WorldTrace modifies only cache reads and writes of an existing frozen checkpoint, making it much cheaper to apply but less able to learn geometry-aware retrieval or improve the generator itself."
+    }
+  ],
+  "novelty_assessment": "Author claim: WorldTrace is the first training-free design to jointly keep an arbitrary number of compressed video-cache slots at distinct in-distribution positions and write their keys in canonical RoPE space, and LoopBench newly isolates return-to-scene memory. Primary prior work already provides dynamic canonical RoPE storage (MemRoPE), moving relative positions (Infinity-RoPE), compressed spatial memory (WorldPack), and trained long-horizon world-model memory (RELIC). Reviewer inference: the defensible novelty is the particular slot-rank addressing rule coupled to two projection-style writers, together with a clean position-versus-content ablation and systematic self-revisit benchmark. Canonicalization, temporal compression, landmark retention, and loop consistency are not individually new, and the practical advantage is strongest for verbatim recall on a narrow pair of backbones rather than a universal long-video-memory solution.",
+  "confidence": 0.96,
+  "reviewer_notes": "The full 34-page text was checked, including theoretical qualifications in Appendix B, all main tables, the N=256 recall sweep, cross-architecture results, memory accounting, runtime, and author-stated limitations. Competitive descriptions were verified against primary arXiv records current through 2026-08-23. Relative improvements are labeled as relative; absolute score changes are not converted into percentages."
+}

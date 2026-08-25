@@ -1,0 +1,175 @@
+{
+  "stable_id": "arxiv:2506.05333",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2506.05333",
+    "pdf_sha256": "ecc813116d370a383374f6327add75cbcaa0643f5f56292f52ab83e375034edc",
+    "text_sha256": "ef0ad60cd7c0853d531e45463cc1fcf5487d0fb37548fe60d547c53afe387797",
+    "page_count": 30,
+    "extracted_at": "2026-08-23T16:40:43.707902+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "How should test-time reasoning compute be allocated once KV-cache traffic and hardware balance are counted, and can sparse attention turn long generation from a memory bottleneck into a better accuracy-cost frontier?",
+  "key_findings": [
+    {
+      "claim": "Kinetics replaces FLOPs-only accounting with an architecture- and hardware-conditioned equivalent-FLOPs cost that includes attention computation and KV-cache access.",
+      "evidence": "For N trials, the model sums linear-module compute, prompt/decoding attention compute, and KV traffic multiplied by hardware arithmetic intensity. It assumes large batches amortize parameter reads and shared prompts amortize prompt-cache access; B200 specifications instantiate the principal plots.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "2, cost-model setup"},
+        {"page": 4, "section": "Equations 1-4, eFLOPs"},
+        {"page": 5, "section": "Attention-to-parameter cost ratio"}
+      ]
+    },
+    {
+      "claim": "Under this cost model, very small Qwen3 reasoning models leave the Pareto frontier and resources favor model size before extra samples or tokens up to a family-specific threshold.",
+      "evidence": "Across AIME24 long-CoT and Best-of-N sweeps, the reported frontier is dominated by roughly 14B-and-larger Qwen3 models until additional test-time work becomes preferable; the analogous DeepSeek-R1-Distill sweep yields a 7B threshold. AIME25 and LiveCodeBench appendices show the same qualitative displacement of 0.6B/1.7B models.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "3.1, Figures 4-5"},
+        {"page": 7, "section": "Threshold qualification and Figure 6"},
+        {"page": 21, "section": "Appendix B, cross-task/model-family checks"},
+        {"page": 24, "section": "Table 2, architecture-dependent KV size"}
+      ]
+    },
+    {
+      "claim": "The parameter threshold is not a universal scaling constant; it changes with architecture, batching, hardware, serving policy, task difficulty, and accuracy target.",
+      "evidence": "The paper itself reports 14B for Qwen3 but 7B for the DeepSeek-distilled family and attributes the change to KV architecture. eFLOPs uses one hardware intensity and high-batch amortization, while the limitations acknowledge focus on Qwen/DeepSeek, B200/H200, AIME, and code benchmarks.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Batching and hardware assumptions"},
+        {"page": 7, "section": "Qwen3 versus DeepSeek threshold"},
+        {"page": 11, "section": "Limitations"},
+        {"page": 24, "section": "KV-size comparison"}
+      ]
+    },
+    {
+      "claim": "Oracle top-k and implemented block-top-k attention substantially improve the reported accuracy-cost frontier, especially at low budgets.",
+      "evidence": "Sparse sweeps allocate a KV budget and generated-token/sample budget jointly. The paper reports up to 60-point oracle gains, a 45-point low-cost gain for block top-k, equivalent accuracy with 8.58× fewer resources in one setting, and 11.2-26.2× attention-kernel speedups on H200; LiveCodeBench and MoE appendices provide additional cases.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 9, "section": "4.2, Sparse Kinetics and Figure 8"},
+        {"page": 10, "section": "5.1, block top-k and Figure 9"},
+        {"page": 11, "section": "5.2, H200 throughput"},
+        {"page": 25, "section": "Appendix C, LiveCodeBench sparse scaling"},
+        {"page": 27, "section": "MoE block-top-k scaling"}
+      ]
+    },
+    {
+      "claim": "The evidence is a family of empirical Pareto frontiers, not a fitted predictive law that extrapolates accuracy from model and resource scale.",
+      "evidence": "The method enumerates discrete model sizes, token limits, trial counts, and KV budgets, measures accuracy, computes cost from realized expected length, and retains nondominated points. It does not fit a parametric accuracy law, estimate scaling exponents with uncertainty, or prospectively predict an unseen architecture/hardware frontier.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "Experimental setup"},
+        {"page": 6, "section": "Kinetics objective and Pareto construction"},
+        {"page": 8, "section": "Sparse grid construction"},
+        {"page": 26, "section": "Appendix D, empirical cost calculation"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Treat inference-time reasoning as a hardware-aware accuracy-versus-resource allocation problem in which KV attention traffic, not just parameter FLOPs, determines which model, length, sample count, and sparsity lie on the useful frontier.",
+    "mechanism": "An analytical decoder cost decomposes linear modules, attention arithmetic, and KV reads, converting bytes to equivalent FLOPs with hardware arithmetic intensity. Long-CoT and Best-of-N configurations are swept across Qwen3 and DeepSeek sizes. A second grid restricts each query to top-k tokens or top-scoring key blocks, allowing the same budget to buy more samples/tokens; realized lengths feed Pareto selection.",
+    "assumptions": [
+      "Large-batch serving amortizes parameter reads while KV reads remain the salient bandwidth term.",
+      "Compute and memory costs can be combined by one arithmetic-intensity conversion or a roofline maximum.",
+      "Expected generated length is an adequate workload summary despite request variance and synchronization.",
+      "AIME and LiveCodeBench accuracy represent broader reasoning utility.",
+      "Sparse selection overhead and approximation quality are captured adequately by block-top-k implementation tests.",
+      "Model families are comparable enough that within-family Pareto choices guide deployment."
+    ]
+  },
+  "techniques": [
+    {"id": "equivalent-flops-costing", "role": "Prices KV-cache bytes in compute-equivalent units using hardware intensity."},
+    {"id": "test-time-pareto-sweep", "role": "Enumerates model size, reasoning length, and trial count under a budget."},
+    {"id": "oracle-top-k-attention", "role": "Estimates the upper-bound accuracy frontier when only high-score KV entries are attended."},
+    {"id": "block-top-k-attention", "role": "Scores block representatives and attends within selected blocks for an implementable sparse decoder."}
+  ],
+  "evaluations": [
+    {"setting": "Qwen3 0.6B-32B on AIME24/25 and LiveCodeBench", "metric": "Pass@1 or coding accuracy versus eFLOPs", "result": "Memory-aware frontiers favor larger bases earlier than FLOPs-only frontiers and report up to 3× lower resources at matched accuracy.", "baseline": "FLOPs-only allocation with long CoT or Best-of-N."},
+    {"setting": "Dense versus sparse attention under joint token/KV budgets", "metric": "Problem-solving accuracy versus modeled cost", "result": "Reported gains exceed 60 points in selected low-cost regimes and 5 points at high cost.", "baseline": "Dense attention at the same modeled resource budget."},
+    {"setting": "Block-top-k kernels on 8×H200", "metric": "Attention throughput/speedup", "result": "11.2-26.2× kernel speedup depending on model and sequence regime.", "baseline": "Dense attention implementation."}
+  ],
+  "limitations": [
+    "The cost model is hardware-, precision-, batching-, and serving-policy dependent rather than universal.",
+    "eFLOPs is an analytical proxy; end-to-end latency, energy, dollars, queueing, and tail latency are not the principal frontier axes.",
+    "Accuracy results concentrate on competition math and code, with limited task diversity and contamination analysis.",
+    "The parameter threshold changes across model families and is not prospectively validated on unseen architectures.",
+    "Oracle top-k assumes selection unavailable without extra work; block-top-k closes only part of that gap.",
+    "Sparse comparisons can trade quality for more generated candidates, so both equal-token and equal-cost views are needed.",
+    "The paper uses discrete sweeps and does not estimate a predictive scaling equation or uncertainty over frontiers.",
+    "Verifier quality, sampling temperature, batching variance, and unsuccessful-output truncation can alter Best-of-N economics."
+  ],
+  "failure_modes": [
+    "At low concurrency, parameter loading may no longer amortize and reverse a frontier recommendation.",
+    "Sparse selection can discard an early token needed many steps later, causing rare catastrophic reasoning failures.",
+    "Block summaries can miss isolated high-score keys or add enough overhead to erase kernel gains end to end.",
+    "Modeled average cost can hide out-of-memory failures and tail-latency spikes from long generations.",
+    "Benchmark-specific small-model weakness can masquerade as a general resource-allocation law.",
+    "Future accelerators with different bandwidth/FLOP ratios can move or remove the reported thresholds."
+  ],
+  "reusable_insights": [
+    "Inference scaling studies should report bytes, FLOPs, realized tokens, batch/concurrency, and wall-clock measures together.",
+    "A deployment frontier must be indexed by hardware and serving regime, not presented as a model-only law.",
+    "Reasoning architectures should be co-designed with KV-cache structure because active parameters and attention traffic scale differently.",
+    "Separate oracle sparsity from implementable selection and charge the selector's end-to-end cost.",
+    "Prospective prediction on held-out hardware/model families is the strongest test that a scaling relation is more than an interpolated Pareto sweep."
+  ],
+  "open_questions": [
+    "Can Kinetics predict a held-out architecture and accelerator before benchmarking it?",
+    "How do energy, cost, queueing, and p99 latency change the frontier relative to eFLOPs?",
+    "What sparse policy preserves rare long-range dependencies without full-score computation?",
+    "How do verifier cost and quality enter a unified Best-of-N allocation law?",
+    "Do conclusions hold for agents with tool calls, shared prefixes, recurrent state, and heterogeneous request lengths?",
+    "Can training adapt a reasoning model specifically for sparse long-CoT inference?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2408.03314",
+      "title": "Scaling LLM Test-Time Compute Optimally can be More Effective than Scaling Model Parameters",
+      "url": "https://arxiv.org/abs/2408.03314",
+      "relationship": "Direct FLOPs-optimal test-time allocation predecessor that Kinetics revises.",
+      "difference": "Snell et al. adapt inference procedures to prompt difficulty and show smaller models can beat much larger ones under FLOPs matching. Kinetics argues that KV traffic changes that conclusion under high-throughput long-context serving and adds sparse attention, but uses a more hardware-specific budget.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2408.03314"
+    },
+    {
+      "canonical_id": "arxiv:2408.00724",
+      "title": "Inference Scaling Laws: An Empirical Analysis of Compute-Optimal Inference for Problem-Solving with Language Models",
+      "url": "https://arxiv.org/abs/2408.00724",
+      "relationship": "Direct empirical inference-scaling predecessor spanning repeated sampling and search.",
+      "difference": "Inference Scaling Laws centers algorithmic compute and accuracy behavior. Kinetics contributes memory-aware costing and architecture/system co-design; it does not replace the need to model search/verifier quality and prompt-dependent returns.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2408.00724"
+    },
+    {
+      "canonical_id": "arxiv:2510.07486",
+      "title": "AsyncSpade: Efficient Test-Time Scaling with Asynchronous Sparse Decoding",
+      "url": "https://arxiv.org/abs/2510.07486",
+      "relationship": "Subsequent end-to-end sparse TTS systems competitor.",
+      "difference": "AsyncSpade predicts query states and overlaps token-level KV filtering with decoding, reporting time-per-token reductions while matching accuracy. It directly attacks selector overhead and pipeline latency that Kinetics' block-top-k kernel evidence only partially captures.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2510.07486"
+    },
+    {
+      "canonical_id": "arxiv:2608.04001",
+      "title": "Test-Time Scaling in Reasoning LLMs: Inference Regimes, Evaluation, and Reproducibility",
+      "url": "https://arxiv.org/abs/2608.04001",
+      "relationship": "Current evaluation framework distinguishing structurally different inference regimes and budget reporting.",
+      "difference": "The framework separates sequential, leaf-level, and prefix-level scaling and specifies protocol-matched uncertainty and reproducibility artifacts. Kinetics offers deeper hardware cost and sparsity analysis but treats a smaller set of inference structures and reports frontier uncertainty less fully.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2608.04001"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim a new memory-aware test-time scaling law and sparse-attention paradigm that reverses FLOPs-only recommendations and greatly improves reasoning efficiency.",
+    "evidence": "The paper derives an eFLOPs decoder model, sweeps Qwen3 and DeepSeek model/length/sample configurations, evaluates AIME and code tasks, and implements block-top-k attention on H200. Primary sources establish earlier FLOPs-optimal scaling and later sparse/evaluation refinements.",
+    "reviewer_inference": "The strongest contribution is exposing KV traffic as a first-class allocation variable and connecting that diagnosis to an implemented sparse-attention frontier. Calling the discrete, hardware-conditioned Pareto study a universal scaling law is too strong; thresholds and gains require prospective cross-system validation with end-to-end cost."
+  },
+  "confidence": 0.91,
+  "reviewer_notes": "Primary full-text pass over all 30 pages, including alternative roofline costing, cross-task/model appendices, sparse implementation, and algorithms. Results are author-reported; universality, predictive-law status, selector overhead, and serving-assumption qualifications are reviewer inferences. Four primary arXiv records were checked on 2026-08-23. No independent hardware rerun or secondary verification is claimed."
+}

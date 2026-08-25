@@ -1,0 +1,276 @@
+{
+  "stable_id": "arxiv:2601.00417",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2601.00417",
+    "pdf_sha256": "152a763d04983c0c44b903b07d50713953d2d28aa149081b229bdd5b708fed08",
+    "text_sha256": "dfaedc149d7b5ad757eb2e706b406c8a45c392d925c871d584f060fe86a46c1c",
+    "page_count": 20,
+    "extracted_at": "2026-08-23T14:12:07.137931+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Does explicitly parameterizing each Transformer residual update as a gated rank-1 read-compare-write delta rule improve language-model quality, and can an expanded persistent residual state improve quality without widening the attention and MLP backbone?",
+  "key_findings": [
+    {
+      "claim": "DDL replaces an unconstrained residual increment with X_(l+1) = X_l + beta_l k_l(v_l^T - k_l^T X_l); for a unit k_l, the selected-coordinate error becomes (1 - beta_l) times its previous value, so beta=0 is the identity limit, beta=1 exactly matches the target, and 1<beta<2 is an over-relaxed but locally contracting correction.",
+      "evidence": "Equations 2.1-2.4 derive the shared erase/write update and its error recursion. The claim is explicitly conditioned on the generated direction, target, and gate, rather than asserted for the nonlinear network end to end.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "2.1 Delta Residual Rewrite"},
+        {"page": 5, "section": "2.1 Target-seeking error correction"}
+      ]
+    },
+    {
+      "claim": "The frozen direct shortcut A=I-beta kk^T leaves the d-1 dimensional orthogonal complement of k unchanged and has one eigenvalue 1-beta along k; this is a local operator result, not the Jacobian spectrum of the complete input-dependent layer.",
+      "evidence": "Proposition 2.1 and its proof decompose any vector into k and k-perpendicular components. The subsequent regime discussion explicitly limits the Householder analogy to the conditioned direct shortcut as beta approaches 2.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "2.3 Spectral Analysis, Proposition 2.1"},
+        {"page": 6, "section": "2.3 Local regimes"}
+      ]
+    },
+    {
+      "claim": "Scalar DDL, which does not add residual value channels, produced slightly lower final validation loss than the additive baseline at both tested scales, but the margins are unresolved single-run point estimates.",
+      "evidence": "After 49.15B training tokens, validation loss was 2.8482 versus 2.8543 at about 124M parameters and 2.6039 versus 2.6053 at about 353M parameters, improvements of 0.0061 and 0.0014. The authors state that no seed variance is available.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 9, "section": "4.2 Experimental results"},
+        {"page": 11, "section": "Table 3 and Section 5, Training variance"}
+      ]
+    },
+    {
+      "claim": "Expanded-state DDL yielded larger loss improvements, but the experiment does not identify whether they come from delta rewriting, four-channel residual capacity, compression, or embedding convolution.",
+      "evidence": "The best small result was DDL-TC at 2.8299 versus 2.8543, and the best medium result was DDL-CC at 2.5758 versus 2.6053. The no-EC rows remained better than baseline, but no matched expanded-state write-only or additive control was run; Sections 5 and 7 explicitly withhold causal attribution.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "4.2 Experimental results"},
+        {"page": 11, "section": "Table 3 and Section 5, Attribution in the expanded state"},
+        {"page": 12, "section": "5 Scope of the Empirical Evidence"}
+      ]
+    },
+    {
+      "claim": "One-shot downstream averages improved in the reported runs, while zero-shot outcomes were mixed and do not show uniform task-level dominance.",
+      "evidence": "At the small scale, baseline, scalar DDL, and the best expanded variant averaged 48.56, 48.73, and 49.47 one-shot; at medium scale they averaged 53.96, 54.69, and 55.14. In zero-shot evaluation, small DDL-CC scored 47.18 below the 47.30 baseline while DDL-TC reached 47.83; the medium expanded variants reached at most 52.88 versus 51.92, with task-wise reversals throughout.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "Table 1"},
+        {"page": 10, "section": "Table 2"},
+        {"page": 20, "section": "Appendix D, Tables 7-8"}
+      ]
+    },
+    {
+      "claim": "The expanded-state quality gains came with substantial throughput losses and higher peak memory, so equal-token results are not evidence of compute efficiency.",
+      "evidence": "For the small model, DDL-CC trained at 1,158.0K tokens/s versus 1,509.6K and inferred at 1,220.7K versus 1,826.1K, with 3.08GB versus 2.94GB peak memory. For medium, DDL-CC trained at 422.3K versus 537.1K and inferred at 400.5K versus 531.5K, with 7.20GB versus 7.06GB. DDL-TC was slower still. Total FLOPs, GPU-hours, and a medium scalar-DDL cost row were not reported.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 11, "section": "Tables 4-5"},
+        {"page": 12, "section": "5 Compute matching"}
+      ]
+    },
+    {
+      "claim": "The expanded design genuinely separates persistent state width from attention/MLP compute width, but it still incurs O(d d_v) rewrite and compression traffic and may require additional autoregressive state history.",
+      "evidence": "For d_v=4 the persistent state has shape (B,T,d,d_v), is compressed to width d before the ordinary sublayer, and is rewritten afterward. DDL-TC needs the last k-1 expanded states per layer during generation, whereas DDL-CC mixes current-token value channels and avoids that extra temporal cache.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "3.2 Expanded residual state"},
+        {"page": 18, "section": "A.2 Expanded-state Transformer implementation details"},
+        {"page": 19, "section": "A.2 ShortConv compression along d_v"}
+      ]
+    },
+    {
+      "claim": "The algebraic delta rule is not new: the paper's defensible technical claim is its use across network depth as a residual interface, together with a particular scalar/expanded Transformer instantiation and local shortcut analysis.",
+      "evidence": "The related-work section and Appendix B explicitly transpose the established DeltaNet sequence-time recurrence into DDL's depth-wise update and restrict novelty accordingly. Current primary records also show earlier delta-rule memories, expanded residual streams, and learned cross-layer pathways.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 12, "section": "6 Delta rules and memory updates"},
+        {"page": 19, "section": "B Relation to DeltaNets and Householder Products"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Turn each residual transition into an explicit local correction: read the persistent state along a normalized direction, compare the readout with a learned target, and use one gate to erase the old readout and write the new one along the same direction.",
+    "mechanism": "A standard attention or MLP sublayer produces the unnormalized direction k_tilde; RMS/L2 normalization gives k. A lightweight value projection of the normalized residual context produces v, and a sigmoid gate produces beta in (0,2). The layer applies beta k(v^T-k^T X). Scalar DDL uses d_v=1. Expanded DDL keeps d_v=4 persistent channels, compresses them to width d for ordinary attention/MLP processing using token-axis or channel-axis short convolution, then rewrites the expanded state; optional embedding convolution initializes the channels.",
+    "assumptions": [
+      "The generated direction has enough norm that the epsilon-guarded RMS normalization behaves like an exact unit vector; exact overwrite and spectrum statements otherwise become approximate.",
+      "The gate remains in (0,2), making the conditioned selected-coordinate update contractive in magnitude; this does not guarantee global network contraction because k, v, and beta depend on the input.",
+      "A rank-1 edit per sublayer is expressive enough to provide a useful residual-stream inductive bias even though an unconstrained residual branch could represent the same map.",
+      "Compression retains useful information from the expanded persistent state, and extra residual channels are worth their activation-memory and bandwidth cost.",
+      "Equal-token, similarly rounded parameter budgets are informative quality comparisons even though they are not iso-FLOPs, iso-throughput, or exactly compute-identical.",
+      "FineWeb-Edu pretraining at 124M and 353M parameters is representative enough to motivate the architecture beyond the tested scales and recipe."
+    ]
+  },
+  "techniques": [
+    {"id": "depth-wise-delta-rewrite", "role": "Applies a delta-rule erase/write recurrence over Transformer depth rather than over sequence time."},
+    {"id": "shared-erase-write-gate", "role": "Uses the same beta for cancellation and injection, preserving the identity limit and exact target match at beta=1."},
+    {"id": "normalized-rank-one-edit", "role": "Restricts the direct residual change to one learned unit direction so its local spectrum and readout error are explicit."},
+    {"id": "expanded-persistent-residual", "role": "Stores multiple value channels between layers while retaining the original width for attention and MLP computation."},
+    {"id": "compress-process-rewrite", "role": "Compresses expanded state, runs an ordinary Transformer sublayer, then rewrites the persistent state."},
+    {"id": "embedding-convolution-expansion", "role": "Initializes value channels with a learned causal depthwise convolution; no-EC variants repeat embeddings instead."},
+    {"id": "conditional-shortcut-spectrum", "role": "Analyzes I-beta kk^T after freezing input-generated quantities to distinguish skip, target-match, and over-relaxed regimes."}
+  ],
+  "evaluations": [
+    {
+      "setting": "124M-class decoder-only models trained once on FineWeb-Edu for 49.15B tokens",
+      "metric": "Final validation loss and perplexity",
+      "result": "Scalar DDL: 2.8482 loss / 17.2562 perplexity; best expanded DDL-TC: 2.8299 / 16.9438.",
+      "baseline": "Additive residual baseline: 2.8543 loss / 17.3616 perplexity."
+    },
+    {
+      "setting": "353M-class decoder-only models trained once on FineWeb-Edu for 49.15B tokens",
+      "metric": "Final validation loss and perplexity",
+      "result": "Scalar DDL: 2.6039 / 13.5161; best expanded DDL-CC: 2.5758 / 13.1420.",
+      "baseline": "Additive residual baseline: 2.6053 / 13.5356."
+    },
+    {
+      "setting": "Eight one-shot lm-evaluation-harness tasks at the small and medium scales",
+      "metric": "Mean accuracy in percentage points",
+      "result": "Small scalar 48.73 and best expanded 49.47; medium scalar 54.69 and best expanded 55.14.",
+      "baseline": "48.56 small and 53.96 medium."
+    },
+    {
+      "setting": "Eight zero-shot downstream tasks reported in Appendix D",
+      "metric": "Mean accuracy and task-wise accuracy",
+      "result": "Small variants ranged from 47.07 to 47.83 and medium variants from 51.94 to 52.88, with many task-level reversals; small DDL-CC scored 47.18 below baseline.",
+      "baseline": "47.30 small and 51.92 medium."
+    },
+    {
+      "setting": "Same-stack throughput and peak-memory measurements for 123M models",
+      "metric": "Training/inference tokens per second and peak memory",
+      "result": "DDL-CC: 1,158.0K / 1,220.7K tokens/s and 3.08GB; DDL-TC: 783.5K / 865.1K and 3.38GB.",
+      "baseline": "1,509.6K / 1,826.1K tokens/s and 2.94GB."
+    },
+    {
+      "setting": "Same-stack throughput and peak-memory measurements for 353M-class models",
+      "metric": "Training/inference tokens per second and peak memory",
+      "result": "DDL-CC: 422.3K / 400.5K tokens/s and 7.20GB; DDL-TC: 282.9K / 291.1K and 7.40GB.",
+      "baseline": "537.1K / 531.5K tokens/s and 7.06GB."
+    }
+  ],
+  "limitations": [
+    "Author-stated: every configuration has one run, so the scalar loss improvements of 0.0061 and 0.0014 and all task averages lack seed variance or confidence intervals.",
+    "Author-stated: the expanded models simultaneously change d_v, compression, and sometimes embedding expansion; without a matched expanded write-only/additive control, their larger gains cannot be assigned to delta erasure.",
+    "Author-stated: training is equal-token rather than iso-FLOPs or iso-wall-clock; total FLOPs and GPU-hours are absent, and the medium scalar-DDL cost measurement is missing.",
+    "Author-stated: the analysis is operator-level only. The paper does not audit trained gate regimes, actual discrepancy reduction, or whether learned directions are semantically interpretable.",
+    "Author-stated: scalar DDL still adds normalization plus target and gate branches and therefore is not compute-identical to the baseline.",
+    "Reviewer inference: two relatively small model scales, one corpus, one optimizer recipe, and one data order do not establish scale robustness or architecture-general gains.",
+    "Reviewer inference: downstream averages combine heterogeneous tasks, and several zero-shot variants lose to baseline on individual tasks or in the small-model average; no contamination or evaluation-variance analysis is supplied.",
+    "Reviewer inference: the local contraction proof freezes state-dependent generators. It cannot by itself support claims about optimization stability, gradient propagation, or end-to-end semantic replacement.",
+    "Reviewer inference: rounded parameter parity hides nontrivial activation, bandwidth, and kernel differences; the measured throughput losses are large enough that a compute-matched baseline could change the quality ranking."
+  ],
+  "failure_modes": [
+    "If the standard sublayer output is near zero, epsilon-guarded direction normalization no longer yields a unit k, weakening exact overwrite and the stated shortcut spectrum.",
+    "A gate saturated near zero turns the layer into a skip and suppresses learning through the edit; a gate near two flips the selected error and can interact poorly with newly generated directions at later layers even though the frozen one-step magnitude contracts.",
+    "Rank-1 edits can be too restrictive when a sublayer must change several independent residual features simultaneously.",
+    "Expanded channels can store more state but a lossy compressor may hide or alias that state before attention/MLP processing, making gains sensitive to compressor choice.",
+    "DDL-TC requires extra per-layer residual history during autoregressive generation, and both expanded variants can become memory-bandwidth bound despite unchanged backbone width.",
+    "The small scalar improvements may disappear or reverse under another seed, data order, tuned additive baseline, or iso-FLOPs budget.",
+    "The expanded result may collapse under a matched control if most of its gain comes from extra residual capacity or embedding convolution rather than the erase term.",
+    "Throughput-sensitive deployments may prefer the additive baseline because the measured quality increment is accompanied by 21-55% lower training throughput depending on variant and scale."
+  ],
+  "reusable_insights": [
+    "A residual operation can expose a mechanically testable readout error without claiming that its learned direction is human-interpretable.",
+    "Sharing an erase/write gate gives an affine update an exact identity limit and target-matching point; separate gates trade that invariant for flexibility.",
+    "Persistent state capacity and expensive compute width can be decoupled through a compress-process-rewrite interface, but activation traffic must be treated as a first-class resource.",
+    "For state-expansion methods, the decisive ablation is a capacity-, compressor-, initialization-, and branch-matched control that removes only the proposed erase term.",
+    "Conditional spectral analysis should be labeled separately from the Jacobian or global dynamics of a state-dependent network.",
+    "Equal-token quality tables should be paired with iso-FLOPs or elapsed-time curves and multiple seeds before an efficiency or causal claim is made."
+  ],
+  "open_questions": [
+    "Does scalar DDL retain a statistically reliable advantage across seeds and at billion-parameter scale under iso-FLOPs and iso-wall-clock budgets?",
+    "How does expanded DDL compare with a matched d_v=4 write-only/additive control that preserves every other branch, compressor, and initialization choice?",
+    "What distributions of beta, pre-update error, and post-update error emerge across tokens, layers, and tasks after training?",
+    "Would rank-r or multiple-direction rewrites improve quality enough to justify their extra cost, or destroy the useful identity-biased geometry?",
+    "Can compiler or kernel fusion recover the measured throughput losses, especially for expanded state and autoregressive decoding?",
+    "Do DDL directions encode stable functional features, or are their operator semantics unrelated to semantic interpretability?",
+    "How does DDL compare compute-for-compute with Hyper-Connections, Residual Matrix Transformers, LAuReL, MUDDFormer, and DenseFormer under one common pretraining recipe?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2102.11174",
+      "title": "Linear Transformers Are Secretly Fast Weight Programmers",
+      "url": "https://arxiv.org/abs/2102.11174v3",
+      "relationship": "prior algebraic predecessor",
+      "difference": "This work introduced learned delta-rule correction for a fast-weight memory evolving over sequence time. DDL reuses the same erase/write algebra across network depth as the residual interface; it does not invent the delta rule.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2406.06484",
+      "title": "Parallelizing Linear Transformers with the Delta Rule over Sequence Length",
+      "url": "https://arxiv.org/abs/2406.06484v6",
+      "relationship": "prior direct mechanism",
+      "difference": "DeltaNet parallelizes delta-rule memory over tokens and scales it to language modeling using products of Householder matrices. DDL instead applies a one-direction correction between Transformer sublayers over depth while retaining softmax attention/MLP blocks.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v6"
+    },
+    {
+      "canonical_id": "arxiv:2409.19606",
+      "title": "Hyper-Connections",
+      "url": "https://arxiv.org/abs/2409.19606v3",
+      "relationship": "prior residual-state competitor",
+      "difference": "Hyper-Connections expands and dynamically mixes multiple residual streams to improve depth-wise information flow. DDL also expands persistent state but uses an explicit target-seeking rank-1 rewrite and a compressor rather than general dynamic cross-stream connectivity.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2512.24880",
+      "title": "mHC: Manifold-Constrained Hyper-Connections",
+      "url": "https://arxiv.org/abs/2512.24880v2",
+      "relationship": "concurrent residual-state competitor",
+      "difference": "mHC constrains expanded connection matrices to restore identity mapping and adds systems optimization for scale. DDL enforces an identity limit through a scalar erase/write gate and edits one normalized feature direction, with much smaller-scale evidence.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2506.22696",
+      "title": "Residual Matrix Transformers: Scaling the Size of the Residual Stream",
+      "url": "https://arxiv.org/abs/2506.22696v1",
+      "relationship": "prior expanded-residual competitor",
+      "difference": "RMT replaces the vector residual stream with an outer-product memory matrix and directly studies scaling residual capacity independently of model compute. DDL's expanded state is compressed to the backbone width and rewritten by a delta rule, so its expanded-state novelty is the update/interface combination rather than capacity decoupling alone.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2411.07501",
+      "title": "LAuReL: Learned Augmented Residual Layer",
+      "url": "https://arxiv.org/abs/2411.07501v4",
+      "relationship": "prior residual-interface competitor",
+      "difference": "LAuReL learns lightweight augmented residual pathways as near-drop-in replacements and reports vision and billion-parameter language results. DDL imposes a normalized read-target-error geometry with exact local semantics but has larger relative throughput costs and smaller-scale tests.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4"
+    },
+    {
+      "canonical_id": "arxiv:2502.12170",
+      "title": "MUDDFormer: Breaking Residual Bottlenecks in Transformers via Multiway Dynamic Dense Connections",
+      "url": "https://arxiv.org/abs/2502.12170v2",
+      "relationship": "prior dynamic-depth competitor",
+      "difference": "MUDDFormer generates token-dependent dense connections separately for query, key, value, and residual streams across depth. DDL uses a much more constrained rank-1 target rewrite of one persistent residual state and therefore offers clearer local algebra but less general mixing.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2402.02622",
+      "title": "DenseFormer: Enhancing Information Flow in Transformers via Depth Weighted Averaging",
+      "url": "https://arxiv.org/abs/2402.02622v2",
+      "relationship": "prior cross-layer competitor",
+      "difference": "DenseFormer learns depth-weighted averages of current and earlier representations to reuse information across layers. DDL instead edits the current persistent state toward a learned readout target and, in expanded form, increases storage channels rather than explicitly averaging past layer outputs.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim DDL is a new depth-wise Transformer residual interface that makes reading, comparison, cancellation, and writing explicit through a shared-gate rank-1 delta rule, with an identity limit, exact selected-readout overwrite at beta=1, and scalar and expanded-state realizations.",
+    "evidence": "Pages 4-6 derive the local affine operator and spectrum; pages 7 and 17-19 specify the concrete Transformer and its relation to DeltaNet; pages 8-12 and 20 report quality and cost. Primary exact-version records show that delta-rule memory (2102.11174v3, 2406.06484v6), expanded residual state (2409.19606v3, 2512.24880v2, 2506.22696v1), and learned/dense residual routing (2411.07501v4, 2502.12170v2, 2402.02622v2) all predate or are concurrent.",
+    "reviewer_inference": "The defensible novelty is narrow but real: transpose an established delta-rule erase/write recurrence from sequence memory to layer depth, make it the residual contract, and combine it with a particular compress-process-rewrite expanded state plus a careful conditioned-spectrum exposition. The delta rule, rank-1 memory write, expanded residual capacity, channel compression, learned gating, and cross-layer routing are not new individually. Empirically, scalar DDL offers only unresolved single-run differences, and expanded-state gains are causally confounded; therefore the paper establishes an interpretable local parameterization and promising point estimates, not that delta erasure itself is superior to additive residual learning."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Primary full-text review of all 20 pages of the locally pinned arXiv v4 PDF, including Proposition 2.1 and its proof, all five main tables, implementation appendices, the DeltaNet transpose, hyperparameters, and zero-shot tables. Equation audit: Eqs. 2.1-2.4 and Proposition 2.1 are algebraically consistent for unit k after freezing the state-dependent generators; the manuscript appropriately warns that this is neither the full Jacobian nor global contraction. The epsilon normalization makes exactness approximate when the direction norm is small. Claim audit: the paper is unusually explicit about negative results and scope—one run per configuration, equal-token rather than iso-FLOPs, mixed zero-shot results, no semantic-direction audit, and no matched expanded-state write-only control. The main unresolved confound is that d_v=4, compression, and sometimes embedding convolution change together with the erase term. Exact-version competitor records were checked against official arXiv submission histories on 2026-08-23. This is a first-pass full_text reading, not an independent secondary verification."
+}

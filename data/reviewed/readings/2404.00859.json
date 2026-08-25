@@ -1,0 +1,120 @@
+{
+  "stable_id": "arxiv:2404.00859",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2404.00859",
+    "pdf_sha256": "37c4870836d638ebebda50c80b4f1341bb0f205d5a4d2f00943fbbe181473bf2",
+    "text_sha256": "79f368449667f93db613467344dfef28cfd78276705230161e1b229c5147f771",
+    "page_count": 24,
+    "extracted_at": "2026-08-23T18:13:43.603671+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Do autoregressive Transformers deliberately compute features at an earlier token because those features will help predict later tokens, or are useful earlier states merely reusable breadcrumbs?",
+  "key_findings": [
+    {
+      "claim": "Myopic training removes off-diagonal gradient contributions from future-token losses to parameters as used at a past position, eliminating the direct training incentive to pre-cache future-useful features.",
+      "evidence": "Section 3 decomposes the ordinary autoregressive gradient and defines tied and untied myopia. The custom attention backward pass stops gradients through cached past key/value states while retaining their forward use.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "Section 3.2-3.3, gradient decomposition and myopia gap"},
+        {"page": 5, "section": "Section 3.4, myopic descent"},
+        {"page": 15, "section": "Appendix B, myopic attention mechanism"}
+      ]
+    },
+    {
+      "claim": "A constructed task that rewards computing sin(bx) before it becomes relevant yields strong direct evidence of learned pre-caching under ordinary training.",
+      "evidence": "Linear probes recover sin(bx_n) from vanilla hidden states at its source position, and normalized Huber loss ranges from 0.0030 to 0.096 versus 0.97 to 1.26 for myopic models across p values; an always-zero predictor scores 1.26.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "Section 4.1, synthetic D_p task"},
+        {"page": 7, "section": "Figures 2-3 and Table 1"}
+      ]
+    },
+    {
+      "claim": "On one-epoch GPT-2-small training over 4.6M MS MARCO sequences, the myopia gap is modest: validation cross-entropy is 3.40 myopic versus 3.28 vanilla, while a context-disabled Transformer bigram scores 5.33.",
+      "evidence": "Table 2 also reports 3.26 for a local-myopic model supplied frozen vanilla past states. The much larger bigram gap shows that myopic models still exploit useful past breadcrumbs even without future-directed gradients.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "Section 5.1.1 and Table 2"},
+        {"page": 9, "section": "Figure 4, loss by token position"}
+      ]
+    },
+    {
+      "claim": "The natural-language myopia gap increases with Pythia model size from 70M through 2.8B parameters, but these runs fine-tune pretrained checkpoints and do not isolate where pre-caching arose during original pretraining.",
+      "evidence": "Section 5.2 starts from released pretrained Pythia models because the 10M-sequence corpus is too small for scratch training; Appendix Figure 7 shows a growing post-fine-tuning vanilla-myopic loss gap.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "Section 5.2, Pythia scaling setup"},
+        {"page": 10, "section": "Pythia downstream comparison"},
+        {"page": 21, "section": "Appendix D.2, Figure 7"}
+      ]
+    },
+    {
+      "claim": "A training-procedure gap is evidence about the benefit of pre-caching but is not a causal localization of what a particular vanilla network computes at each token.",
+      "evidence": "The authors distinguish the global myopia gap from a local-myopia bonus for a fixed model. The local bonus is only 0.02 in GPT-2, and alternative optimization effects or reduced gradient credit assignment can contribute to performance differences.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "Definitions 3-4, global versus local myopia"},
+        {"page": 8, "section": "GPT-2 local-myopia result"},
+        {"page": 10, "section": "Discussion and future work"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Intervene on temporal credit assignment during training and use the performance loss as an operational measure of computation performed early specifically for later predictions.",
+    "mechanism": "Decompose autoregressive gradients by source and target token, stop future losses from updating earlier cached states, compare vanilla and myopic optima or training runs, and supplement behavior with hidden-state probes and gradient-component measurements.",
+    "assumptions": [
+      "Removing off-diagonal gradients selectively removes deliberate pre-caching without introducing dominant unrelated optimization costs.",
+      "Matched vanilla and myopic training reach sufficiently comparable solutions.",
+      "Cross-entropy gaps and probes reflect reusable computation rather than only capacity or convergence differences."
+    ]
+  },
+  "techniques": [
+    {"id": "myopic-gradient-descent", "role": "Removes future-token learning signals from earlier forward passes."},
+    {"id": "myopia-gap", "role": "Quantifies the best-achievable or empirical value of pre-caching."},
+    {"id": "local-myopic-model", "role": "Tests the immediate-token tradeoff while holding past vanilla states fixed."},
+    {"id": "linear-hidden-state-probing", "role": "Detects deliberately cached synthetic features."}
+  ],
+  "evaluations": [
+    {"setting": "Two-layer Transformers on synthetic D_p sequences", "metric": "Normalized Huber loss and probe R-squared", "result": "Vanilla training learns probe-visible future-useful sine features and achieves 0.0030-0.096 loss, while myopic training remains near 0.97-1.26.", "baseline": "Myopic training and an always-zero predictor"},
+    {"setting": "GPT-2-small trained one epoch on 4.6M length-64 MS MARCO sequences", "metric": "Validation cross-entropy", "result": "Vanilla 3.28, myopic 3.40, local-myopic 3.26, and Transformer bigram 5.33; natural language is dominated by reusable breadcrumbs at this scale.", "baseline": "Myopic, local-myopic, and context-disabled matched architectures"},
+    {"setting": "Pretrained Pythia checkpoints from 14M to 2.8B fine-tuned on 10M Pile sequences", "metric": "Cross-entropy and downstream benchmark gap", "result": "The vanilla-myopic gap generally increases from 70M upward, suggesting greater pre-caching benefit with scale.", "baseline": "Matched myopic fine-tuning"},
+    {"setting": "Synthetic multiplication with filler zero padding", "metric": "Exact accuracy", "result": "Longer filler padding improves vanilla models but hurts myopic models, consistent with vanilla computation occurring during otherwise meaningless tokens.", "baseline": "Myopic training and shorter padding"}
+  ],
+  "limitations": [
+    "Myopic and vanilla training can differ in optimization quality for reasons besides pre-caching.",
+    "The natural-language scratch-training experiment is limited to GPT-2-small, one epoch, and length 64.",
+    "Larger Pythia experiments begin from already pretrained checkpoints.",
+    "The convergence theorem assumes smoothness and strong convexity conditions that do not describe deep Transformer training.",
+    "The study measures aggregate benefit, not a complete causal circuit for natural-language pre-caching."
+  ],
+  "failure_modes": [
+    "Gradient stopping may make credit assignment harder even when no useful feature needs pre-caching.",
+    "A model can encode future-useful information incidentally, making probe decodability insufficient evidence of deliberate planning.",
+    "Pretraining can already install cached features that survive nominally myopic fine-tuning.",
+    "Sequence or dataset shifts can change the apparent myopia gap independently of planning."
+  ],
+  "reusable_insights": [
+    "Separate features useful now and later from features computed now only for later by intervening on temporal gradients.",
+    "Use global performance gaps, fixed-model local bonuses, probes, and causal ablations together rather than treating any one as definitive planning evidence.",
+    "Audit filler-token computation because extra forward passes can provide hidden compute unrelated to token semantics."
+  ],
+  "open_questions": [
+    "Does pre-caching remain small when frontier models are trained myopically from initialization at full corpus scale?",
+    "Which natural-language circuits and token types account causally for the size-dependent myopia gap?",
+    "Can adaptive local myopia improve interpretability or safety without sacrificing useful future computation?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2404.15758", "title": "Let's Think Dot by Dot: Hidden Computation in Transformer Language Models", "url": "https://arxiv.org/abs/2404.15758", "relationship": "Computation on semantically empty filler tokens", "difference": "Pfau et al. show extra tokens can supply hidden inference compute; this paper asks whether ordinary training prepares earlier hidden states for later tokens and disables that incentive with myopic gradients.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:2310.02226", "title": "Think Before You Speak: Training Language Models With Pause Tokens", "url": "https://arxiv.org/abs/2310.02226", "relationship": "Explicit allocation of pre-answer computation", "difference": "Pause-token training deliberately adds compute before outputs; the reviewed work diagnoses computation embedded in ordinary past-token states without adding special tokens.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:2403.09629", "title": "Quiet-STaR: Language Models Can Teach Themselves to Think Before Speaking", "url": "https://arxiv.org/abs/2403.09629", "relationship": "Future-token-aware latent rationale training", "difference": "Quiet-STaR explicitly trains token-level hidden rationales to improve future text; myopic training removes future-directed gradients to estimate how much analogous implicit preparation standard models learn naturally.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:2212.10559", "title": "Why Can GPT Learn In-Context? Language Models Secretly Perform Gradient Descent as Meta-Optimizers", "url": "https://arxiv.org/abs/2212.10559", "relationship": "Interpretation of computation stored in Transformer states", "difference": "The meta-optimizer account characterizes an in-context computation; this paper focuses on when training causes an earlier position to compute information for later forward passes and provides a gradient intervention.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"}
+  ],
+  "novelty_assessment": {
+    "author_claim": "Myopic training operationalizes and measures Transformer pre-caching, showing it clearly in a controlled task but finding breadcrumbs more explanatory for small language models, with pre-caching increasing at scale.",
+    "evidence": "The paper supplies definitions, a synthetic separation with probes, matched GPT-2 runs, Pythia scaling, multiplication filler tests, and gradient decomposition.",
+    "reviewer_inference": "The temporal-gradient intervention is an important diagnostic. Strong claims about model planning should remain qualified because optimization gaps and inherited pretrained features are not themselves causal circuit evidence."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Read all 24 extracted pages, checking definitions, theorem assumptions, synthetic probes and losses, GPT-2 table, Pythia protocol, multiplication filler study, and gradient appendix. Related primary papers were checked on arXiv on 2026-08-23."
+}

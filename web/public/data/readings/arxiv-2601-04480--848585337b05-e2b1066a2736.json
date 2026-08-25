@@ -1,0 +1,388 @@
+{
+  "stable_id": "arxiv:2601.04480",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2601.04480",
+    "pdf_sha256": "ece84694b46447c8c6394db8110177e345f6081112b7579134f3f3452fc529ba",
+    "text_sha256": "d2a49b0881d59c87a58a2a1957fe29aa02f192ed0c7f4b474354be616ceb6d4e",
+    "page_count": 46,
+    "extracted_at": "2026-08-23T19:57:35.023741+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "How does Claude 3.5 Haiku infer character position and an implicit fixed line width from tokenized text, compare the remaining space with the likely next token, and turn that computation into a newline prediction?",
+  "key_findings": [
+    {
+      "claim": "Author-reported task setup: Claude 3.5 Haiku adapts to synthetically imposed character-width constraints after seeing a few wrapped lines.",
+      "evidence": "The authors strip newlines from diverse prose and reinsert them at the nearest word boundary below k for k=15,20,...,150. Appendix C evaluates 200 prose sequences at k=20,40,...,140; the plotted top-1 newline accuracy rises sharply over the first three lines and then generally remains around the 0.8-0.95 range, with variation across width and line number. The paper explicitly does not establish optimal inference of the implicit constraint and notes that semantic next-token mistakes remain in the measured error.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 1, "section": "Abstract and Introduction"},
+        {"page": 2, "section": "Introduction / fixed-width linebreaking task and footnote 4"},
+        {"page": 5, "section": "1.1 Preliminaries"},
+        {"page": 33, "section": "Appendix C / Figure 35"}
+      ]
+    },
+    {
+      "claim": "Author-reported representation result: character count is highly linearly decodable, while the between-count mean vectors and sparse features exhibit a curved low-dimensional organization.",
+      "evidence": "A scalar linear regression probe after layer 1 reaches R^2=0.985. PCA is then applied to the 150 residual-stream means conditioned on character count; six components explain 95% of variance among those means. Ten selected Weakly Causal Crosscoder features have overlapping, dilating tuning curves and approximately reconstruct the mean curve, usually with two or three neighboring features active.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "2 Representing Character Count"},
+        {"page": 6, "section": "2.1 Character Count Features / Figure 5"},
+        {"page": 7, "section": "2.2 / Figure 6"}
+      ]
+    },
+    {
+      "claim": "Author-reported causal result: the PCA character-count subspace controls newline behavior in the tested prompt and dataset.",
+      "evidence": "Zero-ablation of the top between-count PCs selectively raises loss when the next token is a newline: the visually reported mean loss increase grows from about 0.02 at rank 1 to about 0.36 at rank 6 and saturates near 0.40, while matched random-subspace and non-newline effects remain near zero. In the aluminum prompt, replacing the last two tokens' count components across three early layers with rank-6 mean activations tracks the full-residual intervention and reverses the relative newline versus ' aluminum.' probabilities as the patched count changes.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "2.3 Validation / ablation and intervention definitions"},
+        {"page": 8, "section": "Figures 7-8"}
+      ]
+    },
+    {
+      "claim": "Author-reported geometric result: count probes, count-conditioned means, and sparse-feature decoders all show oscillatory off-diagonal similarity ('ringing').",
+      "evidence": "A 150-way logistic probe has RMSE 5 after layer 1, and six PCs explain 82% of variance in its 150 weight vectors. Response profiles contain secondary off-diagonal bands; analogous bands appear in cosine similarities of mean activations and feature decoders. The paper connects this to low-rank approximations of a narrow circulant similarity kernel and to Fourier modes.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "2.4 The Probe Perspective"},
+        {"page": 9, "section": "Figures 9-10"},
+        {"page": 10, "section": "2.5 / Figure 11"},
+        {"page": 35, "section": "Appendix G / analytic construction"}
+      ]
+    },
+    {
+      "claim": "Contradiction audit: the broad statement that the observed rippled representation is 'optimal' is stronger than the demonstrated optimization result.",
+      "evidence": "The exact PCA optimality result applies to approximating a stipulated circulant similarity matrix on a circle in squared error, not to the actual interval-valued, dilating Haiku representation or to task loss. The physical particle construction is a heuristic dynamical simulation with admitted bad local minima and circular boundary conditions. Appendix G reports that Fourier components explain up to 10% less variance than the optimal PCA components because they do not model dilation. These results explain how ringing can arise but do not prove that Haiku's learned geometry globally optimizes a capacity-resolution objective.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Introduction / 'optimal with respect to a simple physical model' claim"},
+        {"page": 10, "section": "2.5 / physical simulation and footnotes 16-17"},
+        {"page": 35, "section": "Appendix F-G"},
+        {"page": 36, "section": "Appendix G / Figure 41"}
+      ]
+    },
+    {
+      "claim": "Author-reported mechanism: boundary heads compare current character count with prior line width by twisting the two probe families in QK space at different offsets.",
+      "evidence": "In the residual stream, equal-count line-width and character-count probes align only weakly (maximum cosine about 0.25). Through one boundary head's QK transform, near-boundary offset pairs become almost perfectly aligned (maximum cosine approximately 1), while a random same-layer head has little structure. Several heads have different offsets and overlapping attention/output response curves, jointly tiling characters-remaining values below 40.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 11, "section": "3.1 Twisting with QK"},
+        {"page": 12, "section": "Figures 14-15"},
+        {"page": 13, "section": "3.2 / Figures 16-17"},
+        {"page": 37, "section": "Appendix H / Figures 43-44"}
+      ]
+    },
+    {
+      "claim": "Author-reported causal result: summed boundary-head outputs form a low-dimensional characters-remaining representation that can be ablated and patched.",
+      "evidence": "The first two PCs of the characters-remaining mean-output space explain 92% of its variance; individual heads are nearly one-dimensional, while their sum forms a more evenly spaced curve. In Figure 19, top-PC ablation selectively increases newline loss (roughly 0.6 at rank 1, 1.25 at rank 2, 1.9 at rank 3, and about 2.2 after rank 4) versus near-zero random/non-newline controls. A rank-2 patch in the aluminum prompt flips the newline/' aluminum.' preference around the ten-character fit threshold and broadly tracks a full-space patch.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 14, "section": "Figures 18-19"}
+      ]
+    },
+    {
+      "claim": "Author-reported final-decision result: late-layer representations of characters remaining and next-token length occupy nearly orthogonal subspaces, making the fit decision linearly separable.",
+      "evidence": "The authors average activations at roughly 90% depth by characters remaining and by the true next non-newline token's length, then inspect their pairwise sums. A separating hyperplane in a three-dimensional PCA representation reaches AUC 0.91 for whether the ground-truth next token is a newline. The authors explicitly treat the true next token as a proxy for the model's planned token and report that the full token distribution with versus without newlines is 'quite different,' arguing against a comprehensive probability-mass redirection mechanism.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 17, "section": "4.1 Joint Geometry / Figure 23 and footnote 23"},
+        {"page": 18, "section": "AUC result and mechanism qualification"}
+      ]
+    },
+    {
+      "claim": "Reviewer inference: the 0.91 AUC supports linear accessibility but does not by itself establish that orthogonal arrangement is the model's causal decision mechanism.",
+      "evidence": "The classifier and PCA are fit to condition means, use the ground-truth next non-newline token rather than a decoded model plan, and are not compared with scalar-count, nonlinear, or representation-matched baselines. Unlike the earlier count and characters-remaining spaces, this late joint decision space is not directly patched along the claimed separating direction. The result is therefore diagnostic rather than a causal necessity/sufficiency test.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 17, "section": "4.1 / construction of mean vectors and footnote 23"},
+        {"page": 18, "section": "AUC and stripped-newline comparison"}
+      ]
+    },
+    {
+      "claim": "Author-reported distributed-counting result: early attention heads combine newline-relative token position with token-length corrections to estimate character count.",
+      "evidence": "Five selected layer-0 heads yield R^2=0.93 for count prediction from their summed outputs; eleven heads across the first two layers yield R^2=0.97. Layer-0 heads specialize at different newline-sink offsets, and their OV circuits shift count directions according to whether attended tokens are shorter or longer than the roughly 4-4.5 character average. Layer-1 heads reuse the initial estimate to sharpen receptive fields. The analysis omits MLPs because their measured contribution is four times smaller than attention, not zero.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 18, "section": "5 / Figure 24"},
+        {"page": 19, "section": "5.1-5.2 and R^2 comparison"},
+        {"page": 20, "section": "Figures 26-28"},
+        {"page": 21, "section": "QK/OV circuit summary / Figure 29"},
+        {"page": 40, "section": "Appendix K / toy construction"},
+        {"page": 42, "section": "Appendix K-L / OV walkthrough"}
+      ]
+    },
+    {
+      "claim": "Reviewer inference: the evidence does not establish the paper's stronger claim that multiple heads are mathematically necessary to generate the count manifold.",
+      "evidence": "The necessity argument is informal: it says an individual head's output curvature is constrained by input curvature, yet attention weights are input-dependent through QK and softmax, and the paper provides no theorem bounding a single head's attainable curve. Empirically it projects selected heads and their sum but does not present a complete set-level knockout/rescue against capacity-matched alternatives; it also omits a nonzero MLP path. The data support a distributed mechanism in this model, not universal necessity.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "Introduction / distributed algorithm necessity claim"},
+        {"page": 15, "section": "3.3 / multiple-head necessity argument"},
+        {"page": 19, "section": "5.2 / ignored MLP and selected-layer scope"},
+        {"page": 42, "section": "Appendix K-L"}
+      ]
+    },
+    {
+      "claim": "Author-reported adversarial result: code-like two-character strings can distract count heads and suppress a newline prediction without changing nominal line length.",
+      "evidence": "Inserting '@@' into the aluminum prompt redirects a key count head from the previous newline toward the inserted delimiter and disrupts the newline completion. Across 180 inserted pairs, most only moderately reduce the original 0.79 newline probability, while a small group dominated by code/delimiter patterns ('@@', '>>', '}}', ';|', '||', and related pairs) produces stronger changes and larger summed distraction. The effect also transfers to an explicit length-comparison prompt and is robust to answer ordering.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 22, "section": "6 Visual Illusions / Figures 30-31"},
+        {"page": 23, "section": "Figures 32-33"},
+        {"page": 24, "section": "Figure 34 and explicit comparison control"}
+      ]
+    },
+    {
+      "claim": "Reviewer inference: the 'visual illusion' experiment is mechanistically suggestive but not a clean adversarial causal isolation.",
+      "evidence": "Inserted strings alter token identities, tokenization, local semantics, and distributional familiarity at the same time; the comparison set is not matched on token count, embedding norm, corpus frequency, or semantic/code association. The paper shows a scatter association but reports no coefficient, uncertainty, or mediation test separating attention distraction from direct downstream logit effects. The explicit comparison and answer-order controls reduce, but do not remove, these confounds.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 22, "section": "6 / insertion design"},
+        {"page": 23, "section": "Figure 33"},
+        {"page": 24, "section": "explicit-task generalization"}
+      ]
+    },
+    {
+      "claim": "Reviewer inference: calling the count object a one-dimensional activation manifold is plausible but only partially tested because PCA is performed on label-conditioned means.",
+      "evidence": "The six-dimensional 95% statistic describes 150 per-count mean vectors, not variance of all token activations; ordering class means by count will always yield a polygonal curve. Individual predictions retain RMSE 5, and no held-out intrinsic-dimension, neighborhood-preservation, or within-count variance analysis is reported. A rank-1 scalar probe already reaches R^2=0.985, but the causal experiments do not include a probe-defined rank-1 baseline. Thus the work strongly demonstrates a useful curved between-count mean structure, while irreducibility of the full activation distribution remains less certain.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "2 / scalar probe result"},
+        {"page": 7, "section": "2.2-2.3 / PCA on per-count means"},
+        {"page": 8, "section": "2.4 / probe RMSE"},
+        {"page": 26, "section": "Discussion / feature-manifold duality"}
+      ]
+    },
+    {
+      "claim": "Contradiction audit: appendix evidence narrows the claim that sparse-feature tiling is universal or canonical.",
+      "evidence": "Appendix D shows similar tuning curves and decoder ringing across differently sized dictionaries trained for the same Claude model, but it also finds feature splitting by line width: features with the same 20-45 count range prefer all widths, long widths, or proximity to the boundary. No independently trained model or architecture is included in this universality test. The result supports dictionary-size stability in one setting, not model-universal canonical discretization.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "2.1 / universality claim"},
+        {"page": 33, "section": "Appendix D / Figure 36"},
+        {"page": 34, "section": "Appendix D / Figures 37-38"}
+      ]
+    },
+    {
+      "claim": "Author-reported scope boundary: several essential parts of robust linebreaking remain unresolved, although related ordinal structures appear elsewhere in the same model.",
+      "evidence": "The paper does not determine how line width is aggregated over previous lines and leaves variable width, uncertainty, multiple plausible next tokens, multi-token words, links, punctuation, and other special cases open. Gemma 2 2B and Qwen 3 4B are linked only as interactive attribution graphs rather than evaluated replications. Appendices nevertheless show early-linebreak remainder features and markdown row/column index probes with analogous ringing and seam-like PCA geometry in Claude 3.5 Haiku.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 21, "section": "5.3 Computing the Line Width"},
+        {"page": 25, "section": "8 Discussion"},
+        {"page": 26, "section": "Discussion / unresolved subtleties and other-model links"},
+        {"page": 45, "section": "Appendix N.1-N.2"},
+        {"page": 46, "section": "Appendix N.2 / Figure 51"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Triangulate one natural language-model behavior with sparse dictionary features, attribution graphs, supervised probes, low-dimensional geometry, weight-level QK/OV analysis, and causal subspace interventions.",
+    "mechanism": "Token embeddings encode token length; several early attention heads use the preceding newline as an offset-specific sink and add token-length corrections, so their outputs sum into a curved character-count representation. Separate newline-position representations encode prior line width. Boundary heads rotate/twist current-count queries and line-width keys so offset matches receive high attention, and multiple heads write a characters-remaining curve. Late layers combine that curve with a representation of the likely next token's length in nearly orthogonal subspaces, making the newline decision approximately linearly separable.",
+    "assumptions": [
+      "Synthetic fixed-width prose is a faithful diagnostic of the natural pretraining behavior being reverse engineered.",
+      "Per-count mean activations and supervised probe weights faithfully expose the computation rather than only correlated, linearly accessible information.",
+      "The selected ten-million-feature WCC dictionary resolves the relevant features with manageable splitting and absorption.",
+      "Low-dimensional PCA subspaces are sufficiently dedicated to count variables that ablation and mean replacement are interpretable despite possible superposition.",
+      "The true next non-newline token length is an adequate proxy for the model's internal next-token plan in the final-decision analysis.",
+      "Attention paths four times larger than the measured MLP contribution capture the important early counting mechanism.",
+      "Observations in one proprietary Claude 3.5 Haiku checkpoint are informative about broader transformer mechanisms."
+    ]
+  },
+  "techniques": [
+    {"id": "synthetic-fixed-width-prose", "role": "Creates controlled character-count and implicit-line-width labels while preserving natural prose."},
+    {"id": "weakly-causal-crosscoder-features", "role": "Discovers sparse feature families for count, line width, boundary distance, and break decisions."},
+    {"id": "attribution-graph-tracing", "role": "Provides prompt-level execution traces and identifies candidate QK/OV paths."},
+    {"id": "condition-mean-pca", "role": "Builds low-dimensional subspaces and curves from activations averaged by scalar count."},
+    {"id": "multiclass-count-probing", "role": "Measures count decoding error and supplies probe families for QK/OV geometric analysis."},
+    {"id": "subspace-ablation-and-mean-patching", "role": "Tests whether count and characters-remaining components causally change newline logits."},
+    {"id": "qk-probe-transport", "role": "Visualizes how attention heads align line-width keys with offset character-count queries."},
+    {"id": "ov-head-decomposition", "role": "Separates newline-sink offsets from token-length corrections in early counting heads."},
+    {"id": "delimiter-insertion-stress-test", "role": "Constructs adversarial strings that redirect counting attention and alter behavior."},
+    {"id": "circulant-low-rank-toy-model", "role": "Explains ringing using PCA/Fourier approximation of a prescribed neighborhood-similarity kernel."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Claude 3.5 Haiku on 200 prose sequences synthetically wrapped at k=20,40,...,140",
+      "metric": "Mean newline log probability and top-1 newline accuracy by line number",
+      "result": "Performance rises sharply through the first three lines and then is generally high but visibly variable across widths and positions (roughly 0.8-0.95 top-1 in much of the later plot).",
+      "baseline": "First-line predictions before sufficient evidence about the implicit width have near-zero to low top-1 accuracy; no alternative model or heuristic counter is tabulated."
+    },
+    {
+      "setting": "Layer-1 residual stream on synthetic count-labeled tokens",
+      "metric": "Scalar regression R^2; 150-way probe RMSE; PCA variance of per-count means/probe weights",
+      "result": "R^2=0.985; RMSE=5 characters; six PCs explain 95% of per-count-mean variance and 82% of probe-weight variance.",
+      "baseline": "No rank-1 causal scalar-probe baseline or held-out intrinsic-dimension baseline is reported."
+    },
+    {
+      "setting": "Character-count PCA ablation and aluminum-prompt mean replacement",
+      "metric": "Average next-token loss increase and newline/' aluminum.' log probabilities",
+      "result": "Top-PC ablation selectively reaches about +0.36 newline loss at rank 6 and about +0.40 after rank 8; rank-6 patching closely follows full-residual patching and reverses the completion preference.",
+      "baseline": "Matched random subspaces and non-newline positions remain near zero in the ablation plot; full d_model replacement is the intervention reference."
+    },
+    {
+      "setting": "Boundary-head QK analysis across character counts and prior line widths",
+      "metric": "Cosine similarity and offset response curves",
+      "result": "Maximum count/width probe similarity rises from roughly 0.25 in residual space to approximately 1 through the selected QK map, at an offset corresponding to an approaching boundary; multiple heads tile distinct offsets.",
+      "baseline": "A random head in the same layer shows almost no structured alignment."
+    },
+    {
+      "setting": "Characters-remaining head-sum ablation and aluminum-prompt rank-2 patch",
+      "metric": "Explained variance, newline loss increase, and completion log probabilities",
+      "result": "Two PCs explain 92% of mean-output variance; ablation rises from about +0.6 at rank 1 to about +2.2 after rank 4; the rank-2 patch switches behavior near the ten-character fit point.",
+      "baseline": "Random subspaces and non-newline positions remain near zero; full-space patching is qualitatively similar."
+    },
+    {
+      "setting": "Late-layer joint geometry of characters remaining and true next-token length",
+      "metric": "AUC for ground-truth newline decision",
+      "result": "A three-dimensional PCA separating hyperplane reaches AUC 0.91.",
+      "baseline": "No scalar, nonlinear, causal-direction, or model-plan decoding baseline is reported."
+    },
+    {
+      "setting": "Selected early attention-head outputs on count-labeled prompts",
+      "metric": "R^2 of character-count prediction",
+      "result": "Five layer-0 heads reach R^2=0.93; eleven heads across layers 0-1 reach R^2=0.97.",
+      "baseline": "The full layer and omitted MLP path are not given as matched predictive/causal baselines; the text states attention contributes four times more than MLPs."
+    },
+    {
+      "setting": "Aluminum prompt with 180 two-character insertions plus an explicit length-comparison prompt",
+      "metric": "Newline probability and summed attention distraction",
+      "result": "Most pairs moderately affect the original 0.79 newline probability, while a small code/delimiter-heavy set causes larger suppression and distraction; '@@' also reverses the explicit comparison in the predicted direction.",
+      "baseline": "Other character pairs and multiple-choice order permutations are controls, but frequency-, tokenization-, norm-, and semantic-matched controls are absent."
+    },
+    {
+      "setting": "Character-count feature families learned by differently sized WCC dictionaries",
+      "metric": "Tuning-curve and decoder-cosine similarity",
+      "result": "Qualitatively similar dilating tilings and ringing appear across dictionary sizes, alongside line-width-dependent feature splitting.",
+      "baseline": "No different model family, training seed panel, or independent task is included in the claimed universality test."
+    }
+  ],
+  "limitations": [
+    "Author-stated: the work does not determine whether line width is aggregated by a maximum, moving average, or another estimator over prior lines.",
+    "Author-stated: uncertainty, variable-width documents, multiple plausible next tokens, multi-token words, and markup/punctuation edge cases remain unresolved.",
+    "Author-stated: the true next non-newline token used in the late decision analysis is only an approximation to the model's planned token.",
+    "Author-stated: geometry was an expensive researcher-driven analysis and is easy to parameterize only for known continuous variables; it is not yet an automatic interpretability recipe.",
+    "Author-stated: probes and patching alone initially failed to reveal the correct variables; the account relies heavily on an external sparse dictionary and attribution tooling.",
+    "Reviewer-identified: all quantitative mechanistic results are from one proprietary Claude 3.5 Haiku checkpoint; linked Gemma/Qwen graphs are not equivalent replications.",
+    "Reviewer-identified: PCA variance is computed on count-conditioned means, suppressing within-count variation and potentially overstating low dimensionality of the full activation cloud.",
+    "Reviewer-identified: no rank-1 scalar-probe causal baseline is compared with the six-dimensional count subspace despite R^2=0.985 linear decoding.",
+    "Reviewer-identified: the synthetic evaluation shares the same construction used for discovery, probes, means, and interventions; held-out corpora, languages, tokenizers, fonts, and natural documents are not systematically evaluated.",
+    "Reviewer-identified: sparse-feature 'universality' spans dictionary sizes in one model and also exhibits feature splitting, so it does not establish architecture- or training-universal features.",
+    "Reviewer-identified: numerical causal plots generally lack tabulated estimates, uncertainty across model runs, and component-level sufficiency/necessity tests.",
+    "Reviewer-identified: the analytic optimality result concerns a chosen circular similarity matrix and does not prove optimality of the empirical interval/dilated representation.",
+    "Reviewer-identified: the visual-illusion insertions jointly alter tokenization, frequency, semantics, and attention, leaving causal mediation incomplete."
+  ],
+  "failure_modes": [
+    "A delimiter learned as a reset cue can hijack newline-sink attention outside its normal code context and corrupt character count.",
+    "Lines with variable widths or anomalously short previous lines can defeat an unresolved global-width estimator.",
+    "Multi-token candidate words or several semantically plausible continuations break the single true-next-token-length approximation.",
+    "Feature splitting or absorption in another dictionary can fragment the locally neat count family and complicate attribution.",
+    "A count subspace may also contain correlated positional or line-width information, so zero ablation can overstate variable-specific causality.",
+    "Ringing creates off-target QK similarities; the account relies on attention softmax and multiple offset heads to suppress those interference matches.",
+    "Ignoring smaller MLP contributions can miss compensatory or parallel counting routes under head ablation.",
+    "The circular Fourier toy model loses accuracy when real count representations dilate or have interval boundaries.",
+    "Tokenizer-specific character length and modifier tokens can decouple token count, visible width, and Unicode character count.",
+    "Natural documents using proportional fonts, tabs, links, or non-monospace conventions may depend on pixel width rather than the paper's character-count proxy."
+  ],
+  "reusable_insights": [
+    "Condition-mean geometry and sparse feature families can be dual descriptions: discrete receptive fields provide local coordinates on a continuous computation-relevant curve.",
+    "QK matrices can be analyzed by transporting supervised probe families through W_Q and W_K, exposing offset comparisons that are opaque in residual space.",
+    "Several low-rank head outputs can sum into a higher-curvature representation whose resolution is distributed across components.",
+    "For mechanistic claims, combine decoding with both coarse ablation and value-specific mean replacement; selective loss effects and behaviorally graded patches are stronger together.",
+    "Adversarial strings can be designed from a circuit's alternate natural roles, turning mechanistic interpretation into targeted stress testing.",
+    "Low-rank approximation of localized similarity kernels naturally creates oscillatory side lobes, linking superposition interference, Fourier features, and manifold curvature.",
+    "A late linear decision can be simplified upstream by arranging two scalar families in near-orthogonal subspaces.",
+    "Claims about manifolds should distinguish variance of class-conditioned means from intrinsic dimension of the complete activation distribution."
+  ],
+  "open_questions": [
+    "Does the same newline-counting circuit, including QK twists and delimiter illusions, replicate quantitatively in open-weight models and other tokenizers?",
+    "Can the rank-6 count intervention be beaten by a rank-1 scalar-probe direction or another capacity-matched representation?",
+    "What algorithm aggregates uncertain prior line lengths into the line-width representation, especially under changing widths?",
+    "How does the model integrate a distribution over candidate next tokens and their lengths rather than a single true continuation?",
+    "Can intrinsic-dimension and topology tests on individual held-out activations confirm a one-dimensional manifold beyond the curve of conditional means?",
+    "Which head subsets are individually necessary and jointly sufficient when MLP and alternative attention routes are controlled?",
+    "Can delimiter attacks be predicted out of sample from QK geometry after matching tokenization, frequency, and direct logit effects?",
+    "Can dictionary learning be extended to discover curved or group-valued features directly without first selecting a known scalar label?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "openreview:d63a4AM4hb",
+      "title": "Not All Language Model Features Are One-Dimensionally Linear",
+      "url": "https://openreview.net/forum?id=d63a4AM4hb",
+      "relationship": "closest-feature-manifold-antecedent",
+      "difference": "Engels et al. define irreducible multidimensional features, discover circular day/month features with SAEs, and causally test their use in modular computations across GPT-2, Mistral, and Llama. The present paper applies the feature-manifold view to an interval-valued natural linebreaking circuit and adds a detailed QK/OV transformation account, but multidimensional feature geometry itself is prior work.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2025 conference paper; current OpenReview forum d63a4AM4hb"
+    },
+    {
+      "canonical_id": "arxiv:2505.18235",
+      "title": "The Origins of Representation Manifolds in Large Language Models",
+      "url": "https://arxiv.org/abs/2505.18235",
+      "relationship": "closest-geometric-theory-antecedent",
+      "difference": "Modell et al. formalize how continuous features can form representation manifolds and empirically report ripples and dilation. The present work cites and operationalizes that perspective in a specific end-to-end computation, adding sparse tilings, causal count patches, attention-head twists, and adversarial delimiters rather than originating the manifold hypothesis.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2406.03445",
+      "title": "Pre-trained Large Language Models Use Fourier Features to Compute Addition",
+      "url": "https://arxiv.org/abs/2406.03445",
+      "relationship": "closest-periodic-computation-antecedent",
+      "difference": "Zhou et al. show Fourier-sparse number features with complementary MLP/attention roles in addition. The present paper studies non-numeric character position learned from natural text and relates ringing to low-rank Fourier structure, while its boundary comparison uses QK offset alignment rather than arithmetic addition.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2502.00873",
+      "title": "Language Models Use Trigonometry to Do Addition",
+      "url": "https://arxiv.org/abs/2502.00873",
+      "relationship": "closest-causal-helix-antecedent",
+      "difference": "Kantamneni and Tegmark causally identify generalized helices and a Clock addition algorithm in three mid-sized LLMs. The present paper finds a related rippled/helical scalar geometry for character counting in one model and contributes a naturalistic line-boundary circuit rather than the first causal manipulation of helical numeric representations.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2505.05145",
+      "title": "Understanding In-context Learning of Addition via Activation Subspaces",
+      "url": "https://arxiv.org/abs/2505.05145",
+      "relationship": "methodological-competitor",
+      "difference": "Hu et al. localize addition ICL to a few attention heads and six-dimensional periodic/magnitude subspaces with causal analysis. The present paper likewise decomposes low-dimensional head computations but targets perceptual character counting, uses sparse crosscoder features for discovery, and emphasizes QK twisting and distributed newline-sink offsets.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2405.20131",
+      "title": "Language Models Need Inductive Biases to Count Inductively",
+      "url": "https://arxiv.org/abs/2405.20131",
+      "relationship": "counting-generalization-competitor",
+      "difference": "Chang and Bisk compare architectures and positional biases on train-short/test-long counting, finding Transformers rely on positional embeddings for OOD counting. The present work reverse engineers an approximate character counter learned in pretraining, but does not test inductive extrapolation beyond its 15-150 width regime or across architectures.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2507.20398",
+      "title": "Length Representations in Large Language Models",
+      "url": "https://arxiv.org/abs/2507.20398",
+      "relationship": "length-mechanism-competitor",
+      "difference": "Moon et al. study hidden units and attention mechanisms that represent and causally control requested output sequence length. The present paper instead tracks within-line character position and implicit document width, contributing a finer end-to-end linebreak mechanism while leaving broader output-length control outside scope.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim an end-to-end mechanistic account of a natural visual/perceptual language-model behavior: character counts live on sparse, curved low-dimensional manifolds; QK heads twist those manifolds to sense boundaries; multiple heads cooperatively build higher-resolution curves; late orthogonal geometry makes linebreaking linearly separable; and mechanistic understanding predicts visual-illusion attacks.",
+    "evidence": "The account combines a ten-million-feature crosscoder, prompt-level attribution graphs, exact weight transforms, count probes, PCA, selective subspace ablations, graded value patches, head-output decompositions, an AUC classifier, and 180 delimiter insertions. Strongest quantitative points include R^2=0.985 scalar decoding, six PCs explaining 95% of count-mean variance, QK cosine rising from about 0.25 to approximately 1, selective ablation curves, AUC 0.91, and head-sum R^2 of 0.93/0.97.",
+    "reviewer_inference": "The credible novelty is the integrated naturalistic case study—especially the offset-specific QK 'twist,' the distributed newline-sink/token-length account, causal mean patches, and circuit-derived delimiter stress test. Multidimensional feature manifolds, rippled/helical/Fourier number representations, causal arithmetic subspaces, sparse-feature circuits, and transformer counting are substantial antecedents. Claims that the empirical geometry is optimal, irreducibly one-dimensional as a full activation manifold, canonically discretized, or necessarily multi-head should be narrowed: the optimality proof concerns a stipulated circular kernel, PCA uses conditional means, a rank-1 causal baseline is missing, and necessity is not established. Generality is also limited by a single proprietary model."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Read all 46 pages of the indexed arXiv v1 PDF, including every figure, references, the task-performance appendix, dictionary-size/splitting study, dynamical and Fourier constructions, boundary-head geometry, break features, token-length features, detailed QK/OV head mechanics, full layer-0 plots, markdown/early-linebreak feature families, and rejected titles. OCR-assisted pages 39 and 44 were cross-checked against the rendered PDF; the principal quantitative figures on pages 8, 14, 23, and 33 were also inspected at original resolution. Provenance exactly matches data/generated/fulltext_index.jsonl. Seven current primary competitor records were checked on 2026-08-23 at exact arXiv revisions or the current official OpenReview conference record. This is a first-pass primary full-text reading, not a second-review verification. Confidence is high in reported numbers and the identified scope/causal-design gaps; broader claims about the model's complete algorithm remain less certain because the model and feature dictionary are not independently reproducible here."
+}

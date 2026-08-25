@@ -1,0 +1,149 @@
+{
+  "stable_id": "arxiv:2202.12316",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2202.12316",
+    "pdf_sha256": "50dc82a2be56a734a96ea93becd1d5518b8236630a553d1093cfece86a7110c6",
+    "text_sha256": "399d454429597cedb17f0efc79495c508ace2db7b25904e60f639008c53beb98",
+    "page_count": 12,
+    "extracted_at": "2026-08-23T21:20:54.320334+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can kernel differentiation and variational Gaussian-process inference incorporate complete or incomplete nonlinear differential equations while preserving predictive uncertainty?",
+  "key_findings": [
+    {
+      "claim": "AutoIP builds one joint Gaussian prior over a target function, its equation-relevant derivatives, and independent latent source functions, then expresses data fit and differential-equation residual as two likelihoods.",
+      "evidence": "Kernel derivatives supply all cross-covariances among u, u_t, and u_xx. A Gaussian pseudo-observation of zero has the nonlinear PDE residual as its mean, so arbitrary algebraic combinations of sampled derivatives and sources can be inserted without differentiating a neural surrogate.",
+      "anchors": [{"page": 3, "section": "AutoIP model, Equations 3-8"}]
+    },
+    {
+      "claim": "Whitened Gaussian variational inference decouples latent samples from kernel hyperparameters and leaves the approximate posterior process Gaussian with a differentiable updated kernel.",
+      "evidence": "The Cholesky-whitened variable eta has a standard-normal prior, a full Gaussian variational posterior, and an ELBO containing both likelihoods. Equation 12 derives the conditioned covariance and verifies that differentiating it reproduces posterior function-derivative cross-covariances.",
+      "anchors": [{"page": 4, "section": "Algorithm and posterior-process remarks"}]
+    },
+    {
+      "claim": "Sparse-data extrapolation improves markedly on the two synthetic systems, including when omitted terms are absorbed by a latent source GP.",
+      "evidence": "On the undamped pendulum with exact data, RMSE falls from 1.354 for GPR to 0.585 with an incomplete equation and 0.416 with the complete equation; analogous gains occur with noise and damping. On Allen-Cahn, GPR RMSE 0.2528 falls to 0.1869/0.1865 with incomplete/complete equations using 100 collocation points.",
+      "anchors": [{"page": 6, "section": "Pendulum Table 1"}, {"page": 7, "section": "Allen-Cahn experiment"}, {"page": 9, "section": "Diffusion-reaction Figure 3"}]
+    },
+    {
+      "claim": "Real-data gains are positive but narrower, and the useful signal can depend more on where residual points are placed than on a verified governing law.",
+      "evidence": "Across two motion joints, whole-trajectory collocation improves extrapolation most even without observations there; the proposed ODE is only plausible. On four Swiss Jura tasks, RMSE gains over GPR are 0.008-0.020, while the diffusion equation is reduced to a very flexible unknown-source relation because measurement times are absent.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 8, "section": "Motion capture and Table 2"}, {"page": 9, "section": "Swiss Jura and Table 3"}]
+    },
+    {
+      "claim": "The evaluation leaks test performance into model selection and overstates the distinction from PINN residual penalties.",
+      "evidence": "For GPR/AutoIP the authors explicitly report the best prediction accuracy after every training epoch, and do the same for motion baselines, requiring test labels to select epochs. AutoIP criticizes PINNs as soft penalty methods, yet its virtual Gaussian residual with learned/tuned variance is itself a soft pseudo-likelihood rather than exact equation satisfaction.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 3, "section": "Virtual likelihood variance"}, {"page": 6, "section": "Experimental selection protocol"}, {"page": 8, "section": "Motion baseline protocol"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Encode differential equations probabilistically as residual pseudo-observations over jointly sampled GP values and derivatives, with latent GPs representing missing physics.",
+    "mechanism": "Choose differentiable kernels, assemble a dense block covariance at observations and collocation sites, evaluate nonlinear residuals on joint Gaussian samples, whiten them, and optimize a stochastic ELBO over a Gaussian posterior, kernels, noise, equation coefficients, and residual variance.",
+    "assumptions": [
+      "The target and latent source are sufficiently smooth for all kernel derivatives used by the equation.",
+      "A finite collocation set adequately represents equation conformity over the continuous domain.",
+      "The chosen GP kernels and independence assumptions are appropriate.",
+      "A Gaussian residual pseudo-likelihood is a useful model of imperfect physics.",
+      "The dense covariance is computationally feasible."
+    ]
+  },
+  "techniques": [
+    {"id": "kernel-differentiation", "role": "Constructs exact prior covariances among function values and differential operators."},
+    {"id": "virtual-physics-likelihood", "role": "Turns a possibly nonlinear PDE residual into a probabilistic soft constraint."},
+    {"id": "latent-source-gp", "role": "Absorbs unknown or deliberately omitted equation terms."},
+    {"id": "whitened-variational-gp", "role": "Stabilizes joint learning of latent values and kernel/equation parameters."}
+  ],
+  "evaluations": [
+    {"setting": "Nonlinear pendulum with/without damping and noisy/exact sparse samples", "metric": "RMSE and mean negative log likelihood over long-horizon extrapolation", "result": "Incomplete and complete AutoIP consistently beat GPR; complete AutoIP estimates damping near 0.23 versus true 0.2.", "baseline": "GPR and appendix PINNs using 20 or 10,000 collocation points; five runs."},
+    {"setting": "Allen-Cahn diffusion-reaction field", "metric": "domain RMSE and predictive variance", "result": "AutoIP beats GPR with 100 residual points, while a PINN with 10,000 points achieves much lower RMSE 0.0169 than AutoIP 0.1865.", "baseline": "GPR and architecture-tuned PINN under two residual-point budgets."},
+    {"setting": "CMU motion joints and Swiss Jura metal concentrations", "metric": "RMSE and negative log predictive likelihood", "result": "AutoIP beats GPR/LFM in reported averages, with large motion-joint-1 and small Jura improvements.", "baseline": "Vanilla GPR and linear latent force models; five random repetitions."}
+  ],
+  "limitations": [
+    "Dense covariance and a full variational covariance scale poorly; the paper explicitly leaves large-data methods to future work.",
+    "Best-epoch selection on test accuracy biases every reported comparison upward and invalidates a clean held-out estimate.",
+    "Residual variance can weaken or ignore incorrect physics, while a flexible latent source can make equation parameters non-identifiable.",
+    "There are no continuous-domain residual certificates or calibration diagnostics beyond average NLL.",
+    "Real applications use plausible rather than validated equations and very few tasks."
+  ],
+  "failure_modes": [
+    "The kernel is not differentiable enough for the PDE operator or gives ill-conditioned derivative blocks.",
+    "Collocation misses a narrow violation region while uncertainty is falsely reduced there.",
+    "A latent source explains both discrepancy and target dynamics, making recovered physical coefficients meaningless.",
+    "A learned residual variance collapses toward an overly hard wrong equation or inflates until physics contributes nothing.",
+    "Cubic dense-GP cost prevents resolution sufficient for a high-dimensional PDE."
+  ],
+  "reusable_insights": [
+    "Treat missing physics as structured discrepancy, but test coefficient identifiability against source flexibility.",
+    "Residual locations are an experimental-design variable and should be selected without target labels.",
+    "Physics-informed uncertainty must be checked for calibration and residual coverage, not just plotted as lower variance.",
+    "Use a validation set—not test error—to select optimizer epochs and hyperparameters."
+  ],
+  "open_questions": [
+    "Can sparse/operator-structured GP approximations preserve derivative consistency at PDE-scale resolution?",
+    "How should residual variance and latent-source complexity be calibrated to distinguish wrong physics from observation noise?",
+    "Can adaptive collocation use posterior residual uncertainty with continuous-domain coverage guarantees?",
+    "What error and calibration guarantees hold for the nonlinear variational posterior?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1711.10561",
+      "title": "Physics Informed Deep Learning (Part I): Data-driven Solutions of Nonlinear Partial Differential Equations",
+      "url": "https://arxiv.org/abs/1711.10561",
+      "relationship": "neural-residual-foundation",
+      "difference": "PINNs use automatic differentiation of neural functions and scale to many residual points but have optimization and native-uncertainty weaknesses. AutoIP obtains Bayesian predictions and analytic kernel derivatives but retains a soft residual objective and dense cost.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2006.04976",
+      "title": "Physics Informed Deep Kernel Learning",
+      "url": "https://arxiv.org/abs/2006.04976",
+      "relationship": "direct-prior-method",
+      "difference": "PI-DKL already incorporates differential equations with latent sources through posterior deep-kernel samples. AutoIP moves derivatives into a joint kernel-differentiated Gaussian prior, supporting shallow kernels and a more explicit derivative posterior.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2103.12959",
+      "title": "Solving and Learning Nonlinear PDEs with Gaussian Processes",
+      "url": "https://arxiv.org/abs/2103.12959",
+      "relationship": "direct-kernel-collocation-competitor",
+      "difference": "Chen et al. formulate nonlinear GP collocation as constrained MAP/RKHS optimization, prove convergence for broad PDEs, and outline error bounds. AutoIP offers a posterior distribution and incomplete-equation sources but no analogous convergence theorem.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2212.12474",
+      "title": "Physics-Informed Gaussian Process Regression Generalizes Linear PDE Solvers",
+      "url": "https://arxiv.org/abs/2212.12474",
+      "relationship": "subsequent-linear-theory",
+      "difference": "Pfortner et al. condition GPs on arbitrary bounded linear operators, propagate parameter and measurement uncertainty, and prove equivalence/generalization of major numerical solver families. AutoIP handles nonlinear residuals but with approximate inference and weaker theory.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2301.11040",
+      "title": "Random Grid Neural Processes for Parametric Partial Differential Equations",
+      "url": "https://arxiv.org/abs/2301.11040",
+      "relationship": "scalable-probabilistic-competitor",
+      "difference": "Random-grid neural processes marginalize stochastic collocation grids and target parametric nonlinear PDE families with scalable architectures and broader benchmarks. AutoIP is simpler and fully GP-based but leaves scale and grid uncertainty open.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2305.10157",
+      "title": "Efficient Error Certification for Physics-Informed Neural Networks",
+      "url": "https://arxiv.org/abs/2305.10157",
+      "relationship": "subsequent-correctness-audit",
+      "difference": "Eiras et al. show sampled residual tests can miss enormous violations and certify continuous-domain residual bounds. AutoIP reports finite-grid error and variance but no guarantee that unsampled physics residuals are controlled.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": "Reviewer inference after current primary-source comparison: AutoIP is a clean and flexible synthesis of kernel differentiation, latent-force discrepancy, and whitened variational inference for nonlinear/incomplete equations. The posterior-derivative consistency is useful. Its universality and empirical advantage require qualification because of dense scaling, finite soft constraints, test-based epoch selection, and later work with stronger numerical theory, scalability, or certification.",
+  "confidence": 0.98,
+  "reviewer_notes": "Reviewed all 12 pages, including derivations, posterior kernel argument, every synthetic/real protocol and table, appendix PINN settings, and comparison caveats. Six direct prior and subsequent primary arXiv sources were checked on 2026-08-23."
+}

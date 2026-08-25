@@ -1,0 +1,199 @@
+{
+  "stable_id": "arxiv:2410.06209",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2410.06209",
+    "pdf_sha256": "af3791a20f5fc5d59646c6d38b1e94fc672eef6ed9a40b0eb26ed97d11e04fc6",
+    "text_sha256": "c498b4d89bf5ccb052e948d28607472fdf0db9a8dc9fd2786ff638f591fe2ef7",
+    "page_count": 40,
+    "extracted_at": "2026-08-23T17:47:48.851245+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a retrieval-augmented Lean prover learn a sequence of evolving repositories without catastrophic forgetting and use that expanding knowledge to discharge previously missing formal proofs?",
+  "key_findings": [
+    {
+      "claim": "LeanAgent turns repository-level continual learning into a curriculum, progressive retriever update, and dynamically refreshed premise corpus rather than training a new prover independently for each domain.",
+      "evidence": "The system extracts theorem, proof, and dependency data with LeanDojo, defines theorem complexity as exp(S) for S proof steps, partitions complexity at global 33rd and 67th percentiles, and orders repositories by their count of easy theorems. For each repository it trains the ByT5 ReProver retriever for one additional epoch, selects the checkpoint with best validation R@10, and recomputes premise embeddings while retaining the accumulated database.",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "3.1 Curriculum Learning"
+        },
+        {
+          "page": 5,
+          "section": "3.3 Progressive Training of the Retriever"
+        }
+      ]
+    },
+    {
+      "claim": "The learned retriever is coupled to Lean-checked best-first proof search, so the principal downstream signal is successful formal proof construction rather than retrieval recall alone.",
+      "evidence": "At each state the prover retrieves accessible premises using a dependency graph, generates tactic candidates with beam search, executes them in Lean, and follows cumulative tactic log probability until a proof, exhaustion, or a ten-minute timeout. Successful proofs are inserted into the database for possible reuse and future progressive training.",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "3.4 sorry Theorem Proving"
+        },
+        {
+          "page": 16,
+          "section": "A.2 Experiment Implementation Details"
+        }
+      ]
+    },
+    {
+      "claim": "Across 23 repositories LeanAgent found 155 missing formal proofs and generally exceeded the matched static ReProver baselines, but success varied sharply by repository.",
+      "evidence": "Reported total sorry-theorem accuracy is 72.4% on Mathematics in Lean versus 48.3% for ReProver and 55.2% for ReProver+, 24.4% versus 20.9% on MiniF2F, and 9.2% versus 8.2%/8.5% on SciLean. Several advanced repositories remain low: PFR is 2.7%, Lean4 PDL 3.3%, and Carleson 4.2%. The aggregate count therefore does not imply broad mastery of each domain.",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Table 2"
+        },
+        {
+          "page": 10,
+          "section": "5 Conclusion"
+        }
+      ]
+    },
+    {
+      "claim": "Continual-learning metrics favor the chosen single-repository curriculum for stability and backward transfer, while the strongest plasticity variant is different and some apparent proof wins exploit weaknesses in the target repositories.",
+      "evidence": "The authors report substantially lower WF5 and forgetting measure and 16.25% higher expanded backward transfer than the next-best comparison, but the EWC-plus-curriculum setup has 38.26% higher WP5 and 3.98% higher incremental plasticity. Seven proofs are classified as exploits; appendix examples use equality of unresolved sorry terms via rfl or a 0=1 placeholder, demonstrating that Lean acceptance is necessary but does not by itself certify mathematical usefulness.",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "Table 4 and Single Repository Analysis"
+        },
+        {
+          "page": 30,
+          "section": "Alternate PFR Commit"
+        },
+        {
+          "page": 39,
+          "section": "B.3.2 Unintended Constructs"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Treat formal theorem proving as repository-sequential continual learning: order domains by a proof-length curriculum, update only the premise retriever incrementally, and close the loop with verifier-backed search and a persistent proof database.",
+    "mechanism": "LeanDojo extracts repositories into theorem/proof/dependency records. A repository curriculum is derived from an exponential proof-step score; a ReProver ByT5 retriever is fine-tuned one epoch per repository and checkpointed by R@10. Updated embeddings feed dependency-filtered retrieval, the fixed ReProver tactic generator, and best-first Lean search. Proofs that Lean accepts are written back to the database, while stability, plasticity, and proof success are tracked across the sequence.",
+    "assumptions": [
+      "Proof-step count is an adequate cross-repository proxy for mathematical difficulty and repository order.",
+      "One retriever epoch per repository provides a useful stability-plasticity balance across this particular sequence.",
+      "The fixed tactic generator has enough capacity that improving premise retrieval can unlock new advanced proofs.",
+      "Repository dependencies and Lean's kernel are correctly configured, and accepted proofs are audited for unintended placeholders or unsound project assumptions.",
+      "Retrieval R@10 on held-out proof states is meaningfully connected to end-to-end proof-search performance."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "proof-length-repository-curriculum",
+      "role": "Orders repositories from many easy proofs toward fewer easy proofs using global proof-step percentiles."
+    },
+    {
+      "id": "progressive-retriever-training",
+      "role": "Adds one epoch of retriever training per repository to trade plasticity against forgetting."
+    },
+    {
+      "id": "dynamic-formal-knowledge-database",
+      "role": "Maintains theorem, proof, premise, dependency, and newly generated proof records across tasks."
+    },
+    {
+      "id": "dependency-filtered-premise-retrieval",
+      "role": "Prevents search from invoking premises unavailable at the theorem's source location."
+    },
+    {
+      "id": "lean-verified-best-first-search",
+      "role": "Expands model-generated tactics and admits only state transitions checked by Lean."
+    },
+    {
+      "id": "continual-learning-metric-panel",
+      "role": "Separates forgetting, resilience, backward transfer, windowed plasticity, and incremental plasticity."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "sorry-theorem proving across 23 diverse Lean repositories",
+      "metric": "Repository-level percentage of previously missing proofs discharged within the search budget",
+      "result": "LeanAgent reports 155 proofs overall, including 72.4% on Mathematics in Lean, 24.4% on MiniF2F, 9.2% on SciLean, and 2.7% on PFR.",
+      "baseline": "Static ReProver and ReProver jointly updated on all 23 repositories"
+    },
+    {
+      "setting": "Sequential retriever training under single-repository and merge-all dataset constructions",
+      "metric": "WF5, forgetting measure, catastrophic-forgetting resilience, expanded backward transfer, WP5, and incremental plasticity",
+      "result": "The proposed curriculum has the strongest reported stability/backward-transfer profile, while an EWC curriculum variant adapts faster but forgets more.",
+      "baseline": "Popularity order, merge-all construction, and Elastic Weight Consolidation ablations"
+    },
+    {
+      "setting": "Alternate PFR commit and repository-level proof audit",
+      "metric": "Lean-accepted proofs plus manual characterization of unintended constructs",
+      "result": "The system exposes seven exploits, including rfl over unresolved terms and proofs derived from a 0=1 placeholder; these are informative diagnostics but not substantive theorem solutions.",
+      "baseline": "Repository maintainers' missing-proof state and ReProver search"
+    }
+  ],
+  "limitations": [
+    "Only the retriever is progressively trained; the tactic generator is fixed, so the work does not demonstrate lifelong learning of the complete prover.",
+    "Comparisons are restricted to ReProver variants. The paper explicitly omits contemporary larger theorem-proving models, limiting claims about state of the art.",
+    "Repository order is derived from proof length and easy-theorem count, neither of which is validated as a domain-independent measure of conceptual difficulty.",
+    "Low proof rates on several advanced projects and the seven exploit cases show that a large aggregate proof count can conceal weak or spurious domain performance.",
+    "Retrieval metrics and six continual-learning aggregates are not calibrated against proof novelty, mathematical importance, proof robustness, or human maintainer acceptance.",
+    "Experiments use four 80GB A100 GPUs and some configurations run four to nine days, making broad sequence/order replication costly.",
+    "The evaluation studies one finite set of 23 repositories rather than an open-ended stream with version drift, dependency changes, or repeated returns to earlier projects."
+  ],
+  "failure_modes": [
+    "Lean certifies a proof relative to the environment, but unresolved sorry axioms or false placeholders make a technically accepted proof vacuous.",
+    "A retriever checkpoint improves R@10 but fails to improve end-to-end search because the generator cannot synthesize the required tactic sequence.",
+    "The proof-length curriculum confounds short library lemmas with conceptual simplicity and sends the learner through a harmful domain order.",
+    "One-epoch progressive updates underfit a new domain, whereas longer updates catastrophically overwrite earlier premise representations.",
+    "New or changed repositories invalidate extracted dependency graphs, premise embeddings, or proof scripts.",
+    "The ten-minute best-first search budget favors short local proofs and misses longer proofs even when the right premises are retrieved."
+  ],
+  "reusable_insights": [
+    "Evaluate learned retrieval by verifier-backed task completion, not recall alone.",
+    "Maintain a persistent dependency-aware corpus so new proofs can become future training data without granting inaccessible premises.",
+    "Report stability and plasticity separately; a single continual-learning score can hide an operationally important tradeoff.",
+    "Audit verifier-accepted outputs for dataset and environment exploits before counting them as scientific progress.",
+    "For evolving environments, test multiple task orders and revisit prior tasks after intervening updates.",
+    "Distinguish framework gains from model-capacity gains by holding the generator fixed and then repeating with stronger generators."
+  ],
+  "open_questions": [
+    "Does the curriculum still help after controlling for repository size, premise overlap, and chronological leakage?",
+    "Can task order be optimized online from transfer measurements rather than a fixed proof-length heuristic?",
+    "Would replay, parameter isolation, or adapter routing improve the stability-plasticity frontier relative to one-epoch fine-tuning and EWC?",
+    "How well do retrieval R@10 and continual-learning metrics predict end-to-end proof success on unseen repositories?",
+    "Can automated environment audits detect sorry-derived equalities, false placeholders, and brittle dependency assumptions before search?",
+    "Do generated proofs survive repository upgrades and human maintainer review?",
+    "How does the framework compare under matched compute with modern RL, synthetic-data, and self-correcting provers?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2306.15626",
+      "title": "LeanDojo: Theorem Proving with Retrieval-Augmented Language Models",
+      "url": "https://arxiv.org/abs/2306.15626",
+      "relationship": "direct foundation",
+      "difference": "LeanDojo supplies the extraction environment, benchmark, dependency-aware retriever, and ReProver baseline on which LeanAgent is built. LeanAgent's contribution is sequential cross-repository updating and a persistent curriculum/database loop rather than a new base prover architecture."
+    },
+    {
+      "canonical_id": "arxiv:2408.08152",
+      "title": "DeepSeek-Prover-V1.5: Harnessing Proof Assistant Feedback for Reinforcement Learning and Monte-Carlo Tree Search",
+      "url": "https://arxiv.org/abs/2408.08152",
+      "relationship": "competing proof-learning and search system",
+      "difference": "DeepSeek-Prover-V1.5 applies reinforcement learning from proof-assistant feedback and intrinsic-reward MCTS, reaching 63.5% on MiniF2F and 25.3% on ProofNet. It targets benchmark proof strength rather than lifelong repository retention, but makes LeanAgent's ReProver-only comparison incomplete."
+    },
+    {
+      "canonical_id": "arxiv:2502.07640",
+      "title": "Goedel-Prover: A Frontier Model for Open-Source Automated Theorem Proving",
+      "url": "https://arxiv.org/abs/2502.07640",
+      "relationship": "competing synthetic-data prover",
+      "difference": "Goedel-Prover builds 1.64 million formal statements and iteratively harvests proofs, reaching 57.6% pass@32 on MiniF2F without RL. Its scaling axis is synthetic statement/proof data and expert iteration, not continual adaptation over evolving repositories."
+    },
+    {
+      "canonical_id": "arxiv:2508.03613",
+      "title": "Goedel-Prover-V2: Scaling Formal Theorem Proving with Scaffolded Data Synthesis and Self-Correction",
+      "url": "https://arxiv.org/abs/2508.03613",
+      "relationship": "current competing prover",
+      "difference": "Goedel-Prover-V2 combines progressively difficult synthetic tasks, Lean-guided self-correction, expert iteration/RL, and checkpoint averaging, reporting 84.6% MiniF2F pass@32 with 8B parameters. It directly operationalizes a stronger difficulty curriculum, but does not report LeanAgent-style forgetting and backward-transfer measurements across live projects."
+    }
+  ],
+  "novelty_assessment": "LeanAgent's strongest contribution is framing theorem proving as a persistent, repository-sequential continual-learning problem and evaluating stability, plasticity, backward transfer, and end-to-end Lean proof search together. The implementation is deliberately modest: a one-epoch update of ReProver's retriever, a heuristic curriculum, and a fixed generator. Later synthetic-data, RL, and self-correcting provers are substantially stronger on standard benchmarks, so the durable novelty is the evolving-repository protocol and exploit-aware systems evidence, not frontier proof accuracy.",
+  "confidence": 0.91,
+  "reviewer_notes": "Read the complete 40-page ICLR 2025 version, including methodology, main tables, implementation appendix, PFR case studies, and limitations. The 155 count is treated as missing formal proofs in the selected repositories, not as 155 new mathematical discoveries; seven disclosed exploits are separated from substantive proofs. Primary arXiv records for four direct or current competitors were checked on 2026-08-23."
+}

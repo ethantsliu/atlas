@@ -1,0 +1,625 @@
+{
+  "stable_id": "arxiv:2603.04971",
+  "question": "Can a mixture-of-experts transformer reuse a layer-agnostic expert pool across depth to improve parameter efficiency, and do staggered connectivity, exposure-normalized load balancing, and trajectory-aware routing turn the resulting path space into measurable language-model gains?",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2603.04971",
+    "pdf_sha256": "1ce51d6366d1cd43681ae37bf9dfad24eac3ab0f6cc41819b0e382574b0299e5",
+    "text_sha256": "b19c3537ead9c82d5789507cf1802e36d4b0488bde0b940cb0e81186168f8737",
+    "page_count": 19,
+    "extracted_at": "2026-08-23T12:44:23.502387+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "key_findings": [
+    {
+      "claim": "MOUE replaces disjoint per-layer expert pools with a mixture of layer-local experts and universal experts that can be reached from multiple depths under a binary connectivity map.",
+      "evidence": "Equations 3 and 10 define the layer update over a global expert universe, with local experts reachable at one layer and universal experts reachable at several layers. The construction contains a conventional layer-local MoE when cross-layer reuse is disabled and otherwise shares physical FFN parameters across depth.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "1 / Virtual Width overview"
+        },
+        {
+          "page": 3,
+          "section": "4.1 / Recursive formulation"
+        },
+        {
+          "page": 13,
+          "section": "B.1 / General framework"
+        }
+      ]
+    },
+    {
+      "claim": "The staggered rotational topology is a practical masking scheme that limits each layer to a moving window of shared experts while retaining local experts.",
+      "evidence": "Layers are grouped by G, each group receives a W-wide universal-expert window on a ring, and adjacent groups rotate the window by stride s. Unreachable logits are set to negative infinity before top-k. The paper states this reduces routing work from O(LNu) to O(LW) and can keep reachable experts within one expert-parallel node.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "4.2 / Staggered connectivity"
+        },
+        {
+          "page": 4,
+          "section": "4.2 / Implementation"
+        },
+        {
+          "page": 14,
+          "section": "C.1 / Topology design space"
+        },
+        {
+          "page": 15,
+          "section": "C.1 / Layer-wise reachability lists"
+        }
+      ]
+    },
+    {
+      "claim": "The combinatorial path count does not establish a new capacity dimension unique to MOUE.",
+      "evidence": "The idealized formula (Nu choose k)^L counts routing sequences, but a conventional L-layer MoE with N choices at each layer already has (N choose k)^L possible expert paths. Moreover, the implemented staggered model exposes only W experts per layer and Appendix C gives the relevant upper bound as a product of (W choose k). Counting routes neither proves independent functions nor justifies treating them as parameters.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "4.1 / Theoretical capacity and Equation 4"
+        },
+        {
+          "page": 13,
+          "section": "B.1 / Virtual Width hypothesis and Equation 11"
+        },
+        {
+          "page": 14,
+          "section": "B.1 / Idealized combinatorics qualification"
+        },
+        {
+          "page": 15,
+          "section": "C.1 / Solving the optimization bottleneck"
+        }
+      ]
+    },
+    {
+      "claim": "UELB corrects shared-expert exposure in the authors' grouped loss, but it balances marginals rather than depth-wise paths.",
+      "evidence": "Equations 6 and 13 divide a universal expert's aggregated Switch-style term by its topological degree cj and estimate frequencies/probabilities over layers sharing a mask. This can remove an aggregation-scale bias. However, uniform per-expert marginals are compatible with repeatedly using the same correlated paths, so the loss itself does not guarantee path diversity or coverage despite the paper's combinatorics language.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "4.3 / UELB and Equation 6"
+        },
+        {
+          "page": 15,
+          "section": "D.1 / Connectivity normalization"
+        },
+        {
+          "page": 16,
+          "section": "D.1 / Group-wise estimation and strict control"
+        }
+      ]
+    },
+    {
+      "claim": "The Universal Router adds a detached online fast-weight state intended to make expert choices depend on the preceding route trajectory.",
+      "evidence": "The contextual pathway scores projected token keys against per-expert state vectors; after routing, it updates the state by a normalized delta between contextual predictions and a detached current routing target. The state is shared by layers with an identical reachability mask and is not backpropagated through.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "4.4 / Universal Router and Equations 7-8"
+        },
+        {
+          "page": 16,
+          "section": "E.1 / Dual pathway, online update, and state sharing"
+        }
+      ]
+    },
+    {
+      "claim": "The router equations contain a causality/indexing inconsistency and leave inference-state semantics unspecified.",
+      "evidence": "The MoE update routes from h^(l-1) in Equations 3 and 10, and warm-start logits also use h^(l-1) in Equation 16. Equations 7 and 14 instead compute the layer-l router from h^(l), which already depends on that layer's routed experts. The text does not resolve this apparent circularity or state when U is initialized/reset across examples, batches, training, and generation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "4.1 / Equation 3"
+        },
+        {
+          "page": 5,
+          "section": "4.4 / Equation 7"
+        },
+        {
+          "page": 13,
+          "section": "B.1 / Equation 10"
+        },
+        {
+          "page": 16,
+          "section": "E.1 / Equations 14-15"
+        },
+        {
+          "page": 17,
+          "section": "F.1 / Equation 16"
+        }
+      ]
+    },
+    {
+      "claim": "The width-expansion experiments improve the reported nine-task average at fixed listed activated and physical parameter counts.",
+      "evidence": "For the 12A2 baseline, Avg rises from 41.0 to 41.5, 41.6, and 42.3 as the accessible expert setting grows to 18A2, 24A2, and 36A2 while Act remains 0.1B and TP 0.16B. For 64A8, Avg rises from 43.8 to 44.1, 44.4, and 44.7 while Act remains 0.3B and TP 0.7B.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "5.2 / Width expansion"
+        },
+        {
+          "page": 6,
+          "section": "Table 1 / Width scaling"
+        }
+      ]
+    },
+    {
+      "claim": "Depth expansion improves the reported averages, but it is not a fixed-compute or fixed-activation comparison.",
+      "evidence": "The small baseline moves from Avg 41.0 at Act 0.10B and TP 0.16B to 44.0 at Act 0.16B and TP 0.19B for L36. The larger baseline moves from 43.8 at Act 0.30B and TP 0.70B to 46.2 at Act 0.61B and TP 0.90B for L48. More repeated layers necessarily add token computation; parameter sharing only limits physical FFN growth.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 1,
+          "section": "Abstract"
+        },
+        {
+          "page": 2,
+          "section": "1 / Evaluation summary"
+        },
+        {
+          "page": 6,
+          "section": "Table 1 / Depth scaling and discussion"
+        },
+        {
+          "page": 9,
+          "section": "7 / Conclusion"
+        }
+      ]
+    },
+    {
+      "claim": "The reported component ablations favor the full MOUE combination, with topology and UELB producing the largest perplexity differences.",
+      "evidence": "At fixed training tokens and activated budget, full MOUE 36A2 has validation PPL 25.40. Removing staggered topology gives 27.94, standard load balance gives 26.37, no universal experts 26.05, no contextual pathway 25.83, no connectivity normalization 25.75, no warmup 25.66, and no fast-weight update 25.59. Alternative topology PPL ranges from 25.61 to 27.94.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "5.3 / Components ablation"
+        },
+        {
+          "page": 8,
+          "section": "Tables 3-4"
+        }
+      ]
+    },
+    {
+      "claim": "Progressive warm-start conversion improves each table's best aggregate score, but the headline 4.2% is a maximum absolute-point gain rather than the stated average relative improvement.",
+      "evidence": "JetMoE's Avg rises from 53.77 to at most 54.8; OLMoE-SFT rises 46.5 to 48.4; and OLMoE-CPT rises 30.2 to 34.4. The three OLMoE-CPT MOUE gains are 2.2, 3.5, and 4.2 points, averaging 3.3 points. Section 1 nevertheless calls 4.2% an average relative improvement, and the width gain 41.0 to 42.3 is called 1.3% relative although it is 1.3 points (about 3.2% relative).",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 1,
+          "section": "Abstract"
+        },
+        {
+          "page": 2,
+          "section": "1 / Evaluation summary"
+        },
+        {
+          "page": 7,
+          "section": "Table 2 and Progressive Warm-Start"
+        }
+      ]
+    },
+    {
+      "claim": "The full method's positive average results coexist with task-level regressions and a nonmonotone sharing limit.",
+      "evidence": "Some width and warm-start variants lose accuracy on PIQA, ARC-E, HellaSwag, GSM8K, NQ, WinoGrande, or MMLU even when the aggregate rises. Figure 10 reports an optimum at 12 universal experts followed by degradation, which the authors attribute to excessive sharing harming layer-specific specialization.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Table 1"
+        },
+        {
+          "page": 7,
+          "section": "Table 2"
+        },
+        {
+          "page": 8,
+          "section": "5.4 / Effect of Universal Expert Pool Size"
+        },
+        {
+          "page": 18,
+          "section": "Figure 10"
+        }
+      ]
+    },
+    {
+      "claim": "The CKA analysis is suggestive but does not establish functional redundancy, and a promised large-model appendix analysis is absent.",
+      "evidence": "The motivation reports weight CKA commonly above 0.3 for nearby experts and more than 30% similarity across first/last layers, then says detailed Qwen-30B SFT results are in the appendix. No appendix section or figure reports that Qwen-30B analysis. The paper also does not specify the expert matrices, matching procedure, uncertainty, or functional-output validation needed to turn weight similarity into reusable-function evidence.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "3 / CKA motivation"
+        },
+        {
+          "page": 3,
+          "section": "Figure 2 and long-range similarity"
+        },
+        {
+          "page": 13,
+          "section": "Appendices A-B"
+        },
+        {
+          "page": 19,
+          "section": "Appendix G-H endpoint"
+        }
+      ]
+    },
+    {
+      "claim": "The pinned paper is internally inconsistent about the small baseline's depth.",
+      "evidence": "Table 1 labels the small baseline MoE 12A2 L12 and presents L24 and L36 as depth expansions. Appendix G instead specifies MoE-160M as an 18-layer backbone. These cannot both describe the same baseline, and the discrepancy changes the claimed depth multipliers and parameter accounting.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Table 1 / MoE 12A2 L12"
+        },
+        {
+          "page": 18,
+          "section": "G.1 / Baseline"
+        },
+        {
+          "page": 19,
+          "section": "Table 5 / MoE-160M layers"
+        }
+      ]
+    },
+    {
+      "claim": "The qualitative utilization analysis contradicts the formal definition of local experts.",
+      "evidence": "Equations 3/10 and Appendix B define a local expert as reachable only at its own layer, with C(E,m)=0 for m not equal to l. Section 5.4 then says private experts are selected by multiple layers and calls this parameter sharing. Either those plotted experts are not local/private under the stated topology or the analysis is mislabeled.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "4.1 / Recursive formulation"
+        },
+        {
+          "page": 8,
+          "section": "5.4 / Universal Expert Utilization"
+        },
+        {
+          "page": 13,
+          "section": "B.1 / Local and universal expert reachability"
+        }
+      ]
+    },
+    {
+      "claim": "Virtual parameters are plotted and tabulated as if they were a budget, but the paper never gives an operational formula connecting path counts to the reported VP numbers.",
+      "evidence": "Section 5.1 says VP counts effective capacity including Virtual Width, Table 1 reports values such as 0.28B and 1.61B, and Figure 6 treats VP as a scaling axis. Appendices B, G, and H define path counts and physical/activated settings but do not derive those decimal VP values or show that equal VP corresponds to equal statistical capacity.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "5.1 / Baselines and scaling settings"
+        },
+        {
+          "page": 6,
+          "section": "Table 1 and Figure 6 discussion"
+        },
+        {
+          "page": 13,
+          "section": "B.1 / Virtual Width hypothesis"
+        },
+        {
+          "page": 18,
+          "section": "G.1 / Scaling settings and budget metrics"
+        }
+      ]
+    },
+    {
+      "claim": "Training-run uncertainty and exact compute are not reported despite language suggesting repeated and iso-compute evaluation.",
+      "evidence": "Appendix G says results use mean and stderr of multiple experiments, yet Tables 1-4 show single values without error bars, seed counts, or statistical tests. The paper gives sequence length, batch, optimizer, and a data/parameter ratio but not actual tokens per model, steps, GPU counts, wall time, FLOPs tables, or checkpoint-selection variance.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "5.1 / Data and Training"
+        },
+        {
+          "page": 17,
+          "section": "G.1 / Evaluation"
+        },
+        {
+          "page": 19,
+          "section": "Table 5"
+        }
+      ]
+    },
+    {
+      "claim": "System-efficiency claims remain analytical rather than measured.",
+      "evidence": "The method says masking can avoid inter-node communication when W fits expert parallelism, the fast-weight router adds only small overhead, and activation memory is unchanged because its update is detached. No throughput, latency, peak memory, communication volume, kernel efficiency, or serving benchmark measures the router state, masks, SVD-free routing work, or deeper repeated computation.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "4.2 / Implementation"
+        },
+        {
+          "page": 5,
+          "section": "4.4 / Online fast-weight update"
+        },
+        {
+          "page": 16,
+          "section": "E.1 / Online state update"
+        },
+        {
+          "page": 19,
+          "section": "Table 5 / Training and routing hyperparameters"
+        }
+      ]
+    },
+    {
+      "claim": "The empirical evidence supports a useful cross-layer-sharing recipe at sub-billion scale, not the broad conclusion that capacity increases without activated-parameter or compute growth.",
+      "evidence": "From-scratch tests use 0.16B and 0.7B physical-parameter backbones; 7B/8B results are checkpoint conversions with underspecified continued-training budgets. Width variants preserve the listed Act/TP values, but depth variants increase both Act and TP, and all variants add router/topology machinery. The conclusion's unqualified no-activated-parameter/no-compute language therefore applies at most to the width setting under the paper's accounting.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "5.1 / Baselines and settings"
+        },
+        {
+          "page": 6,
+          "section": "Table 1"
+        },
+        {
+          "page": 7,
+          "section": "Table 2 / Warm-start conversion"
+        },
+        {
+          "page": 9,
+          "section": "7 / Conclusion"
+        },
+        {
+          "page": 18,
+          "section": "G.1 / Baselines"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Expose a rotating subset of shared feedforward experts to several transformer layers, correct load balancing by each expert's reachability count, and condition routing on a lightweight online trajectory state so shared experts can be composed repeatedly without increasing top-k per layer.",
+    "mechanism": "MOUE partitions experts into layer-local and universal pools and uses per-layer allow-lists. Consecutive layers share a universal window, while later groups rotate around an expert ring. UELB aggregates Switch-style frequency/probability statistics over a connectivity group and divides each universal term by its topological degree. A dual-path router combines an affine semantic score with a fast-weight contextual score whose detached online update predicts the current route. From-scratch models use this system directly; checkpoint conversion clones high-activation intermediate experts, preserves local routers, adds a universal projection, and anneals a large negative universal-logit bias. The study compares width and depth expansions on Qwen-3-style small MoEs and converts JetMoE/OLMoE checkpoints.",
+    "assumptions": [
+      "Weight CKA across experts indicates functional redundancy that can be removed by sharing parameters across depth.",
+      "The number of possible routing sequences is a meaningful proxy for model capacity and can be converted into a virtual-parameter count.",
+      "Shared universal experts retain enough layer-agnostic function to serve representations at different semantic depths.",
+      "A rotating W-wide window preserves the valuable portion of the ideal all-to-all path space.",
+      "Connectivity-degree normalization is the appropriate correction for all exposure heterogeneity and does not erase useful nonuniform expert demand.",
+      "Balanced per-expert marginals imply sufficiently diverse multi-layer paths.",
+      "The detached fast-weight self-target update captures trajectory coherence without harmful batch/order dependence or inference leakage.",
+      "The h^(l) router notation is intended to be causal despite h^(l) depending on the same layer's route.",
+      "The reported Act, TP, and VP accounting captures all router, communication, state, and repeated-depth costs.",
+      "Task-average improvements on small from-scratch models and converted 7B/8B checkpoints generalize to production-scale MoE pretraining and serving.",
+      "Single reported table values are stable across training seeds even though variance is not shown."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "cross-layer-universal-expert-pool",
+      "role": "Makes selected FFN expert parameters addressable from multiple transformer depths."
+    },
+    {
+      "id": "staggered-rotational-connectivity",
+      "role": "Constrains each connectivity group to a sliding window on a universal-expert ring."
+    },
+    {
+      "id": "connectivity-normalized-uelb",
+      "role": "Divides shared-expert load-balance terms by topological exposure and aggregates them group-wise."
+    },
+    {
+      "id": "dual-path-universal-router",
+      "role": "Combines conventional token-to-expert logits with a contextual fast-weight similarity."
+    },
+    {
+      "id": "detached-online-fast-weights",
+      "role": "Updates per-expert trajectory state during the forward pass without backpropagating through the update."
+    },
+    {
+      "id": "universal-logit-exploration-warmup",
+      "role": "Adds an early shared-expert bias in from-scratch training to discourage premature routing collapse."
+    },
+    {
+      "id": "progressive-checkpoint-conversion",
+      "role": "Clones frequently activated intermediate experts and gradually unsuppresses a new universal routing branch."
+    },
+    {
+      "id": "act-tp-vp-budget-accounting",
+      "role": "Compares activated, physical, and claimed virtual parameter scales."
+    },
+    {
+      "id": "expert-weight-cka-motivation",
+      "role": "Uses inter-layer expert-weight similarity as motivation for parameter reuse."
+    },
+    {
+      "id": "topology-and-router-ablation",
+      "role": "Removes each topology, load-balance, warmup, and stateful-router component under a fixed activated budget."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Qwen-3-style MoE 12A2 small baseline and 64A8 larger baseline pretrained on OLMo2 Mix with width expansion",
+      "metric": "Average accuracy across SciQ, PIQA, WinoGrande, ARC-E/C, HellaSwag, LogiQA, BoolQ, and LAMBADA",
+      "result": "At fixed listed Act/TP, the best width setting improves 41.0 to 42.3 for the small model and 43.8 to 44.7 for the larger model.",
+      "baseline": "Matched layer-local MoE with the same top-k, physical parameters, and listed activated parameters"
+    },
+    {
+      "setting": "Depth expansion by repeated/shared FFN experts on the two Qwen-3-style backbones",
+      "metric": "Nine-task average accuracy versus Act, TP, and VP",
+      "result": "The deepest variants report 44.0 versus 41.0 and 46.2 versus 43.8, while Act rises 0.10B to 0.16B and 0.30B to 0.61B respectively.",
+      "baseline": "Shallower layer-local MoE; no equally deep unshared/recurrent baseline at matched FLOPs is tabulated"
+    },
+    {
+      "setting": "Training and validation dynamics for selected width/depth models",
+      "metric": "LM training loss by step, validation loss by reported FLOPs, and routing Max/Mean ratio",
+      "result": "MOUE curves are reported below the baseline and UELB keeps routing skew lower; numeric uncertainty and raw values are not given in the text.",
+      "baseline": "Layer-local MoE and a no-UELB curve"
+    },
+    {
+      "setting": "Progressive conversion of JetMoE-8B and OLMoE-7B checkpoints after SFT or continued pretraining",
+      "metric": "Ten-task average including ARC, GSM8K, HumanEval, Natural Questions, TriviaQA, WinoGrande, and MMLU",
+      "result": "Best reported averages improve 53.77 to 54.8, 46.5 to 48.4, and 30.2 to 34.4; individual tasks and smaller shared pools sometimes regress.",
+      "baseline": "Original open-source checkpoint evaluated under the paper's harness"
+    },
+    {
+      "setting": "MOUE 36A2 component ablations under matched training tokens and activated budget",
+      "metric": "Validation perplexity",
+      "result": "Full PPL 25.40; removals range from 25.59 without fast-weight updates to 27.94 without staggered topology, with standard load balancing at 26.37.",
+      "baseline": "Full MOUE and MoE 12A2 at 26.25"
+    },
+    {
+      "setting": "Five connectivity schemes under fixed stated window/top-k and training tokens",
+      "metric": "Validation perplexity and qualitative circuit label",
+      "result": "Staggered rotation is best at 25.40, followed by Sandwich 25.61, Forward 25.87, Reverse 25.93, and full all-to-all 27.94.",
+      "baseline": "Staggered rotational topology"
+    },
+    {
+      "setting": "Expert-use analyses across layers, domains, and universal-pool sizes",
+      "metric": "Activation heatmaps, Max/Mean routing skew, domain preference, and downstream performance",
+      "result": "Universal experts are used across depths, qualitative domain specialization is reported, and performance rises up to 12 shared experts before declining.",
+      "baseline": "No UELB and smaller/larger universal pools; path-level diversity itself is not measured"
+    }
+  ],
+  "limitations": [
+    "Author-stated: the exponential Virtual Width argument is an idealized combinatorial statement; optimization is not free and unrestricted reuse can collapse to repeated generic experts.",
+    "Author-stated: increasing the universal pool beyond an optimum degrades performance because excessive sharing harms layer-specific specialization.",
+    "Author-stated: training MOUE from scratch is costly, motivating checkpoint conversion.",
+    "Reviewer-identified: ordinary deep MoEs already have exponentially many layer-wise expert routes, so path counting does not establish a unique new scaling dimension.",
+    "Reviewer-identified: the actual W-window topology has a smaller correlated path space than the all-to-all (Nu choose k)^L headline formula.",
+    "Reviewer-identified: possible route count is not equivalent to statistically independent functions, VC dimension, information capacity, or parameter count.",
+    "Reviewer-identified: the numerical VP values in Tables/Figure 6 have no reproducible formula or validated capacity interpretation.",
+    "Reviewer-identified: UELB balances exposure-normalized marginals but does not directly optimize path entropy, coverage, or trajectory diversity.",
+    "Reviewer-identified: conventional per-layer load balancing need not aggregate a shared expert across depths in the biased way assumed by the paper; the claimed structural inevitability depends on implementation.",
+    "Reviewer-identified: the Universal Router uses h^(l) where the main MoE and warm-start equations use h^(l-1), leaving a circular layer-index definition.",
+    "Reviewer-identified: fast-weight initialization/reset, sequence persistence, batch coupling, generation behavior, and distributed synchronization are unspecified.",
+    "Reviewer-identified: depth variants increase activated parameters, total parameters, and repeated-layer compute, contradicting unqualified fixed-compute conclusions.",
+    "Reviewer-identified: no throughput, latency, peak-memory, communication, or serving measurement validates the low-overhead system claims.",
+    "Reviewer-identified: the small baseline is L12 in Table 1 but 18 layers in Appendix G/Table 5, invalidating an unambiguous depth-scaling reconstruction.",
+    "Reviewer-identified: local/private experts are formally layer-exclusive but later described as selected by multiple layers.",
+    "Reviewer-identified: the claimed Qwen-30B CKA details do not appear anywhere in the appendices, and the shown CKA lacks a functional redundancy test.",
+    "Reviewer-identified: headline percentage language mixes absolute points and relative percentage, and 4.2 is the best OLMoE-CPT gain rather than its three-setting average.",
+    "Reviewer-identified: tables contain no training-seed counts, error bars, or tests despite Appendix G's mean-and-stderr language.",
+    "Reviewer-identified: from-scratch evidence stops at 0.7B physical parameters; 7B/8B evidence is warm-start conversion with omitted continued-token and compute details.",
+    "Reviewer-identified: several tasks regress even as the reported aggregate improves, and no robustness or worst-task objective is used.",
+    "Reviewer-identified: no equally deep ordinary MoE, Universal Transformer, MoEUT, Sparse Universal Transformer, or concurrent reused-expert baseline is trained under the same FLOPs/parameter budget.",
+    "Reviewer-identified: no code or checkpoints are linked in the pinned paper, and this reading did not reproduce training."
+  ],
+  "failure_modes": [
+    "Uniform marginal expert load hides a small set of repeated depth-wise paths, so UELB reports balance while Virtual Width collapses.",
+    "A universal expert receives incompatible gradients from early lexical and late semantic layers and becomes a weak generic operator.",
+    "The online router state leaks information across examples or depends on batch/order because its reset and persistence semantics are wrong.",
+    "The detached self-target update reinforces early routing mistakes, locking tokens into a narrow recurrent circuit.",
+    "Staggered windows separate a token from the expert it needs at a later layer, and masking costs more than an optimized local router.",
+    "Depth expansion's accuracy gain disappears under true FLOP, wall-clock, or activated-parameter matching.",
+    "The model appears efficient under an undefined VP metric but loses under physical memory, communication, and latency constraints.",
+    "Cross-layer sharing helps small models but saturates or destabilizes at production-scale expert parallelism.",
+    "Checkpoint cloning selects frequently activated rather than functionally transferable experts and erases rare specialized skills.",
+    "Pool expansion crosses the observed optimum and sacrifices layer specialization, producing the paper's own nonmonotone degradation.",
+    "Reported aggregate gains vanish across training seeds or are driven by a few tasks such as BoolQ/LogiQA while other tasks regress.",
+    "An implementation follows the L18 appendix rather than the L12 main table, producing incomparable parameter and depth budgets."
+  ],
+  "reusable_insights": [
+    "Treat cross-layer expert reuse as a topology problem: explicit reachability masks make sharing patterns inspectable and ablatable.",
+    "Normalize any aggregated load-balancing statistic by architectural opportunity before interpreting usage as router preference.",
+    "Measure path-level entropy and repeated-route frequency in addition to per-expert load marginals.",
+    "Separate physical parameters, activated parameters per layer, total token FLOPs, communication, and latency; a path-count proxy is not a resource budget.",
+    "Use neighboring-layer sharing blocks as a strong simple baseline before adding global all-to-all reuse.",
+    "When converting checkpoints, gradually introduce new routes to preserve the original function, but distinguish suppression warmup from exploration warmup.",
+    "Ablate topology, sharing, load balance, contextual routing, and online state independently; the paper's table is a useful decomposition template.",
+    "Audit causal indexing and state-reset semantics whenever routing depends on forward-updated fast weights.",
+    "Report per-task changes and sharing optima; average gains can conceal regressions and nonmonotonicity.",
+    "Validate weight-similarity claims with expert-output agreement, interchange interventions, and downstream functional replacement tests."
+  ],
+  "open_questions": [
+    "What exact formula produces the reported virtual-parameter values, and does it predict held-out loss better than TP, FLOPs, or route entropy?",
+    "Does MOUE beat MoEUT, Sparse Universal Transformer, and adjacent-layer reused-expert models under identical tokens, FLOPs, TP, and wall time?",
+    "How many unique expert trajectories are actually used, and can UELB maintain high path entropy rather than only balanced marginals?",
+    "Should the Universal Router consume h^(l-1), and how is its state initialized and reset during batched autoregressive generation?",
+    "Can the fast-weight update be replaced by a causal learned state with explicit sequence isolation and a stability analysis?",
+    "Do universal experts remain functionally interchangeable across depth under output-based similarity and causal swap tests?",
+    "Why is the small baseline L12 in Table 1 but 18 layers in Appendix G and Table 5?",
+    "Why are formally local experts described as selected by multiple layers in the utilization analysis?",
+    "Where are the promised Qwen-30B CKA results, and how were expert weights paired across layers?",
+    "Are the width, depth, and warm-start gains statistically stable across pretraining seeds and data orders?",
+    "What are throughput, peak memory, all-to-all traffic, and latency when the universal pool crosses nodes?",
+    "At what scale and sharing fraction does negative transfer across semantic depth outweigh parameter reuse?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "openreview:ZxVrkm7Bjl",
+      "title": "MoEUT: Mixture-of-Experts Universal Transformers",
+      "url": "https://openreview.net/forum?id=ZxVrkm7Bjl",
+      "relationship": "Closest accepted prior combining mixture-of-experts conditional computation with recurrent parameter sharing across transformer depth.",
+      "difference": "MoEUT shares transformer layers recurrently and uses MoE components to restore parameter-compute ratio, already demonstrating language-model gains from depth recurrence plus experts. MOUE instead mixes local and partially shared FFN experts, adds a rotating connectivity graph, exposure-normalized balance, and a fast-weight router; it does not directly compare against MoEUT under matched budgets.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2024 conference paper; OpenReview record last modified 2024-11-06"
+    },
+    {
+      "canonical_id": "openreview:yXYJPAlLqn",
+      "title": "Sparse Universal Transformer",
+      "url": "https://openreview.net/forum?id=yXYJPAlLqn",
+      "relationship": "Direct earlier architecture coupling depth-wise weight sharing with sparse MoE computation and adaptive depth.",
+      "difference": "Sparse Universal Transformer uses a shared recurrent block, sparse experts, and dynamic halting to recover Universal Transformer efficiency on translation and compositional tasks. MOUE retains layer-specific attention/local experts and selectively reuses a shared FFN pool, targeting pretrained language-model scaling rather than full-block recurrence.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "EMNLP 2023 Main paper; OpenReview record last modified 2023-12-01"
+    },
+    {
+      "canonical_id": "openreview:DR4nLvRCoe",
+      "title": "MoRE: Mixture of Reused Experts",
+      "url": "https://openreview.net/forum?id=DR4nLvRCoe",
+      "relationship": "Closest current concurrent/subsequent design: a shared expert pool tied across neighboring layers at matched compute and parameter budgets.",
+      "difference": "MoRE ties adjacent-layer expert FFNs and adds a depth embedding so one expert can specialize by layer, reporting 114M-1.15B comparisons without custom load balance or fast-weight routing. MOUE predates that record and offers more elaborate partial connectivity and checkpoint conversion, but its claim that such reuse defines a new scaling dimension is narrowed by this simpler near-neighbor.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2026 Workshop on Weight-Space Symmetries preliminary submission, current record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2603.18297",
+      "title": "Path-Constrained Mixture-of-Experts",
+      "url": "https://arxiv.org/abs/2603.18297",
+      "relationship": "Closest concurrent expert-path work, explicitly treating cross-layer route explosion and coherent routing at 0.9B and 16B scale.",
+      "difference": "PathMoE notes that ordinary independent MoE routing already creates N^L paths, then constrains them by sharing router parameters and removes auxiliary balancing. MOUE instead expands/reuses expert connectivity and adds trajectory state plus UELB. The concurrent framing directly challenges MOUE's presentation of exponential paths as newly created capacity.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, revised 2026-04-03"
+    },
+    {
+      "canonical_id": "openreview:HyzdRiR9Y7",
+      "title": "Universal Transformers",
+      "url": "https://openreview.net/forum?id=HyzdRiR9Y7",
+      "relationship": "Foundational depth-recurrence and parameter-sharing architecture underlying the claimed depth-width transformation.",
+      "difference": "Universal Transformer repeatedly applies a shared transition, optionally with adaptive computation time, establishing depth recurrence long before MOUE. MOUE's distinctive contribution is selective expert-level rather than whole-layer sharing plus topology-aware routing and balancing in modern sparse language models.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2019 conference paper"
+    },
+    {
+      "canonical_id": "arxiv:2409.14199",
+      "title": "Loop Neural Networks for Parameter Sharing",
+      "url": "https://arxiv.org/abs/2409.14199",
+      "relationship": "Prior framework for partial and looped parameter reuse across depth rather than strict full-layer tying.",
+      "difference": "Loop Neural Networks study configurable recurrence/parameter sharing as an architectural continuum. MOUE specializes that idea to sparse FFN experts and learned routes, then adds reachability-aware balance and warm-start conversion; a direct Loop-style sharing baseline would help isolate the expert machinery.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, revised 2024-11-08"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim a new fourth MoE scaling dimension, Virtual Width, that converts depth into exponentially large effective width at fixed per-layer activation through universal expert reuse, enabled by staggered topology, depth-aware UELB, stateful routing, and progressive checkpoint conversion.",
+    "evidence": "The paper contributes a concrete local-plus-shared expert topology, a reachability-degree correction to grouped load balancing, an online contextual router, and a conversion curriculum. Width variants improve average task accuracy while holding the table's Act/TP counts fixed; component ablations favor the full recipe; depth and checkpoint-conversion variants also improve reported aggregates.",
+    "reviewer_inference": "The engineering combination is plausibly novel and useful, especially the exposure-normalized shared-expert loss and staged conversion under a rotating allow-list. The theoretical branding is substantially overstated. Standard MoEs already compose exponentially many routes, the implemented window uses a smaller path base, route count is not parameter capacity, and the numerical VP axis is undefined. Several internal contradictions—L12 versus 18 layers, h^(l) versus h^(l-1) routing, local experts allegedly used across layers, missing Qwen-30B appendix evidence, and point-versus-relative gain language—reduce confidence in exact reconstruction. Width-expansion averages and ablations are promising, but depth gains spend more activation/compute, system overhead and seed variance are absent, and strong recurrent/shared-expert priors are not matched. The appropriate interpretation is a promising cross-layer MoE recipe and checkpoint-conversion hypothesis, not a demonstrated new scaling law or free capacity dimension."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Read all 19 pinned pages, including the full mathematical appendices, warm-start algorithm, routing-state details, topology/load-balance derivations, utilization analyses, and Table 5. Numerical results were transcribed from the pinned PDF; the small-baseline L12/L18 conflict and local-expert reachability conflict were checked directly across main and appendix definitions. The promised Qwen-30B CKA detail was searched throughout the full text and is absent. Code, checkpoints, and training were not independently reproduced. Six closest primary records and their current versions/statuses were checked on arXiv and OpenReview on 2026-08-23."
+}

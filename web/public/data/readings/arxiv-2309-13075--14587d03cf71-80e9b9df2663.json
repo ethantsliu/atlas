@@ -1,0 +1,138 @@
+{
+  "stable_id": "arxiv:2309.13075",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2309.13075",
+    "pdf_sha256": "ef1215c38317c06650198a9e276876f442189e1f14572ba406e592d36f8195e0",
+    "text_sha256": "9023ed53097d0d942ffbcc7b3bd03be33325d0b810a0784d40d7808db77cdb01",
+    "page_count": 22,
+    "extracted_at": "2026-08-23T19:04:20.319884+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "How should an LLM reasoning system modularize initial generation, conditional revision, and candidate selection so that revisions can change strategy without discarding a better original answer?",
+  "key_findings": [
+    {
+      "claim": "SCREWS factors test-time reasoning into Sampling, Conditional Resampling, and Selection, exposing rollback and heterogeneous revision as independent design decisions.",
+      "evidence": "The initial method produces a provisional answer; a gate decides whether to revise it and may use another reasoning method or tool; a selector compares original and revised candidates. Existing self-refinement, voting, decomposition, and tool-feedback systems can be expressed as configurations of these modules.",
+      "anchors": [{"page": 3, "section": "Background and unifying view"}, {"page": 4, "section": "Framework and Sampling"}, {"page": 5, "section": "Conditional Resampling and Selection"}]
+    },
+    {
+      "claim": "Changing reasoning method during revision is more reliable on GSM8K than simply repeating the original method in the reported prompts.",
+      "evidence": "CoT improves from 71.64% to 73.00% when revised by CoT and to 73.69% with generated subquestions. Generated-subquestion sampling improves from 71.87% to 73.99% when revised by CoT but drops to 71.26% when revised homogeneously; oracle-subquestion sampling similarly drops from 78.62% to 78.24% under homogeneous revision.",
+      "anchors": [{"page": 7, "section": "GSM8K Conditional Resampling, Table 1"}]
+    },
+    {
+      "claim": "Candidate selection can recover from harmful revisions, but the large gap to oracle selection shows that the few-shot LLM selector remains a bottleneck.",
+      "evidence": "Selecting between independent CoT and generated-subquestion answers raises GSM8K accuracy from about 71.6-71.9% to 74.90%, while a perfect selector would reach 85.36%. Selection between original and conditional revisions adds up to about one point in subquestion settings, and conditional resampling runs on only 5-15% of examples there.",
+      "anchors": [{"page": 8, "section": "Selection results, Table 2"}, {"page": 10, "section": "Cost analysis"}]
+    },
+    {
+      "claim": "Internal revision cannot repair missing facts reliably; external evidence is the relevant new signal.",
+      "evidence": "On StrategyQA, homogeneous internal resampling lowers CoT from 77.18% to 74.54% and generated subquestions from 78.16% to 74.69%. Supplying dataset-provided facts during conditional revision raises them to 79.02% and 80.40%, although facts are a simulated perfect retrieval result rather than an end-to-end retriever evaluation.",
+      "anchors": [{"page": 9, "section": "StrategyQA and Table 3"}, {"page": 11, "section": "Tool-based revision example"}]
+    },
+    {
+      "claim": "The code-debugging gain is striking but too small-sample to establish broad robustness, and extra revision iterations show rapidly diminishing returns.",
+      "evidence": "Answer-only rises from 73.52% to 88.23% after resampling and selection on just 33 held-out AutoDebugging examples. On GSM8K, a first oracle-subquestion revision/selection reaches 79.22%, while second and third iterations reach only 79.45% and 79.52% at added cost.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 9, "section": "Code Debugging, Table 3"}, {"page": 10, "section": "More revision steps"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Preserve multiple reasoning candidates and make revision policy, revision mechanism, and final choice swappable rather than assuming each new answer is an improvement.",
+    "mechanism": "Prompted ChatGPT or GPT-4 generates an answer using direct, chain-of-thought, or subquestion reasoning. A binary decision prompt selectively invokes same-method, different-method, or fact-conditioned revision. A few-shot LLM selector, fixed rule, majority vote, or oracle then chooses among candidates.",
+    "assumptions": [
+      "Prompted LLM judgments can detect when revision is needed and which candidate is better.",
+      "Exact-match task labels reflect reasoning quality sufficiently for configuration comparison.",
+      "Dataset-provided StrategyQA facts approximate a deployable retrieval tool.",
+      "The marginal token-count cost is an adequate proxy for latency and monetary cost."
+    ]
+  },
+  "techniques": [
+    {"id": "conditional-revision-gating", "role": "Avoids paying for revision on every example and limits gratuitous answer changes."},
+    {"id": "heterogeneous-reasoning-revision", "role": "Switches between chain of thought and decomposition so a second attempt does not repeat the same failure mode."},
+    {"id": "rollback-selection", "role": "Retains the original answer and permits rejecting a harmful revision."},
+    {"id": "tool-conditioned-resampling", "role": "Injects missing evidence only when an initial answer is flagged for revision."}
+  ],
+  "evaluations": [
+    {"setting": "GSM8K, 1,319 test examples", "metric": "exact-match accuracy and average prompt/output tokens", "result": "Heterogeneous revision generally beats homogeneous revision; selector gains are real but far below oracle upper bounds, and targeted revision can improve the cost-accuracy frontier.", "baseline": "CoT, generated/oracle subquestions, homogeneous resampling, independent sampling, voting, and oracle selection."},
+    {"setting": "First 490 StrategyQA training examples as evaluation data", "metric": "exact-match accuracy", "result": "Internal revision frequently degrades accuracy; dataset-provided facts during revision improve results by roughly two points over initial internal sampling in key settings.", "baseline": "Internal versus fact-conditioned revision and several sampling strategies."},
+    {"setting": "BIG-bench AutoDebugging, 33 test examples", "metric": "exact-match accuracy", "result": "Answer-only sampling plus revision and selection reaches 88.23% from 73.52%, but the test is too small for precise generalization claims.", "baseline": "Answer-only, CoT, resampling, and selection combinations."}
+  ],
+  "limitations": [
+    "Results depend on dated proprietary model snapshots, hand-designed prompts, and only three tasks.",
+    "The 33-example code test has high statistical uncertainty, while StrategyQA uses part of its training split for evaluation.",
+    "Oracle subquestions and provided StrategyQA facts can leak solution-relevant supervision and do not measure real retrieval errors.",
+    "The framework does not learn a router or selector end to end; configuration search and calibration are left to future work.",
+    "Token counts omit parallelism, tool latency, API pricing differences, and selector failure severity."
+  ],
+  "failure_modes": [
+    "The revision gate misses an incorrect answer, so no corrective signal is sought.",
+    "Generator and selector share a misconception and confidently retain or introduce the same error.",
+    "A heterogeneous method changes formatting rather than the underlying reasoning failure.",
+    "Retrieved evidence is irrelevant or false, making tool-conditioned revision worse than the original.",
+    "Repeated revision creates oscillation or false correction while cost grows."
+  ],
+  "reusable_insights": [
+    "Never overwrite the initial candidate before the revision has been independently evaluated.",
+    "Revision diversity should target causal failure modes, not merely sample-temperature diversity.",
+    "Route external tools to knowledge-deficit cases and measure retrieval-plus-revision end to end.",
+    "Report correct-to-wrong regressions and oracle-selector headroom, not only final accuracy."
+  ],
+  "open_questions": [
+    "Can a calibrated learned router predict which reasoning method or tool has positive expected value per unit cost?",
+    "How should selectors be trained to avoid correlated errors with the generator?",
+    "Do heterogeneous revisions transfer across open models, adversarial distribution shift, and long-horizon agents?",
+    "Can outcome and process verifiers reduce oracle-selection headroom without introducing reward hacking?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2303.17651",
+      "title": "Self-Refine: Iterative Refinement with Self-Feedback",
+      "url": "https://arxiv.org/abs/2303.17651",
+      "relationship": "direct-refinement-prior",
+      "difference": "Self-Refine iterates feedback and revision from one LLM across seven tasks and reports broad gains. SCREWS makes selection and method-switching explicit, showing why blindly accepting each refinement can regress, but evaluates fewer tasks and relies on hand-selected configurations.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2303.11366",
+      "title": "Reflexion: Language Agents with Verbal Reinforcement Learning",
+      "url": "https://arxiv.org/abs/2303.11366",
+      "relationship": "agentic-reflection-competitor",
+      "difference": "Reflexion stores verbal feedback across environment trials for sequential decision making and coding. SCREWS instead decomposes a within-instance answer-revision workflow and emphasizes rollback selection and heterogeneous reasoning methods.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2305.11738",
+      "title": "CRITIC: Large Language Models Can Self-Correct with Tool-Interactive Critiquing",
+      "url": "https://arxiv.org/abs/2305.11738",
+      "relationship": "tool-feedback-competitor",
+      "difference": "CRITIC integrates search, code execution, and APIs into iterative critique/correction across tasks. SCREWS provides a cleaner abstract slot for such tools and a rollback selector, but its StrategyQA experiment supplies oracle facts rather than evaluating tool acquisition failures.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2310.01798",
+      "title": "Large Language Models Cannot Self-Correct Reasoning Yet",
+      "url": "https://arxiv.org/abs/2310.01798",
+      "relationship": "negative-evidence-counterpoint",
+      "difference": "Huang et al. systematically show intrinsic self-correction often fails or degrades reasoning without external feedback. SCREWS independently exposes the same regression risk and proposes candidate preservation, method switching, and evidence injection rather than treating self-correction as a monolithic capability.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2411.16579",
+      "title": "Enhancing LLM Reasoning via Critique Models with Test-Time and Training-Time Supervision",
+      "url": "https://arxiv.org/abs/2411.16579",
+      "relationship": "subsequent-trained-critic-competitor",
+      "difference": "This later work trains a separate step-level mathematical critic on tens of thousands of critiques and uses it at test and train time. It addresses SCREWS' weak few-shot selection bottleneck, but is specialized and substantially more training-intensive than a modular black-box wrapper.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": "Reviewer inference after current comparison: SCREWS' enduring contribution is the explicit separation of generation, conditional revision, and selection, plus empirical evidence that strategy switching and rollback matter. The components individually predate it, and later tool-based and trained-critic systems go further; its value is a human-readable design vocabulary and diagnostic matrix rather than a new learning algorithm.",
+  "confidence": 0.95,
+  "reviewer_notes": "Reviewed all 22 extracted pages, including prompts, token-cost appendix, every task table, selection upper bounds, model-snapshot details, and examples. Five direct and subsequent primary arXiv competitors were checked on 2026-08-23."
+}

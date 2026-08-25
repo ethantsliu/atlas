@@ -1,0 +1,90 @@
+{
+  "stable_id": "arxiv:2402.15000",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2402.15000",
+    "pdf_sha256": "3cc473bdef39eba72a902a57537f344811db8a3c25abe0c8ec060378434935f8",
+    "text_sha256": "8324e5eb06dfeda4de94a612ee676bc0facf040eb839ca76200f682673913691",
+    "page_count": 14,
+    "extracted_at": "2026-08-23T18:17:28.950582+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "When distilling black-box LLM reasoning into a smaller model, is it more effective to transfer task decomposition than knowledge-intensive problem solving?",
+  "key_findings": [
+    {
+      "claim": "Separating static question decomposition from solving substantially improves the evaluated teacher pipeline over single-stage answering.",
+      "evidence": "With GPT-3.5 in both stages, performance rises from 20.32 to 65.13 on GSM8K, 46.51 to 55.73 on DROP, and 49.6 to 54.4 on Bamboogle, establishing that the decomposition interface itself matters in this setup.",
+      "anchors": [{"page": 5, "section": "5.1 and Table 1"}]
+    },
+    {
+      "claim": "A distilled Vicuna-13B decomposer retains or slightly exceeds the teacher decomposer, whereas distilled solvers lose much more performance.",
+      "evidence": "Without oracle answers, student-decomposer/GPT scores 67.02, 55.19, and 52.0 on GSM8K, DROP, and Bamboogle, while GPT/student-solver scores 48.98, 13.37, and 31.2. Rejection-screened decomposition further reaches 67.78 and 57.97 on GSM8K and DROP.",
+      "anchors": [{"page": 5, "section": "5.2 and Table 1"}, {"page": 6, "section": "solver failure modes"}]
+    },
+    {
+      "claim": "Decomposition transfers across domains and solver models better than distilled solving in the reported comparisons.",
+      "evidence": "Cross-domain decomposers trained on GSM8K or DROP stay near GPT decomposition (51.05 vs 55.73 on DROP; 63.15 vs 65.13 on GSM8K), whereas cross-domain student solvers collapse to 7.98/17.22 and 11.30/3.41 depending on composition. The student decomposer also improves several Vicuna, GPT-3.5, and GPT-4 solver pairings.",
+      "anchors": [{"page": 7, "section": "5.3 and Tables 3-5"}]
+    },
+    {
+      "claim": "Static decomposition is cheaper and slightly more accurate than the evaluated dynamic self-ask pipeline, but specializing the same model for decomposition damages its own solving ability.",
+      "evidence": "On Bamboogle/GSM8K, static planning obtains 54.4/65.13 with 15,106/355,302 tokens versus dynamic 53.6/62.92 with 59,792/823,886 tokens. Reusing the decomposition-tuned model as solver drops 15.2-22.36 points across the three tasks.",
+      "anchors": [{"page": 8, "section": "6.1-6.2 and Tables 6-7"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Distill only a teacher LLM's static subquestion generator into a smaller student and retain a stronger model for answering those subquestions and the original query.",
+    "mechanism": "Prompt GPT-3.5 to produce at most three subquestions, optionally reject demonstrations whose teacher-composed answer misses the oracle, fine-tune Vicuna-13B or Mistral-7B on the decompositions, and compare decomposer/solver substitutions across GSM8K, DROP, and Bamboogle.",
+    "assumptions": [
+      "Decomposition is lower-information and less knowledge-intensive than answering.",
+      "A static list of subquestions suffices for the evaluated reasoning tasks.",
+      "Teacher-generated decompositions that yield correct answers are higher quality.",
+      "API/model-size-based price estimates are a meaningful proxy for inference expense."
+    ]
+  },
+  "techniques": [
+    {"id": "capability-factorized-distillation", "role": "Separates planning transfer from knowledge-heavy execution transfer."},
+    {"id": "static-subquestion-interface", "role": "Generates all subquestions before any answer, enabling a clean module boundary."},
+    {"id": "answer-conditioned-rejection", "role": "Keeps teacher decompositions whose composed answer agrees with an oracle label."},
+    {"id": "cross-domain-module-swap", "role": "Tests whether learned decomposition transfers across datasets, backbones, and solvers."}
+  ],
+  "evaluations": [
+    {"setting": "GSM8K, DROP, and Bamboogle with GPT-3.5 teacher and Vicuna-13B students", "metric": "Exact match, F1, or accuracy", "result": "Distilled decomposition without oracle scores 67.02/55.19/52.0; distilled solving scores 48.98/13.37/31.2", "baseline": "GPT/GPT 65.13/55.73/54.4 and single-stage GPT 20.32/46.51/49.6"},
+    {"setting": "Oracle-answer rejection screening", "metric": "GSM8K exact match and DROP F1", "result": "Screened decomposer reaches 67.78 and 57.97", "baseline": "Unscreened distilled decomposer 67.02 and 55.19"},
+    {"setting": "Cross-domain DROP-GSM8K module transfer", "metric": "Target-domain performance", "result": "Student decomposers remain within roughly 2-5 points of GPT decomposition; student solvers degrade severely", "baseline": "Teacher decomposer and solver combinations"},
+    {"setting": "Static versus dynamic GPT-3.5 decomposition", "metric": "Task performance and total tokens", "result": "Static is slightly more accurate and uses 2.32x-3.96x fewer reported tokens", "baseline": "Self-ask-style dynamic planning"}
+  ],
+  "limitations": [
+    "Only three relatively small reasoning datasets and one primary teacher family are tested.",
+    "Static planning is favored by tasks where decomposition and solving are comparatively independent; adaptive environments may require feedback.",
+    "The student is large (7B-13B) and fine-tuning requires up to eight 80GB A100 GPUs, so local adaptation is not lightweight in an absolute sense.",
+    "Inference prices are estimated from model-size ratios rather than measured latency or deployment cost.",
+    "Oracle screening discards data and can select decompositions that exploit solver-specific shortcuts rather than general planning quality."
+  ],
+  "failure_modes": [
+    "A static decomposer cannot revise an invalid plan after observing intermediate answers.",
+    "Solver distillation confuses subquestion answers with the requested final answer.",
+    "Fine-tuning a backbone solely for decomposition catastrophically harms its solving capability when the modules are reused.",
+    "A weak solver cannot capitalize on even a high-quality decomposition.",
+    "Teacher-generated subquestions can omit essential dependencies or introduce distracting premises."
+  ],
+  "reusable_insights": [
+    "Distill a modular reasoning interface whose output is externally checkable before attempting to compress all task knowledge.",
+    "Evaluate transfer by swapping one module at a time across domains and downstream models.",
+    "Keep planner and solver parameters separate when specialization measurably erodes general capabilities."
+  ],
+  "open_questions": [
+    "Does decomposition-only distillation hold for interactive agents, code execution, and open-ended research tasks?",
+    "Can decompositions be screened without oracle answers using execution, consistency, or verifier signals?",
+    "How do newer small models compare after matched data, compute, and measured serving cost?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2205.10625", "title": "Least-to-Most Prompting Enables Complex Reasoning in Large Language Models", "url": "https://arxiv.org/abs/2205.10625", "relationship": "direct decomposition predecessor", "difference": "Least-to-most dynamically solves ordered subproblems with answers conditioning later steps; the reviewed work isolates a static decomposition module and distills only that module."},
+    {"canonical_id": "arxiv:2210.03350", "title": "Measuring and Narrowing the Compositionality Gap in Language Models", "url": "https://arxiv.org/abs/2210.03350", "relationship": "dynamic self-ask competitor", "difference": "Self-ask alternates follow-up questions and answers and can invoke search; the reviewed method generates all subquestions first to make capability distillation and module swapping cleaner."},
+    {"canonical_id": "arxiv:2305.02301", "title": "Distilling Step-by-Step! Outperforming Larger Language Models with Less Training Data and Smaller Model Sizes", "url": "https://arxiv.org/abs/2305.02301", "relationship": "reasoning-distillation competitor", "difference": "Distilling Step-by-Step jointly uses teacher labels and rationales to train a task model; the reviewed work argues the decomposition portion is more compressible than the answer-generating portion."},
+    {"canonical_id": "arxiv:2306.02707", "title": "Orca: Progressive Learning from Complex Explanation Traces of GPT-4", "url": "https://arxiv.org/abs/2306.02707", "relationship": "broad explanation-imitation competitor", "difference": "Orca transfers diverse explanation traces to build a general reasoning student; the reviewed method deliberately leaves knowledge-intensive execution in a larger solver and transfers only planning."}
+  ],
+  "novelty_assessment": "The paper's useful contribution is the controlled factorization of black-box reasoning distillation into planning and execution, with evidence that planning is more transferable and compressible. It does not establish a universal hierarchy of capability compressibility: the result is tied to static QA/math decomposition, older teacher/student models, and estimated rather than measured deployment economics.",
+  "confidence": 0.93,
+  "reviewer_notes": "Read the full method, main tables, cross-domain/model swaps, failure analysis, static-versus-dynamic ablation, and appendices relevant to prompts and training. Direct primary arXiv records on decomposition and reasoning distillation were checked on 2026-08-23."
+}

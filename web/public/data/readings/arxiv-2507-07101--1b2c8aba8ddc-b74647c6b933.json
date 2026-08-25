@@ -1,0 +1,324 @@
+{
+  "stable_id": "arxiv:2507.07101",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2507.07101",
+    "pdf_sha256": "322bcbe99acb7954557b2d3f429dd3b1bb61cc26657cd92b8744f39211298a83",
+    "text_sha256": "ea2ec10e53bd891224feaba0cb9e5739bcab8ff5d4cb1db7eb92756c3607d8cc",
+    "page_count": 19,
+    "extracted_at": "2026-08-23T16:21:08.471490+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can language models train stably and efficiently at physical batch sizes down to one, how should Adam's learning rate and moment decays change with batch, and when is gradient accumulation actually unnecessary?",
+  "key_findings": [
+    {
+      "claim": "At a fixed token budget, shrinking batch size collapses the performance gap among SGD, Adafactor, Adam, and Muon in the densely swept 30M model.",
+      "evidence": "A six-layer decoder with 30M active and 49M trainable parameters is trained for 600M FineWeb-Edu tokens at context 512 over batches 1-4096. Joint learning-rate and moment-decay searches comprise 11,521 30M-model runs. Figure 1a shows all four optimizers strongest at the smallest tested batches and increasingly separated as batch grows; vanilla SGD without momentum becomes competitive only in that many-update regime.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 1, "section": "Figure 1a"},
+        {"page": 5, "section": "4.1 Small Batch Sizes Render Sophisticated Optimizers Unnecessary"},
+        {"page": 17, "section": "Appendix A.1 / Table 1"},
+        {"page": 18, "section": "Appendix A.4 / Table 2"}
+      ]
+    },
+    {
+      "claim": "Small-batch training is markedly less sensitive to Adam hyperparameter misspecification in the tested models.",
+      "evidence": "One-dimensional sweeps around each batch-specific optimum over learning rate, beta1, and beta2 produce much broader low-loss regions at batches 1-16 than at 256-4096. A joint GPT-2 124M learning-rate/beta1 ablation similarly shows batch one retaining a broad low-loss basin while batch 512 is narrow. This is robustness within the reported grids, not a guarantee against arbitrary schedules, precision choices, or decay settings.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Figure 1b"},
+        {"page": 6, "section": "4.2 / Figure 3"}
+      ]
+    },
+    {
+      "claim": "Holding Adam's second-moment half-life fixed in tokens is a simple batch-transfer rule, whereas holding beta2 fixed makes the smallest batches forget too quickly.",
+      "evidence": "For a change from batch B to B-star at fixed sequence length, Equation 2 prescribes beta2-star = beta2 raised to B-star/B. The 30M sweep shows aligned low-loss regions when parameterized by token half-life; beta1=0.9 remains broadly adequate, and optimal learning rate grows only about threefold from batch 1 to 1024 rather than the 32-fold square-root prescription. The rule is empirical and lacks a multi-step convergence derivation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "4.3 / Equation 2 and Figure 4"}
+      ]
+    },
+    {
+      "claim": "The token-half-life correction reverses a published small-batch underperformance result without a new hyperparameter search.",
+      "evidence": "The authors reproduce Xiao's 19M non-embedding-parameter C4 setup, where beta1=0.9 and beta2=0.95 make batches 16 and 32 worse than 128 and 256. Applying Equation 2 while keeping token half-life fixed brings the two smallest batches to parity with the larger ones in Figure 5. This validates transfer to one independent architecture-data recipe, not a universal law.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "4.3 Xiao reproduction"},
+        {"page": 8, "section": "Figure 5"}
+      ]
+    },
+    {
+      "claim": "The 1.3B experiment is evidence that batch-one SGD can match a conventional AdamW recipe, but it is not a symmetric tuned optimizer comparison.",
+      "evidence": "A GPT-3-style 1.3B model is trained on 10B FineWeb tokens. Batch-one SGD without momentum approximately matches AdamW at batch 512, while batch-one Adam and Adafactor beat it. The AdamW baseline uses Brown et al. defaults and is not learning-rate tuned because of cost; Adam at batch one is also not tuned, while SGD and Adafactor each receive four-learning-rate sweeps. Therefore the result falsifies 'SGD cannot work' but does not rank fully tuned methods.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "4.4 Billion-parameter setup"},
+        {"page": 9, "section": "Figure 6"},
+        {"page": 17, "section": "Appendix A.1 / Table 1"},
+        {"page": 18, "section": "Appendix A.4 / Table 2"}
+      ]
+    },
+    {
+      "claim": "At 124M parameters, tuned batch-one Adam and Adafactor match tuned batch-512 AdamW, while batch-one SGD remains slightly worse.",
+      "evidence": "GPT-2 is trained on 2.5B FineWeb tokens at context 1024 with learning-rate tuning for every optimizer. Figure 6 reports Adam and Adafactor at batch one matching the AdamW batch-512 endpoint, whereas vanilla SGD trails slightly. This qualifies the broader prose that optimizer sophistication becomes unnecessary at small batch.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "4.4 GPT-2 setup"},
+        {"page": 9, "section": "Figure 6"},
+        {"page": 17, "section": "Appendix A.1 / Table 1"}
+      ]
+    },
+    {
+      "claim": "Small-batch Adafactor offers a credible memory-performance tradeoff for full fine-tuning in one 4B-model task.",
+      "evidence": "A non-instruction-tuned Gemma 3 4B model is fine-tuned on MATH for five epochs with eight learning rates per method. Full Adafactor at batch one, bfloat16 model weights, float32 factored state, and stochastic rounding outperforms rank-16 LoRA and approaches or exceeds the plotted full-Adam baselines while using a LoRA-like memory footprint. The evidence covers only one model, dataset, epoch count, and LoRA rank.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "4.5 / Figure 7"},
+        {"page": 10, "section": "Figure 8"},
+        {"page": 18, "section": "Appendix A.3-A.4"}
+      ]
+    },
+    {
+      "claim": "Stochastic rounding is a necessary numerical control when small-batch updates are applied directly to bfloat16 master weights.",
+      "evidence": "With Adafactor, deterministic nearest rounding of bfloat16 weights loses many small sequential updates and degrades pretraining, whereas computing the update in float32 and stochastically rounding storage brings performance close to float32 across batches. This means optimizer-step frequency and numeric representation cannot be studied independently.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 18, "section": "Appendix A.3 / Figure 9"}
+      ]
+    },
+    {
+      "claim": "The recommendation is not literal batch one; it is the smallest physical batch that saturates throughput, with accumulation avoided only when it adds no communication benefit.",
+      "evidence": "The discussion recommends maximizing tokens per second or MFU and notes that practical per-device batches may still contain hundreds to thousands of tokens or yield global batches of millions. Batch sizes one and two lower MFU by roughly 30-70% depending on model and sequence length. Gradient accumulation can remain useful with multiple replicas when inter-replica bandwidth is the bottleneck.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "5 Practical Recommendations"},
+        {"page": 18, "section": "Appendix A.4 Computational cost"}
+      ]
+    },
+    {
+      "claim": "The proposed explanation for why momentum matters less at small batch is illustrative rather than mechanistically validated on language models.",
+      "evidence": "The two-variable toy objective x-squared plus 10y-squared simulates a large batch with ten low-noise steps and a small batch with 100 high-noise steps. Smaller learning-rate steps avoid overshoot along the steep axis, so momentum adds little. The construction jointly changes noise, step count, and step size and does not test Transformer curvature or optimizer state, so it supports intuition rather than causal identification.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "4.1 Momentum hypothesis"},
+        {"page": 18, "section": "Appendix B Toy setup"},
+        {"page": 19, "section": "Figure 10"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Run a dense batch-by-optimizer-by-hyperparameter study down to physical batch one, infer batch-transfer heuristics from a 30M model, validate them on independent pretraining scales, and exploit small optimizer state for memory-efficient full fine-tuning.",
+    "mechanism": "At a fixed token budget, smaller batches create more, smaller sequential updates. The authors hypothesize that these shorter local moves demand less curvature prediction, reduce overshoot, and therefore reduce the value of momentum and preconditioning. For Adam, the essential state variable is recast from per-step beta2 to a decay half-life in tokens so the estimator remembers comparable data mass across batch sizes.",
+    "assumptions": [
+      "Training for the same number of tokens approximates equal model FLOPs even though hardware utilization and wall time vary with batch.",
+      "The dense 30M-model sweeps identify hyperparameter structure that transfers to GPT-2, GPT-3-style, and Gemma-scale models.",
+      "A second-moment estimator should retain a constant token horizon rather than a constant number of optimizer steps when batch changes.",
+      "Sequence length is fixed when applying beta2-star = beta2^(B-star/B), or batch is interpreted in tokens rather than examples.",
+      "The selected learning-rate grids are sufficiently broad and winner selection does not dominate reported gaps.",
+      "Small steps explain reduced momentum value even in high-dimensional nonconvex Transformer training.",
+      "Validation loss under one-pass-like pretraining is the primary objective; convergence-phase and multi-epoch behavior can differ.",
+      "MFU captures the main systems cost relevant to selecting physical batch, while communication is handled as an explicit exception.",
+      "The Gemma-MATH setup is representative enough to motivate, but not establish, a general full-fine-tuning alternative to LoRA."
+    ]
+  },
+  "techniques": [
+    {"id": "dense-batch-optimizer-grid", "role": "Jointly searches batch, learning rate, and moment decays across SGD, Adafactor, Adam, and Muon."},
+    {"id": "token-half-life-reparameterization", "role": "Expresses Adam's beta2 memory in tokens and transfers it with beta2-star = beta2^(B-star/B)."},
+    {"id": "hyperparameter-robustness-slices", "role": "Measures loss degradation around each batch-specific optimum in one and two dimensions."},
+    {"id": "cross-scale-prescription-transfer", "role": "Freezes small-model heuristics before testing GPT-2 and GPT-3-style models."},
+    {"id": "small-state-full-finetuning", "role": "Combines batch one with factored Adafactor state to reduce memory without freezing base weights."},
+    {"id": "stochastic-bfloat16-rounding", "role": "Preserves the expectation of small per-step weight updates stored in low precision."},
+    {"id": "mfu-constrained-batch-selection", "role": "Chooses the smallest batch on the throughput plateau rather than batch one by default."},
+    {"id": "noisy-ill-conditioned-quadratic", "role": "Illustrates why many small steps may reduce the marginal value of momentum."}
+  ],
+  "evaluations": [
+    {
+      "setting": "30M active-parameter decoder, FineWeb-Edu, 600M tokens, context 512, batches 1-4096, 11,521 runs.",
+      "metric": "Best validation loss and local sensitivity to learning rate, beta1, and beta2.",
+      "result": "All four optimizers are strongest and closest at the smallest batches; the low-loss hyperparameter region broadens dramatically toward batch one.",
+      "baseline": "Independently tuned SGD, Adafactor, Adam, and Muon at every batch."
+    },
+    {
+      "setting": "19M non-embedding-parameter decoder on C4 reproducing Xiao, batches 16-256.",
+      "metric": "Validation loss before and after beta2 token-half-life correction.",
+      "result": "The original U-shaped batch curve is reproduced with fixed beta2; one-shot beta2 rescaling brings batches 16 and 32 to parity with 128 and 256.",
+      "baseline": "Xiao's beta1=0.9, beta2=0.95 recipe and larger batches."
+    },
+    {
+      "setting": "GPT-3-style 1.3B model on 10B FineWeb tokens, context 2048.",
+      "metric": "Validation loss.",
+      "result": "Batch-one SGD without momentum approximately matches default AdamW at batch 512; batch-one Adam and Adafactor finish lower.",
+      "baseline": "Untuned Brown et al. AdamW recipe at batch 512; four learning rates are swept for SGD and Adafactor."
+    },
+    {
+      "setting": "GPT-2 124M model on 2.5B FineWeb tokens, context 1024.",
+      "metric": "Validation loss after learning-rate tuning.",
+      "result": "Batch-one Adam and Adafactor match batch-512 AdamW; batch-one SGD is slightly worse.",
+      "baseline": "Learning-rate-tuned AdamW at batch 512."
+    },
+    {
+      "setting": "Non-instruction-tuned Gemma 3 4B, MATH fine-tuning for five epochs, eight learning rates.",
+      "metric": "MATH performance plotted against estimated/traced training memory.",
+      "result": "Full batch-one Adafactor with stochastic-rounded bfloat16 weights gives the strongest plotted memory-performance compromise and beats rank-16 LoRA.",
+      "baseline": "LoRA with Adam, full Adam at batch 16 with accumulation, and full Adam at batch one."
+    },
+    {
+      "setting": "All model sizes on TPU v4, including batch-one and batch-two measurements.",
+      "metric": "Runtime, total chip-hours, and model FLOPs utilization.",
+      "result": "Batch one or two lowers MFU by about 30-70%, motivating the throughput-plateau rule; the 30M sweep alone costs about 4,600 TPU-v4 chip-hours.",
+      "baseline": "Larger physical batches on the same accelerators."
+    }
+  ],
+  "limitations": [
+    "Reviewer-identified: equal tokens imply similar arithmetic FLOPs but not equal wall time, energy, communication, kernel efficiency, or hyperparameter-search cost.",
+    "Author-stated: literal batch one or two can reduce MFU by 30-70%, so practitioners should use the smallest throughput-saturating batch instead.",
+    "Reviewer-identified: the 1.3B AdamW baseline is not learning-rate tuned, whereas SGD and Adafactor each receive four learning-rate trials; optimizer ranking is therefore asymmetric.",
+    "Reviewer-identified: the 1.3B model is trained for 10B rather than Chinchilla-like 20 tokens per parameter and has only eleven reported runs across its main comparison.",
+    "Reviewer-identified: the dense search is concentrated in one six-layer 30M architecture and costs 4,600 TPU-v4 chip-hours, limiting independent reproducibility.",
+    "Reviewer-identified: the beta2 rule is justified by estimator bookkeeping and empirical transfer, not a theorem explaining optimization or nonstationary gradient statistics.",
+    "Reviewer-identified: physical batch, global replica batch, sequence length, token packing, and gradient accumulation are not fully factorized in cluster-scale experiments.",
+    "Reviewer-identified: the phrase 'gradient accumulation is wasteful' does not apply when it improves kernel shapes, amortizes communication, changes clipping semantics, or is required by a parallelism schedule.",
+    "Reviewer-identified: the fine-tuning result covers one base model, MATH, five epochs, one LoRA rank, and no instruction-tuned or broad downstream suite.",
+    "Reviewer-identified: most pretraining evidence uses validation loss only, without downstream capabilities, rare-token slices, calibration, or long-horizon stability.",
+    "Reviewer-identified: the toy momentum mechanism jointly varies noise, step count, and step size and does not measure the actual Transformer Hessian or update path."
+  ],
+  "failure_modes": [
+    "A batch small enough to improve loss per token can fall off the hardware throughput plateau and lose on wall time or energy.",
+    "Token-half-life scaling can fail when sequence length, token packing, gradient correlation, or data reuse changes the effective information per batch.",
+    "Applying many tiny updates to bfloat16 master weights with nearest rounding can erase the expected small-batch advantage.",
+    "Gradient accumulation can remain beneficial or necessary under data-parallel communication, pipeline bubbles, fused-kernel constraints, or optimizer-step overhead.",
+    "No-momentum SGD can trail at larger models, later training phases, larger optimal steps, or sharper tasks even if it matches one untuned baseline.",
+    "A small-model hyperparameter plateau can narrow or move at larger width, depth, context, token horizon, or different normalization.",
+    "Factored second moments can lose important coordinate information on tasks where Adafactor's approximation is poor.",
+    "A memory-efficient full-fine-tuning run can overfit or alter general capabilities even when it wins one task metric."
+  ],
+  "reusable_insights": [
+    "Parameterize exponential-moving-average state by examples or tokens remembered, not just optimizer steps, whenever batch changes.",
+    "Separate optimizer-state memory, accumulated-gradient memory, model precision, and activation memory in fine-tuning comparisons.",
+    "The correct practical target is the smallest batch on the throughput plateau, not a universal symbolic batch size.",
+    "Report hyperparameter robustness volume as well as the best point; a slightly worse but broad configuration can reduce total research compute.",
+    "Numerical rounding is part of the optimization algorithm when update frequency rises and master weights are low precision.",
+    "A claim about gradient accumulation needs separate physical-microbatch, global-batch, replica-count, and communication regimes.",
+    "A small-batch SGD result is strongest as a boundary-condition falsifier; fair optimizer ranking still requires symmetric tuning and replicated wall-clock tests."
+  ],
+  "open_questions": [
+    "Why does a constant beta2 token half-life transfer, and what correction is needed for correlated or nonstationary tokens?",
+    "Does the rule transfer jointly across sequence length, packing efficiency, data repeats, multimodal tokens, and curriculum changes?",
+    "What is the optimizer ranking under a preregistered equal tuning budget and equal wall-clock budget at 1B-70B scale?",
+    "Can batch schedules retain early small-batch robustness and later throughput without resetting or distorting optimizer state?",
+    "When do gradient accumulation and data parallelism produce meaningfully different updates because of clipping, normalization, or stochastic rounding?",
+    "Does batch-one full fine-tuning remain competitive with QLoRA, DoRA, low-rank schedules, and other small-state optimizers across tasks?",
+    "Can early measurements predict the smallest throughput-saturating batch and the required state half-life on a new hardware-model pair?",
+    "How do the many small updates affect rare-token learning, memorization, calibration, and downstream scaling beyond validation loss?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2506.12543",
+      "title": "Is your batch size the problem? Revisiting the Adam-SGD gap in language modeling",
+      "url": "https://arxiv.org/abs/2506.12543",
+      "relationship": "closest concurrent small-batch SGD study",
+      "difference": "Srećković et al. also show tuned SGD improving with very small batches, but emphasize momentum, fixed-token versus fixed-step curves, clipping, direction grafting, heterogeneity, and a SignSGD SDE. This paper reaches batch one, proposes token-half-life beta2 scaling, and studies memory-efficient fine-tuning and accumulation policy.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, submitted 2025-06-14"
+    },
+    {
+      "canonical_id": "arxiv:2410.21676",
+      "title": "How Does Critical Batch Size Scale in Pre-training?",
+      "url": "https://arxiv.org/abs/2410.21676",
+      "relationship": "critical-batch scaling baseline",
+      "difference": "Zhang et al. estimate a data-size-driven critical batch across 85M-1.2B C4 models with tuned optimization. This paper instead argues that subcritical batches are not equivalent in practice, maps batch one, and conditions its recommendation on the hardware throughput plateau.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v4, updated 2025-04-21"
+    },
+    {
+      "canonical_id": "arxiv:2402.18824",
+      "title": "Batch size invariant Adam",
+      "url": "https://arxiv.org/abs/2402.18824",
+      "relationship": "batch-invariance optimizer alternative",
+      "difference": "This method changes Adam by squaring each microbatch gradient before averaging, preserving a second-moment signal across global batch. Marek et al. retain ordinary Adam and instead preserve the estimator's token half-life by rescaling beta2.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, submitted 2024-02-29"
+    },
+    {
+      "canonical_id": "arxiv:2410.05838",
+      "title": "Time Transfer: On Optimal Learning Rate and Batch Size In The Infinite Data Limit",
+      "url": "https://arxiv.org/abs/2410.05838",
+      "relationship": "token-horizon scaling alternative",
+      "difference": "Time Transfer models how optimal learning rate and batch evolve with training horizon and critical batch. The present paper gives a simpler beta2 token-memory rule and a smallest-throughput-saturating-batch prescription, without a joint time-transfer model.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, updated 2025-01-09"
+    },
+    {
+      "canonical_id": "arxiv:2409.15156",
+      "title": "Rethinking Conventional Wisdom in Machine Learning: From Generalization to Scaling",
+      "url": "https://arxiv.org/abs/2409.15156",
+      "relationship": "scaling crossover warning",
+      "difference": "This work argues that small-scale conventional wisdom, including small-batch benefits, can reverse in the scaling regime. Marek et al. provide language-model counterevidence through 1.3B parameters and 10B tokens, but do not establish the frontier-scale asymptote.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, updated 2025-02-14"
+    },
+    {
+      "canonical_id": "arxiv:2405.14578",
+      "title": "Surge Phenomenon in Optimal Learning Rate and Batch Size Scaling",
+      "url": "https://arxiv.org/abs/2405.14578",
+      "relationship": "optimizer-specific learning-rate scaling theory",
+      "difference": "This paper predicts a nonmonotonic surge in optimal learning rate as batch changes for sign-style updates. Marek et al. empirically reject universal square-root scaling and focus on beta2 token memory across Adam, Adafactor, SGD, and Muon.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v5, updated 2024-10-28"
+    },
+    {
+      "canonical_id": "arxiv:1812.06162",
+      "title": "An Empirical Model of Large-Batch Training",
+      "url": "https://arxiv.org/abs/1812.06162",
+      "relationship": "gradient-noise-scale predecessor",
+      "difference": "McCandlish et al. use the gradient noise scale to predict useful batch and time-compute tradeoffs across supervised, generative, and reinforcement-learning tasks. Marek et al. give an LM-specific dense optimizer sweep and a token-half-life state rule rather than estimating noise scale.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, submitted 2018-12-14"
+    },
+    {
+      "canonical_id": "arxiv:2205.10287",
+      "title": "On the SDEs and Scaling Rules for Adaptive Gradient Algorithms",
+      "url": "https://arxiv.org/abs/2205.10287",
+      "relationship": "adaptive-optimizer scaling theory",
+      "difference": "Malladi et al. derive SDE limits and square-root scaling rules for RMSprop and Adam. Marek et al. find that optimal LM learning rate grows much slower than square root and identify beta2 token half-life as the more consequential small-batch correction.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, updated 2024-11-01"
+    },
+    {
+      "canonical_id": "arxiv:2307.15196",
+      "title": "The Marginal Value of Momentum for Small Learning Rate SGD",
+      "url": "https://arxiv.org/abs/2307.15196",
+      "relationship": "small-step momentum predecessor",
+      "difference": "This theory and experiment study finds little marginal value from momentum in noise-dominated small-learning-rate SGD. Marek et al. demonstrate the same boundary in modern language-model pretraining at physical batch one and relate it to many smaller sequential steps.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, updated 2024-04-16"
+    },
+    {
+      "canonical_id": "arxiv:2407.07972",
+      "title": "Deconstructing What Makes a Good Optimizer for Language Models",
+      "url": "https://arxiv.org/abs/2407.07972",
+      "relationship": "optimizer-component baseline",
+      "difference": "Zhao et al. report comparable tuned performance among several adaptive optimizers but an SGD lag, with special roles for the last layer and normalization. Marek et al. extend batches down to one and show that this optimizer separation shrinks, while adding Adafactor memory and robustness analyses.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, updated 2025-02-28"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim that language models can train stably at batch one, become robust enough that vanilla SGD works, and avoid gradient accumulation when beta2 is scaled to retain a constant token half-life; small-state optimizers then make full fine-tuning as memory-efficient as LoRA.",
+    "evidence": "The paper reports 11,521 dense 30M-model runs, an independent C4 reproduction, GPT-2 124M and GPT-3-style 1.3B pretraining, Gemma 3 4B MATH fine-tuning, stochastic-rounding ablations, and TPU-v4 MFU and chip-hour accounting.",
+    "reviewer_inference": "The clearest novelty is the beta2 token-half-life reparameterization joined to unusually dense physical-small-batch evidence and a concrete memory argument. Small-batch SGD, low marginal momentum value, critical-batch scaling, gradient-noise scale, and adaptive-optimizer SDE rules all predate it, while a concurrent paper reports the same optimizer-gap collapse. 'Gradient accumulation is wasteful' is only defensible after conditioning on throughput, replica communication, kernel efficiency, clipping semantics, and precision; the paper itself makes that narrower recommendation."
+  },
+  "confidence": 0.93,
+  "reviewer_notes": "All 19 extracted pages were read. Figures 1, 3-10, Equation 2, model Table 1, and compute Table 2 were visually inspected in the PDF; provenance is pinned to the indexed 19/19-page extraction with no missing pages. Ten distinct primary arXiv competitors were directly checked at the stated current versions on 2026-08-23, with unique canonical IDs and own-ID exclusion. The audit separates fixed-token optimization evidence from systems efficiency, calls out the asymmetric 1.3B tuning budget, and treats the toy quadratic and gradient-accumulation title as scoped rather than universal claims."
+}

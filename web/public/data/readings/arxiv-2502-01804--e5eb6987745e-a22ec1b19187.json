@@ -1,0 +1,269 @@
+{
+  "stable_id": "arxiv:2502.01804",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2502.01804",
+    "pdf_sha256": "0769260772b3f68adfbbf435b329790efbe2e570b64a4b0ce601cec89c66e8d3",
+    "text_sha256": "d09da568f3a37b62f49b99ad433be246fcdcb74f2f18bf64f5b9b448edc8aa9c",
+    "page_count": 18,
+    "extracted_at": "2026-08-23T17:23:12.446928+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can one expensive pretraining run learn a weight-space family from which many small language-model specialists for previously unseen domain mixtures can be instantiated by parameter averaging, without retraining at specialization time?",
+  "key_findings": [
+    {
+      "claim": "Soup-of-Experts amortizes specialization by jointly training a shared model, a bank of full-model parameter deltas, and a domain-histogram-to-coefficient network.",
+      "evidence": "For histogram h over pretraining domains, the instantiated parameters are S plus the weighted sum of expert tensors E_j, with coefficients produced by a two-layer MLP phi(h). Each step samples h from a meta-distribution, samples a minibatch from the same domain mixture, materializes the corresponding 110M-parameter model, and backpropagates through both the merge and language-model loss. The default system has 128 experts plus shared parameters—about 14B trained parameters—to emit one 110M model.",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "2.3 Soup-of-Experts / Equation 2"
+        },
+        {
+          "page": 4,
+          "section": "2.4 and Algorithm 2"
+        },
+        {
+          "page": 5,
+          "section": "3 Experiments / Training hyperparameters"
+        }
+      ]
+    },
+    {
+      "claim": "Under the paper's wall-clock accounting, Soup-of-Experts reaches the lowest average specialist loss among the four tested strategies while staying close to generic pretraining on the generic distribution.",
+      "evidence": "Across 16 Pile specialization domains after RedPajama-v2 pretraining, Figure 4 ends near 2.86 average specialist loss for Soup-of-Experts, versus roughly 2.89 for CRISP, 2.96 for the generic model, and above 3.1 for the truncated domain-expert curve. On generic loss, Soup-of-Experts is slightly worse than the generic model. Its measured token throughput is 77% of generic pretraining; the multi-model baselines are plotted using the sum of their training times.",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "3.1-3.2 / Figure 4"
+        },
+        {
+          "page": 12,
+          "section": "Appendix A, training budgets"
+        }
+      ]
+    },
+    {
+      "claim": "The pretrained specialization advantage persists during continued fine-tuning and can replace a substantial amount of target-domain tuning data on some domains.",
+      "evidence": "The Soup-of-Experts curve remains below generic-pretraining loss over the tested fine-tuning-token range. The right panel reports that matching the untuned Soup specialist from a generic model requires domain-dependent budgets from tens of thousands to millions of tokens; the text highlights 10M tokens for USPTO. Per-domain curves in Appendix C show that the magnitude varies considerably.",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "3.3 / Figure 5"
+        },
+        {
+          "page": 16,
+          "section": "Appendix C / Figure 10"
+        }
+      ]
+    },
+    {
+      "claim": "Specialization is surprisingly tolerant to a small target sample, but its quality depends on how well that sample estimates a mixture over the fixed pretraining clusters.",
+      "evidence": "Algorithm 3 embeds each target document and assigns it to the nearest of 4,096 hierarchical k-means centroids. Averaged over domains, about three target examples suffice to match the generic model, while approximately 100-1,000 examples reach the best Soup result. This is an average result; the detailed per-domain plots reveal different convergence rates.",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "2.7 / Algorithm 3"
+        },
+        {
+          "page": 7,
+          "section": "3.4 / Figure 6 right"
+        },
+        {
+          "page": 17,
+          "section": "Appendix C / Figure 11"
+        }
+      ]
+    },
+    {
+      "claim": "The meta-distribution defines which mixture geometries the parameter family can interpolate well; there is no universally best support size.",
+      "evidence": "Training only on single domains fails to learn domain interactions, support two yields the best average specialist loss for these sparse target histograms, and broader supports improve generic loss. On synthetic test mixtures, each curve is best near the support size used to train it, showing that the learned weight family specializes to the meta-distribution rather than uniformly covering the simplex.",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "2.4 Meta-distributions"
+        },
+        {
+          "page": 8,
+          "section": "Figure 7"
+        },
+        {
+          "page": 18,
+          "section": "Appendix C / Figure 12"
+        }
+      ]
+    },
+    {
+      "claim": "Low-rank expert deltas reduce storage per expert but underperform dense experts at matched total parameter count in the reported optimization regime.",
+      "evidence": "The low-rank sweep spans 16-128 experts, ranks 32-512, and about 300M-12B aggregate parameters. At a fixed aggregate count, adding more low-rank experts has little effect and the low-rank frontier lies above dense-expert points on specialist loss. The authors attribute this to optimization difficulty rather than a proven representational limitation.",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "2.6 Low-rank experts"
+        },
+        {
+          "page": 8,
+          "section": "Figure 8"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Train a hypernetwork-indexed affine subspace of full language-model parameters so that a histogram over data domains directly selects a compact specialist model.",
+    "mechanism": "Documents are clustered into 4,096 pretraining domains. During training, a sparse random domain histogram simultaneously determines the data batch and enters an MLP that outputs coefficients over expert parameter tensors. Shared parameters plus the coefficient-weighted expert deltas form the only model used for that step. At specialization, a few target documents are mapped to cluster centroids to estimate a histogram; one MLP pass and one parameter merge then materialize a standalone model, optionally followed by ordinary fine-tuning.",
+    "assumptions": [
+      "Useful target distributions can be approximated as mixtures of the fixed RedPajama-v2 clusters in Sentence-BERT embedding space.",
+      "A low-dimensional affine family of jointly trained weights contains strong models for the relevant domain mixtures.",
+      "The future specialization mixture resembles the sparse histogram meta-distribution used during pretraining.",
+      "All expert tensors and Adam state fit in training memory, and optimizer/update overhead remains secondary to transformer forward-backward cost.",
+      "Next-token validation loss on the 16 Pile domains is an adequate proxy for deployed specialist utility.",
+      "A user can afford to materialize and distribute a separate 35M-110M parameter checkpoint per specialist even though training retains billions of parameters."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "domain-conditioned-parameter-soup",
+      "role": "Maps a domain histogram to coefficients and linearly combines full-model expert deltas into one deployable checkpoint."
+    },
+    {
+      "id": "mixture-coupled-meta-training",
+      "role": "Uses the same sampled histogram to choose both the instantiated weights and the minibatch distribution."
+    },
+    {
+      "id": "hierarchical-domain-clustering",
+      "role": "Partitions RedPajama-v2 into 4,096 semantic domains that form the mixture coordinate system."
+    },
+    {
+      "id": "centroid-histogram-specialization",
+      "role": "Estimates target mixture weights by nearest-centroid counts from a small specialist dataset."
+    },
+    {
+      "id": "sparse-support-meta-distribution",
+      "role": "Biases training toward mixtures of a few domains, matching the observed sparsity of target histograms."
+    },
+    {
+      "id": "low-rank-expert-factorization",
+      "role": "Tests LoRA-style factorized expert deltas as a more storage-efficient alternative to dense experts."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "110M GPT-2-style models pretrained on 4,096 RedPajama-v2 clusters and specialized to 16 held-out Pile domains; Soup and generic models train for 1.024M steps (134B tokens).",
+      "metric": "Average target-domain and generic next-token loss versus summed wall-clock training time.",
+      "result": "Soup-of-Experts finishes with the best plotted average specialist loss (about 2.86) while remaining close to generic pretraining on generic loss; measured throughput is 77% of the generic run.",
+      "baseline": "One generic model, 64 separately trained domain experts, and one CRISP importance-sampled model per target domain."
+    },
+    {
+      "setting": "Per-domain continued fine-tuning of the instantiated Soup and generic checkpoints.",
+      "metric": "Validation loss versus target-domain fine-tuning tokens and tokens needed for generic pretraining to match an untuned Soup specialist.",
+      "result": "The Soup initialization retains a lower average loss across the sweep; matching-token savings vary widely, with USPTO requiring 10M generic fine-tuning tokens in the highlighted example.",
+      "baseline": "Fine-tuning the same-size generic pretrained checkpoint with the same stopping rule."
+    },
+    {
+      "setting": "35M, 55M, and 110M instantiated models plus target-histogram estimation from 1 to 10,000 samples.",
+      "metric": "Average specialist and generic next-token loss.",
+      "result": "The specialization gap persists at all three sizes; roughly three target examples match generic performance on average and 100-1,000 approach the best Soup loss.",
+      "baseline": "Same-size generic pretrained models and the full-data histogram estimate."
+    },
+    {
+      "setting": "Meta-distribution supports from 1 to 4,096 domains and dense-versus-low-rank expert banks from roughly 300M to 14B aggregate parameters.",
+      "metric": "Specialist, generic, and synthetic-mixture next-token loss.",
+      "result": "Support two is best for the sparse real specialists, broad support favors generic mixtures, and dense experts form a better parameter-count frontier than the tested low-rank variants.",
+      "baseline": "Alternative support sizes, numbers of experts, factorization ranks, and dense expert deltas."
+    }
+  ],
+  "limitations": [
+    "Author-stated: low-rank experts are less parameter-efficient than dense experts in the experiments, despite their potential representational rank after merging.",
+    "Author-stated: the evaluation focuses solely on next-token loss; reasoning, QA, translation, instruction following, and task accuracy are justified through prior correlations rather than measured here.",
+    "Reviewer-identified: the largest emitted model is only 110M parameters, so neither weight-space interpolation nor the claimed optimizer-overhead regime is validated at contemporary multi-billion-parameter scale.",
+    "Reviewer-identified: the default pretraining object has about 14B trainable parameters and corresponding optimizer state to emit a 110M checkpoint; peak memory, communication, energy, and checkpoint I/O are not normalized against alternatives.",
+    "Reviewer-identified: all targets are text domains drawn from the Pile and represented using clusters of another web corpus, leaving genuinely out-of-support domains, multilingual shifts, multimodal data, and distribution drift untested.",
+    "Reviewer-identified: the headline comparisons report single training curves and averages without seed variance or confidence intervals; per-domain plots show substantial heterogeneity.",
+    "Reviewer-identified: CRISP and domain experts receive different per-model token budgets, and the wall-clock summation answers serial production cost but not parallel latency, hardware-constrained cost, or quality at equal aggregate parameter memory.",
+    "Reviewer-identified: specialization requires a target histogram, materializing a full checkpoint, and possibly fine-tuning; latency and storage for generating and maintaining many checkpoints are asserted to be small but not benchmarked end to end."
+  ],
+  "failure_modes": [
+    "A target domain outside the semantic support of the fixed centroids is projected onto an inappropriate mixture and receives a confidently wrong specialist.",
+    "A small or biased target sample produces a noisy histogram whose error is amplified by the coefficient MLP.",
+    "A meta-distribution dominated by sparse mixtures learns poor generic interpolation, while a broad one neglects the sparse specialists that motivated the system.",
+    "Large unrestricted merge coefficients can place an emitted model outside well-behaved regions of the learned affine weight space.",
+    "Optimizer-state traffic for hundreds of full-model experts can dominate at smaller batches, slower interconnects, or larger base models, erasing the reported throughput argument.",
+    "Low-rank expert parameterizations can be theoretically expressive after summation yet remain difficult to optimize into useful complementary directions.",
+    "Maintaining many materialized specialists can shift the bottleneck from inference memory to checkpoint generation, storage, evaluation, and version management."
+  ],
+  "reusable_insights": [
+    "Use the same conditioning variable to select both model parameters and training data; this directly supervises a map from distribution descriptors to useful weights.",
+    "Model-family training can amortize repeated specialist pretraining when future tasks share a measurable mixture coordinate system.",
+    "Meta-distribution support is a deployment prior: tune it to the anticipated sparsity and interactions of future mixtures rather than sampling the simplex blindly.",
+    "Separate training-time parameter capacity from emitted-model capacity when evaluating modular systems; both resource envelopes matter.",
+    "A few target samples can be enough for routing when they estimate a low-dimensional distribution descriptor rather than update millions of weights.",
+    "Factorized components should be evaluated by optimization behavior, not only by the rank of their possible sum."
+  ],
+  "open_questions": [
+    "Does the affine expert family remain trainable and useful for 1B-70B emitted models when optimizer state and communication are fully accounted for?",
+    "Can target mixtures and uncertainty be inferred jointly, with abstention or fallback when the specialist data are outside the pretraining cluster support?",
+    "Would nonlinear, layerwise, sparse, or low-dimensional weight generators dominate one global dense linear combination?",
+    "Can one avoid materializing a separate full checkpoint while retaining Soup-of-Experts' low inference-memory advantage?",
+    "How does the method compare with continued pretraining, PEFT composition, distillation, BTM, and sparse MoE at equal total training FLOPs, memory, energy, and deployment fleet cost?",
+    "Do specialist next-token-loss gains translate to factuality, instruction following, calibration, safety, and domain task accuracy?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2203.05482",
+      "title": "Model Soups: Averaging Weights of Multiple Fine-Tuned Models Improves Accuracy without Increasing Inference Time",
+      "url": "https://proceedings.mlr.press/v162/wortsman22a.html",
+      "relationship": "foundational-prior",
+      "difference": "Model Soups averages independently fine-tuned checkpoints descended from one initialization, usually selecting coefficients after training. Soup-of-Experts makes linear combinability a pretraining objective and predicts coefficients from a domain mixture that was not known when training began.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2022 PMLR version of record"
+    },
+    {
+      "canonical_id": "arxiv:2210.09759",
+      "title": "Pareto Manifold Learning: Tackling Multiple Tasks via Ensembles of Single-Task Models",
+      "url": "https://proceedings.mlr.press/v202/dimitriadis23a.html",
+      "relationship": "closest-architectural-prior",
+      "difference": "Pareto Manifold Learning jointly trains linearly combinable task models to parameterize performance tradeoffs. It assumes tasks share inputs but have different losses and uses tradeoff weights directly; Soup-of-Experts adds shared parameters and a learned histogram-to-coefficient map for tasks that share the loss but differ in data distribution.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2023 PMLR version of record"
+    },
+    {
+      "canonical_id": "arxiv:2208.03306",
+      "title": "Branch-Train-Merge: Embarrassingly Parallel Training of Expert Language Models",
+      "url": "https://arxiv.org/abs/2208.03306",
+      "relationship": "direct-alternative",
+      "difference": "BTM trains independent domain expert LMs in parallel and combines them by ensembling or averaging. It gains modular growth and communication efficiency, whereas Soup-of-Experts jointly trains an affine family and emits a target-conditioned single model without inference ensembling.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2410.03735",
+      "title": "Task-Adaptive Pretrained Language Models via Clustered-Importance Sampling",
+      "url": "https://arxiv.org/abs/2410.03735",
+      "relationship": "direct-baseline",
+      "difference": "CRISP estimates the same kind of target histogram and uses it to resample general data for a fresh specialist pretraining run. It can yield a strong dedicated model but its cost repeats per target; Soup-of-Experts amortizes that mapping into a single much larger pretraining object.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2025 / current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2405.03133",
+      "title": "Lory: Fully Differentiable Mixture-of-Experts for Autoregressive Language Model Pre-training",
+      "url": "https://arxiv.org/abs/2405.03133",
+      "relationship": "direct-architectural-alternative",
+      "difference": "Lory softly merges expert parameters per causal text segment and keeps the expert bank available at inference, learning unsupervised routing at up to 1.5B active parameters. Soup-of-Experts routes once from an external target histogram and materializes a standalone checkpoint, prioritizing deployment memory over per-input adaptability.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims the first pretraining architecture that learns a domain-mixture-conditioned linear combination of expert parameters and can instantly instantiate many small specialist language models for domains unseen during training.",
+    "evidence": "The method combines model-soup weight interpolation, a learned routing MLP, clustered data-mixture estimation, and joint meta-training; experiments cover 4,096 pretraining clusters, 16 held-out domains, three emitted-model sizes, target-sample and meta-support sweeps, and dense-versus-low-rank experts.",
+    "reviewer_inference": "The distinctive contribution is moving target-conditioned model merging inside pretraining and coupling it to sampled data mixtures. Pareto Manifold Learning is structurally close and BTM, CRISP, Lory, and model soups cover adjacent tradeoffs, but none in the checked primary panel offers the same histogram-to-standalone-checkpoint path. The practical novelty remains qualified by 110M scale and a 14B-parameter training object whose full systems cost is not reported."
+  },
+  "confidence": 0.95,
+  "reviewer_notes": "Read all 18 pages, including full training budgets, the reformulation of Pareto Manifold Learning, and per-domain appendix plots; Figure 4-8 values were visually checked against the cached PDF. The arXiv work was subsequently published at ICML 2025 (PMLR 267:185-203), confirming venue status without changing the reviewed source pin. Approximate numeric losses quoted from curves are labeled as such; the strongest exact systems number in the text is 77% relative training throughput."
+}

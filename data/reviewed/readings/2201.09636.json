@@ -1,0 +1,608 @@
+{
+  "stable_id": "arxiv:2201.09636",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2201.09636",
+    "pdf_sha256": "bf12884f08dc48e8275e233597467dc21197d575be009f8079e356023ad91156",
+    "text_sha256": "7334282b666eea889e9ab150eb27e12b9a7aaa5ef2828b90314bc67253d7ee4d",
+    "page_count": 16,
+    "extracted_at": "2026-08-23T23:07:47.412002+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can one smooth sinusoidal coordinate network over three spatial coordinates and continuous time approximate level-set surface evolution from endpoint signed-distance data and a sampled PDE residual, supporting vector-field deformation, mean-curvature smoothing or sharpening, and shape interpolation without simulated intermediate states?",
+  "key_findings": [
+    {
+      "claim": "The central representation is a single space-time SIREN whose zero sets define the whole animation and whose automatic derivatives are penalized against a level-set equation.",
+      "evidence": "The paper lifts a signed-distance function g on R3 to f on R3 times R, defines S_t as the zero set of f at time t, and trains f with a data constraint at one or more specified times plus a PDE-residual constraint. Unlike a time-indexed sequence of networks, the trained model can be queried directly at any time in its learned interval.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 1, "section": "Abstract and introduction"},
+        {"page": 3, "section": "Sections 3.2-4.1, Equations 2-6"},
+        {"page": 4, "section": "Sections 4.2-4.4"}
+      ]
+    },
+    {
+      "claim": "The defensible novelty is the particular continuous space-time neural level-set construction, not physics-informed residual learning or continuous neural dynamics in general.",
+      "evidence": "PINNs, neural ODEs, neural level-set control, implicit-surface layers, Occupancy Flow, SIREN, IGR, and NFGP all predate the work. The paper's narrower distinction is that NFGP and concurrent NIE store successive spatial networks, whereas this method amortizes an interval into one four-input network and differentiates it analytically.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "Introduction and claimed contributions"},
+        {"page": 2, "section": "Related work and background"},
+        {"page": 7, "section": "Comparison with NFGP and NIE"}
+      ]
+    },
+    {
+      "claim": "The repeated claim that the method does not discretize the LSE is materially misleading under the paper's own terminology.",
+      "evidence": "Section 4.2 explicitly says both the PDE and data constraints are discretized and replaces the integral residual by a finite minibatch average at randomly sampled collocation points. The genuine distinction is no finite-difference derivative, explicit time step, or supervised intermediate solution; stochastic collocation is still a discretization of the continuous objective.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Introduction, no-discretization claim"},
+        {"page": 3, "section": "Section 4.2, sampled approximation of Equation 6"},
+        {"page": 4, "section": "Initial-condition sampling"},
+        {"page": 9, "section": "Conclusion"}
+      ]
+    },
+    {
+      "claim": "The formal loss is underspecified on an unbounded domain and the released implementation optimizes a different objective.",
+      "evidence": "Equation 6 writes absolute-residual integrals over all of R3 times the time interval and all of R3 at endpoint times, with no finite spatial domain or sampling measure. Experiments actually sample the cube [-1,1]^3. At official repository HEAD 0d5ec9e, nise/loss.py squares the mean-curvature, vector-field, SDF, and morphing residuals and applies fixed weights rather than the displayed L1 integral, so the mathematical and implemented objectives are not identical.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Section 4.1, Equation 6"},
+        {"page": 4, "section": "Section 4.2, sampling"},
+        {"page": 5, "section": "Equations 7-10"}
+      ]
+    },
+    {
+      "claim": "Topology change and regular implicit-surface geometry meet at an unaddressed singularity in the method's own assumptions.",
+      "evidence": "The background requires a nonzero spatial gradient on the zero set for a regular surface, while Section 3.2 allows singular surfaces and topology changes. A smooth family's zero-set topology can change only by passing through a critical value where the spatial gradient vanishes. At exactly those events, normals and curvature used by the loss cease to be regular; no weak or viscosity-solution formulation, convergence argument, or singular-event treatment is provided.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Section 3.1, regular-level-set condition"},
+        {"page": 3, "section": "Section 3.2, singularities and topology change"},
+        {"page": 6, "section": "Dumbbell pinch-off, Figure 4"}
+      ]
+    },
+    {
+      "claim": "The mean-curvature residual is numerically undefined wherever the spatial gradient is zero, and neither the paper nor the current code supplies a safeguard.",
+      "evidence": "Mean curvature is computed as divergence of grad f divided by its norm. The SIREN is smooth but is not constrained to keep that norm away from zero through space-time; Eikonal fitting is limited to supplied endpoint data and can be omitted for pretrained endpoint networks. In nise/loss.py:123-128 and nise/diff_operators.py:32-38, division is performed without an epsilon, mask, or regularized norm, so critical points can produce infinities or NaNs.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Data constraints and network smoothness"},
+        {"page": 5, "section": "Section 5.2, Equation 8"},
+        {"page": 6, "section": "Mean-curvature examples and topology change"}
+      ]
+    },
+    {
+      "claim": "Negative-time 'sharpening' is presented visually even though backward mean-curvature flow is generally ill-posed.",
+      "evidence": "Positive-time mean-curvature flow is parabolic and smoothing; reversing it amplifies high frequencies and generally lacks a stable, unique solution for arbitrary data. The supplement itself says negative intervals require higher frequencies 'if a solution exists at all.' The Armadillo and additional-model renderings therefore demonstrate an optimization-induced sharpening continuation, not a validated stable solver for backward mean-curvature flow.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Section 5.2, forward smoothing and backward sharpening"},
+        {"page": 6, "section": "Figure 6, Armadillo sharpening"},
+        {"page": 13, "section": "Supplement Section 4.1, negative intervals"},
+        {"page": 16, "section": "Supplement Figure 10"}
+      ]
+    },
+    {
+      "claim": "The interpolation formulation combines a first-order evolution law with two endpoint constraints without establishing that they are mutually consistent.",
+      "evidence": "Equation 10 drives f toward g2 while also writing f=g_i at specified times. An initial value already determines a classical first-order time evolution; a separately imposed terminal SDF will generally be incompatible unless the flow reaches it exactly. The implementation resolves this only as a soft compromise and further changes the displayed PDE by multiplying g2-f by exp(-f squared), prioritizing the zero set. No existence, uniqueness, endpoint-error, or path-optimality result is given.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Section 5.3, Equations 9-10"},
+        {"page": 8, "section": "Section 6.3, Figures 11-12"},
+        {"page": 16, "section": "Supplement Section 4.6 and Figure 11"}
+      ]
+    },
+    {
+      "claim": "'Without any supervision' should be read only as no intermediate-time solution labels.",
+      "evidence": "The data term supervises endpoint SDF values, on-surface zero values, off-surface values, normal alignment, and sometimes Eikonal behavior; most experiments consume pretrained neural SDFs and oriented point clouds. Interpolation supervises both endpoint functions. The method is data-light in time, not unsupervised in geometry.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Section 4.2, initial-condition constraints"},
+        {"page": 4, "section": "Neural and point-cloud initial conditions"},
+        {"page": 9, "section": "Conclusion, no-supervision wording"}
+      ]
+    },
+    {
+      "claim": "Tables 1 and 2 measure sampled residual consistency, not error of the evolved surface.",
+      "evidence": "Each table uses only 1,000 held-out points to report mean and maximum endpoint-value error and absolute PDE residual. There is no Hausdorff or Chamfer distance, normal or curvature error, enclosed-volume or area trajectory, topology timing, solution-field error, or certificate over the continuous domain. A low sampled residual can coexist with an incorrect solution between points or near a singular moving interface.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "Table 1"},
+        {"page": 7, "section": "Numerical evaluation and Table 2"}
+      ]
+    },
+    {
+      "claim": "The vector-field experiments miss readily available exact trajectory tests.",
+      "evidence": "The Armadillo twist is generated by a prescribed analytic vector field, and characteristics can be integrated to produce reference point trajectories or a high-accuracy numerical oracle. Instead, Figure 1 is visual and Table 1 reports residual only. The source-sink example similarly lacks correspondence or surface-distance validation, so 'well approximated' is inferred from renderings and collocation loss.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "Section 6.1, Figures 1-2 and Table 1"}
+      ]
+    },
+    {
+      "claim": "The mean-curvature validation avoids analytic cases that could distinguish a plausible rendering from a correct flow.",
+      "evidence": "The authors say no ground-truth analytical solutions are available for the cube, dumbbell, and Armadillo cases. A shrinking sphere has an analytic mean-curvature trajectory and would test scale, extinction time, surface error, and convergence; manufactured solutions or a refined numerical oracle are also possible. None is used, so the cube-rounding and pinch-off figures remain qualitative demonstrations.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "Section 6.2.1, Figures 3-4"},
+        {"page": 7, "section": "Numerical evaluation and Table 2"}
+      ]
+    },
+    {
+      "claim": "Comparisons with NFGP, NIE, and mesh fairing do not support a controlled accuracy or efficiency ranking.",
+      "evidence": "Figures 7-10 compare different time parameters, empirically chosen NFGP beta values, NIE step counts, representations, and implementations without matching output error, compute, memory, hardware, or convergence tolerance. The paper itself says a numerical comparison is not feasible. Claims about artifacts, fingers, and topology are based on selected renderings rather than a shared benchmark.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 7, "section": "Comparisons, Figures 7-8"},
+        {"page": 8, "section": "Mesh comparison, Figures 9-10"}
+      ]
+    },
+    {
+      "claim": "The reported time and compactness advantages omit essential accounting.",
+      "evidence": "The paper reports 10.1 minutes to train one Armadillo interval, 24.1 minutes for 100 mesh-fairing steps, and 112 minutes for 100 NIE steps, but gives no hardware, implementation parity, target error, network parameter/storage total, extraction cost, or pretraining cost. Training lasts 2,800 to 48,000 epochs with large batches. 'Instant evaluation' describes post-training querying and does not establish a superior end-to-end frontier.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "Vector-field training budgets"},
+        {"page": 6, "section": "Mean-curvature training budgets"},
+        {"page": 8, "section": "Timing comparison"},
+        {"page": 15, "section": "Supplement Table 1"}
+      ]
+    },
+    {
+      "claim": "The Lipschitz-MLP interpolation comparison changes architecture, activation, training duration, and objective simultaneously.",
+      "evidence": "For Bob-to-Spot, the proposed network has one 128-unit hidden layer while the baseline has five 256-unit layers; for Witch-to-Falcon the paper compares two 128-unit SIREN layers and 20,000 epochs against five 512-unit tanh layers and 100,000 epochs. No matched parameter, compute, endpoint error, correspondence, distortion, collision, volume, or user-preference metric is reported.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 8, "section": "Section 6.3, Figure 11"},
+        {"page": 9, "section": "Figure 12 and interpolation discussion"}
+      ]
+    },
+    {
+      "claim": "The initialization proposition is exact only for equal-depth, no-narrower target networks and its empirical speed claim excludes pretraining and repeated-run uncertainty.",
+      "evidence": "Proposition 2.1 embeds a pretrained spatial SIREN blockwise when depths match and every new layer is at least as wide. The supplement admits that an extra sine layer cannot be an exact identity and proposes a small-scale approximation. Figures 13-14 and supplement loss plots show selected single-run convergence curves, not wall-clock time to matched surface error, seed variance, final quality, or the cost of first fitting g_phi.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "Section 4.4, initialization"},
+        {"page": 9, "section": "Section 6.4, Figures 13-14"},
+        {"page": 12, "section": "Supplement Proposition 2.1 and proof"},
+        {"page": 13, "section": "Supplement Proposition 3.1 and ablation setup"}
+      ]
+    },
+    {
+      "claim": "The supplementary ablations diagnose optimizer loss curves but do not validate surface-evolution accuracy.",
+      "evidence": "Figures 1-9 vary time interval, curvature scale, point proportions, and width for 500 steps, almost entirely plotting data and PDE constraints for one Bunny setup and two initializations. The authors note that changing point proportions changes the constraints themselves, making absolute curves non-comparable. There are no repeats, error bars, reference trajectories, final geometric metrics, or compute-normalized sweeps.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 13, "section": "Supplement Sections 4-4.1, Figures 1-2"},
+        {"page": 14, "section": "Supplement Sections 4.2-4.3, Figures 3-6"},
+        {"page": 15, "section": "Supplement Sections 4.3-4.5, Figures 7-9 and Table 1"}
+      ]
+    },
+    {
+      "claim": "The current official interpolation code does not implement the displayed Equation 10 verbatim.",
+      "evidence": "At commit 0d5ec9e, nise/loss.py:268-286 multiplies the target difference by exp(-f squared), fixes a scale, and squares the residual; lines 341-347 select that modified path while a different vector-field path is commented out. Lines 354-382 impose both endpoint SDF and normal penalties with fixed weights. These choices may be useful, but they are unreported algorithmic changes and prevent equation-level reproduction.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Section 5.3, Equation 10"},
+        {"page": 8, "section": "Section 6.3"}
+      ]
+    },
+    {
+      "claim": "The official artifact is not an executable reproduction package for the paper or supplement in its current state.",
+      "evidence": "The current example configs differ sharply from the paper's architectures, scales, intervals, and epoch counts. The vector-field script expects centers and spreads that its twist YAML does not provide; morph-train.py checks the time-sampler key in the mesh dictionary and silently retains the wrong interval; the train scripts ignore the selected device when constructing a CUDA-default dataset; main.py and every supplement ablation script import a nonexistent i4d package; Makefile targets reference a missing tools/reconstruct.py and an undefined default target. The repository provides no license, CI, locked environment, raw tables, paper checkpoints, or automated reproduction tests.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Section 6.1 experiment configurations"},
+        {"page": 6, "section": "Section 6.2 experiment configurations"},
+        {"page": 13, "section": "Supplement ablation protocol"},
+        {"page": 15, "section": "Supplement Table 1"}
+      ]
+    },
+    {
+      "claim": "The official project videos expand the qualitative gallery but add no numerical validation.",
+      "evidence": "Nine current 720p project assets show reversible-looking render sequences for torus/Bob and Spot transformations, Bunny curvature, Dumbbell pinch-off, Falcon/Witch and Spot/Bob interpolation, a source-sink field, and a teaser. Frame-by-frame sampling confirms smooth-looking transitions and the advertised topology changes, but the videos contain no ground truth, residual map, error plot, scale, uncertainty, or quantitative reversibility test.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "Figures 1-2 and video pointer"},
+        {"page": 6, "section": "Figures 3-6"},
+        {"page": 16, "section": "Supplement Figures 10-11"}
+      ]
+    },
+    {
+      "claim": "Later primary work makes the paper's missing validation controls especially consequential.",
+      "evidence": "Successors add explicit velocity fields, Eikonal preservation, volume constraints, particle or sparse-grid tracking, robust topology-changing benchmarks, continuous error certification, and collocation-overfitting diagnostics. In particular, 2024 error-certification work rejects finite point tests as deployment evidence, and 2026 PINN analysis shows low collocation loss can hide between-point residual overfitting. These do not retroactively falsify the visual results, but they define tests the original evidence does not pass.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "Table 1"},
+        {"page": 7, "section": "Table 2 and comparison methodology"},
+        {"page": 9, "section": "Conclusions"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Represent an entire evolving implicit surface as the zero sets of one smooth four-input sinusoidal MLP and train it from endpoint SDF constraints plus automatic-differentiation residuals of a chosen level-set PDE.",
+    "mechanism": "Start from one or more spatial SDF networks or oriented point clouds. Sample on-surface and off-surface endpoint points plus random space-time collocation points. Evaluate a data loss for SDF values, normals, and optionally Eikonal behavior, and a PDE loss for transport, mean-curvature flow, or target-shape interpolation. Optimize one SIREN over the requested time interval. Optionally embed a pretrained spatial SIREN exactly into an equal-depth wider space-time SIREN so the initial condition is satisfied before training. Extract meshes at arbitrary query times with marching cubes or freeze a time coordinate to obtain a spatial network.",
+    "assumptions": [
+      "The supplied neural or sampled initial conditions accurately represent oriented signed-distance functions in a normalized spatial cube.",
+      "A finite SIREN has enough spectral capacity to represent the relevant four-dimensional solution over the whole requested interval.",
+      "Random uniform collocation points adequately cover the moving interface, high-curvature regions, and singular events.",
+      "Minimizing a weighted empirical residual yields the intended classical or weak PDE solution rather than a low-loss spurious function.",
+      "The spatial gradient remains sufficiently far from zero wherever normals and curvature are evaluated.",
+      "Endpoint SDF, normal, and PDE constraints are mutually compatible.",
+      "A smooth classical representation is adequate even when zero sets change topology and the geometric flow develops singularities.",
+      "Backward-time mean-curvature continuation is meaningful enough for the intended sharpening application.",
+      "The fixed spatial box and time interval contain every relevant surface and characteristic.",
+      "Fixed loss weights balance endpoint fidelity and PDE consistency across shapes, scales, and sampling proportions.",
+      "Marching-cubes reconstructions faithfully reveal the learned zero set and do not dominate visual comparison artifacts.",
+      "Qualitative similarity and held-out residuals are adequate proxies for geometric trajectory accuracy."
+    ]
+  },
+  "techniques": [
+    {"id": "space-time-siren", "role": "Encodes the full continuous surface animation in one smooth coordinate network."},
+    {"id": "level-set-residual", "role": "Converts a prescribed velocity or geometric law into an automatic-differentiation PDE penalty."},
+    {"id": "endpoint-sdf-fit", "role": "Constrains the learned field to match one or more supplied signed-distance functions at fixed times."},
+    {"id": "normal-alignment", "role": "Uses oriented surface samples to preserve zero-set orientation near endpoint shapes."},
+    {"id": "eikonal-regularization", "role": "Encourages unit spatial gradient on endpoint data when an SDF must be reconstructed from points."},
+    {"id": "stochastic-collocation", "role": "Approximates continuous residual integrals with random space-time and endpoint minibatches."},
+    {"id": "curvature-autodiff", "role": "Computes mean curvature from first and second network derivatives instead of a mesh Laplacian."},
+    {"id": "blockwise-init", "role": "Embeds a pretrained spatial SIREN inside a wider space-time SIREN with zeroed temporal paths."},
+    {"id": "time-freeze", "role": "Absorbs a selected time coordinate into the first-layer bias to extract an equivalent spatial SIREN."},
+    {"id": "marching-cubes", "role": "Turns zero sets at chosen times into meshes for visualization and downstream geometry."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Page 5, Section 6.1, Table 1: Armadillo twist and Spot source-sink deformation; 1,000 held-out endpoint and space-time points.",
+      "metric": "Mean and maximum absolute on-surface, off-surface, and PDE residual",
+      "result": "Twist reports endpoint means 0.0008 and 0.002 and PDE mean 1e-5; source-sink reports 0.0009, 0.001, and 2.7e-6, respectively. Maximum PDE residuals are 0.0004 and 0.0005.",
+      "baseline": "No trajectory ground truth or competing solver; residual-only internal evaluation"
+    },
+    {
+      "setting": "Pages 6-7, Section 6.2, Figures 3-6 and Table 2: cube, dumbbell, and Armadillo mean-curvature evolution.",
+      "metric": "Qualitative topology and smoothing plus mean/max endpoint and PDE residual on 1,000 held-out points",
+      "result": "Cube rounds, dumbbell pinches into two components, and Armadillo smooths or sharpens visually. Reported PDE means are 0.0015, 0.0009, and 0.0019; no surface-trajectory ground truth is measured.",
+      "baseline": "No analytic sphere or refined numerical reference"
+    },
+    {
+      "setting": "Page 7, Figures 7-8: Armadillo sharpening and smoothing against NFGP and NIE.",
+      "metric": "Selected rendered surfaces",
+      "result": "The paper judges its smoothing comparable to NIE and reports fewer visible ear or finger artifacts than selected NFGP settings.",
+      "baseline": "NFGP at empirically selected beta values and NIE at selected discrete steps, without matched error or compute"
+    },
+    {
+      "setting": "Page 8, Figures 9-10: Armadillo and dumbbell against implicit mesh fairing.",
+      "metric": "Qualitative curvature/topology rendering and reported wall time",
+      "result": "The neural result visually handles contraction and pinch-off while the selected 590k-vertex mesh run shows finger and nonmanifold problems. Reported totals are 10.1 minutes for neural training and 24.1 minutes for 100 mesh steps.",
+      "baseline": "Desbrun implicit fairing, without shared hardware, target accuracy, resolution sweep, or implementation control"
+    },
+    {
+      "setting": "Pages 8-9, Figures 11-12: Bob-Spot and Witch-Falcon interpolation.",
+      "metric": "Qualitative smoothness and endpoint-detail preservation",
+      "result": "The SIREN paths look smoother and preserve more selected endpoint detail in the displayed examples, using much smaller networks and fewer epochs.",
+      "baseline": "Lipschitz MLP with different activation, parameter count, regularizer, and 5x longer training"
+    },
+    {
+      "setting": "Page 9, Figures 13-14: pretrained block initialization versus standard SIREN initialization on Bunny mean-curvature evolution.",
+      "metric": "Rendered details after 500 epochs and weighted data/PDE loss curves through 1,500 epochs",
+      "result": "Block initialization starts at the endpoint solution and reaches lower displayed losses and more detailed early reconstructions.",
+      "baseline": "One standard-initialization run; pretrained endpoint-network cost and seed variance omitted"
+    },
+    {
+      "setting": "Supplement pages 13-15, Figures 1-9: time interval, curvature scale, sampling proportions, and width sweeps.",
+      "metric": "Weighted data and PDE constraint curves for 500 training steps",
+      "result": "Short positive intervals, moderate curvature scale, more space-time samples, greater width, and block initialization generally yield lower displayed losses; scale 0.1 causes data divergence.",
+      "baseline": "Internal hyperparameter variants on one Bunny setup, with no repeated runs or solution-error metric"
+    },
+    {
+      "setting": "Supplement pages 15-16, Table 1 and Figures 10-11: five additional mean-curvature models and three interpolation groups.",
+      "metric": "Reported 500-epoch time and qualitative zero-set sequences",
+      "result": "Times range from 5.04 seconds for Bob to 162.42 seconds for Neptune, and the gallery shows smoothing, sharpening, and interpolation; authors observe better morphing when interiors overlap and features align.",
+      "baseline": "No external solver, hardware disclosure, geometric error, or uncertainty"
+    }
+  ],
+  "limitations": [
+    "Author-acknowledged: no analytical ground truth is available for the selected cube, dumbbell, and Armadillo mean-curvature examples, so their numerical evaluation is residual-only.",
+    "Author-acknowledged: a numerical comparison with NFGP and NIE is described as infeasible; the paper therefore makes qualitative comparisons.",
+    "Author-acknowledged: negative-time intervals take longer to train and the supplement explicitly qualifies the discussion with 'if a solution exists at all.'",
+    "Author-acknowledged: sufficiently large mean-curvature scale can exceed representation capacity and make the data constraint diverge.",
+    "Author-acknowledged: changing point-sampling proportions changes the effective data and PDE constraints, so their displayed loss values are not directly comparable objectives.",
+    "Author-acknowledged: interpolation works better when source and target interiors overlap and semantic features are spatially aligned.",
+    "Reviewer-identified: the no-discretization and no-supervision wording obscures stochastic collocation and dense endpoint SDF/normal supervision.",
+    "Reviewer-identified: no existence, uniqueness, stability, viscosity-solution, or residual-to-surface-error theorem is supplied.",
+    "Reviewer-identified: topology changes require critical points that invalidate the regular-level-set and normalized-gradient assumptions.",
+    "Reviewer-identified: backward mean-curvature flow is ill-posed, so sharpening is not established as a stable PDE solution.",
+    "Reviewer-identified: Equation 6 uses unbounded spatial integrals without a measure while experiments use a finite normalized cube.",
+    "Reviewer-identified: the two-endpoint interpolation boundary conditions can be inconsistent with the first-order evolution law.",
+    "Reviewer-identified: only 1,000 held-out collocation points support quantitative claims; no continuous certificate or evolved-surface error is reported.",
+    "Reviewer-identified: comparisons vary representations, architectures, time parameters, training budgets, and implementations without a matched accuracy target.",
+    "Reviewer-identified: timing and compactness claims omit hardware, storage, pretraining, extraction, and quality-normalized accounting.",
+    "Reviewer-identified: all main and supplementary ablations appear to be single runs without uncertainty or raw result files.",
+    "Reviewer-identified: the official code changes key equations, lacks gradient-norm protection, and has multiple broken or stale reproduction paths.",
+    "Source limitation: this audit is pinned to the exact cached 16-page arXiv v4 PDF dated 2023-08-21; no later revision was substituted."
+  ],
+  "failure_modes": [
+    "Near a zero spatial gradient, normal and curvature normalization can divide by zero and propagate NaNs through second derivatives.",
+    "At topology-changing critical events, the classical smooth-interface PDE assumptions fail even if the network output remains smooth.",
+    "Uniform collocation can miss a thin moving interface, high-curvature neck, or localized residual spike while reporting a low average loss.",
+    "A model can overfit residuals at sampled points and violate the PDE between them.",
+    "Backward mean-curvature optimization can amplify noise or invent high-frequency detail rather than recover a meaningful prior surface.",
+    "Two endpoint constraints can force a compromise that satisfies neither the target flow nor the endpoint SDF accurately.",
+    "Large time intervals or curvature scales can exceed SIREN frequency and width capacity, causing endpoint loss to diverge.",
+    "Fixed loss weights can let the PDE term dominate endpoint fidelity or vice versa as batch composition changes.",
+    "Spectral bias can temporarily favor a smooth but geometrically wrong endpoint, making PDE loss appear easier when endpoint sampling is reduced.",
+    "Marching-cubes resolution can create, delay, or hide thin structures and topology events independently of the learned field.",
+    "A surface can leave the normalized sampling cube, after which the loss no longer constrains its relevant geometry.",
+    "Current artifact scripts can sample the wrong time interval, select the wrong device, or fail before training because configuration keys and imports disagree.",
+    "Blockwise initialization ceases to be exact when the target network is deeper or narrower than the pretrained endpoint network."
+  ],
+  "reusable_insights": [
+    "Describe neural PDE methods as mesh-free or derivative-discretization-free only when collocation itself remains explicit in the terminology.",
+    "Validate a surface PDE first on analytic shrinking spheres, manufactured solutions, and reversible analytic advections before moving to qualitative complex meshes.",
+    "Separate residual generalization, field error, zero-set geometry error, and downstream visual quality; one does not imply the others.",
+    "Sample adaptively near the current zero set, high curvature, residual peaks, and predicted singular times rather than uniformly in four dimensions.",
+    "Regularize or mask normalized derivatives with a documented epsilon and audit behavior at critical points explicitly.",
+    "For topology change, state the weak or viscosity solution notion and test extinction, merger, and pinch-off timing against a trusted solver.",
+    "Treat backward parabolic evolution as an inverse problem with explicit priors, noise tests, and stability analysis, not simply negative time.",
+    "For endpoint interpolation, measure endpoint feasibility, path distortion, correspondence, volume, collision, and sensitivity to spatial alignment.",
+    "A pretrained initialization speedup must include pretraining cost and report time to a shared geometric error across seeds.",
+    "Ship one versioned config and command per reported figure or table, plus raw metrics and a test that the implemented residual matches the paper equation symbolically or numerically.",
+    "Compare continuous and stepwise representations on a shared error-versus-time-versus-memory frontier, including mesh extraction and storage.",
+    "Use continuous-domain residual certificates or adversarial residual search when finite collocation tests support solver-quality claims."
+  ],
+  "open_questions": [
+    "Which assumptions on velocity, initial SDF, sampling density, and network class turn empirical residual into a bound on zero-set Hausdorff error?",
+    "Can a viscosity-solution-compatible neural formulation retain topology-change robustness without requiring a globally nonzero gradient?",
+    "How should curvature be regularized near critical points without biasing pinch-off or extinction time?",
+    "Can residual-adaptive and interface-following collocation reduce four-dimensional sample complexity and prevent between-point overfitting?",
+    "What certificate can bound PDE residual and endpoint error over the entire continuous domain of a sinusoidal network?",
+    "When is the two-endpoint interpolation PDE feasible, and can inconsistency be detected before training?",
+    "Can interpolation velocity be made bijective, volume preserving, collision aware, and correspondence producing while still allowing controlled topology change?",
+    "What explicit prior makes backward mean-curvature sharpening well-posed and robust to input noise?",
+    "How do SIREN frequency, width, time-span, curvature scale, and singular-event complexity jointly determine approximation error?",
+    "Does enforcing a space-time Eikonal or reinitialization constraint improve stability without changing the intended geometric flow?",
+    "At matched surface error and hardware, when does one space-time network beat a sequence of networks, a sparse grid, or a particle-level-set hybrid in time, memory, and extraction cost?",
+    "How sensitive are results to endpoint SDF quality, point-cloud orientation errors, normalization box, and marching-cubes resolution?",
+    "Can analytical characteristics supervise or certify the vector-field cases without introducing a full numerical trajectory dataset?",
+    "Do the visual preferences over Lipschitz MLP persist under matched parameters, FLOPs, endpoints, and blinded user evaluation?",
+    "After repairing the official artifact, do exact paper configurations reproduce Tables 1-2 and every supplement ablation across multiple seeds?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1711.10561",
+      "title": "Physics Informed Deep Learning (Part I): Data-driven Solutions of Nonlinear Partial Differential Equations",
+      "url": "https://arxiv.org/abs/1711.10561",
+      "relationship": "foundational neural-PDE predecessor",
+      "difference": "Raissi, Perdikaris, and Karniadakis already train continuous coordinate networks with automatic derivatives and PDE residuals. NISE specializes that paradigm to implicit-surface level sets and SIRENs, so residual-only intermediate-time learning is inherited rather than new in general.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:1901.05103",
+      "title": "DeepSDF: Learning Continuous Signed Distance Functions for Shape Representation",
+      "url": "https://arxiv.org/abs/1901.05103",
+      "relationship": "neural-SDF predecessor",
+      "difference": "DeepSDF establishes continuous learned signed-distance fields and latent interpolation for shape classes. NISE adds time as an explicit coordinate and a geometric PDE, but depends on the same endpoint SDF representation and should distinguish PDE-path quality from latent interpolation quality.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "cvf:ICCV2019:Michalkiewicz",
+      "title": "Implicit Surface Representations As Layers in Neural Networks",
+      "url": "https://openaccess.thecvf.com/content_ICCV_2019/html/Michalkiewicz_Implicit_Surface_Representations_As_Layers_in_Neural_Networks_ICCV_2019_paper.html",
+      "relationship": "neural-level-set predecessor",
+      "difference": "Michalkiewicz et al. integrate oriented continuous and discretized level-set surfaces as differentiable network layers for shape inference. NISE uses a coordinate MLP as the level-set function and focuses on temporal PDE evolution rather than an inference-layer architecture.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICCV 2019 CVF accepted paper"
+    },
+    {
+      "canonical_id": "cvf:ICCV2019:Niemeyer",
+      "title": "Occupancy Flow: 4D Reconstruction by Learning Particle Dynamics",
+      "url": "https://openaccess.thecvf.com/content_ICCV_2019/html/Niemeyer_Occupancy_Flow_4D_Reconstruction_by_Learning_Particle_Dynamics_ICCV_2019_paper.html",
+      "relationship": "continuous-4D implicit predecessor",
+      "difference": "Occupancy Flow combines a continuous occupancy representation with a learned space-time velocity field and neural ODE integration, producing correspondences and quantitative 4D reconstruction tests. NISE instead learns the whole scalar space-time field from a known PDE and endpoint geometry, enabling topology change but not material correspondences.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICCV 2019 CVF accepted paper"
+    },
+    {
+      "canonical_id": "neurips:2019:b20bb95ab626d93fd976af958fbc61ba",
+      "title": "Controlling Neural Level Sets",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2019/hash/b20bb95ab626d93fd976af958fbc61ba-Abstract.html",
+      "relationship": "direct neural-level-set control predecessor",
+      "difference": "Atzmon et al. differentiate sampled level-set positions with respect to network parameters and directly optimize curve or surface geometry. NISE controls zero sets indirectly through a space-time PDE residual; direct sample control is an important alternative for imposing geometric objectives and evaluating surface displacement.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2019 proceedings version"
+    },
+    {
+      "canonical_id": "arxiv:2001.04536",
+      "title": "Understanding and mitigating gradient pathologies in physics-informed neural networks",
+      "url": "https://arxiv.org/abs/2001.04536",
+      "relationship": "PINN optimization diagnostic predecessor",
+      "difference": "Wang, Teng, and Perdikaris show that stiffness and unbalanced gradients across composite PINN losses can produce severe failures and propose adaptive balancing. NISE uses manually fixed endpoint, normal, and PDE weights even though its supplement observes PDE dominance and data-loss divergence at high curvature scale.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2002.10099",
+      "title": "Implicit Geometric Regularization for Learning Shapes",
+      "url": "https://arxiv.org/abs/2002.10099",
+      "relationship": "endpoint-reconstruction predecessor",
+      "difference": "IGR reconstructs high-fidelity neural level sets directly from point clouds using zero-set and unit-gradient constraints. NISE reuses this endpoint geometry recipe and adds temporal dynamics, but its flow accuracy remains conditional on endpoint SDF and normal quality.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2006.09661",
+      "title": "Implicit Neural Representations with Periodic Activation Functions",
+      "url": "https://arxiv.org/abs/2006.09661",
+      "relationship": "architecture predecessor",
+      "difference": "SIREN supplies the periodic activation, initialization, and stable higher derivatives central to NISE. NISE's architectural contribution is the blockwise embedding of a pretrained spatial SIREN into a space-time SIREN, not a new coordinate-network family.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "neurips:2021:bd686fd640be98efaae0091fa301e613",
+      "title": "Geometry Processing with Neural Fields",
+      "url": "https://proceedings.neurips.cc/paper/2021/hash/bd686fd640be98efaae0091fa301e613-Abstract.html",
+      "relationship": "direct geometry-processing predecessor",
+      "difference": "NFGP optimizes neural-field differential quantities for filtering and deformation but learns a separate field for each chosen operation strength. NISE trades that per-state optimization for one continuous time-conditioned field; the focal qualitative comparison does not establish which has the better accuracy-compute frontier.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2021 proceedings version"
+    },
+    {
+      "canonical_id": "arxiv:2112.04645",
+      "title": "BACON: Band-limited Coordinate Networks for Multiscale Scene Representation",
+      "url": "https://arxiv.org/abs/2112.04645",
+      "relationship": "multiscale coordinate-network predecessor",
+      "difference": "BACON gives coordinate networks an analytically bounded Fourier spectrum and intermediate multiscale outputs, addressing unsupervised-point behavior and scale. NISE uses unconstrained SIREN spectra and only suggests multiresolution networks as future work, despite sharpening and curvature being frequency sensitive.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2201.09263",
+      "title": "Exploring Differential Geometry in Neural Implicits",
+      "url": "https://arxiv.org/abs/2201.09263",
+      "relationship": "same-team technical predecessor",
+      "difference": "This companion line supplies high-order neural curvature estimation, point-cloud SDF fitting, and curvature-aware sampling. NISE reuses analytical differential geometry but samples the four-dimensional PDE domain uniformly rather than carrying its predecessor's geometry-aware sampling into the evolving interface.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2202.08345",
+      "title": "Learning Smooth Neural Functions via Lipschitz Regularization",
+      "url": "https://arxiv.org/abs/2202.08345",
+      "relationship": "concurrent interpolation competitor",
+      "difference": "Lipschitz MLP explicitly controls an upper bound on latent-to-field smoothness and reports quantitative interpolation, extrapolation, and reconstruction gains. NISE uses a PDE to define the path but compares against much larger tanh Lipschitz networks under unmatched training and no geometric path metric.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2203.07404",
+      "title": "Respecting causality is all you need for training physics-informed neural networks",
+      "url": "https://arxiv.org/abs/2203.07404",
+      "relationship": "time-dependent PINN training competitor",
+      "difference": "Wang, Sankaran, and Perdikaris show that global space-time residual training can converge to erroneous solutions when it ignores temporal causality, and introduce causal weighting plus a convergence diagnostic. NISE samples its whole time interval uniformly and does not test causal curricula, making this a direct training-control baseline.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2204.07159",
+      "title": "A Level Set Theory for Neural Implicit Evolution under Explicit Flows",
+      "url": "https://arxiv.org/abs/2204.07159",
+      "relationship": "closest concurrent neural-evolution method",
+      "difference": "NIE explicitly derives level-set updates for neural implicit geometry, points out drift in earlier neural processing methods, and advances a spatial network through discrete steps using surface differential operators. NISE encodes the interval in one PINN-like field; the tradeoff is continuous querying versus classical time integration and per-step correction.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23; ECCV 2022 paper"
+    },
+    {
+      "canonical_id": "arxiv:2204.06552",
+      "title": "Neural Vector Fields for Implicit Surface Representation and Inference",
+      "url": "https://arxiv.org/abs/2204.06552",
+      "relationship": "alternative implicit-field representation",
+      "difference": "Neural Vector Fields encode a unit vector to the closest surface and recover density through flux, representing open, closed, and multilayer shapes while directly carrying normal information. NISE relies on a scalar SDF and normalized derivatives, so this alternative highlights its closed-orientable and vanishing-gradient sensitivities.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2210.00124",
+      "title": "Implicit Neural Spatial Representations for Time-dependent PDEs",
+      "url": "https://arxiv.org/abs/2210.00124",
+      "relationship": "neural-PDE solver successor",
+      "difference": "INSR evolves network weights with established explicit or implicit time integrators, using a neural field as spatial discretization and validating against PDE solutions for elasticity and fluids. It retains time discretization but offers solver-grade accuracy and adaptivity comparisons that NISE's one-shot space-time training lacks.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv v2 record checked 2026-08-23; ICML 2023 paper"
+    },
+    {
+      "canonical_id": "arxiv:2305.10157",
+      "title": "Efficient Error Certification for Physics-Informed Neural Networks",
+      "url": "https://arxiv.org/abs/2305.10157",
+      "relationship": "continuous-domain validation successor",
+      "difference": "Eiras et al. argue that finite point tests are insufficient and use derivative-aware neural verification to bound worst-case PINN residual across the full space-time domain. NISE reports only 1,000-point mean and maximum residuals, making certification or adversarial residual search a direct upgrade path.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv v2 record checked 2026-08-23; ICML 2024 paper"
+    },
+    {
+      "canonical_id": "arxiv:2411.15018",
+      "title": "Neural 4D Evolution under Large Topological Changes from 2D Images",
+      "url": "https://arxiv.org/abs/2411.15018",
+      "relationship": "topology-changing 4D successor",
+      "difference": "N4DE extends neural surface evolution to image-supervised colored 4D scenes, adding a discretized deformation architecture and temporal consistency for large topology changes. It broadens the task beyond known endpoint SDFs, while its added discretization underscores that one smooth global field was insufficient in harder regimes.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2501.14038",
+      "title": "Implicit Neural Surface Deformation with Explicit Velocity Fields",
+      "url": "https://arxiv.org/abs/2501.14038",
+      "relationship": "explicit-velocity neural successor",
+      "difference": "INSD jointly learns a time-varying implicit surface and explicit motion between endpoint point clouds, adds Eikonal preservation and smooth volume-preserving velocity constraints, and reports quantitative deformation quality and efficiency. It directly addresses NISE's missing correspondences, SDF drift, and path-physics controls.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2502.20208",
+      "title": "4Deform: Neural Surface Deformation for Robust Shape Interpolation",
+      "url": "https://arxiv.org/abs/2502.20208",
+      "relationship": "robust interpolation successor",
+      "difference": "4Deform combines a modified level-set equation with a learned continuous velocity field and physical/geometric regularizers, evaluating noisy, partial, non-isometric, and topology-changing point-cloud interpolation. This is the modern direct benchmark for NISE's two clean, aligned qualitative interpolation pairs.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23; CVPR 2025 paper"
+    },
+    {
+      "canonical_id": "acm:10.1145/3730399",
+      "title": "A Neural Particle Level Set Method for Dynamic Interface Tracking",
+      "url": "https://dl.acm.org/doi/10.1145/3730399",
+      "relationship": "dynamic-interface tracking successor",
+      "difference": "Neural PLS hybridizes oriented particles, a multiresolution hash network, and a sparse grid, then validates volume loss on standard advection and fluid benchmarks. It sacrifices a single global network for adaptive interface sampling, tracking accuracy, and robust high-distortion topology changes that NISE does not measure.",
+      "source_kind": "publisher",
+      "checked_at": "2026-08-23",
+      "source_version": "ACM Transactions on Graphics 44(3), 2025 version of record"
+    },
+    {
+      "canonical_id": "arxiv:2605.30910",
+      "title": "PINNs Failure Modes are Overfitting",
+      "url": "https://arxiv.org/abs/2605.30910",
+      "relationship": "current residual-validation diagnostic",
+      "difference": "Andersen and Matsubara show on canonical PDE failures that low collocation loss can reflect residual overfitting between points and that regularization removes the failure. This directly challenges interpreting NISE's 1,000-point residual tables as solution validation and motivates residual visualization plus held-out adaptive searches.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 dated 2026-05-29"
+    },
+    {
+      "canonical_id": "acm:10.1145/3811331",
+      "title": "Explicit Flows for Implicit Surfaces",
+      "url": "https://dl.acm.org/doi/10.1145/3811331",
+      "relationship": "current explicit-flow successor",
+      "difference": "Buonomo, Digne, and Chaine parameterize an invertible neural flow so deformations can be evaluated explicitly at arbitrary positions and times, with differential regularization and flow composition. The invertibility guarantee trades away unconstrained topology change but provides correspondences and valid-flow structure missing from NISE interpolation.",
+      "source_kind": "publisher",
+      "checked_at": "2026-08-23",
+      "source_version": "ACM Transactions on Graphics 45(4), 2026 version of record"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims the first neural geometry-processing approach that learns a continuous interval of level-set evolution in one network without intermediate solution samples or loss discretization, plus vector-field, curvature, interpolation, and pretrained-initialization mechanisms.",
+    "evidence": "A single smooth space-time SIREN is a clean and reusable representation, and the blockwise pretrained initialization is exact under clear equal-depth and width conditions. The method produces an unusually broad qualitative gallery from three compact PDE templates, evaluates at arbitrary times after training, supports zero-set topology changes, and avoids an explicit finite-difference time loop.",
+    "reviewer_inference": "The strongest novelty is engineering synthesis: SIREN plus endpoint SDF fitting plus PINN-style level-set residuals plus an exact block embedding. The broader rhetoric is not sustained. Physics-informed collocation, neural level sets, continuous 4D fields, automatic differential geometry, and neural-field processing all predate it; its own text calls the sampled constraints discretized. More importantly, it supplies neither the weak-solution theory nor analytic and geometric validation needed to claim a reliable PDE solver through topology changes or backward curvature flow. Current successors add explicit velocity, Eikonal and volume preservation, particles or sparse grids, robust deformation benchmarks, and continuous residual diagnostics. A corrected artifact and a benchmark on analytic advection, shrinking spheres, singular-event timing, continuous residual certificates, matched baselines, and noise-stable sharpening could still make the one-network representation a useful amortized geometry primitive."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Read all 16 pages of the exact cached arXiv v4 PDF: 11 main-paper pages and 5 supplementary pages. Audited every recoverable displayed item, including main Equations 1-10, Figures 1-14, Tables 1-2, all captions and references; supplement mean-curvature area identities, Propositions 2.1 and 3.1 and their complete constructions/proofs, Figures 1-11, Table 1, every ablation caption, and supplementary references. Rendered all 16 canonical pages at 1530x1980 and inspected every page at original resolution. Every figure, table, equation, and proof pixel was available; there are no unavailable PDF visual pixels to disclose. The source hashes were independently recomputed and match pdf_sha256 bf12884f08dc48e8275e233597467dc21197d575be009f8079e356023ad91156 and text_sha256 7334282b666eea889e9ab150eb27e12b9a7aaa5ef2828b90314bc67253d7ee4d. The pinned source is arXiv v4 dated 2023-08-21 and corresponds to the ICCV 2023 paper; no other revision replaced it. Statically audited the official project and GitHub repository at public HEAD 0d5ec9eea46116f9660c0b5ff1584667011a4f75, committed 2025-11-30, including the complete recursive tree, README, Makefile, environment files, package modules, all three current training scripts, reconstruction path, every experiment YAML, and all four supplement-ablation scripts. No research code, dependencies, model files, or untrusted checkpoints were executed. Concrete code discrepancies include unregularized gradient normalization in nise/loss.py:123-128 and nise/diff_operators.py:32-38; squared and fixed-weight residuals rather than Equation 6's absolute integrals in nise/loss.py:118-174 and 206-255; an unreported exp(-f squared) interpolation multiplier and alternate residual in nise/loss.py:268-347; two endpoint penalties in lines 354-382; CUDA-default dataset construction ignored by the scripts' device fallback at nise/dataset.py:329-360 and the training call sites; a wrong time-sampler dictionary check in morph-train.py:151-157; incompatible vector-field YAML and script expectations; stale nonexistent i4d imports in main.py and all ablation scripts; and missing/undefined Makefile reconstruction and default targets. Current configs do not reproduce the paper's reported epochs, widths, scales, or intervals. The repository has environment and requirements manifests but no lock, license, CI, raw tables, published paper checkpoints, or automated test suite; tools/test_measures.py is a hard-coded manual analysis script with unavailable local paths. Pretrained fields and meshes are external Google Drive downloads. The current commit postdates publication, so these defects establish the state of the current official artifact, not necessarily the authors' private historical training tree. Downloaded all nine current 720p official project videos (eight 5-second, 150/151-frame clips and one 9.9-second, 297-frame teaser), verified their streams, and visually inspected one-second contact sheets spanning every clip; they add qualitative transformations but no quantitative evidence. Researched 23 direct primary arXiv, CVF, NeurIPS, and ACM predecessors, competitors, validation papers, and successors through 2026-08-23. The two ACM publisher pages return access-control 403 to automated fetches; titles, DOIs, venue metadata, and substantive comparisons were cross-checked against official/public author artifacts and version-of-record metadata rather than treating the 403 as missing identity. No shared atlas projection, generated index, package installation, or public rebuild was run."
+}

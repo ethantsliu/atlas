@@ -1,0 +1,184 @@
+{
+  "stable_id": "arxiv:2510.12402",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2510.12402",
+    "pdf_sha256": "64375b8e0102a7651b241da3367b014d6338501844272f924844b60953a4479b",
+    "text_sha256": "74ad98c6ded73665030083eb0dd1256880d1da497d2d46021e43300018b3392f",
+    "page_count": 39,
+    "extracted_at": "2026-08-23T14:40:41.442119+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can sign-selective weight decay retain the optimization and generalization benefits of decoupled decay while converging to stationary points of the unmodified loss rather than to optimizer-specific regularized or constrained solutions?",
+  "key_findings": [
+    {
+      "claim": "Cautious Weight Decay (CWD) masks the decay term coordinatewise, applying it only where the optimizer update and current parameter have matching signs.",
+      "evidence": "The update is x_(t+1)=x_t-eta_t[u_t+lambda I(u_t x_t >= 0)x_t]. It adds no hyperparameter beyond the baseline decay coefficient and can be inserted into AdamW, Lion, Muon, or other gradient-based optimizers. The mask differs from the earlier cautious-optimizer mask: CWD conditions the secondary decay term on update/parameter alignment instead of suppressing a primary update based on update/gradient alignment.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 1, "section": "Algorithm 1"},
+        {"page": 4, "section": "3 Cautious Weight Decay"},
+        {"page": 13, "section": "5 Related Work — Masked or conditional updates"}
+      ]
+    },
+    {
+      "claim": "The continuous-time analysis certifies approach to the original objective's stationary set under assumptions inherited from the base dynamics, but it is not an unconditional convergence result for stochastic deep-network training.",
+      "evidence": "For SGD+CWD the paper uses f(x) itself as a Lyapunov function and LaSalle's invariance principle; Table 1 supplies optimizer-specific Lyapunov functions for SGDM, Lion-K, and Adam. The resulting limit-set statement requires lower boundedness, differentiability, bounded trajectories and the stated continuous-time or discrete-time regularity assumptions. The practical models are stochastic and finite-time, so the theory does not prove that the reported language or vision runs reach those asymptotic sets.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "3.1 Convergence to the stationary manifold"},
+        {"page": 6, "section": "Table 1"},
+        {"page": 7, "section": "3.3 Discrete-time analysis"},
+        {"page": 25, "section": "D Continuous-time convergence analysis"}
+      ]
+    },
+    {
+      "claim": "CWD's proposed implicit bias is a local Pareto preference for smaller coordinate magnitudes along a stationary manifold, expressed through Filippov sliding dynamics.",
+      "evidence": "Once gradient and momentum vanish, the discontinuous dynamics permit x-dot=-lambda s*x with s in [0,1]^d subject to remaining on the stationary manifold. The paper defines a local Pareto front where no nearby stationary point is coordinatewise no larger in magnitude. The realized selector and endpoint can be non-unique and depend on initialization and discretization, so this is a characterization of admissible local behavior rather than a unique minimum-norm selection rule.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "3.2 Sliding mode dynamics"},
+        {"page": 6, "section": "Equation 2"},
+        {"page": 7, "section": "Local Pareto front and Figure 3"}
+      ]
+    },
+    {
+      "claim": "Matched pretraining experiments report small but consistent loss and downstream gains across three optimizers and model scales, with stronger controlled evidence from the mask ablation than from final loss alone.",
+      "evidence": "Gemma-like 338M, 986M, and 2B models are trained on C4 at 20 tokens per parameter after tuning each baseline and reusing its settings for CWD. On OLMo-1B at 100B tokens, AdamW+CWD lowers validation loss from 2.65 to 2.56 and Muon+CWD from 2.51 to 2.42. Random masks with matched activation rate yield 2.82 and 2.73, gradient-alignment masks 2.75 and 2.74, and no decay 2.70 and 2.62, supporting an alignment-specific effect rather than merely less decay.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "4 Experiments and Figure 4"},
+        {"page": 9, "section": "Table 2 and masking ablations"},
+        {"page": 10, "section": "Table 4 and training dynamics"}
+      ]
+    },
+    {
+      "claim": "The empirical scope is broad but does not isolate all costs or establish out-of-distribution optimizer robustness.",
+      "evidence": "ImageNet gains range from 0.34 to 0.56 percentage points across the nine model/optimizer cells in Table 3, and most fine-tuning gains in Table 5 are fractions of a point. CWD reuses coefficients selected for baseline decay rather than comparing separately optimized CWD coefficients in every main run; the paper reports approximately 20,000 H100 hours overall but not confidence intervals across independent pretraining seeds, wall-clock overhead, or adversarial distribution-shift tests for the pretraining results.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "Contributions"},
+        {"page": 8, "section": "4 Experiments"},
+        {"page": 9, "section": "Table 3"},
+        {"page": 11, "section": "Table 5 and scaling with model size"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Treat weight decay as a secondary objective that is allowed to act only when it does not oppose the optimizer's current coordinatewise update.",
+    "mechanism": "Multiply the usual decoupled decay vector lambda*x by I(u*x>=0); analyze the resulting discontinuous dynamics with optimizer-specific Lyapunov functions and Filippov solutions, then test the same one-line mask in language-model pretraining, instruction fine-tuning, and ImageNet training.",
+    "assumptions": [
+      "The base objective and optimizer satisfy the differentiability, lower-boundedness, bounded-trajectory, and step-size conditions used by the Lyapunov and discrete-time analyses.",
+      "The optimizer update is a meaningful local indicator of when decay helps rather than conflicts with descent.",
+      "Continuous-time sliding-mode behavior is informative about finite-step, stochastic training.",
+      "Reusing a baseline-tuned decay coefficient is an adequate matched comparison for deployment claims."
+    ]
+  },
+  "techniques": [
+    {"id": "coordinatewise-decay-mask", "role": "Gates lambda*x with the sign of u*x."},
+    {"id": "lyapunov-lasalle-analysis", "role": "Shows approach to the unmodified objective's stationary set for idealized optimizer dynamics."},
+    {"id": "filippov-sliding-mode", "role": "Describes motion along discontinuous switching surfaces and the stationary manifold."},
+    {"id": "matched-hyperparameter-ablation", "role": "Compares CWD with tuned standard decay, random masks, gradient masks, and no decay."}
+  ],
+  "evaluations": [
+    {
+      "setting": "OLMo-1B trained on 100B Dolma tokens",
+      "metric": "final validation loss",
+      "result": "2.56 with AdamW+CWD and 2.42 with Muon+CWD",
+      "baseline": "2.65 with AdamW and 2.51 with Muon; random, gradient, and no-decay masks are all worse"
+    },
+    {
+      "setting": "Gemma-like models on C4 at 338M, 986M, and 2B parameters",
+      "metric": "evaluation loss and zero-shot accuracy",
+      "result": "CWD curves finish below matched AdamW, Lion, and Muon baselines at every reported scale and improve the six OLMo downstream cells by 0–3 points",
+      "baseline": "optimizer-specific tuned standard decoupled weight decay"
+    },
+    {
+      "setting": "ImageNet, ViT-S/16, ResNet-50, and ViT-B/16 for 300 epochs",
+      "metric": "top-1 validation accuracy",
+      "result": "all nine CWD cells improve, by approximately 0.21–0.56 percentage points",
+      "baseline": "same architecture and optimizer with tuned standard weight decay"
+    },
+    {
+      "setting": "TinyLlama and Mistral-7B LoRA fine-tuning on AlpacaGPT-4",
+      "metric": "MMLU, AGIEval, and WinoGrande accuracy",
+      "result": "elementwise CWD is best in five of six reported cells, with small absolute gains",
+      "baseline": "LoRA, Selective Projection Decay, and a layerwise inner-product CWD variant"
+    }
+  ],
+  "limitations": [
+    "The convergence theory is conditional and idealized; it does not prove convergence or Pareto selection in finite-time stochastic transformer training.",
+    "No independent-seed uncertainty is shown for the costly language-model pretraining comparisons.",
+    "The local Pareto front can contain multiple endpoints and depends on parameterization, initialization, and discretization.",
+    "Most absolute gains are modest and the compute overhead of constructing/applying the mask is not separately reported.",
+    "Experiments stop at 2B parameters and do not establish behavior for frontier-scale or sparse models."
+  ],
+  "failure_modes": [
+    "A noisy or poorly scaled optimizer update can flip mask signs and turn decay on or off erratically.",
+    "Coordinatewise magnitude is not invariant to reparameterization, so the selected Pareto preference may not correspond to simpler functions.",
+    "If the stationary set is isolated, the proposed sliding-mode benefit may offer little beyond ordinary optimization.",
+    "Baseline-tuned lambda may cease to be optimal under a different data regime, architecture, or scheduler despite the reported sweep."
+  ],
+  "reusable_insights": [
+    "Secondary regularizers can be gated by a local non-conflict test instead of being added unconditionally to the primary objective.",
+    "Matched-sparsity random masks are an important control for any conditional-update method.",
+    "Separate claims about stationary-set consistency, implicit selection within that set, and finite-time acceleration; they require different evidence.",
+    "Discontinuous optimizer modifications can be analyzed as differential inclusions rather than pretending their vector fields are smooth."
+  ],
+  "open_questions": [
+    "Does CWD retain its advantage under independently tuned lambda values and multiple pretraining seeds at each scale?",
+    "Which parameterizations make coordinatewise local Pareto selection correspond to function-space simplicity or generalization?",
+    "Can finite-step stochastic dynamics be shown to track the Filippov limit closely enough to inherit the stationary-manifold claim?",
+    "How does mask turnover correlate with gradient noise, sharpness, and downstream transfer during training?",
+    "Does the method remain stable with quantization, sparsity, mixture-of-experts routing, or optimizer-state sharding?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2411.16085",
+      "title": "Cautious Optimizers: Improving Training with One Line of Code",
+      "url": "https://arxiv.org/abs/2411.16085",
+      "relationship": "Closest sign-gated optimizer precursor",
+      "difference": "Cautious Optimizers masks the primary momentum update by agreement with the gradient; CWD instead masks only the decay term by agreement between update and parameter and develops a stationary-manifold bilevel interpretation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2411.01713",
+      "title": "Rethinking Weight Decay for Robust Fine-Tuning of Foundation Models",
+      "url": "https://arxiv.org/abs/2411.01713",
+      "relationship": "Selective-decay competitor",
+      "difference": "Selective Projection Decay makes layer-level fine-tuning decisions relative to a pretrained initialization for ID/OOD robustness; CWD uses a coordinate-level sign mask, targets both pretraining and fine-tuning, and retains the original-loss stationary condition in its analysis.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2404.04454",
+      "title": "Implicit Bias of AdamW: L-infinity Norm Constrained Optimization",
+      "url": "https://arxiv.org/abs/2404.04454",
+      "relationship": "Theoretical baseline for standard decoupled decay",
+      "difference": "This work characterizes convergent AdamW endpoints as KKT points of an L-infinity-constrained problem; CWD uses that constrained-bias diagnosis as motivation and claims stationary points of the unmodified loss followed by local coordinate-magnitude selection.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2011.11152",
+      "title": "On the Overlooked Pitfalls of Weight Decay and How to Mitigate Them: A Gradient-Norm Perspective",
+      "url": "https://arxiv.org/abs/2011.11152",
+      "relationship": "Adaptive weight-decay alternative",
+      "difference": "Scheduled Weight Decay varies decay strength using gradient norms to mitigate late-training gradients; CWD keeps lambda fixed and makes the decay decision coordinatewise from sign compatibility.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "A one-line, optimizer-agnostic decay mask that preserves the original objective while inducing local Pareto selection along stationary manifolds and improving training across AdamW, Lion, and Muon.",
+    "evidence": "The full text supplies a distinct update rule, Lyapunov/Filippov analyses, toy trajectories, multi-optimizer pretraining and ImageNet results, and random/gradient/no-decay mask ablations.",
+    "reviewer_inference": "The strongest novelty is the combination of sign-selective decay with a bilevel sliding-mode account. Sign gating and selective decay both have close precursors, and the asymptotic theory does not yet explain the finite-time empirical gains, so novelty is meaningful but narrower than a general solution to weight-decay bias."
+  },
+  "confidence": 0.93,
+  "reviewer_notes": "Read all 39 extracted pages, including theory appendices and experimental tables. Competitors were independently checked against primary arXiv or official proceedings records on 2026-08-23. Numerical claims are transcribed from author-reported tables; no independent reproduction was performed."
+}

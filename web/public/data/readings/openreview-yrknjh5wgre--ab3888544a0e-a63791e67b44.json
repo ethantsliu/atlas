@@ -1,0 +1,303 @@
+{
+  "stable_id": "openreview:yRkNJh5WgRE",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2306.12700",
+    "pdf_sha256": "56e78074645fca02aa777e043c477a663d4def9e80c23235822c36abb97d5079",
+    "text_sha256": "77bb4b5853457cf6d4f790f32aab83bf1aff743f20b0cb9fa17b28b192bf89ea",
+    "page_count": 19,
+    "extracted_at": "2026-08-24T02:51:32.547219+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a network grow through many width stages while preserving its learned function, stabilizing activation and gradient scales, and giving newly added parameters enough optimization effort to reduce total FLOPs and wall-clock time without losing final accuracy?",
+  "key_findings": [
+    {
+      "claim": "Paired new features and equal-but-opposite outgoing weights preserve the pre-growth function while permitting randomly initialized capacity.",
+      "evidence": "Each added feature is duplicated. The next layer receives the two copies through +Z and -Z blocks, so their contributions cancel exactly at the growth instant; this construction is repeated through input, hidden, output, convolutional, and residual layers.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Section 3.1, Equations 1-4"
+        },
+        {
+          "page": 13,
+          "section": "Appendix B, general network growing"
+        }
+      ]
+    },
+    {
+      "claim": "Variance transfer rescales inherited weights to the new fan-in and initializes new output blocks with the maximal-update parameterization's width scaling.",
+      "evidence": "The output-layer variance changes from inverse fan-in to inverse squared fan-in, old output weights are multiplied by the old-to-new width ratio, and batch-normalization statistics are rescaled consistently. The appendix compares this fixed rule with a weight-statistics constraint and finds the simpler rule slightly better on growing ResNet-20.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Variance Transfer and Table 1"
+        },
+        {
+          "page": 12,
+          "section": "Appendix A, Theorem A.1"
+        },
+        {
+          "page": 13,
+          "section": "Table 7"
+        }
+      ]
+    },
+    {
+      "claim": "A stage-wise learning-rate rule compensates for the unequal ages of parameter blocks created at different growth stages.",
+      "evidence": "For each layer, a subcomponent's base rate is multiplied by its weight norm relative to the original block. The appendix extends the age-indexed state to Adam and AvaGrad, shows buffer preservation is beneficial, and reports that the stage-wise version outperforms ordinary SGD and layer-only LARS on the selected CIFAR-10 setting.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Stage-wise Learning Rate Adaptation, Equation 5"
+        },
+        {
+          "page": 15,
+          "section": "Appendix C, Table 9"
+        },
+        {
+          "page": 16,
+          "section": "Tables 10-12"
+        }
+      ]
+    },
+    {
+      "claim": "Across the reported CIFAR suite, the method roughly halves estimated training FLOPs while staying close to or occasionally exceeding static-model accuracy.",
+      "evidence": "Nine-stage runs use 52.08%-54.90% of baseline cost. ResNet-20 reaches 92.53% versus 92.62% on CIFAR-10, VGG-19 reaches 73.26% versus 72.59% on CIFAR-100, and other architecture-dataset pairs remain within about 0.2-0.6 percentage points of the static baseline while beating the tested growth baselines.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Tables 2 and 3"
+        },
+        {
+          "page": 7,
+          "section": "Section 4.1"
+        }
+      ]
+    },
+    {
+      "claim": "The broader ImageNet and translation results show a cost-accuracy trade-off rather than strict parity with training the final model from scratch.",
+      "evidence": "At 60.12%-64.64% estimated cost, grown ResNet-50 scores 75.90% versus 76.72%, MobileNetV1 scores 69.91% versus 70.80%, and the best reported IWSLT'14 variant scores 32.01 BLEU versus 32.82. These are better than the tested growth competitors but lower than each large static baseline.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "Tables 4 and 5"
+        }
+      ]
+    },
+    {
+      "claim": "Adaptive batch sizing is necessary for the paper's demonstrated wall-clock gain on its hardware.",
+      "evidence": "Fixed-batch growth reduces ResNet-18 training from 140 to only 120 minutes despite much larger nominal FLOP savings. Filling unused GPU memory with larger early-stage batches reduces it to 84 minutes, a reported 1.7x speedup, with 78.01% versus 78.36% test accuracy.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Wall-clock Speedup via Batch Size Adaptation, Equation 8"
+        },
+        {
+          "page": 9,
+          "section": "Wall-clock Training Speedup and Figure 7"
+        }
+      ]
+    },
+    {
+      "claim": "Exact function preservation applies to the algebraic initialization, but the experimental symmetry-breaking perturbation means the trained implementation need not preserve the function exactly at a growth boundary.",
+      "evidence": "Equations 2-4 require identical duplicated activations and cancelling outgoing blocks. The implementation adds noise of norm 0.001 to expanded parameter sets; no before-and-after output-error table quantifies the resulting discontinuity.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Equations 2-4"
+        },
+        {
+          "page": 6,
+          "section": "Implementation Details"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Treat architecture growth as a coupled parameterization-and-optimization transition: preserve the current function, transfer the correct scale, and update parameter blocks according to how long each has existed.",
+    "mechanism": "Grow each hidden width in even increments; duplicate new activations; cancel their initial downstream contribution with signed weight blocks; rescale inherited weights and batch-normalization statistics; retain optimizer state; assign stage-wise learning-rate multipliers; and allocate width, epochs, and optional batch size along exponential schedules.",
+    "assumptions": [
+      "The target final architecture and the layers to widen are known before training.",
+      "Hidden-width increments can be paired so two identical new feature blocks can cancel downstream.",
+      "All residual branches grow at matching rates so tensor shapes remain compatible.",
+      "Width-based variance rules from maximal-update parameterization remain useful along a nonstationary growth trajectory.",
+      "Weight norm is a useful proxy for the appropriate learning rate of differently aged parameter blocks.",
+      "Early small models have enough capacity to learn scaffolding that accelerates later parameters.",
+      "Hardware can exploit larger early-stage batches without changing the target comparison materially."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "signed-feature-pair",
+      "role": "Adds randomly initialized capacity while cancelling its immediate contribution to the network output."
+    },
+    {
+      "id": "variance-transfer",
+      "role": "Rescales inherited and new weights so activation and update magnitudes remain compatible after widening."
+    },
+    {
+      "id": "stagewise-rate",
+      "role": "Gives parameter blocks separate update scales based on their growth stage and weight norms."
+    },
+    {
+      "id": "state-transfer",
+      "role": "Carries optimizer moments or buffers across architecture changes rather than restarting their histories."
+    },
+    {
+      "id": "growth-schedule",
+      "role": "Allocates widths and epochs exponentially across stages to spend fewer operations on the final large model."
+    },
+    {
+      "id": "batch-adaptation",
+      "role": "Turns theoretical early-stage FLOP savings into measured throughput by using otherwise idle memory."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Nine-stage ResNet, VGG, and MobileNetV1 growth on CIFAR-10 and CIFAR-100, three seeds.",
+      "metric": "Test accuracy, standard deviation, and estimated training FLOPs relative to a fixed-size baseline.",
+      "result": "The full method uses about 52%-55% of baseline FLOPs, stays close to the fixed-size models, and leads Net2Net, Splitting, FireFly, and FireFly-split under the paper's schedules.",
+      "baseline": "Static full-size training and four prior growth methods."
+    },
+    {
+      "setting": "Nine-stage ResNet-50 and MobileNetV1 growth on ImageNet.",
+      "metric": "Top-1 accuracy and estimated relative training cost.",
+      "result": "ResNet-50 reaches 75.90% at 60.12% cost and MobileNetV1 reaches 69.91% at 63.72% cost, below static baselines but above the displayed growth competitors.",
+      "baseline": "Static training, Net2Net, FireFly, and reported GradMax where available."
+    },
+    {
+      "setting": "Four-stage Transformer width growth on IWSLT'14 German-to-English translation.",
+      "metric": "BLEU and estimated relative training cost.",
+      "result": "The best rate-adapted, buffer-preserving variant reaches 32.01 plus or minus 0.16 BLEU at 64.64% cost versus 32.82 plus or minus 0.21 for static training.",
+      "baseline": "Static Transformer, Net2Net, and internal buffer/rate-adaptation variants."
+    },
+    {
+      "setting": "ResNet-18 on CIFAR-100 on a single NVIDIA 2080 Ti with fixed or adapted batch size.",
+      "metric": "Minutes, GPU-memory utilization, and test accuracy.",
+      "result": "Static training takes 140 minutes at 78.36%; fixed-batch growth takes 120 minutes at 78.12%; adapted-batch growth takes 84 minutes at 78.01%.",
+      "baseline": "Static full-size training and the same growth schedule without batch adaptation."
+    },
+    {
+      "setting": "Ablations on CIFAR-10/100 plus Adam, AvaGrad, LARS, schedule, and continuous-data extensions.",
+      "metric": "Test accuracy, training cost, and optimizer-state variants.",
+      "result": "Variance transfer and rate adaptation each improve the growth baseline; preserving adaptive-optimizer buffers helps; layer-only LARS underperforms the stage-wise rule; dynamic OSGD improves the incremental-data extension.",
+      "baseline": "Net2Net-style growth, standard initialization, global learning rate, reset optimizer state, and fixed-size models."
+    }
+  ],
+  "limitations": [
+    "Author-stated by scope: the method targets a known final architecture and does not decide what architecture should be grown.",
+    "Reviewer inference: evidence stops at ResNet-50, MobileNetV1, and a small IWSLT'14 Transformer; it does not test large-scale language-model pretraining or billion-parameter growth.",
+    "Reviewer inference: exact function preservation is not measured after adding the implementation's symmetry-breaking noise.",
+    "Reviewer inference: the learning-rate adaptation is an empirical weight-norm heuristic without a convergence or invariance guarantee.",
+    "Reviewer inference: comparison implementations and tuning budgets are uneven; GradMax is reused only where compatible, and several methods are declared nontrivial to port.",
+    "Reviewer inference: the 1.7x wall-clock result is one model-dataset-hardware configuration, so it does not establish portable throughput gains.",
+    "Reviewer inference: adaptive batch size changes gradient noise as well as utilization, and the paper does not isolate these two effects.",
+    "Reviewer inference: no confidence interval is reported for ImageNet wall-clock or accuracy beyond the displayed three-run accuracy for the proposed method."
+  ],
+  "failure_modes": [
+    "An odd or constrained width increment cannot use the paired cancellation construction directly.",
+    "Noise or nondeterministic normalization breaks functional continuity at a growth event.",
+    "Old subnetworks dominate because norm-based multipliers do not reflect remaining learning needs.",
+    "New blocks receive excessively large rates when their reference norm is small, destabilizing optimization.",
+    "Optimizer moments copied into resized tensors are misaligned or incorrectly initialized for new blocks.",
+    "A weak seed architecture learns a representation that constrains later optimization more than it helps.",
+    "Small early stages underutilize accelerators, so nominal FLOP savings do not become elapsed-time or energy savings.",
+    "Changing batch size alters generalization enough that the grown and static endpoints are no longer comparable."
+  ],
+  "reusable_insights": [
+    "A model-growth operator should specify four independent transfers: function, scale, optimizer state, and training budget.",
+    "Parameter age is a useful explicit axis for optimizer design in any system that adds modules during training.",
+    "Function preservation and symmetry breaking should be measured jointly rather than asserted from idealized initialization alone.",
+    "FLOP savings need a hardware-utilization intervention and matched wall-clock evidence before becoming an efficiency claim.",
+    "Growth schedules can be treated as resource-allocation policies and compared on full quality-versus-compute frontiers."
+  ],
+  "open_questions": [
+    "Can stage-wise rates be derived from update statistics or local curvature instead of an uncalibrated weight-norm ratio?",
+    "How does accumulated optimizer state need to transform to preserve training dynamics exactly across width and depth changes?",
+    "What growth schedule is prospectively optimal under a fixed token or energy budget rather than selected by sweeps?",
+    "Do function-preserving trajectories improve final representation quality, or only reach the same loss sooner?",
+    "How much output and loss discontinuity does the symmetry-breaking noise introduce at each growth event?",
+    "Do gains survive at billion-parameter scale under matched tokens, hardware, data order, hyperparameter-search budget, and energy?",
+    "Can width, depth, sequence length, data mixture, and expert count be grown under one modular state-transfer contract?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1511.05641",
+      "title": "Net2Net: Accelerating Learning via Knowledge Transfer",
+      "url": "https://arxiv.org/abs/1511.05641",
+      "relationship": "foundational-predecessor",
+      "difference": "Net2Net establishes function-preserving widening and deepening through neuron replication; the reviewed method adds variance-aware rescaling, optimizer-state handling, multi-stage rate adaptation, and hardware-aware schedules.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2201.05125",
+      "title": "GradMax: Growing Neural Networks using Gradient Information",
+      "url": "https://arxiv.org/abs/2201.05125",
+      "relationship": "direct-growth-competitor",
+      "difference": "GradMax chooses new-neuron initialization by an SVD that maximizes initial gradient magnitude; this paper avoids auxiliary optimization and instead transfers variance and assigns persistent stage-specific rates.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2102.08574",
+      "title": "Firefly Neural Architecture Descent: a General Approach for Growing Neural Networks",
+      "url": "https://arxiv.org/abs/2102.08574",
+      "relationship": "direct-growth-competitor",
+      "difference": "Firefly greedily selects width or depth changes from a Taylor-approximated functional neighborhood and can search architecture; the reviewed method assumes the final architecture and optimizes cheap transitions along a prescribed width path.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2303.00980",
+      "title": "Learning to Grow Pretrained Models for Efficient Transformer Training",
+      "url": "https://arxiv.org/abs/2303.00980",
+      "relationship": "contemporary-learned-operator",
+      "difference": "LiGO learns Kronecker-factorized width and depth maps for pretrained Transformers with a short auxiliary optimization and reports up to roughly 50% savings; this paper uses a gradient-free signed initialization and focuses on parameter-age optimization across many growth stages.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2305.02869",
+      "title": "Masked Structural Growth for 2x Faster Language Model Pre-training",
+      "url": "https://arxiv.org/abs/2305.02869",
+      "relationship": "contemporary-function-preserving-competitor",
+      "difference": "MSG decouples arbitrary initialization from exact function preservation with external masks and explores depth, width, head, and feed-forward schedules for language-model pretraining; this paper couples signed feature pairs with variance and stage-wise learning-rate transfer and tests broader non-LLM architectures.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2311.03233",
+      "title": "Navigating Scaling Laws: Compute Optimality in Adaptive Model Training",
+      "url": "https://arxiv.org/abs/2311.03233",
+      "relationship": "subsequent-growth-schedule-theory",
+      "difference": "Anagnostidis et al. derive adaptive shape trajectories from scaling laws across modalities; the reviewed paper proposes exponential schedules empirically and contributes lower-level parameter and optimizer transitions.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "pmlr:v260-wang25a",
+      "title": "When and How to Grow? On Efficient Pre-training via Model Growth",
+      "url": "https://proceedings.mlr.press/v260/wang25a.html",
+      "relationship": "subsequent-growth-timing-competitor",
+      "difference": "Wang et al. estimate when to grow, use smoothed dimensional expansion and redundant layers, and test 1.3B-to-2.5B language-model growth; the reviewed paper does not derive timing but provides explicit variance, rate, and optimizer-state transfer across CNN and Transformer tasks.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "A function-preserving variance-transfer initialization plus stage-wise learning-rate adaptation makes incremental width growth both more accurate and cheaper than prior replication or gradient-based growth methods.",
+    "evidence": "The paper gives explicit layer transformations, optimizer extensions, broad ablations, relative-FLOP comparisons, and one hardware-level speed benchmark.",
+    "reviewer_inference": "The parameter-age view of optimization and its integration with variance and state transfer are the clearest distinctive contributions. Function-preserving growth itself predates the work, and concurrent LiGO and MSG cover richer Transformer operators. Later schedule and LLM studies narrow the paper's scale claim. Its evidence supports a favorable cost-accuracy frontier on the tested workloads, not universal accuracy parity or proven scale transfer."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Read all 19 pages and visually checked every rendered page, including architecture diagrams, equations, tables, optimizer extensions, gradient plots, and the continuous-data appendix. Current competitors were checked at primary arXiv, OpenReview, or PMLR records on 2026-08-23. Source-lineage caveat: the collection retains the original OpenReview identity openreview:yRkNJh5WgRE, whose exact PDF route was not directly recoverable. The audited extraction pins arXiv:2306.12700, an author-named same-title manuscript with matching method, tables, and 19-page content. An official NeurIPS 2023 OpenReview record also lists the same title and authors under forum H1a7bVVnPK. The arXiv bytes should therefore be treated as a verified same-work primary fallback, not claimed to be byte-identical to the collection endpoint."
+}

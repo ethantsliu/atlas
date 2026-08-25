@@ -1,0 +1,215 @@
+{
+  "stable_id": "openreview:Iq0DvhB4Kf",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2304.11158",
+    "pdf_sha256": "6b9c78e18cb3bf0b760fd054cbcb0852ed2c790d9c0b8673a6cca02634be64c1",
+    "text_sha256": "ad0705babdeb1618ab90e1d3bade413c0ea096f8d14a7b1ec28b6ebe22aab0f7",
+    "page_count": 17,
+    "extracted_at": "2026-08-24T00:39:16.801539+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can engineers forecast which exact training sequences a fully trained large language model will reproduce verbatim using cheaper, smaller models or early checkpoints, and how should a fixed forecast-compute budget be allocated?",
+  "key_findings": [
+    {
+      "claim": "Memorization by a smaller Pythia model is a high-precision but low-recall predictor of which 32-token continuations Pythia-12B will reproduce, so absence of small-model memorization is not a safety guarantee.",
+      "evidence": "Using a 32-token prefix and greedy exact matching of the next 32 tokens, Pythia-70M predicts Pythia-12B memorization with 0.956 precision but only 0.197 recall. Recall rises with size—0.554 at 1.4B and 0.795 at 6.9B—while precision falls to 0.884. Thus examples a small model memorizes are usually also memorized at 12B, but many 12B-memorized examples first appear at larger scale.",
+      "anchors": [
+        {"page": 3, "section": "2.1 Measuring Memorization / Definition 2.1 and Equation 1"},
+        {"page": 5, "section": "3 Memorization Across Scales / Figures 1-2"},
+        {"page": 6, "section": "Cross-scale recall conclusion"}
+      ]
+    },
+    {
+      "claim": "Early checkpoints of the target architecture are also unreliable for high-recall screening unless a large fraction of the final training run has already been spent.",
+      "evidence": "For Pythia-12B, checkpoints after 23M, 44M, 65M, 85M, 105M, and 126M sequences achieve recall 0.500, 0.575, 0.641, 0.711, 0.809, and 0.916 for final memorization, with precision around 0.91-0.94. The authors emphasize that the low-cost checkpoints miss too many eventual memorized strings for the threat model, even though they can confirm likely memorization with high precision.",
+      "anchors": [
+        {"page": 6, "section": "4 Memorization Within Training / Table 2"},
+        {"page": 7, "section": "Within-run precision-recall conclusion"}
+      ]
+    },
+    {
+      "claim": "Forecast recall does not follow a single conventional power law in compute, and the compute-optimal predictor changes regimes.",
+      "evidence": "The paper reports nonlinear precision and recall curves and anomalous partial-12B precision. At very low compute, a larger model trained briefly has better recall; around 1% of target-run compute, equal-compute configurations are similar; above about 10%, a smaller model trained on more tokens becomes better. Its engineering recommendation is therefore to use the smallest model that does not exceed the final run's token count and frontload sensitive strings when the screening budget is within two orders of magnitude of the target run.",
+      "anchors": [
+        {"page": 7, "section": "5.1 Unusual Scaling / Figure 4"},
+        {"page": 8, "section": "5.1 continuation and 5.3 Takeaways for Engineers"}
+      ]
+    },
+    {
+      "claim": "Deduplication lowers the aggregate memorized fraction only slightly in this setup and preserves the poor low-compute forecast pattern.",
+      "evidence": "The deduplicated suite's 12B model memorizes 1.62% of evaluated sequences and less than its non-deduplicated counterpart, but it was trained for 1.5 epochs, which the authors say may offset deduplication. Cross-scale recall remains 0.218 at 70M and 0.807 at 6.9B; within-run recall for deduplicated 12B rises from 0.523 at 23M sequences to 0.920 at 126M, closely matching the main trends.",
+      "anchors": [
+        {"page": 14, "section": "Appendix B Robustness to Deduplication / Figures 8-9"},
+        {"page": 15, "section": "Figure 10 and Table 3"}
+      ]
+    },
+    {
+      "claim": "The paper's label 'emergent memorization' describes forecast failures across scale, but it is not a fitted phase transition, and the claimed thick-tailed score distribution is not statistically established.",
+      "evidence": "Section 5.2 defines memorization as emergent when large-model exact copies cannot be predicted from smaller-model copies and explicitly says the situation is only analogous to standard emergent abilities. Appendix A observes a large atom at the capped score of one and argues this can only come from a thick-tailed distribution such as a power law, but reports no tail estimator or model comparison; a bounded, discrete, thresholded score can itself accumulate mass at the endpoint. The robust result is the observed spike and threshold replication, not the power-law explanation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "5.2 Emergent Memorization"},
+        {"page": 13, "section": "Appendix A Robustness to Thresholding Choices / Figures 5-7"}
+      ]
+    },
+    {
+      "claim": "A corrected analysis materially reduced within-run recall from an earlier draft, underscoring that the actionable safety conclusion depends on exact evaluation code.",
+      "evidence": "Section 6 states that an analysis-code error caused an earlier draft to report substantially higher recall in Table 2 and that the present draft changed both the numbers and conclusions. The corrected paper now concludes that both small models and low-compute checkpoints are ineffective for guaranteeing non-memorization.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "6 Corrections"},
+        {"page": 9, "section": "8 Conclusion"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Turn per-sequence memorization in cheaper Pythia runs into a binary classifier for the final 12B model, evaluate precision and safety-critical recall across model size and training time, then compare predictors at equal estimated training compute.",
+    "mechanism": "For each 2,048-token training sequence, the evaluation supplies tokens 1-32 as a prompt and greedily generates tokens 33-64. The memorization score is the fraction of those 32 continuation positions matching the training sequence, and exact score one defines a memorized example. Fully trained models from 70M to 6.9B predict the 12B model; seven checkpoints from 23M to 146M sequences predict the final same-size model. Compute is approximated as six times parameters times training tokens, allowing precision/recall curves across equal-compute model-size/checkpoint choices. The analyses are repeated with a doubled exact-continuation threshold and on a separately deduplicated Pythia suite.",
+    "assumptions": [
+      "Greedy 32-token exact continuation after a known 32-token training prefix is the relevant operational definition of privacy-threatening memorization.",
+      "A trainer knows the sensitive subset in advance and can afford multiple trial runs or expensive checkpoint-wide forward evaluations.",
+      "False negatives are much costlier than false positives, so recall is the primary decision metric even when aborting a safe run is expensive.",
+      "Training compute is adequately represented by six times parameter count times token count, omitting evaluation, communication, and hardware-efficiency differences.",
+      "Pythia models' shared architecture, corpus, ordering, tokenizer, and hyperparameters provide an informative basis for forecasting other model families and data pipelines.",
+      "Moving sensitive strings earlier in the target data stream does not materially change whether they will ultimately be memorized.",
+      "Exact memorization sets are stable enough across random seeds that one training run per configuration is representative."
+    ]
+  },
+  "techniques": [
+    {"id": "k-extractible-prefix-probe", "role": "Measures whether a known training prefix makes the model greedily reproduce its exact continuation."},
+    {"id": "per-sequence-forecast-classification", "role": "Treats cheaper-run memorization as a prediction of final-run memorization and exposes asymmetric precision/recall costs."},
+    {"id": "cross-scale-memorization-matrix", "role": "Compares exact memorized sets across eight fully trained Pythia sizes."},
+    {"id": "inter-checkpoint-memorization-matrix", "role": "Measures when eventually memorized examples become detectable during one training run."},
+    {"id": "equi-compute-forecast-envelope", "role": "Compares model-size and token-count choices under an approximate fixed training budget."},
+    {"id": "threshold-and-dedup-replication", "role": "Repeats the trend analysis with longer exact matches and a deduplicated corpus suite."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Fully trained Pythia 70M-6.9B models forecasting Pythia-12B exact continuation on the shared Pile sequence order",
+      "metric": "Precision and recall of the set of exactly memorized 32-token continuations",
+      "result": "Precision ranges from 0.956 to 0.884, while recall rises from 0.197 at 70M to 0.795 at 6.9B.",
+      "baseline": "Pythia-12B final memorization set as ground truth"
+    },
+    {
+      "setting": "Seven checkpoints within Pythia-6.9B and Pythia-12B training",
+      "metric": "Precision and recall for final same-model memorization",
+      "result": "Pythia-12B recall rises from 0.500 at 23M sequences to 0.916 at 126M, with consistently high precision; useful high recall arrives only late.",
+      "baseline": "Fully trained checkpoint at 146M sequences"
+    },
+    {
+      "setting": "All model-size/checkpoint combinations predicting fully trained Pythia-12B",
+      "metric": "Recall and precision versus estimated training compute",
+      "result": "Larger-shorter predictors are best at the lowest budgets, configurations converge around 1% of target compute, and smaller-longer predictors become best above roughly 10%.",
+      "baseline": "Equal estimated compute across parameter/token allocations"
+    },
+    {
+      "setting": "Exact continuation threshold doubled relative to the main 32-token criterion",
+      "metric": "Cross-scale precision/recall and equi-compute trend",
+      "result": "The qualitative results remain: 70M recall is 0.140 and 6.9B recall is 0.775 for the 12B target, with similar scaling curves.",
+      "baseline": "Main 32-token exact-match threshold"
+    },
+    {
+      "setting": "Deduplicated Pythia suite trained for 1.5 epochs",
+      "metric": "Aggregate memorization plus cross-scale and within-run forecast precision/recall",
+      "result": "Aggregate memorization decreases slightly; 70M-to-12B recall is 0.218, 6.9B-to-12B recall is 0.807, and early-to-late 12B recall rises from 0.523 to 0.920.",
+      "baseline": "Non-deduplicated Pythia suite"
+    }
+  ],
+  "limitations": [
+    "All primary evidence comes from one autoregressive model family, tokenizer, corpus, architecture, data order, and largely shared training recipe; deduplicated Pythia is not an independent family or corpus.",
+    "The study has no repeat training seeds, so it cannot separate stable per-example memorability from initialization, shuffling, or optimizer randomness.",
+    "The exact-prefix threat model assumes the adversary or auditor knows 32 contiguous training tokens and uses greedy decoding; sampling attacks, paraphrased prompts, membership inference, semantic leakage, and longer extraction are different risks.",
+    "A forward pass over the full corpus costs roughly one third of training by the paper's estimate, making the proposed screening itself expensive; only seven checkpoints are evaluated.",
+    "The method ignores the content of each sequence, duplication count, token frequency, entropy, domain, PII type, and exposure, even though these are known predictors and actionable data-curation signals.",
+    "The equi-compute recommendation is read from irregular empirical curves rather than a reported parametric scaling law with uncertainty, held-out forecast targets, or prospective validation.",
+    "Frontloading sensitive examples is recommended but not directly evaluated as an intervention in this paper and may alter training dynamics or security exposure.",
+    "Aggregate recall can conceal catastrophic misses in rare PII subclasses; no cost-weighted or subgroup calibration is reported.",
+    "The deduplicated suite's 1.5-epoch training changes exposure count while changing redundancy, preventing clean causal attribution of its small memorization reduction.",
+    "An earlier analysis-code bug substantially changed headline recall and conclusions; the corrected version is transparent, but independent reproduction is especially important."
+  ],
+  "failure_modes": [
+    "A small pilot does not copy a sensitive string that emerges only in the final larger model, producing the safety-critical false negative the paper observes frequently.",
+    "A high-precision pilot copies benign duplicated boilerplate and causes an otherwise safe target run to be discarded, wasting the training budget.",
+    "Changing model family, tokenizer, curriculum, data mixture, optimizer, or context length invalidates the Pythia-derived equal-compute regime boundaries.",
+    "The auditor tests only greedy exact continuations and misses extractable private information available under sampling, alternate prefixes, or semantic reconstruction.",
+    "The sensitive subset is too large for repeated checkpoint evaluation, making screening compute approach or exceed the supposed savings from early stopping.",
+    "A corpus reordering used to frontload sensitive examples changes memorization behavior, breaking the assumed link to the original target run.",
+    "Deduplication lowers repeated leakage but an individually rare sensitive sequence remains memorized because its content, context, or gradients make it unusually learnable.",
+    "A bounded score's endpoint spike is misread as power-law evidence and used to justify an unsupported tail-risk extrapolation.",
+    "A single-run forecast overfits idiosyncratic memorization decisions that are not reproducible across random training seeds."
+  ],
+  "reusable_insights": [
+    "For safety forecasts, choose metrics from the asymmetric decision cost: high precision does not compensate for low recall when missed leakage is the expensive outcome.",
+    "Evaluate per-example set overlap, not only aggregate memorization rate; two runs can have similar totals while memorizing different sensitive records.",
+    "Compare scale and training-progress pilots at equal total compute because a smaller model trained longer can reverse a naive size-based ranking.",
+    "Treat an early-checkpoint audit as useful only after measuring how many final positives appear late, rather than assuming monotonic persistence.",
+    "Prospectively validate a scaling recommendation on a held-out model family or target run before using it as a production stopping rule.",
+    "Combine model-behavior pilots with data features such as repetition, entropy, rarity, domain, and PII severity to improve low-compute recall.",
+    "Log corrected analyses and decision changes explicitly; safety conclusions should be reproducible from versioned evaluation code."
+  ],
+  "open_questions": [
+    "Can content features and influence estimates forecast exact memorization with high recall at substantially less than 1% of target training compute?",
+    "How stable is the identity of memorized examples across seeds, data orders, optimizers, tokenizers, and independently trained model families?",
+    "What pilot design optimizes cost-weighted recall for rare high-severity PII rather than treating every sequence equally?",
+    "Can checkpoint-local signals such as gradient norms, losses, exposure, or forgetting events predict memorization before verbatim extraction becomes visible?",
+    "Do the reported parameter/token compute-regime reversals persist for mixture-of-experts, retrieval-augmented, multilingual, and post-trained models?",
+    "How should forecasting cover non-verbatim semantic leakage and adversarial extraction prompts in addition to greedy exact continuation?",
+    "Can targeted removal, reweighting, or privacy mechanisms be triggered online without aborting the entire training run?",
+    "What prospective statistical model, with confidence intervals and target-family holdouts, deserves the name memorization scaling law?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2202.07646",
+      "title": "Quantifying Memorization Across Neural Language Models",
+      "url": "https://arxiv.org/abs/2202.07646",
+      "relationship": "direct scaling predecessor",
+      "difference": "Carlini et al. quantify log-linear growth of verbatim memorization with capacity, duplication, and prompt length and warn that cross-family behavior is complicated. The reviewed paper changes the target from aggregate rate to forecasting the identity of individual memorized sequences and finds much weaker low-compute predictability."
+    },
+    {
+      "canonical_id": "arxiv:2112.12938",
+      "title": "Counterfactual Memorization in Neural Language Models",
+      "url": "https://arxiv.org/abs/2112.12938",
+      "relationship": "alternative definition and attribution method",
+      "difference": "Zhang et al. define memorization by the prediction change when a document is omitted, separating example-specific influence from common repeated phrases. The reviewed k-extractibility test is operationally tied to leakage and cheaper once models exist, but cannot tell whether an exact continuation depends counterfactually on that training record."
+    },
+    {
+      "canonical_id": "arxiv:2202.06539",
+      "title": "Deduplicating Training Data Mitigates Privacy Risks in Language Models",
+      "url": "https://arxiv.org/abs/2202.06539",
+      "relationship": "preventive data intervention",
+      "difference": "Kandpal et al. show regeneration grows superlinearly with duplicate count and that deduplication sharply weakens extraction attacks. The reviewed work instead asks whether a low-compute model run can screen specific examples and finds that deduplication does not make its identity forecast reliably cheap in Pythia."
+    },
+    {
+      "canonical_id": "arxiv:2205.10770",
+      "title": "Memorization Without Overfitting: Analyzing the Training Dynamics of Large Language Models",
+      "url": "https://arxiv.org/abs/2205.10770",
+      "relationship": "training-dynamics predecessor",
+      "difference": "Tirumala et al. measure exact memorization throughout training and show larger models memorize faster, forget less, and learn nouns and numbers early. The reviewed paper focuses specifically on whether those earlier or smaller observations have sufficient per-example recall to act as a stopping forecast for a final model."
+    },
+    {
+      "canonical_id": "arxiv:2407.17817",
+      "title": "Demystifying Verbatim Memorization in Large Language Models",
+      "url": "https://arxiv.org/abs/2407.17817",
+      "relationship": "controlled causal successor",
+      "difference": "Huang et al. inject controlled sequences into continued Pythia pretraining, isolate repetition and checkpoint maturity, and find memorized generation uses distributed states and general capabilities. It supplies causal factors absent from the reviewed observational set-overlap analysis and cautions that memorization may be hard to isolate without utility loss."
+    },
+    {
+      "canonical_id": "arxiv:2506.12321",
+      "title": "Beyond Frequency: The Role of Redundancy in Large Language Model Memorization",
+      "url": "https://arxiv.org/abs/2506.12321",
+      "relationship": "instance-feature successor",
+      "difference": "Zhang et al. analyze Pythia memorization using token frequency, redundancy, uncertainty, and prefix perturbations, finding distinct properties of memorized and non-memorized samples. This directly pursues the content-aware prediction direction that the reviewed paper lists as missing."
+    },
+    {
+      "canonical_id": "arxiv:2601.15394",
+      "title": "Memorization Dynamics in Knowledge Distillation for Language Models",
+      "url": "https://arxiv.org/abs/2601.15394",
+      "relationship": "current cross-family predictability extension",
+      "difference": "Borkar et al. study Pythia, OLMo-2, and Qwen-3 across three datasets in distillation and predict student memorization before training using zlib entropy, KL divergence, and perplexity features. Although the setting is distillation rather than pretraining, it demonstrates the broader content-aware, multi-family forecast design missing from the reviewed model-only predictor."
+    }
+  ],
+  "novelty_assessment": "The paper's real contribution is a negative and operational one: it frames exact per-sequence memorization as a safety forecast with asymmetric costs, then shows that the obvious cheap proxies—smaller models and early checkpoints—retain high precision but miss too many final 12B memorized strings. This is distinct from prior aggregate scaling, extraction, deduplication, and training-dynamics work. The title's 'predictable' language should be read cautiously: useful high recall needs a nearby model or late checkpoint, the equi-compute curves are irregular rather than a validated universal law, and the claimed emergence is a set-overlap analogy rather than a fitted transition. Later controlled and content-aware studies point toward stronger predictors based on repetition, redundancy, entropy, and training context, while cross-family validation remains the key unfulfilled test.",
+  "confidence": 0.96,
+  "reviewer_notes": "Read all 17 extracted pages, including the corrected recall disclosure, full precision/recall tables, equal-compute interpretation, threshold replication, deduplicated-suite replication, and additional heatmaps. Treated the endpoint spike as evidence of a mass of exact matches, not proof of a power-law score distribution. Seven primary arXiv records spanning definitions, mitigation, dynamics, controlled experiments, content features, and a current cross-family forecast extension were checked on 2026-08-23."
+}

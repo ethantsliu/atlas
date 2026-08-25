@@ -1,0 +1,427 @@
+{
+  "stable_id": "arxiv:2402.03804",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2402.03804",
+    "pdf_sha256": "19cb9316a5f048dd6f8daf4aea98c89a08db798cee5e2a4b0454fceaccd7532b",
+    "text_sha256": "89ce3aca169d3222e99a30180a452d893bb86e703bd7d0c28c960becbda1088f",
+    "page_count": 16,
+    "extracted_at": "2026-08-23T18:33:11.356731+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Does squared ReLU provide a better trainability, magnitude-sparsity, predictability, and hardware-locality trade-off than ReLU, ReGLU, or SwiGLU for sparse LLM inference?",
+  "key_findings": [
+    {
+      "claim": "The paper's most useful conceptual contribution is to define an inactive FFN neuron by the norm of its output vector rather than by an exactly zero scalar activation.",
+      "evidence": "For a gated SwiGLU FFN, each hidden coordinate is treated as a neuron whose vector contribution is the product of its SiLU gate, value projection, and output-weight column. The authors observe a long tail of small output norms and define sparsity by discarding contributions below a layer-adaptive magnitude threshold. This extends the activation-sparsity question to smooth nonzero activations and also weights the scalar activation by its downstream output direction and scale.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 1, "section": "Abstract and Introduction"},
+        {"page": 3, "section": "Section 3, neuron decomposition"},
+        {"page": 4, "section": "Section 3, output-magnitude distribution and activation definition"},
+        {"page": 15, "section": "Appendix B, two-layer FFN decomposition"}
+      ]
+    },
+    {
+      "claim": "CETT measures realized local FFN error, not an additive importance bound or an end-to-end safety guarantee.",
+      "evidence": "CETT is the norm of the vector sum of discarded neuron outputs divided by the dense FFN-output norm. Opposing discarded vectors can cancel, so individually large or behaviorally specialized contributions may have a small aggregate CETT; a small dense denominator can conversely amplify it. The metric is evaluated at one FFN input and does not bound downstream residual amplification, logits, calibration, rare-token behavior, or sequence-level generation error. The paper empirically correlates CETT with its aggregate task score, but does not derive a network-level guarantee.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "Section 3, Equation 3 and threshold definition"},
+        {"page": 7, "section": "Section 5.1, CETT 0.2 inflection claim"},
+        {"page": 15, "section": "Appendix C, threshold-finding method"}
+      ]
+    },
+    {
+      "claim": "The adaptive-threshold binary search is not valid in general because CETT need not be monotone as the magnitude threshold increases.",
+      "evidence": "Algorithm 1 binary-searches quantiles as though adding more discarded neuron vectors can only increase CETT. Vector norms do not have that property: for scalar neuron outputs 0.8, 0.9, and -1.6, the full FFN output is 0.1, while the discarded-sum norms after successive magnitude cutoffs are 0.8, 1.7, and 0.1. Thus CETT rises and then falls because of cancellation, and binary search can miss the largest feasible threshold. The empirical curves may happen to look regular, but no monotonicity test, fallback scan, or proof is supplied.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Section 3, Equation 3"},
+        {"page": 5, "section": "Section 3, quantile and binary-search description"},
+        {"page": 15, "section": "Appendix C, Algorithm 1"}
+      ]
+    },
+    {
+      "claim": "The controlled 1.3B-parameter experiment is a meaningful activation-function comparison, but only at one model scale, token budget, training run, and architecture family.",
+      "evidence": "The authors train four 24-layer, width-2048 LLaMA-like models for 100B tokens with the same optimizer and data. They approximately parameter-match the two-matrix ReLU/ReLU-squared FFNs by using hidden size 8192 and the three-matrix gated FFNs by using 5376. At 100B tokens, the reported eight-task averages are 50.53 for SwiGLU, 50.48 for ReLU-squared, 50.36 for ReGLU, and 48.85 for ReLU. No independent seed, confidence interval, held-out loss table, or compute-matched scaling curve is reported.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "Section 5, model families and Figure 2"},
+        {"page": 13, "section": "Appendix A.3 and Table 2"},
+        {"page": 14, "section": "Appendix A.3.1-A.3.3 and Tables 3-4"}
+      ]
+    },
+    {
+      "claim": "The paper reverses TruthfulQA's direction, corrupting its headline performance averages and weakening the claim that ReLU-squared is within 0.1% of SwiGLU.",
+      "evidence": "Appendix A says lower TruthfulQA accuracy is better and therefore averages one minus accuracy. The cited Open LLM Leaderboard/lm-evaluation-harness MC accuracy is higher-is-better; the table values confirm the inversion, since its LLaMA-2-7B entry is 61.24 rather than the usual 38.76. Reversing the complemented values in Table 2 and recomputing from the rounded entries changes the averages to about 47.46 for SwiGLU, 47.05 for ReGLU, 46.97 for ReLU-squared, and 45.68 for ReLU. ReLU-squared is then about 0.49 percentage points below SwiGLU, not 0.05. The same wrong direction enters the sparsity-performance curves, so pruning that harms truthfulness could be rewarded rather than penalized.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Figure 3b, aggregate performance-versus-sparsity curve"},
+        {"page": 13, "section": "Appendix A.1, TruthfulQA transformation and Table 2"},
+        {"page": 15, "section": "Table 5, LLaMA evaluation averages"}
+      ]
+    },
+    {
+      "claim": "Within the paper's own flawed aggregate score, ReLU-squared exhibits the strongest magnitude-sparsity curve among the four 1.3B models.",
+      "evidence": "Figure 3 reports that at 95% neuron sparsity ReLU-squared has CETT about 0.2, nearly half the ReLU and ReGLU values, and its performance curve lies toward the high-sparsity/high-score corner. The authors identify CETT 0.2 as a common empirical inflection and report close to 90% sparsity with less than 0.1% aggregate-score degradation. This is promising evidence for the activation's tail shape, but the result inherits the wrong TruthfulQA transformation, corpus calibration, and lack of repeated runs.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Introduction, headline sparsity-performance result"},
+        {"page": 6, "section": "Section 5.1 and Figure 3"},
+        {"page": 7, "section": "Section 5.1, CETT 0.2 interpretation"}
+      ]
+    },
+    {
+      "claim": "Magnitude sparsity cannot normally be exploited before dense FFN work without a predictor, making predictor cost and miss behavior central rather than auxiliary.",
+      "evidence": "A neuron is labeled using its output norm, which is available only after the relevant activation/value projections unless a separate model predicts it from the FFN input. The paper therefore trains a two-layer predictor for every FFN and sizes all predictors at about 6% of the FFN. It reports recall and the fraction predicted inactive, but provides no end-to-end latency, predictor FLOPs table, rare-token false-negative analysis, calibration under distribution shift, or comparison against simply computing the dense projections and sparsifying only the output multiplication.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "Section 3, Equation 2"},
+        {"page": 5, "section": "Section 4, predictivity"},
+        {"page": 7, "section": "Section 5.2, predictor size and strategies"},
+        {"page": 13, "section": "Appendix A.2, predictor architecture and labels"}
+      ]
+    },
+    {
+      "claim": "The top-k predictor experiment contains an internal metric contradiction that makes its reported prediction sparsity and downstream FLOP estimate ambiguous.",
+      "evidence": "Section 4 defines prediction sparsity as the fraction of neurons predicted inactive. Figure 5 and Section 5.2 then say the top 20% largest predictor scores are active but that prediction sparsity is fixed at 0.2. Under the stated definition it must be 0.8. Since the claimed 56% reduction in total FLOPs is said to be based on prediction sparsity, this is not a harmless naming issue unless the underlying computation and figure axes are clarified.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Section 4, recall and prediction-sparsity definitions"},
+        {"page": 7, "section": "Figure 5 caption and Section 5.2, top-k strategy"},
+        {"page": 8, "section": "Section 5.4, estimated FLOP reduction"}
+      ]
+    },
+    {
+      "claim": "The hardware-affinity section measures software-agnostic proxies, not hardware performance.",
+      "evidence": "Token affinity is the overlap of the current active set with the union of the preceding k active sets; neuron affinity is a top-versus-average pairwise coactivation gap. A larger history mechanically increases the candidate union and its memory footprint, while a row-wise favorite does not prove that all preferred pairs admit one globally contiguous layout. No sparse kernel, cache-capacity model, achieved bandwidth, bytes transferred, latency, throughput, energy, or hardware experiment is presented. Consequently the stated 56% total-FLOP and 92% FFN-I/O reductions are estimates, despite the paper's own warning that theoretical efficiency need not translate to hardware.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Introduction, hardware-affinity motivation and 92% claim"},
+        {"page": 5, "section": "Section 4, reuse and coactivation metrics"},
+        {"page": 8, "section": "Section 5.3-5.4, Figures 6-7 and efficiency estimates"}
+      ]
+    },
+    {
+      "claim": "The evidence does not establish that ReLU-squared remains best at modern LLM scales.",
+      "evidence": "Only the 1.3B models include ReLU-squared. The 7B, 13B, and 70B scale study compares original SwiGLU LLaMA-2 with ReGLU models initialized from those checkpoints and continued for only 5B tokens on a different corpus. ReGLU trails the original by about 3.05, 1.76, and 6.08 reported average points respectively, and the authors attribute the 70B gap to insufficient data. This continuation experiment is useful exploratory evidence about ReGLU sparsity, but it neither isolates training-from-scratch scaling nor tests ReLU-squared at scale.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Section 5, large-model experiment and Figure 4"},
+        {"page": 7, "section": "Section 5.1, scale interpretation"},
+        {"page": 14, "section": "Appendix A.4, continued-pretraining recipe"},
+        {"page": 15, "section": "Table 5, large-model results"}
+      ]
+    },
+    {
+      "claim": "The activation and predictor statistics are under-specified and may be calibration-distribution dependent.",
+      "evidence": "The paper records activations on only about 2^17 tokens sampled from Wikipedia, the Pile, and Common Crawl because storing every neuron is expensive. It does not report mixture weights, prompts or sequence boundaries, exact train/validation sizes for each predictor, r, optimizer, epochs, class balancing, threshold split, or whether threshold selection and reported statistics use disjoint samples. A learned per-layer magnitude threshold and predictor can therefore overfit the calibration mixture and miss domain-specific, multilingual, code, long-context, or adversarial activations.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "Section 3, activation recording and threshold calibration"},
+        {"page": 13, "section": "Appendix A.1-A.2, statistics corpus and predictor description"},
+        {"page": 15, "section": "Appendix C, quantile candidates"}
+      ]
+    },
+    {
+      "claim": "The evaluation compresses heterogeneous task behavior into an unweighted mean and reports no uncertainty, obscuring regressions even before the TruthfulQA error.",
+      "evidence": "Table 2 gives one score per task and a simple average across eight datasets. ReLU-squared is nearly tied in the average yet differs from SwiGLU by more than two points on ARC-Challenge and Winogrande and by about one point on LAMBADA. The paper reports no multiple seeds, example-level intervals, generation-quality evaluation, long-context tests, robustness, calibration, safety, or significance test. A 0.05-point average difference is much smaller than plausible training and evaluation variation.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "Figure 2, training and aggregate evaluation dynamics"},
+        {"page": 13, "section": "Appendix A.1 and Table 2"}
+      ]
+    },
+    {
+      "claim": "The hot-neuron appendix directly cautions against assuming stable locality from the small controlled models.",
+      "evidence": "The authors do not observe a strong hot-neuron population in any 1.3B activation variant, whereas some layers of roughly 7B models show the top 20% of neurons active more than 80% of the time. They explicitly say the scale difference is not understood. This honest negative result means memory-placement conclusions from the 1.3B reuse/coactivation proxies cannot simply be extrapolated to larger models or deployment workloads.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 16, "section": "Appendix D, Figures 8-9 and hot-neuron discussion"}
+      ]
+    },
+    {
+      "claim": "Public checkpoints improve reproducibility of the dense training comparison, but the central sparsity system remains insufficiently specified.",
+      "evidence": "The paper links checkpoints for the four 1.3B training trajectories and provides architecture, data-family, and optimizer summaries. However, the manuscript is still arXiv v1, says code will be released, and does not pin training/evaluation code, threshold samples, predictor artifacts, sparse kernels, layout optimizer, or the calculations behind 56% FLOPs and 92% I/O. Reproducing weights is therefore more feasible than reproducing the paper's main deployment claims.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "Abstract, code-release statement"},
+        {"page": 2, "section": "Checkpoint footnote"},
+        {"page": 8, "section": "Section 5.4, estimated deployment savings"},
+        {"page": 13, "section": "Appendix A, experimental details"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Compare activation functions for sparse inference by thresholding each FFN neuron's vector contribution, then jointly score quality-versus-sparsity, predictability before computation, and proxy locality for memory movement.",
+    "mechanism": "Decompose each FFN hidden coordinate into a neuron output vector; calibrate a layer-adaptive magnitude threshold against a target cumulative error of tail truncation; label below-threshold neurons inactive; train a small two-layer predictor per FFN from layer input to activation labels; compare ReLU, ReLU-squared, ReGLU, and SwiGLU on matched 1.3B pretraining; and measure active-set reuse plus pairwise coactivation as proxies for cache and layout opportunities.",
+    "assumptions": [
+      "The norm of the sum of below-threshold neuron outputs is a faithful importance and quality proxy despite vector cancellation.",
+      "CETT is sufficiently monotone in the magnitude threshold for binary search over quantiles to return the largest feasible threshold.",
+      "A CETT upper bound calibrated on a small mixed corpus transfers across tasks, domains, sequence positions, and deployment distributions.",
+      "Aggregate benchmark accuracy faithfully represents model quality and every component metric is oriented in the correct direction.",
+      "A two-layer predictor occupying about 6% of each FFN is cheap enough that prediction overhead does not erase sparse savings.",
+      "Average activated-neuron recall captures the cost of false negatives, including rare but high-impact neurons.",
+      "The union-based reuse ratio maps to achievable cache reuse under finite cache capacity and real replacement policies.",
+      "A top-average coactivation gap maps to a realizable contiguous parameter layout despite conflicting pair preferences.",
+      "One parameter-matched 1.3B training run per activation is representative of larger LLM scaling and training variance.",
+      "The ReGLU continuation study is informative about scale despite initialization from SwiGLU, only 5B additional tokens, and no scaled ReLU-squared model.",
+      "Estimated FLOP and I/O reductions translate to end-to-end speedups on sparse hardware and production batch regimes.",
+      "Uniformly averaging heterogeneous tasks is appropriate for detecting sub-one-point activation-function differences."
+    ]
+  },
+  "techniques": [
+    {"id": "neuron-output-norm-sparsity", "role": "Labels a hidden coordinate inactive using the L2 norm of its complete vector contribution rather than exact activation zeros."},
+    {"id": "cett", "role": "Normalizes the vector sum of discarded contributions by the dense FFN-output norm."},
+    {"id": "adaptive-quantile-threshold", "role": "Searches layer-specific output-magnitude quantiles for a target CETT bound."},
+    {"id": "relu-squared", "role": "Uses max(0,x)^2 as the ungated FFN nonlinearity being evaluated for a favorable tail distribution."},
+    {"id": "parameter-matched-ffn-width", "role": "Uses hidden size 8192 for two-matrix ReLU variants and 5376 for three-matrix GLU variants."},
+    {"id": "per-ffn-activation-predictor", "role": "Maps FFN input through a low-rank two-layer sigmoid network to neuron-activity scores before sparse computation."},
+    {"id": "top-k-and-threshold-routing", "role": "Evaluates fixed top-k activation and score-greater-than-0.5 prediction strategies."},
+    {"id": "sliding-window-reuse-ratio", "role": "Measures overlap of a token's active neurons with the union of active sets from previous tokens."},
+    {"id": "coactivation-gap", "role": "Summarizes how much each neuron's most frequent partner exceeds average pairwise coactivation."},
+    {"id": "hot-neuron-cdf", "role": "Examines whether a small global subset accounts for most activations across inputs."}
+  ],
+  "evaluations": [
+    {
+      "setting": "LLaMA-2 7B activations recorded on roughly 2^17 tokens from Wikipedia, the Pile, and Common Crawl.",
+      "metric": "Distribution of normalized neuron-output norms, CETT, and downstream aggregate score after magnitude thresholding.",
+      "result": "Neuron contributions are long-tailed and about 70% can be removed at CETT 0.2 with roughly a 1% reported aggregate-score drop, supporting non-ReLU magnitude sparsity as a phenomenon.",
+      "baseline": "Exact-zero activation sparsity and dense LLaMA-2 FFNs."
+    },
+    {
+      "setting": "Four 1.3B LLaMA-like models trained from scratch for 100B tokens on SlimPajama and RefinedWeb using 64 A100-80GB GPUs.",
+      "metric": "Training loss and a simple average over ARC-Easy, ARC-Challenge, HellaSwag, Winogrande, TruthfulQA, LAMBADA, PIQA, and OpenBookQA.",
+      "result": "Reported averages are 50.53 SwiGLU, 50.48 ReLU-squared, 50.36 ReGLU, and 48.85 ReLU; correcting the reversed TruthfulQA term yields approximately 47.46, 46.97, 47.05, and 45.68 respectively from rounded entries.",
+      "baseline": "Parameter-matched SwiGLU using the same nominal training recipe."
+    },
+    {
+      "setting": "Magnitude-threshold sweeps on the four 1.3B models.",
+      "metric": "CETT and aggregate benchmark score as functions of neuron sparsity.",
+      "result": "ReLU-squared reaches about 95% sparsity at CETT 0.2 and has the strongest reported sparsity-score frontier, but the aggregate score inverts TruthfulQA and CETT has no monotonic or end-to-end guarantee.",
+      "baseline": "ReLU, ReGLU, and SwiGLU magnitude-threshold curves."
+    },
+    {
+      "setting": "Two-layer per-FFN predictors sized at about 6% of the FFN, evaluated with top-20%-active and score-threshold routing.",
+      "metric": "Activated-neuron recall and fraction predicted inactive.",
+      "result": "ReLU-squared and ReLU have the highest reported top-k recall, and ReLU-squared leads the threshold strategy; however the top-k panel labels 20% active as 20% prediction sparsity even though the stated definition implies 80%.",
+      "baseline": "Same-sized predictors for all four activation functions."
+    },
+    {
+      "setting": "Active sets at roughly 95% oracle sparsity across consecutive tokens and FFN layers of the 1.3B models.",
+      "metric": "Sliding-window reuse ratio and top-average coactivation gap.",
+      "result": "ReLU-squared has higher reuse in high-activation-ratio layers and a larger coactivation gap after layer eight; no implementation demonstrates that these proxies produce a realizable layout or measured speedup.",
+      "baseline": "The same proxy metrics for ReLU, ReGLU, and SwiGLU."
+    },
+    {
+      "setting": "LLaMA-2 7B, 13B, and 70B SwiGLU checkpoints versus ReGLU variants continued for 5B tokens.",
+      "metric": "CETT-versus-sparsity curves and six-task average score.",
+      "result": "ReGLU appears increasingly sparse with scale, but trails the original checkpoints and falls about 6.08 reported points behind at 70B; ReLU-squared is not evaluated in this scale study.",
+      "baseline": "Original LLaMA-2 SwiGLU checkpoints."
+    },
+    {
+      "setting": "Activation-frequency CDFs for the four 1.3B models and several roughly 7B models.",
+      "metric": "Cumulative fraction of token activations accounted for by the most frequently active neurons.",
+      "result": "No strong hot-neuron population appears at 1.3B, while some 7B layers concentrate over 80% of activations in the top 20%; the reason is unresolved.",
+      "baseline": "Cross-scale and cross-activation comparison of activation-frequency concentration."
+    }
+  ],
+  "limitations": [
+    "Author-stated: the paper does not understand why hot neurons are weak at 1.3B but pronounced in some roughly 7B layers.",
+    "Author-stated: ReGLU at 70B remains about six reported average points behind SwiGLU, conjectured to reflect insufficient continued-pretraining data.",
+    "Reviewer-identified: TruthfulQA MC accuracy is reversed, favoring less truthful models and invalidating the exact headline aggregate comparison.",
+    "Reviewer-identified: CETT can decrease as the threshold grows because discarded vectors cancel, so the threshold binary search lacks its required monotonicity condition.",
+    "Reviewer-identified: CETT is a local realized-vector error, not a bound on logits, loss, generation quality, rare capabilities, or safety behavior.",
+    "Reviewer-identified: all activation-function training results appear to come from one seed at one 1.3B scale and 100B-token budget.",
+    "Reviewer-identified: ReLU-squared is never tested at 7B, 13B, or 70B; the scale experiment covers only a confounded ReGLU continuation.",
+    "Reviewer-identified: the predictor's rank, optimizer, data size, split, training budget, calibration, and false-negative distribution are not specified.",
+    "Reviewer-identified: the activation-statistics corpus is only about 131k tokens and its mixture and split from threshold/predictor validation are not documented.",
+    "Reviewer-identified: the paper's top-k prediction-sparsity value contradicts its own definition, making the routing curve and FLOP estimate ambiguous.",
+    "Reviewer-identified: the claimed 6% predictor overhead is called negligible without latency, throughput, energy, or net-FLOP measurements.",
+    "Reviewer-identified: reuse ratio ignores cache capacity and grows with the union of prior active sets, while coactivation gap does not solve the global layout problem.",
+    "Reviewer-identified: the 56% FLOP and 92% FFN-I/O reductions are estimates with no sparse kernel or wall-clock hardware validation.",
+    "Reviewer-identified: unweighted averages hide large per-task swings and no repeated evaluation, uncertainty, or significance analysis supports sub-one-point claims.",
+    "Reviewer-identified: public checkpoints do not reproduce the central thresholding, predictor, cache, layout, or sparse-system pipeline.",
+    "Reviewer-identified: no multilingual, code, long-context, instruction-following, generation, calibration, robustness, or safety evaluation probes threshold transfer."
+  ],
+  "failure_modes": [
+    "Opposing neuron outputs cancel in CETT, causing binary search to skip a higher feasible threshold or select a brittle one.",
+    "A small average CETT hides rare tokens whose discarded contributions are decisive for factual, mathematical, code, or safety behavior.",
+    "The FFN dense output is near zero, making the CETT denominator unstable and thresholds overly conservative or noisy.",
+    "A predictor false-negative drops an important neuron before its true magnitude can be observed, with no correction path.",
+    "Thresholds calibrated on Wikipedia/Pile/Common Crawl drift on chat, multilingual, domain, adversarial, or long-context traffic.",
+    "Predictor compute and memory traffic outweigh savings at larger batches or high-bandwidth accelerators.",
+    "Top-k routing fixes work per token but wastes compute on easy tokens and underallocates capacity on hard tokens.",
+    "A larger reuse window inflates the cached union beyond available memory, eliminating the predicted I/O reduction.",
+    "Pairwise coactivation preferences conflict, so no contiguous ordering simultaneously realizes the reported row-wise gaps.",
+    "Unstructured token-dependent neuron sparsity maps poorly to GPU kernels and produces slower wall-clock execution despite lower FLOPs.",
+    "ReLU-squared's quadratic positive branch produces scale or numerical behavior that differs at larger models and longer training than the single 1.3B run reveals.",
+    "A reversed or improperly aggregated benchmark metric makes a sparsified model appear better precisely when a desired behavior worsens."
+  ],
+  "reusable_insights": [
+    "Define FFN contribution at the output-vector level: scalar activation alone ignores downstream weight norms and gated value projections.",
+    "Any threshold search over a norm of summed vectors must establish monotonicity or use a full/Pareto scan; cancellation invalidates scalar-pruning intuition.",
+    "Separate an oracle sparsity frontier from a deployable predictor frontier and charge every predictor, index, gather, and synchronization cost.",
+    "Report false-negative harm by token and behavior, not only mean neuron recall; rare high-impact misses dominate deployment risk.",
+    "Use per-layer and per-token error budgets plus end-to-end logit, KL, perplexity, task, and generation checks rather than one global average CETT.",
+    "Validate metric direction and aggregation automatically against the evaluation harness before making small average-performance claims.",
+    "Compare equal parameter count, dense training FLOPs, active parameter bytes, and realized sparse-kernel time; none alone defines efficiency.",
+    "A locality statistic should be evaluated under an explicit cache capacity, replacement policy, layout algorithm, storage granularity, and hardware trace.",
+    "Activation-function scaling claims require multiple model sizes trained under comparable recipes; continuation from another nonlinearity answers a different question.",
+    "Release predictor checkpoints, threshold calibration samples, routing code, and kernel/layout artifacts alongside dense model weights."
+  ],
+  "open_questions": [
+    "Does ReLU-squared retain its sparsity-quality advantage at 7B-70B when trained from scratch with matched tokens, FLOPs, and multiple seeds?",
+    "Can a monotone upper bound based on sums of norms, covariance-aware error, or certified residual sensitivity replace cancellation-prone CETT without becoming too conservative?",
+    "How stable are layer thresholds and predictor calibration across languages, code, instruction tuning, long contexts, distribution shift, and adversarial prompts?",
+    "Which predictor architecture minimizes end-to-end latency after charging its own projections, indexing, gathers, and launch overhead?",
+    "Can speculative activation prediction compute uncertain neurons densely while preserving most sparse savings and bounding false-negative harm?",
+    "What is the quality frontier when TruthfulQA and every other metric are oriented correctly and generation/perplexity are included?",
+    "Do rare neurons disproportionately control memorized facts, reasoning transitions, toxicity refusal, or calibration even when their average output norms are small?",
+    "Which structured block, N:M, or expert sparsity pattern retains ReLU-squared's tail advantage while matching real accelerator kernels?",
+    "Can a joint optimizer choose thresholds, predictor budgets, neuron order, cache allocation, and sparse-kernel granularity for a measured hardware objective?",
+    "How do ReLU-squared, dReLU, CATS, progressive ReLU regularization, top-k/STE, TEAL, and rotated sparsification compare under one reproducible system and training budget?",
+    "Does the quadratic activation create outlier, quantization, gradient-scale, or numerical-stability costs at larger scale?",
+    "Can activation-sparsity scaling laws predict deployable wall-clock gains rather than only oracle sparsity ratios?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2109.08668",
+      "title": "Primer: Searching for Efficient Transformers for Language Modeling",
+      "url": "https://arxiv.org/abs/2109.08668",
+      "relationship": "prior origin and scaling study of squared ReLU",
+      "difference": "Primer discovered squared ReLU through architecture search and attributes much of its dense training-efficiency gain to that activation plus depthwise attention convolutions, with compute-scaling experiments up to 1.9B. ReLU-squared Wins isolates the activation in parameter-matched LLaMA-like models and studies sparse deployment, but its activation itself is not new and its scale evidence is weaker.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "openreview:TJ2nxciYCk-",
+      "title": "The Lazy Neuron Phenomenon: On Emergence of Activation Sparsity in Transformers",
+      "url": "https://openreview.net/forum?id=TJ2nxciYCk-",
+      "relationship": "prior empirical and theoretical activation-sparsity study",
+      "difference": "Lazy Neuron documents extreme exact-zero ReLU activation sparsity across language and vision Transformers and reports increasing sparsity with scale. ReLU-squared Wins extends the measurement to smooth/gated activations using output magnitudes and compares deployment proxies, but does not match Lazy Neuron's cross-domain scope.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2023 conference paper"
+    },
+    {
+      "canonical_id": "acl:2022.findings-acl.71",
+      "title": "MoEfication: Transformer Feed-forward Layers are Mixtures of Experts",
+      "url": "https://aclanthology.org/2022.findings-acl.71/",
+      "relationship": "prior router-based conversion of dense FFNs to conditional experts",
+      "difference": "MoEfication clusters dense FFN neurons into functional experts and trains routers, conditionally using 10%-30% of FFN parameters with an implemented speedup. ReLU-squared Wins treats each neuron as an expert and focuses on activation-function choice and magnitude thresholds, avoiding cluster granularity but not implementing the complete inference system.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "Findings of ACL 2022"
+    },
+    {
+      "canonical_id": "pmlr:liu23am",
+      "title": "Deja Vu: Contextual Sparsity for Efficient LLMs at Inference Time",
+      "url": "https://proceedings.mlr.press/v202/liu23am.html",
+      "relationship": "prior contextual-sparsity predictor and hardware system",
+      "difference": "DejaVu predicts both MLP and attention sparsity and couples asynchronous prediction to a hardware-aware implementation, reporting over 2x latency reduction on OPT-175B. ReLU-squared Wins compares nonlinearities and introduces output-magnitude CETT, but its 6%-of-FFN predictors and locality metrics are not validated in a wall-clock system.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "PMLR 202 (ICML 2023)"
+    },
+    {
+      "canonical_id": "arxiv:2310.04564",
+      "title": "ReLU Strikes Back: Exploiting Activation Sparsity in Large Language Models",
+      "url": "https://arxiv.org/abs/2310.04564",
+      "relationship": "direct prior activation-function and temporal-reuse baseline",
+      "difference": "ReLU Strikes Back argues ReLU can match modern activations while enabling exact zeros and reuses neurons across generated tokens to estimate up to 3x inference-compute reduction. ReLU-squared Wins cites it, trains a more controlled four-activation panel, and adds ReLU-squared, magnitude tails, predictors, and coactivation, but again stops at estimated rather than realized speed.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2312.12456",
+      "title": "PowerInfer: Fast Large Language Model Serving with a Consumer-grade GPU",
+      "url": "https://arxiv.org/abs/2312.12456",
+      "relationship": "prior production-oriented activation-sparse serving system",
+      "difference": "PowerInfer combines hot/cold neuron placement, adaptive predictors, and sparse operators in a GPU-CPU engine and measures up to 11.69x over llama.cpp on a 4090. ReLU-squared Wins studies which activation may improve the underlying sparsity and locality, but its own appendix finds no strong hot-neuron effect at 1.3B and it does not benchmark a system.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2; SOSP 2024"
+    },
+    {
+      "canonical_id": "arxiv:2402.13516",
+      "title": "ProSparse: Introducing and Enhancing Intrinsic Activation Sparsity within Large Language Models",
+      "url": "https://arxiv.org/abs/2402.13516",
+      "relationship": "near-concurrent direct sparsity-training competitor",
+      "difference": "ProSparse, submitted fifteen days later with overlapping authors, replaces the activation with ReLU and progressively increases a sparsity regularizer, reaching roughly 88%-89% exact sparsity at 1B-13B and reporting up to 4.52x inference speedup. It needs continued training and regularization; ReLU-squared Wins proposes a from-scratch activation choice and magnitude pruning but lacks equivalent large-model/system validation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v7"
+    },
+    {
+      "canonical_id": "arxiv:2404.08763",
+      "title": "CATS: Contextually-Aware Thresholding for Sparsity in Large Language Models",
+      "url": "https://arxiv.org/abs/2404.08763",
+      "relationship": "subsequent direct threshold-activation and kernel competitor",
+      "difference": "CATS installs a thresholded nonlinearity in existing LLaMA-2 and Mistral models, reports 50% activation sparsity within 1%-2% without fine-tuning, and supplies a custom kernel with about 15% token-latency improvement. ReLU-squared Wins offers a broader activation comparison and much higher oracle sparsity, but does not demonstrate those sparsities in an end-to-end kernel.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4"
+    },
+    {
+      "canonical_id": "arxiv:2406.05955",
+      "title": "Turbo Sparse: Achieving LLM SOTA Performance with Minimal Activated Parameters",
+      "url": "https://arxiv.org/abs/2406.05955",
+      "relationship": "subsequent activation-design and deployment competitor",
+      "difference": "Turbo Sparse, with overlapping authors, introduces dReLU plus a training-data recipe, applies it to Mistral and Mixtral, and reports 2x-5x decoding speedups and phone deployment. It is stronger deployment evidence for a learned sparse activation; ReLU-squared Wins supplies the comparative diagnostic framework but does not show ReLU-squared at those scales or devices.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "pmlr:zhang24bq",
+      "title": "Exploring the Benefit of Activation Sparsity in Pre-training",
+      "url": "https://proceedings.mlr.press/v235/zhang24bq.html",
+      "relationship": "concurrent sparse-pretraining alternative",
+      "difference": "Switchable Sparse-Dense learning alternates MoE-style sparse and conventional dense training as activation correlations evolve, reporting comparable quality, lower pretraining cost, and up to 2x inference speed. It changes the training schedule and routing granularity; ReLU-squared Wins changes/compares the activation and targets neuron-level magnitude sparsity.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "PMLR 235 (ICML 2024)"
+    },
+    {
+      "canonical_id": "arxiv:2407.10969",
+      "title": "Q-Sparse: All Large Language Models can be Fully Sparsely-Activated",
+      "url": "https://arxiv.org/abs/2407.10969",
+      "relationship": "subsequent top-k sparsity and scaling-law competitor",
+      "difference": "Q-Sparse explicitly top-k sparsifies activations during training with a straight-through estimator, offers block sparsity, supports from-scratch and continuation settings, and proposes an inference-optimal scaling law. It guarantees a fixed activation budget more directly than a learned magnitude threshold, while ReLU-squared Wins avoids STE training and explores natural predictability/locality.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2408.14690",
+      "title": "Training-Free Activation Sparsity in Large Language Models",
+      "url": "https://arxiv.org/abs/2408.14690",
+      "relationship": "subsequent training-free magnitude-sparsity competitor",
+      "difference": "TEAL applies magnitude pruning to hidden states throughout existing LLaMA-2/3 and Mistral models from 7B to 70B, needs no retraining or predictor, and measures up to 1.53x-1.8x decoding speedups at 40%-50% model-wide sparsity. ReLU-squared Wins finds a higher-sparsity activation but requires training new weights and predictive routing, with no realized speedup.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3; ICLR 2025 Spotlight"
+    },
+    {
+      "canonical_id": "pmlr:liu25cj",
+      "title": "La RoSA: Enhancing LLM Efficiency via Layerwise Rotated Sparse Activation",
+      "url": "https://proceedings.mlr.press/v267/liu25cj.html",
+      "relationship": "subsequent training-free structured sparsification competitor",
+      "difference": "LaRoSA learns/applies layerwise orthogonal rotations that make inputs more top-k-sparsifiable, yielding fixed sparsity and a reported 1.30x wall-clock speedup at 40% on LLaMA-2-7B without recovery training. It directly targets stable kernel utilization, whereas ReLU-squared Wins uses fluctuating magnitude thresholds and proxy hardware-affinity measures.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "PMLR 267 (ICML 2025)"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims a general output-magnitude definition of activation, a three-axis framework for sparse deployment, and evidence that ReLU-squared is the most efficient activation among ReLU, ReLU-squared, ReGLU, and SwiGLU.",
+    "evidence": "It contributes a controlled 100B-token, 1.3B-parameter four-activation training panel, layer-adaptive CETT curves, per-layer predictor comparisons, temporal reuse and coactivation diagnostics, large ReGLU continuation experiments, and public training checkpoints.",
+    "reviewer_inference": "The output-vector magnitude framing and joint activation/predictor/locality comparison are useful, and the ReLU-squared tail result is a credible hypothesis generator. ReLU-squared itself comes from Primer; activation sparsity, predictors, reuse, MoEfication, and hardware systems all have strong direct priors. More importantly, the manuscript's exact ordering and deployment claims are not established: TruthfulQA is reversed, CETT is nonmonotone despite binary search, predictor sparsity is internally inconsistent, large-scale ReLU-squared is untested, and 56% FLOP/92% I/O savings are unmeasured estimates. The defensible novelty is a comparative diagnostic study and promising small-scale observation, not proof that ReLU-squared wins deployable sparse LLM inference."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Read all 16 cached pages, including equations, tables, appendices, threshold pseudocode, and hot-neuron CDF discussion. The current primary-source competitive panel was checked on arXiv, OpenReview, ACL Anthology, and PMLR on 2026-08-23. The TruthfulQA direction was cross-checked against the official lm-evaluation-harness convention and the corrected Table 2 averages were recomputed from the paper's rounded values. CETT nonmonotonicity was audited algebraically with an explicit counterexample. Public SparseLLM checkpoint metadata was inspected only to distinguish released weights from the unpinned predictor/kernel pipeline. No generated projections were rebuilt."
+}

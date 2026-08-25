@@ -1,0 +1,524 @@
+{
+  "stable_id": "arxiv:2604.14142",
+  "reading_depth": "verified",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2604.14142",
+    "pdf_sha256": "4c10c8ae33478b71433c3f16ff3d0ce481e67605c8ea14a720a94b7f1af3a1ea",
+    "text_sha256": "e5a07d90413bd1951f949b493b5f0e41332b6642c132e722faf787722b8c2685",
+    "page_count": 21,
+    "extracted_at": "2026-08-23T09:54:07.115620+00:00",
+    "review_pass": "secondary-verified-v1"
+  },
+  "question": "Can reinforcement learning update a language model through response-only likelihood, without conditioning the gradient on the question, and can a short negative-response warm-up in that space improve the speed and final quality of ordinary conditional RL?",
+  "key_findings": [
+    {
+      "claim": "The authors define post-train-space RL as updating conditional response likelihood pi(y|x), and pre-train-space RL as sampling y from that conditional policy but masking x when evaluating the gradient so that the updated score is written pi(y).",
+      "evidence": "The same problem-conditioned rollout supplies the response and reward in both cases; only the likelihood used in the policy-gradient factor changes. This makes PreRL a response-only gradient construction rather than an unconditional data-generation process.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "2 From Post-train Space P(y|x) to Pre-train Space P(y)"
+        },
+        {
+          "page": 4,
+          "section": "2.2 Pre-train Space Reinforcement Learning"
+        }
+      ]
+    },
+    {
+      "claim": "Calling the response-only score P(y) risks conflating it with a marginal distribution over prompts, which the method neither defines nor computes.",
+      "evidence": "Responses are first drawn from pi(y|x) for a particular x and are then rescored with the prompt masked. No prompt distribution is integrated out, so the implemented object is response-only likelihood under a conditionally sampled rollout population, not the mathematical marginal integral over x.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "2.1 Post-train Space Reinforcement Learning"
+        },
+        {
+          "page": 4,
+          "section": "2.2 Pre-train Space Reinforcement Learning"
+        }
+      ]
+    },
+    {
+      "claim": "Equation 4 is a hybrid score-function surrogate, not an unbiased policy gradient for a prompt-marginal P(y).",
+      "evidence": "The rollout y is sampled from the parameter-dependent conditional policy pi_theta(.|x), but the update uses the distinct response-only score gradient nabla log pi_theta(y) after masking x. No prompt distribution, conditional-to-response-only importance ratio, or derivative through the theta-dependent sampling distribution is included. The equation can be used as a practical fixed-rollout surrogate, but the paper does not identify an expectation whose on-policy policy gradient it estimates without bias.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "2.1 Conditional rollout distribution, Equation 2"
+        },
+        {
+          "page": 4,
+          "section": "2.2 Response-only update, Equation 4"
+        }
+      ]
+    },
+    {
+      "claim": "A first-order condition links the usefulness of a response-only update to nonnegative alignment between conditional and response-only score gradients.",
+      "evidence": "The Taylor expansion predicts that increasing response-only likelihood will also increase conditional likelihood when the two gradients have nonnegative inner product. On 400 Qwen3-4B AMC23 trajectories, all measured dot products are nonnegative with reported mean 9.2, although the appendix includes token-level distribution mismatches.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "2.2 First-order gradient-alignment premise"
+        },
+        {
+          "page": 5,
+          "section": "2.3 Empirical gradient-alignment analysis"
+        },
+        {
+          "page": 20,
+          "section": "Appendix Figures 10-11, aligned and misaligned next-token distributions"
+        },
+        {
+          "page": 21,
+          "section": "Appendix Figure 12, token log-probability comparison"
+        }
+      ]
+    },
+    {
+      "claim": "The gradient-alignment measurement is encouraging but does not establish that finite PreRL updates improve the conditional policy in general.",
+      "evidence": "The argument is first-order, the empirical check uses one model and one math source at one operating region, and the paper itself observes that pure PreRL matches conditional RL only early before collapsing. Token-level mismatches are most visible at early or uncertain positions.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "2.2 Taylor analysis"
+        },
+        {
+          "page": 5,
+          "section": "2.3 PreRL training dynamics"
+        },
+        {
+          "page": 21,
+          "section": "Appendix misaligned token distributions"
+        }
+      ]
+    },
+    {
+      "claim": "Positive-signal response-only training fails on the paper's on-policy correct rollouts, whereas negative-signal response-only training rapidly increases heuristic exploration markers.",
+      "evidence": "PSR-PreRL does not improve the tested model; the authors contrast it with off-policy teacher-generated QFFT data. Twenty NSR-PreRL steps increase transition-word and reflection-word counts by 14.89 times and 6.54 times and reach 86% training accuracy, but continued training produces excessively long responses and hinders learning.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "2.3 Positive-signal PreRL"
+        },
+        {
+          "page": 6,
+          "section": "2.3 Negative-signal PreRL"
+        }
+      ]
+    },
+    {
+      "claim": "The prose defines NSR-PreRL through negative group-relative advantage, not necessarily a literally negative verifier reward.",
+      "evidence": "GRPO normalizes each binary return within its rollout group, and Section 2.3 calls samples with A_i < 0 negative. A zero-reward incorrect response can therefore receive a negative optimizer coefficient when another group member is correct; 'negative signal' is relative to the batch and baseline.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "2.1 GRPO advantage definition, Equation 3"
+        },
+        {
+          "page": 5,
+          "section": "2.3 PSR and NSR decomposition"
+        }
+      ]
+    },
+    {
+      "claim": "The formal DSRL objective is internally inconsistent with the reward and NSR definitions given earlier.",
+      "evidence": "Equation 1 defines the terminal verifier reward as 0 or 1 and Section 2.3 defines NSR using A_i < 0, but Equation 6 gates the warm-up with R(y) < 0. Taken literally, no warm-up sample satisfies that gate. Moreover, although the surrounding prose calls both phases GRPO, the warm-up branch in Equation 6 uses raw R(y) and omits group advantage, the old/new-policy importance ratio, clipping, and the GRPO surrogate shown in Equation 2. The reported implementation must therefore differ materially from the written objective.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "2.1 Sparse binary reward, Equation 1"
+        },
+        {
+          "page": 5,
+          "section": "2.3 Advantage-sign definition of PSR and NSR"
+        },
+        {
+          "page": 6,
+          "section": "3 Dual Space RL, Equation 6"
+        }
+      ]
+    },
+    {
+      "claim": "Dual-Space Reinforcement Learning uses a short NSR-PreRL warm-up and then switches to standard conditional GRPO, improving reported in-domain average accuracy over GRPO at both tested scales.",
+      "evidence": "For Qwen3-4B the six-benchmark Avg@32 is 57.54 for DSRL versus 55.79 for GRPO and 57.04 for the strongest non-DSRL average, Dr.GRPO. For Qwen3-8B it is 58.47 versus 57.00 for GRPO and 57.34 for the strongest non-DSRL average, PPO. The largest displayed 4B gains over GRPO are on AIME24 and AIME25, 51.15 versus 46.46 and 43.44 versus 40.94.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "3 Dual-Space Reinforcement Learning and Table 1"
+        },
+        {
+          "page": 7,
+          "section": "4.1 Experimental Setup"
+        }
+      ]
+    },
+    {
+      "claim": "The table supports the best overall average at each scale, not superiority in every benchmark cell.",
+      "evidence": "At 4B, DSRL's Minerva Avg@32 is 30.48, below Dr.GRPO's 31.05, even though DSRL leads the six-task average. At 8B DSRL leads all six displayed cells. No confidence intervals or seed-level variation accompany any table entry.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Table 1"
+        },
+        {
+          "page": 7,
+          "section": "4.2 Main Results"
+        }
+      ]
+    },
+    {
+      "claim": "The reported out-of-domain advantage is mixed rather than universal.",
+      "evidence": "At 4B, DSRL exceeds GRPO on GPQA, MMLU-Pro, and BBH but ties HumanEval; at 8B it improves GPQA, MMLU-Pro, and HumanEval while BBH is lower by 0.04. All comparisons remain Qwen3-centered and do not include uncertainty intervals.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "4.2 Out-of-domain generalization"
+        }
+      ]
+    },
+    {
+      "claim": "The Pass@K curves show broader sampled success than GRPO but do not by themselves identify distinct reasoning-path diversity.",
+      "evidence": "The estimator records whether at least one of K samples is correct. A uniformly higher per-sample success probability can improve the entire curve even when successful samples repeat the same strategy. The paper provides no semantic clustering, edit-distance control, or distinct-solution count, so its diversity interpretation is not identified by Figure 4.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "4.2 Pass@K analysis and Figure 4"
+        },
+        {
+          "page": 17,
+          "section": "Appendix B.2 Pass@K estimator"
+        }
+      ]
+    },
+    {
+      "claim": "DSRL reaches several target accuracies in fewer optimization steps than GRPO, but the paper does not establish compute-equivalent efficiency.",
+      "evidence": "The authors report a 61.6 versus 57.7 average at a selected training point and 2.5-fold and 1.6-fold fewer steps to reach two accuracy thresholds. The warm-up changes the objective and response length, while wall-clock, sampled-token, and generated-token budgets are not jointly matched.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "4.2 Training efficiency"
+        },
+        {
+          "page": 17,
+          "section": "Appendix training configuration"
+        }
+      ]
+    },
+    {
+      "claim": "The warm-up duration has an inverted-U relationship with final performance, and replacing the response-only warm-up with a conditional negative-advantage warm-up performs worse.",
+      "evidence": "Warm-ups of roughly 10-25 steps work best in the displayed sweep; longer NSR-PreRL leads to over-exploration. NSR-RL followed by GRPO averages 54.38, below both GRPO at 55.79 and DSRL at 57.54.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "4.4 Ablation Study"
+        }
+      ]
+    },
+    {
+      "claim": "The evidence for a qualitatively new reasoning capability is weaker than the evidence for a useful training curriculum.",
+      "evidence": "Transition and reflection counts are fixed-string heuristics, other behavior categories are assigned by GPT-4o, and NSR-PreRL also lengthens responses. There is no length-matched analysis, independent process-ground-truth audit, adversarial verifier test, seed interval, or causal separation of exploration style from correctness.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "4.3 Reasoning-behavior analysis"
+        },
+        {
+          "page": 18,
+          "section": "Appendix keyword and GPT-4o annotations"
+        },
+        {
+          "page": 19,
+          "section": "Appendix behavior-analysis prompt"
+        }
+      ]
+    },
+    {
+      "claim": "The all-rollouts-correct and all-rollouts-incorrect group counts in Figure 6 are outcome proxies, not process evidence that a model internalized fundamental error-correction logic.",
+      "evidence": "With eight binary-scored rollouts, moving probability mass toward correct answers mechanically increases fully correct groups and decreases fully incorrect groups. Figure 6 does not inspect the reasoning in those groups, compare length- or accuracy-matched policies, or test novel tasks outside the verifier distribution, so it cannot distinguish new reasoning logic from ordinary accuracy redistribution.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "4.3 Reasoning capability and Figure 6"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Factor the post-training curriculum into a brief question-masked, response-only phase that suppresses relatively bad conditionally sampled rollouts, followed by conventional problem-conditioned GRPO.",
+    "mechanism": "For each MATH prompt, the current conditional policy samples eight responses and a verifier supplies binary task-success returns. GRPO normalizes returns within the response group. In the intended NSR-PreRL warm-up, only negative-advantage trajectories contribute, the originating question is masked from the likelihood computation, and the optimizer decreases the autoregressive response-only score pi(y_t|y_<t). This is a hybrid fixed-rollout surrogate because sampling remains conditional while the score gradient is response-only; it is not a demonstrated policy gradient of a prompt-marginal distribution. After a fixed transition step S, training restarts as ordinary conditional GRPO over pi(y|x). The paper motivates transfer between spaces with a one-step Taylor expansion and a 400-rollout gradient-alignment measurement, decomposes positive and negative signals, sweeps warm-up duration, compares a conditional NSR warm-up, and evaluates Avg@32, Pass@K, transfer, length, lexical reasoning markers, and GPT-4o behavior labels. Equation 6 writes R(y) < 0 rather than the negative-advantage gate described in prose and omits the GRPO advantage, ratio, and clipping machinery, so the formal objective does not specify the reported warm-up implementation.",
+    "assumptions": [
+      "Conditionally sampled responses can be pooled and rescored without their originating questions to define a useful cross-problem optimization target.",
+      "The response-only score pi(y) may be interpreted operationally without integrating pi(y|x) over a specified prompt distribution.",
+      "The conditional rollout sampler and response-only score can be combined without importance correction or an explicit correction for the parameter-dependent sampler.",
+      "Conditional and response-only likelihood gradients remain sufficiently aligned beyond the measured first-order checkpoint.",
+      "Group-relative negative advantage reliably identifies response patterns worth suppressing, rather than prompt-specific content that is correct elsewhere.",
+      "Rollout groups have enough reward variation for normalized advantages to be informative; all-correct and all-incorrect groups are not analyzed separately in the objective definition.",
+      "The implementation uses negative advantage or an undocumented remapped reward during warm-up, because the written R(y) < 0 gate is impossible under the defined 0/1 reward.",
+      "A short response-only suppression phase expands useful exploration rather than merely increasing verbosity or stylistic markers.",
+      "Verifier correctness on the chosen math tasks is an adequate learning signal and is not materially exploitable.",
+      "Switching objectives after a fixed number of steps is comparable across model scales and training states.",
+      "Step-count improvements approximate practical efficiency despite changing response lengths and rollout-token cost.",
+      "Fixed lexical rules and GPT-4o judgments are valid proxies for reasoning-process quality without length matching or independent annotation.",
+      "Avg@32 and Pass@K estimates at temperature 1.0 characterize policy quality despite absent seed intervals, contamination analysis, and matched generation budgets."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "question-masked-policy-gradient",
+      "role": "Scores a conditionally sampled response after removing the problem from the likelihood context."
+    },
+    {
+      "id": "gradient-space-alignment-audit",
+      "role": "Measures whether response-only and conditional likelihood gradients have a nonnegative dot product."
+    },
+    {
+      "id": "negative-signal-response-suppression",
+      "role": "Decreases response-only likelihood for rollouts with negative group-relative advantage."
+    },
+    {
+      "id": "dual-space-curriculum",
+      "role": "Switches from a short NSR-PreRL warm-up to standard conditional GRPO."
+    },
+    {
+      "id": "warm-up-duration-sweep",
+      "role": "Tests whether exploration gains reverse after excessive response-only training."
+    },
+    {
+      "id": "pass-at-k-analysis",
+      "role": "Reports the probability of at least one correct completion among K samples; without path clustering it cannot separate strategy diversity from higher per-sample accuracy."
+    },
+    {
+      "id": "reasoning-marker-audit",
+      "role": "Counts lexical transition/reflection markers and GPT-4o-assigned reasoning categories."
+    },
+    {
+      "id": "objective-consistency-audit",
+      "role": "Distinguishes binary environment reward, normalized group advantage, and the gate written in the DSRL equation."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Qwen3-4B non-thinking model trained on 7,500 MATH problems for six epochs with AdamW, learning rate 1e-6, prompt batch 128, eight rollouts per prompt, mini-batch 128, rollout temperature 1.0, maximum prompt 1,024 tokens, and maximum response 8,192 tokens; evaluated at temperature 1.0 and top-p 1.0 on AMC23, MATH500, AIME24, AIME25, Minerva, and OlympiadBench",
+      "metric": "Avg@32 per benchmark and unweighted six-benchmark average",
+      "result": "DSRL scores 89.22, 89.68, 51.15, 43.44, 30.48, and 41.26, averaging 57.54; GRPO averages 55.79 and the strongest non-DSRL average is Dr.GRPO at 57.04. Dr.GRPO's Minerva 31.05 exceeds DSRL's 30.48",
+      "baseline": "Vanilla, PPO, Reinforce++, RLOO, Dr.GRPO, DAPO with clip-higher only, and GRPO"
+    },
+    {
+      "setting": "Qwen3-8B non-thinking model under the same MATH training and six-benchmark Avg@32 protocol",
+      "metric": "Avg@32 per benchmark and unweighted six-benchmark average",
+      "result": "DSRL scores 90.00, 90.31, 56.15, 42.19, 30.32, and 41.82, averaging 58.47; GRPO averages 57.00 and the strongest non-DSRL average is PPO at 57.34",
+      "baseline": "Vanilla, PPO, Reinforce++, RLOO, Dr.GRPO, DAPO with clip-higher only, and GRPO"
+    },
+    {
+      "setting": "Qwen3-4B gradient study on 400 conditionally sampled AMC23 rollouts, with each response rescored both with and without its question",
+      "metric": "Parameter-gradient inner product, cosine similarity, and per-token log-probability difference between log pi(y|x) and log pi(y)",
+      "result": "All 400 reported inner products are nonnegative and their mean is +9.2; cosine similarities are strongly positive, while appendix examples show substantial early/uncertain-token mismatches",
+      "baseline": "Conditional response gradient and token distribution for the same rollout"
+    },
+    {
+      "setting": "Scale-matched Qwen3-4B and Qwen3-8B transfer to GPQA-Diamond, MMLU-Pro, BBH, and HumanEval",
+      "metric": "Benchmark score and absolute difference from GRPO",
+      "result": "At 4B, DSRL is 43.18, 66.49, 82.41, and 81.10 versus GRPO 39.39, 61.12, 80.37, and 81.10: +3.79, +5.37, +2.04, and +0.00. At 8B, DSRL is 53.48, 63.79, 82.31, and 90.24 versus 50.96, 59.47, 82.35, and 87.80: +2.52, +4.32, -0.04, and +2.44",
+      "baseline": "Scale-matched vanilla model and GRPO"
+    },
+    {
+      "setting": "Pass@K evaluation on the six math benchmarks with K from 1 to 256 and n = 300 sampled responses per problem",
+      "metric": "Unbiased Pass@K estimator 1 - choose(n-c,K)/choose(n,K)",
+      "result": "Figure 4 shows DSRL above GRPO for every displayed K on Qwen3-8B and for most displayed K values on Qwen3-4B; the paper does not tabulate the underlying numeric values or uncertainty",
+      "baseline": "Scale-matched GRPO"
+    },
+    {
+      "setting": "Qwen3-4B early-training comparison in which NSR-PreRL runs 20 steps and GRPO runs 25 steps",
+      "metric": "Training accuracy, transition markers, reflection markers, and response length",
+      "result": "PSR-PreRL does not improve task performance; 20 NSR-PreRL steps reach a reported 86% training accuracy and multiply transition and reflection counts by 14.89 and 6.54 relative to vanilla, while continued PreRL eventually collapses and length grows excessively",
+      "baseline": "Vanilla Qwen3-4B, standard GRPO, PSR-RL, NSR-RL, PSR-PreRL, and full PreRL curves"
+    },
+    {
+      "setting": "DSRL versus GRPO training curves over the six-benchmark average",
+      "metric": "Selected average accuracy and optimization steps to 45.0% and 58.0% thresholds",
+      "result": "The paper reports 61.6 for DSRL versus 57.7 for GRPO at a selected point and 2.5-fold and 1.6-fold fewer steps to the two thresholds; generated tokens, wall-clock time, and rollout compute are not matched",
+      "baseline": "GRPO optimization-step curve"
+    },
+    {
+      "setting": "Qwen3-4B warm-up-length sweep plus a 20-step conditional NSR-RL versus 20-step response-only NSR-PreRL warm-up",
+      "metric": "Final six-benchmark Avg@32 and the AMC23/AIME24/AIME25 average at step 20",
+      "result": "The final six-task averages at 10, 15, 20, 25, and 30 warm-up steps are 57.74, 57.11, 57.54, 57.27, and 56.32, supporting the text's 10-25-step region. At the 20-step setting, NSR-PreRL warm-up finishes at 57.54 versus 55.79 for no-warm-up GRPO and 54.38 for NSR-RL warm-up; at step 20 of the three-task curve, NSR-PreRL is 45.4 versus NSR-RL 38.8, a 6.6-point lead",
+      "baseline": "Zero, shorter, and longer response-only warm-ups and a conditional negative-signal warm-up"
+    }
+  ],
+  "limitations": [
+    "Author-stated: pure PreRL becomes unstable and eventually collapses, so it is not presented as a standalone replacement for conditional RL.",
+    "Author-stated: positive-signal PreRL does not improve on on-policy correct samples in the tested setting.",
+    "Reviewer-identified: P(y) is a response-only score of conditionally generated samples, not a prompt-marginal distribution.",
+    "Reviewer-identified: Equation 4 samples from pi_theta(y|x) but differentiates log pi_theta(y), with neither importance correction nor the derivative through the parameter-dependent sampler; it is a hybrid surrogate, not an identified unbiased marginal-policy gradient.",
+    "Reviewer-identified: Equation 6 gates warm-up updates with R(y) < 0 even though Equation 1 defines R in {0,1}; the prose instead defines NSR by negative normalized advantage.",
+    "Reviewer-identified: Equation 6's warm-up branch is not the GRPO objective described in prose because it omits group advantage, old/new-policy ratio, clipping, and reference-policy terms.",
+    "Reviewer-identified: the gradient-alignment evidence is first-order and limited to one model, checkpoint regime, and math source.",
+    "Reviewer-identified: experiments cover only Qwen3 4B/8B and math-centered training, with no random-seed intervals or significance tests.",
+    "Reviewer-identified: the verifier implementation, GRPO clipping value, reference-policy handling, reward-tie handling, and exact switch checkpoints by scale are not fully specified.",
+    "Reviewer-identified: response length is a major confound for lexical and model-judged reasoning-behavior counts.",
+    "Reviewer-identified: the paper does not audit verifier gaming, memorized answer formats, or adversarially invalid trajectories.",
+    "Reviewer-identified: optimization steps are not matched for generated tokens, wall-clock time, or effective compute.",
+    "Reviewer-identified: warm-up duration is tuned on the same domain used to support the central result.",
+    "Reviewer-identified: claims that fully solved or unsolved problems demonstrate internalized reasoning are not causally established by outcome accuracy.",
+    "Reviewer-identified: Pass@K measures sampled success coverage, not the number or semantic diversity of reasoning strategies.",
+    "Reviewer-identified: benchmark decontamination, prompt-level evaluation variance, and exact Pass@K numbers are not reported."
+  ],
+  "failure_modes": [
+    "Suppressing a response without its prompt can punish a generally useful phrase or derivation that was wrong only for the originating problem.",
+    "Negative-signal training can create verbosity, excessive self-correction, or transition-word imitation instead of better search.",
+    "A response-only warm-up can move far enough that first-order conditional-gradient alignment no longer predicts its effect.",
+    "A conditional sampler paired with a response-only score can optimize a distribution-dependent surrogate whose behavior changes as the sampler drifts, without corresponding to either stated policy objective.",
+    "Group normalization can mark all samples uninformative when rewards tie or make the coefficient highly batch-composition dependent.",
+    "An implementation that follows Equation 6 literally performs no NSR warm-up update under the stated binary reward.",
+    "A binary verifier can be exploited by malformed answers, answer leakage, or accidental string matching while reported reward rises.",
+    "The optimal switch point can change with model scale, base competence, task difficulty, rollout count, or reward density.",
+    "Apparent step efficiency can disappear once longer generated trajectories and failed rollouts are charged to the budget.",
+    "Diversity gains can collapse into a narrow stylistic mode that transfers poorly beyond math."
+  ],
+  "reusable_insights": [
+    "Treat prompt masking as an explicit intervention on gradient geometry, not merely a different data regime.",
+    "Measure conditional-versus-response-only gradient alignment before and throughout any dual-objective curriculum.",
+    "Use negative rollouts to reshape exploration only briefly, with switch criteria tied to held-out behavior rather than a fixed step count.",
+    "Separate environment reward, normalized advantage, and the sign of the actual optimizer coefficient when interpreting negative reinforcement.",
+    "Write curriculum gates in the same signal space used by the implementation and test the zero-reward, all-correct, and all-incorrect group cases explicitly.",
+    "When the sampler and score come from different policy conditionings, define the intended expectation and use an importance correction or stop-gradient convention explicitly.",
+    "Audit reasoning markers after matching response length and with process-grounded labels.",
+    "Report generated-token and wall-clock efficiency in addition to optimizer-step efficiency.",
+    "Compare on-policy correct data with genuinely out-of-distribution expert trajectories before concluding that positive response-only learning cannot work."
+  ],
+  "open_questions": [
+    "What distributional object should replace the ambiguous P(y), and can it be estimated consistently across prompts?",
+    "What objective does Equation 4 estimate when y is drawn from pi_theta(y|x) but scored by log pi_theta(y), and which correction would make that estimator principled?",
+    "Does the released implementation gate on negative advantage, remap incorrect rewards below zero, or differ from Equation 6 in another way?",
+    "Can an online gradient-alignment or representation-drift statistic choose the switch point more reliably than a fixed warm-up length?",
+    "Which response features are suppressed across problems, and which are merely prompt-specific mistakes?",
+    "Do gains survive length-matched decoding, adversarial verifiers, multiple seeds, non-math tasks, and different model families?",
+    "Would signed feature-level suppression avoid penalizing complete responses and reduce the eventual verbosity collapse?",
+    "Can the same trajectories be replayed through PreRL and conditional RL to causally isolate gradient-space effects from exploration effects?",
+    "Do DSRL's Pass@K gains persist after controlling per-sample accuracy, and do successful samples contain more semantically distinct solution strategies?",
+    "How should success be defined when reward rises but process validity, diversity, or independent evaluation falls?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2506.12860",
+      "title": "QFFT, Question-Free Fine-Tuning for Adaptive Reasoning",
+      "url": "https://arxiv.org/abs/2506.12860v1",
+      "relationship": "closest response-only antecedent",
+      "difference": "QFFT already removes the input question during training and learns from response-only long-chain-of-thought demonstrations, reporting adaptive short/long reasoning and more than 50% shorter outputs. PreRL replaces QFFT's off-policy supervised positive demonstrations with on-policy verifier feedback and finds that only its negative-advantage response suppression is useful in this setting.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 (2025-06-15)"
+    },
+    {
+      "canonical_id": "arxiv:2506.01347",
+      "title": "The Surprising Effectiveness of Negative Reinforcement in LLM Reasoning",
+      "url": "https://arxiv.org/abs/2506.01347v2",
+      "relationship": "closest negative-signal antecedent",
+      "difference": "Zhu et al. already decompose RLVR into PSR and NSR, show NSR-only training can match or beat PPO/GRPO across Pass@K, and attribute it to suppressing incorrect generations and redistributing prior mass. DSRL's distinctive step is to apply that negative signal to question-masked likelihood briefly before returning to conditional GRPO.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, NeurIPS 2025 version (2025-10-25)"
+    },
+    {
+      "canonical_id": "arxiv:2507.06892",
+      "title": "Squeeze the Soaked Sponge: Efficient Off-policy Reinforcement Finetuning for Large Language Model",
+      "url": "https://arxiv.org/abs/2507.06892v3",
+      "relationship": "curriculum and policy-reincarnation antecedent",
+      "difference": "ReMix already uses policy reincarnation to transition from efficient early off-policy learning to stable on-policy improvement and explicitly measures rollout-data savings. DSRL reuses the staged-policy idea but changes the first phase to on-policy, question-masked negative-response suppression; it reports step savings without ReMix's rollout-volume accounting.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3 (2025-07-11)"
+    },
+    {
+      "canonical_id": "arxiv:2506.08007",
+      "title": "Reinforcement Pre-Training",
+      "url": "https://arxiv.org/abs/2506.08007v1",
+      "relationship": "direct antecedent",
+      "difference": "RPT reframes next-token prediction as verifiable RL during pretraining; it does not mask the question of an on-policy problem response or use a negative-response warm-up followed by conditional GRPO.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 (2025-06-09)"
+    },
+    {
+      "canonical_id": "arxiv:2510.01265",
+      "title": "RLP: Reinforcement as a Pretraining Objective",
+      "url": "https://arxiv.org/abs/2510.01265v2",
+      "relationship": "direct competitor",
+      "difference": "RLP rewards sampled chains of thought by their information gain for future-token prediction over ordinary documents; it supplies a dense positive pretraining objective rather than response-only suppression of relatively bad math rollouts.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, ICLR 2026 camera-ready (2026-03-01)"
+    },
+    {
+      "canonical_id": "arxiv:2509.19249",
+      "title": "Reinforcement Learning on Pre-Training Data",
+      "url": "https://arxiv.org/abs/2509.19249v2",
+      "relationship": "direct competitor",
+      "difference": "RLPT uses next-segment prediction rewards on pretraining text to explore richer trajectories; it does not compare conditional and question-masked likelihood gradients or stage a negative-advantage curriculum.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2 (2025-09-25)"
+    },
+    {
+      "canonical_id": "arxiv:2504.14945",
+      "title": "Learning to Reason under Off-Policy Guidance",
+      "url": "https://arxiv.org/abs/2504.14945v5",
+      "relationship": "direct competitor",
+      "difference": "LUFFY mixes off-policy expert traces with on-policy RL and reports gains where weak policies cannot self-bootstrap; unlike DSRL it adds external reasoning support and keeps conditional likelihood, providing a competing explanation for escaping the base policy's frontier.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v5 (2025-06-22)"
+    },
+    {
+      "canonical_id": "arxiv:2603.20799",
+      "title": "RLVR Training of LLMs Does Not Improve Thinking Ability for General QA: Evaluation Method and a Simple Solution",
+      "url": "https://arxiv.org/abs/2603.20799v1",
+      "relationship": "direct process-evaluation and transfer competitor",
+      "difference": "START separates thinking from answering and evaluates intermediate thought through cross-generation on general QA, finding that verifiable-task RLVR does not automatically improve general-QA thinking. It predates DSRL and directly cautions against treating math accuracy, lexical markers, or OOD answer scores as proof that a curriculum has internalized broadly useful reasoning processes.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 (2026-03-21)"
+    },
+    {
+      "canonical_id": "arxiv:2605.06241",
+      "title": "Rethinking RL for LLM Reasoning: It's Sparse Policy Selection, Not Capability Learning",
+      "url": "https://arxiv.org/abs/2605.06241v2",
+      "relationship": "post-target direct mechanism competitor",
+      "difference": "This later ReasonMaxxer study argues that reasoning RL chiefly selects sparse behaviors already present in the base policy rather than creating new capability. Its post-target evidence does not defeat DSRL's measured gains, but it sharpens the alternative explanation that negative response-only suppression redistributes existing policy mass instead of expanding a new reasoning horizon.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2 (2026-05-08)"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper presents the first systematic study of reinforcement learning in a response-only pre-train probability space and introduces a dual-space curriculum that first learns from negative signals there before conditional RL.",
+    "evidence": "The response-only score construction, same-rollout gradient-alignment diagnostic, conditional-versus-question-masked NSR ablation, warm-up sweep, and two-scale DSRL evaluation distinguish the complete recipe from RL objectives on pretraining documents and from ordinary conditional NSR. Its individual ingredients are not new: QFFT already trains without questions, Zhu et al. already isolate negative sample reinforcement, ReMix already uses policy reincarnation to stage early and late RL regimes, and START already separates reasoning-process optimization from answer-conditioned training while warning against process-capability inferences from outcomes.",
+    "reviewer_inference": "The defensible novelty is the narrow combination: briefly suppressing relatively bad, conditionally sampled rollouts under a question-masked response score before GRPO, plus measuring the local alignment of conditional and response-only score gradients. It is not the first question-free training method, negative-reinforcement method, reinforcement-pretraining method, staged policy-reincarnation curriculum, or process-focused RL intervention. Nor is Equation 4 an established policy gradient of a marginal P(y): its sampler is pi_theta(y|x), its score is log pi_theta(y), and no correction reconciles them. Claims of expanded reasoning horizons, strategy diversity, compute efficiency, and a formally specified GRPO warm-up remain unsupported without a corrected estimator and Equation 6, path-level diversity analysis, compute/length matching, adversarial reward audits, and broader replications; the later sparse-policy-selection account is a live alternative mechanism."
+  },
+  "verification": {
+    "reviewer_id": "reviewer-b8a13b88adfa",
+    "checked_at": "2026-08-23",
+    "passage_check": "Independently re-read and passage-checked all 21 physical pages of the exact pinned extraction, including all six equations, Figures 1-13, Tables 1-7, the complete references, Appendix A, and every Appendix B implementation, prompt, keyword, annotation, and token-distribution item. Recomputed all Table 1 and Table 2 comparisons, inspected plot-only values on rendered pages, and checked every finding, anchor, evaluation, limitation, failure mode, negative result, and novelty boundary. The second pass added the sampler/score mismatch in Equation 4, the missing GRPO machinery and impossible reward gate in Equation 6, the Pass@K identifiability boundary, and the outcome-proxy boundary for Figure 6.",
+    "competitor_check": "Re-searched official primary literature with three disjoint query families: question-free/response-only reasoning training; negative-sample reinforcement, GRPO warm-ups, and policy reincarnation; and the paper's P(y), pre-train-space, and novelty language. Verified exact current arXiv records 2506.12860v1, 2506.01347v2, 2507.06892v3, 2506.08007v1, 2510.01265v2, 2509.19249v2, 2504.14945v5, 2603.20799v1, and post-target 2605.06241v2. The combination check found antecedents for each component but no pre-target primary record containing the exact question-masked negative-advantage warm-up followed by conditional GRPO; the target's claimed marginal-policy-gradient interpretation is nevertheless not established."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "The secondary reviewer independently inspected the exact locally indexed 21-page arXiv v1 paper end to end, including every appendix, reference, table, equation, figure, caption, and the aligned/misaligned token examples; every physical PDF page was rendered and visually checked, with high-resolution inspection of dense equations, plots, and tables. The indexed provenance is unchanged: source locator https://export.arxiv.org/pdf/2604.14142, PDF SHA-256 4c10c8ae33478b71433c3f16ff3d0ce481e67605c8ea14a720a94b7f1af3a1ea, text SHA-256 e5a07d90413bd1951f949b493b5f0e41332b6642c132e722faf787722b8c2685, 21 pages, extracted 2026-08-23T09:54:07.115620+00:00. The official record checked 2026-08-23 remains arXiv:2604.14142v1, submitted 2026-04-15. Nine exact-version primary competitors were independently checked. Promotion to verified preserves the positive empirical curriculum result while explicitly rejecting four overextensions: P(y) is not a computed prompt marginal, Equation 4 is not an identified unbiased marginal policy gradient, Equation 6 cannot literally produce the reported GRPO warm-up, and Pass@K/outcome-group plots do not prove strategy diversity or newly internalized reasoning logic."
+}

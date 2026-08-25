@@ -1,0 +1,401 @@
+{
+  "stable_id": "arxiv:2603.09078",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2603.09078",
+    "pdf_sha256": "5a9b87ebda526d9562479e6ced017dd8b433551d9f7f938bf09aefcc5b592984",
+    "text_sha256": "d4db808c66db84ef16b5283484b4ffe2509c26c7d42dcecfe643cbb2ec1cb6fb",
+    "page_count": 7,
+    "extracted_at": "2026-08-23T11:55:23.389989+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Does forcing every causal attention-head output to be orthogonal to that position's own value vector improve contextual language modeling over standard self-attention, and do token-matched loss, downstream accuracy, sequence-length, learning-rate, compute, and learned-sink experiments support the proposed division of labor between attention and the residual/FFN path?",
+  "key_findings": [
+    {
+      "claim": "A trained baseline exhibits the paper's 'attention similarity bias': an attention output becomes increasingly aligned with its own-position value vector across depth even though distinct value vectors have only weak average alignment.",
+      "evidence": "For one approximately 1.3B-parameter baseline trained for 100B tokens at sequence length 2,048, Figure 1 averages 1,024 randomly drawn training sequences over heads. By visual reading of the plotted axes, mean pairwise value-vector cosine is low but positive (roughly 0.04-0.10), mean diagonal attention is roughly 0.015-0.125, and mean cos(y_i,v_i) rises from about 0.2 in early layers to about 0.54 late in depth. The source gives no sequence-to-sequence dispersion or values in a table.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 1, "section": "Introduction and Motivation"},
+        {"page": 2, "section": "Motivation / Figure 1"}
+      ]
+    },
+    {
+      "claim": "The diagnostic establishes a correlation pattern, not that self-attention is causally wasting capacity on pointwise transformation or competing with context modeling.",
+      "evidence": "Positive correlations among value vectors can make their weighted sum align with v_i even when the diagonal weight is small, and both quantities are learned jointly. The paper performs no intervention that zeroes diagonal attention, scrambles self values, conditions on value covariance, removes the residual identity path, or measures recoverable context information. Consequently, the proposed 'competition' between pointwise and contextual work is a motivating hypothesis rather than an identified mechanism.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "Introduction"},
+        {"page": 2, "section": "Motivation / Figure 1"},
+        {"page": 2, "section": "Method"}
+      ]
+    },
+    {
+      "claim": "XSA is a parameter-free, per-head Gram-Schmidt-style projection applied after ordinary scaled dot-product attention; it changes the branch output but not the causal attention weights.",
+      "evidence": "For position i and a head, standard attention first produces y_i = sum_(j<=i) a_(i,j)v_j. XSA then returns z_i = y_i - (y_i^T v_i)v_i/||v_i||_2^2. Algorithm 1 implements this by normalizing each same-position head value V, subtracting the inner-product component from Y, concatenating heads, and applying W_o. Therefore z_i is orthogonal to v_i up to numerical precision, with no new learned parameter and no alteration to QK scores or softmax.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "Method / Equation 2"},
+        {"page": 3, "section": "Algorithm 1"}
+      ]
+    },
+    {
+      "claim": "The abstract's phrase 'excluding information of self position' is stronger than the mechanism: XSA removes one value-space direction from the attention branch, while a direct residual path still preserves the current token and other paths can encode it.",
+      "evidence": "The authors explicitly motivate XSA by saying current-position information has a direct residual path to the FFN. XSA leaves x_i, q_i, k_i, all attention weights, the residual stream, and components orthogonal to v_i intact; other positions' value vectors may also encode the same token or position. Thus it neither blocks information flow from position i nor guarantees statistical independence from self information. The exact defensible statement is geometric orthogonality of each head's attention output to that head's own v_i.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract and Introduction"},
+        {"page": 2, "section": "Method / Equation 2"},
+        {"page": 3, "section": "Algorithm 1"}
+      ]
+    },
+    {
+      "claim": "The projection deliberately erases contextual components correlated with the self value, and it collapses the causal attention branch to zero at the first sequence position.",
+      "evidence": "The paper acknowledges that z_i contains neither the v_i component nor components from context correlated with v_i. Algebraically, at causal position i=1, y_1=v_1 because the only softmax entry is one, so z_1=0 exactly before W_o. More generally, if useful contextual values are collinear with v_i, their contribution is removed too. No norm safeguard, learned mixing coefficient, or ablation isolates whether these side effects are beneficial regularization or a loss of useful context.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 2, "section": "Method / Equation 2"},
+        {"page": 3, "section": "Algorithm 1"}
+      ]
+    },
+    {
+      "claim": "XSA's average downstream gain is positive at all three reported sizes and increases with size, but the 0.7B gain is only 0.26 points and individual tasks regress at every size.",
+      "evidence": "Table 2 reports eight-task averages of 53.48 versus 53.22 at 0.7B (+0.26), 57.19 versus 56.16 at the paper's 1.3B label (+1.03), and 59.42 versus 58.06 at 2.7B (+1.36). Negative task deltas include OpenBookQA -2.80 and PIQA -0.27 at 0.7B, BoolQ -3.18 at 1.3B, and SocialIQA -1.49 at 2.7B. No seeds, confidence intervals, or significance analysis establish whether the small mean or task-level differences exceed run variance.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Table 2"},
+        {"page": 5, "section": "Results: Model size"}
+      ]
+    },
+    {
+      "claim": "Training and validation curves visually favor XSA throughout training at 0.7B, middle, and 2.7B scales, but the report does not provide final losses, perplexity, replicated runs, or a compute-matched comparison.",
+      "evidence": "Figure 3 shows a persistent loss separation for all three model sizes over 200K iterations and approximately 100B FineWeb tokens. The figure is the only quantitative record: there is no numeric table, uncertainty band, or seed count. Since XSA adds normalization, dot products, and subtraction and Figure 2 shows nonzero runtime overhead, equal tokens and steps give XSA more training compute than the baseline; the experiment is token-matched rather than FLOP- or wall-clock-matched.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Experimental Setup: Training details"},
+        {"page": 4, "section": "Figures 2-3"},
+        {"page": 5, "section": "Results: Computational overhead and Model size"}
+      ]
+    },
+    {
+      "claim": "The claimed 'minimal' overhead is directionally supported but not numerically established: all plotted XSA settings consume more time and memory than standard attention, and only block-level B200 benchmarks are shown.",
+      "evidence": "Figure 2 benchmarks attention-plus-FFN forward/backward on one B200 GPU, batch 32, bfloat16 while varying sequence length and d_model. The XSA curve is consistently above baseline for both time and peak memory. Approximate visual readings include roughly 600 versus 550 ms and 51 versus 47 GB at sequence length 16,384 with d_model 2,048, and roughly 1.05 versus 1.00 seconds and 59 versus 55 GB at d_model 16,384 with length 2,048. The paper gives no exact ratios, repetitions, variance, end-to-end training throughput, inference latency, kernel-fusion status, or compute-normalized quality.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Figure 2"},
+        {"page": 5, "section": "Results: Computational overhead"}
+      ]
+    },
+    {
+      "claim": "A four-point learning-rate sweep suggests the validation-loss gap is not an artifact of one baseline learning rate, but it does not show independent hyperparameter optima for XSA.",
+      "evidence": "For the middle model, Figure 4 compares learning rates 1e-4, 2e-4, 4e-4, and 8e-4 and visually shows a near-constant XSA advantage. The setup says each baseline architecture was grid-searched and the selected rate reused for its XSA variant; it does not say the XSA optimum was independently searched. Results remain plot-only with one apparent run per cell, so robustness means persistence over these four shared schedules, not fully controlled tuning parity.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Experimental Setup: Training details"},
+        {"page": 5, "section": "Results: Learning rate / Figure 4"}
+      ]
+    },
+    {
+      "claim": "XSA's loss advantage grows across jointly trained-and-evaluated context lengths from 512 to 16,384, but this is not a demonstration of long-context extrapolation, retrieval, or generation quality.",
+      "evidence": "The middle model is separately trained at 512, 1,024, 2,048, 4,096, 8,192, and 16,384 tokens with a constant 0.5M tokens per batch and the same learning rate. Figure 5 visually suggests a validation-loss gap of about 0.01 at length 512 and about 0.027 at 16,384. Each model is evaluated at the length it was trained on, and no held-out length beyond training, needle retrieval, RULER-style task, position extrapolation, or generation benchmark is reported. Therefore 'compatibility with long contexts' is supported more narrowly than the paper's speculation about long-context modeling.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Figure 5"},
+        {"page": 6, "section": "Results: Sequence length"}
+      ]
+    },
+    {
+      "claim": "Learned sink tokens do not eliminate XSA's validation-loss margin, but the experiment shows compatibility rather than that XSA substitutes for attention sinks.",
+      "evidence": "Figure 6 compares baseline and XSA middle models with 0, 1, and 4 learned sink tokens and visually retains an XSA validation-loss gap of roughly 0.017-0.020. Both architectures appear to improve slightly with sinks, and there is no streaming-window evaluation or row in which XSA alone reproduces the function of retained initial sink KVs. Thus the reported result is a small factorial compatibility check, not evidence of equivalence or redundancy.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Figure 6 and Comparison to Attention Sink"}
+      ]
+    },
+    {
+      "claim": "Calling a_i,i an 'implicit attention sink' conflates XSA with the established streaming-attention-sink mechanism.",
+      "evidence": "XSA does not redirect or delete a_i,i; it leaves the normalized attention map unchanged and removes the final value-space component parallel to v_i. StreamingLLM attention sinks are initial or learned placeholder key/value positions that absorb probability and are retained with a local window to stabilize arbitrarily long streaming. A same-position diagonal weight exists at every token and cannot be retained as one fixed KV anchor under window eviction. The mechanisms may share the broad idea of accommodating otherwise unhelpful attention mass, but they are not the same construct.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 2, "section": "Method / Equation 2"},
+        {"page": 3, "section": "Algorithm 1"},
+        {"page": 6, "section": "Comparison to Attention Sink"}
+      ]
+    },
+    {
+      "claim": "The scale trend is suggestive rather than a scaling law and contains a reporting inconsistency: Table 1 calls the middle architecture 1.4B while all figures, prose, and Table 2 call it 1.3B.",
+      "evidence": "All models see approximately the same 100B-token FineWeb budget and only three parameter settings are reported: 0.7B, a middle model listed as 1.4B in the architecture table but 1.3B elsewhere, and 2.7B. The downstream average gain rises across these checkpoints, yet model width, head count/dimension, depth at 2.7B, and baseline learning rate also change, with only one run each. No larger data budget or compute-optimal token scaling tests the statement that gains should persist at larger model and data scale.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Motivation"},
+        {"page": 3, "section": "Table 1 and Training details"},
+        {"page": 4, "section": "Table 2"},
+        {"page": 5, "section": "Results: Model size"}
+      ]
+    },
+    {
+      "claim": "The empirical package supports a useful architectural regularizer but does not isolate projection geometry as the reason: there is no mechanism-level control among obvious alternatives.",
+      "evidence": "The study compares only standard attention and the full deterministic XSA projection. It omits zero-diagonal attention, deleting the self-value contribution before aggregation, projecting out a random or learned direction, scaled or gated projection, stop-gradient through v_i, per-layer/head placement, projection after W_o, and matched extra normalization/arithmetic. Without these controls, lower loss could arise from norm reduction, changed gradients, regularization, altered first-token behavior, or the claimed attention/FFN specialization.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 2, "section": "Method"},
+        {"page": 3, "section": "Algorithm 1"},
+        {"page": 4, "section": "Figures 2-3 and Table 2"},
+        {"page": 6, "section": "Discussions"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Constrain each attention head to contribute only the component of its contextual aggregate that is orthogonal to that token's own projected value, relying on the residual path and feed-forward block to carry or transform current-position information and thereby encouraging attention to specialize in contextual aggregation.",
+    "mechanism": "Given the same Q, K, V and causal softmax as ordinary attention, a head computes y_i = sum_(j<=i) a_(i,j)v_j. It normalizes the same-position value u_i=v_i/||v_i|| and produces z_i=y_i-(y_i^T u_i)u_i before head concatenation and output projection W_o. Training uses a modified NanoGPT decoder with RoPE, an extra LayerNorm after token embeddings, independently configurable head count/dimension, FineWeb-100BT tokenized with GPT-2, and a 0.05% validation split. Models use 200K AdamW iterations, 2K warmup, cosine decay to one tenth of peak learning rate, default sequence length 2,048, and global batch 256 (approximately 0.5M tokens), totaling about 100B tokens. XSA and baseline are compared at 0.7B, a middle model called 1.4B in Table 1/1.3B elsewhere, and 2.7B, then under shared learning-rate, sequence-length, and learned-sink sweeps. Block compute is measured on B200 at batch 32 in bfloat16, and final checkpoints are scored on eight LM Evaluation Harness tasks.",
+    "assumptions": [
+      "High cosine alignment between y_i and v_i reflects inefficient pointwise work by attention rather than useful contextual values that happen to share the same direction.",
+      "Orthogonality to v_i is a meaningful proxy for excluding self-position information even though that information can remain in the residual stream and other features.",
+      "The residual connection and FFN preserve the expressiveness lost by constraining one output dimension per head at every token and layer.",
+      "Removing the component parallel to v_i improves division of labor rather than merely changing activation norms or gradients.",
+      "The normalization denominator remains numerically well behaved for all learned value vectors; the pseudocode relies on the framework normalization epsilon but the equation does not discuss it.",
+      "Erasing contextual components correlated with v_i is beneficial or at least harmless.",
+      "Forcing the first causal position's attention output to zero does not impair useful transformations because residual and FFN paths compensate.",
+      "A single fixed coefficient of one for the projection is appropriate across layers, heads, positions, tasks, and training phases.",
+      "Baseline-selected learning rates are fair for XSA even without an independently optimized XSA search.",
+      "Equal training tokens and iterations constitute a fair architectural comparison despite XSA's greater time and memory per block.",
+      "FineWeb-100BT, one tokenizer/codebase/optimizer, and three sub-3B scales adequately reveal a general Transformer effect.",
+      "Downstream average accuracy over four accuracy and four length-normalized-accuracy tasks is comparable and stable without uncertainty estimates.",
+      "Training separate models at each context length diagnoses long-context benefit rather than context extrapolation.",
+      "A diagonal self-attention score is functionally analogous to an attention sink even though established streaming sinks refer to persistent initial or placeholder KVs.",
+      "Loss gains at fixed token budget will extend to larger model/data scales and other modalities or optimizers."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "per-head-self-value-orthogonalization",
+      "role": "Projects each causal SDPA output onto the subspace orthogonal to its own-position value vector before the output projection."
+    },
+    {
+      "id": "attention-similarity-bias-diagnostic",
+      "role": "Tracks value-vector correlation, diagonal attention probability, and cos(y_i,v_i) by layer on 1,024 training sequences."
+    },
+    {
+      "id": "parameter-free-attention-intervention",
+      "role": "Changes attention computation with normalization and vector arithmetic but introduces no trainable parameter and leaves the QK softmax unchanged."
+    },
+    {
+      "id": "token-matched-pretraining-control",
+      "role": "Trains baseline and XSA variants for the same 200K iterations and approximately 100B FineWeb tokens."
+    },
+    {
+      "id": "three-scale-comparison",
+      "role": "Tests loss and downstream accuracy at 0.7B, approximately 1.3/1.4B, and 2.7B non-embedding parameters."
+    },
+    {
+      "id": "block-level-compute-profile",
+      "role": "Measures forward/backward time and peak memory for an attention-plus-FFN block across sequence lengths and widths on B200."
+    },
+    {
+      "id": "shared-learning-rate-sweep",
+      "role": "Checks whether the XSA-versus-baseline loss separation persists at four common learning rates."
+    },
+    {
+      "id": "trained-context-length-sweep",
+      "role": "Separately trains the middle model from 512 to 16,384 tokens while holding tokens per batch constant."
+    },
+    {
+      "id": "learned-attention-sink-factorial",
+      "role": "Compares both baseline and XSA with zero, one, and four prepended learned sink tokens."
+    },
+    {
+      "id": "mixed-metric-downstream-suite",
+      "role": "Uses the LM Evaluation Harness on eight language, knowledge, and reasoning tasks with accuracy or length-normalized accuracy."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Attention-similarity diagnostic on a roughly 1.3B baseline, 2,048-token sequences, after 100B training tokens; 1,024 random training sequences",
+      "metric": "Layer-wise mean pairwise value cosine, diagonal attention probability, and cosine between attention output y_i and same-position value v_i",
+      "result": "Figure 1 visually shows weak positive value correlation (approximately 0.04-0.10), diagonal probability increasing over depth (approximately 0.015-0.125), and cos(y_i,v_i) increasing from roughly 0.2 to 0.54",
+      "baseline": "No untrained checkpoint, covariance-controlled diagnostic, intervention, numerical table, or uncertainty; values are reviewer readings from plotted axes"
+    },
+    {
+      "setting": "Attention-plus-FFN block on one B200 GPU, batch 32, bfloat16, varied sequence length and d_model",
+      "metric": "Forward-plus-backward wall time and peak allocated memory",
+      "result": "XSA is above baseline on every plotted time and memory curve; visual examples are approximately 600 vs 550 ms and 51 vs 47 GB at length 16,384/d_model 2,048, and approximately 1.05 vs 1.00 s and 59 vs 55 GB at d_model 16,384/length 2,048",
+      "baseline": "Standard attention block; exact values, percentage overhead, repetitions, variance, end-to-end throughput, and inference latency are not reported"
+    },
+    {
+      "setting": "0.7B models trained for 200K steps/approximately 100B FineWeb tokens",
+      "metric": "Unweighted mean of ARC-E, BoolQ, HellaSwag, LAMBADA, OpenBookQA, PIQA, SocialIQA, and WinoGrande percentages",
+      "result": "XSA 53.48 versus baseline 53.22, a +0.26-point mean gain",
+      "baseline": "Standard attention under the same token/step budget; no seeds, intervals, compute matching, or significance test"
+    },
+    {
+      "setting": "Middle model labeled 1.3B in Table 2 and 1.4B in Table 1, same 100B-token training budget",
+      "metric": "Eight-task unweighted mean downstream percentage",
+      "result": "XSA 57.19 versus baseline 56.16, a +1.03-point mean gain",
+      "baseline": "Standard attention; architecture-size label is internally inconsistent and uncertainty is absent"
+    },
+    {
+      "setting": "2.7B models under the same 200K-step/100B-token budget",
+      "metric": "Eight-task unweighted mean downstream percentage",
+      "result": "XSA 59.42 versus baseline 58.06, a +1.36-point mean gain",
+      "baseline": "Standard attention; one data scale, one apparent seed, and token-matched rather than compute-matched training"
+    },
+    {
+      "setting": "Per-task negative/null-result audit across Table 2",
+      "metric": "XSA minus baseline task percentage points",
+      "result": "0.7B regresses OpenBookQA by 2.80 and PIQA by 0.27; middle model regresses BoolQ by 3.18; 2.7B regresses SocialIQA by 1.49. The 0.7B mean gain is only +0.26",
+      "baseline": "Corresponding standard-attention checkpoint at each scale"
+    },
+    {
+      "setting": "Middle model trained at learning rates 1e-4, 2e-4, 4e-4, and 8e-4",
+      "metric": "Training and validation cross-entropy curves",
+      "result": "Figure 4 shows a visually near-constant XSA loss advantage at all four shared learning rates; around 4e-4 the final validation separation appears roughly 0.02",
+      "baseline": "Standard attention at the same rates; plot-only estimates, no repeated seeds, and XSA was not reported as independently tuned"
+    },
+    {
+      "setting": "Middle model separately trained at sequence lengths 512, 1,024, 2,048, 4,096, 8,192, and 16,384 with 0.5M tokens per batch",
+      "metric": "Training and validation cross-entropy gap at the trained context length",
+      "result": "XSA is lower at all six lengths and the plotted validation gap grows from roughly 0.01 at 512 to roughly 0.027 at 16,384",
+      "baseline": "Standard attention trained at each same length; not evaluation beyond training length and no long-context retrieval/generation task"
+    },
+    {
+      "setting": "Middle baseline and XSA models with 0, 1, or 4 learned attention-sink tokens",
+      "metric": "Training and validation cross-entropy curves",
+      "result": "Both variants appear to improve modestly with learned sinks, while XSA keeps a plotted validation-loss margin of approximately 0.017-0.020 at each sink count",
+      "baseline": "Standard attention at matched sink count; no streaming-window or long-sequence sink-function evaluation"
+    },
+    {
+      "setting": "Three model sizes trained to approximately 100B tokens",
+      "metric": "Training and validation cross-entropy over 200K iterations",
+      "result": "Figure 3 shows XSA below baseline across training for all three sizes, with a visible margin in both training and validation loss",
+      "baseline": "Standard attention; no final numeric loss/perplexity table, uncertainty band, or compute-normalized curve"
+    }
+  ],
+  "limitations": [
+    "Author-stated: theoretical grounding for why orthogonalizing against the self value preserves expressiveness and improves modeling is deferred; empirical evaluation is the main justification.",
+    "Author-stated: behavior at larger model and training-data scales remains unknown.",
+    "Author-stated: compatibility with other optimizers such as Muon remains to be tested.",
+    "Author-stated: tasks and modalities beyond language modeling remain open.",
+    "Reviewer-identified: orthogonality removes one head-level value direction, not all self-position information; the residual path explicitly retains the current token, and Q/K, other positions, and orthogonal features can encode it.",
+    "Reviewer-identified: the diagnostic is correlational and no intervention verifies that y_i-v_i alignment consumes contextual capacity or duplicates FFN work.",
+    "Reviewer-identified: the projection also removes contextual components correlated with v_i and sets the first causal attention-branch output to exactly zero, but neither side effect is ablated.",
+    "Reviewer-identified: no zero-diagonal, self-value-deletion, random-direction, learned/gated-strength, detach, placement, or arithmetic-matched control isolates the proposed mechanism.",
+    "Reviewer-identified: there are no seeds, error bars, confidence intervals, significance tests, or reported run-to-run variance for loss curves, downstream scores, or compute measurements.",
+    "Reviewer-identified: baseline and XSA are matched in tokens and iterations, not FLOPs or wall-clock; XSA receives measurably more per-block time and memory.",
+    "Reviewer-identified: the compute evidence is one block on one B200 at batch 32/bfloat16 and omits exact overhead ratios, absolute end-to-end training throughput, inference latency, repetitions, kernel fusion, and variance.",
+    "Reviewer-identified: all training uses FineWeb-100BT, GPT-2 tokenization, AdamW, modified NanoGPT, and at most 2.7B parameters/100B tokens, limiting architecture, data, optimizer, and scale generality.",
+    "Reviewer-identified: Table 1 calls the middle model 1.4B while the diagnostic, prose, figures, and Table 2 call it 1.3B.",
+    "Reviewer-identified: model sizes differ in width, number of heads, head dimension, depth at 2.7B, and selected baseline learning rate, so three points do not identify a scaling law.",
+    "Reviewer-identified: sequence-length results train and validate at the same length and therefore do not test extrapolation, retrieval, streaming, or generation beyond the training window.",
+    "Reviewer-identified: the eight-task average mixes accuracy and length-normalized accuracy and hides consistent task regressions; no perplexity, MMLU-scale knowledge, code/math, safety, multilingual, instruction-following, or generation evaluation is included.",
+    "Reviewer-identified: learned-sink experiments show coexistence only; the study does not test the established attention-sink use case of retaining initial KVs under sliding-window streaming.",
+    "Reviewer-identified: existing parameter-free, masking, differential, and gated attention modifications are not experimentally compared, making architecture-specific benefit and overhead difficult to place.",
+    "Reviewer-identified: there is no pretrained-model retrofit experiment, so it is unknown whether XSA can be enabled without full pretraining or whether it depends on adaptation during training.",
+    "Reviewer-identified: code availability is not stated in the report beyond NanoGPT pseudocode, and exact dataset ordering, seed, evaluation shot settings, and checkpoint selection are absent."
+  ],
+  "failure_modes": [
+    "At the first causal position, attention has only v_1 and XSA projects it away completely, forcing the residual/FFN path to carry all useful first-token processing.",
+    "When useful context vectors share the self-value direction, XSA deletes their aggregate contribution along with the self component.",
+    "Very small ||v_i|| can make the mathematical projection ill-conditioned; implementation normalization epsilon changes the exact operator but is unspecified.",
+    "A fixed unit-strength projection can over-regularize heads or layers that legitimately use diagonal attention for copying, alignment, or local composition.",
+    "Because W_o follows per-head projection, it cannot recover a removed within-head component unless redundant information survives in another head.",
+    "Attention weights remain unchanged, so XSA does not reduce quadratic attention compute, KV memory, or allocation of softmax mass to irrelevant keys.",
+    "Extra normalization and reductions can be memory-bandwidth bound and produce material overhead at long sequences or wide heads despite negligible parameter count.",
+    "Token-matched superiority may disappear at equal wall-clock or equal FLOPs if a standard baseline trains on more tokens during the same budget.",
+    "A small average downstream gain can mask regressions in tasks that depend on different local/contextual mixtures, as OpenBookQA, BoolQ, and SocialIQA show.",
+    "The constraint may work only when trained from scratch; switching it on in a pretrained standard-attention model can create a severe activation distribution shift.",
+    "A model could route self information through correlated other-position values or other heads, satisfying geometric orthogonality without achieving the intended attention/FFN specialization.",
+    "At long sequences, any observed benefit may reflect altered regularization at the trained length rather than robustness to position or context extrapolation.",
+    "Treating each diagonal entry as a sink does not solve streaming-window failure because old self positions are evicted and there is no persistent anchor KV.",
+    "Projection-induced norm shrinkage can interact with residual scaling and LayerNorm differently in Pre-LN, Post-LN, gated residual, or MoE architectures not tested here."
+  ],
+  "reusable_insights": [
+    "State geometric guarantees precisely: XSA guarantees per-head output orthogonality to one value vector, not removal of all information about a token or position.",
+    "For any constrained-attention proposal, trace every identity path through residuals, Q/K/V, output projection, and other heads before interpreting an information-flow claim.",
+    "Analyze boundary positions algebraically; causal self-exclusion makes the first attention output a revealing exact-zero edge case.",
+    "Separate parameter overhead from arithmetic, memory, and end-to-end wall-clock overhead; a parameter-free operator can still cost measurable runtime and memory.",
+    "Token-matched and compute-matched training answer different questions and should be reported together when an architecture changes per-token cost.",
+    "Use mechanism controls that preserve arithmetic while changing geometry: random orthogonal direction, zero diagonal, subtract only a_i,i v_i, learn the projection strength, and detach v_i.",
+    "Report task-level deltas and uncertainty alongside an aggregate; a positive mean at every scale can coexist with meaningful recurring regressions.",
+    "A context-length sweep should cross train and test lengths, then include retrieval and generation, to distinguish within-window language modeling from extrapolation.",
+    "Terminology should follow function: compatibility with learned sink tokens is different from replacing the persistent KVs used for streaming attention sinks.",
+    "A 2x2 factorial of standard/XSA by no-sink/sink is useful, but equivalence requires an outcome tied to the sink's operational purpose.",
+    "When claiming improved division of labor, measure it directly with causal ablations, feature probes, head specialization, context sensitivity, or FFN load rather than loss alone.",
+    "Check architecture tables against narrative labels; a 1.3B/1.4B inconsistency can silently contaminate scale comparisons and downstream records."
+  ],
+  "open_questions": [
+    "Does XSA beat standard attention at equal training FLOPs and equal B200 wall-clock, after allowing the baseline to consume the saved time as more tokens or a larger model?",
+    "Which component drives the gain: orthogonality, norm shrinkage, altered gradients, first-token suppression, removal of diagonal self value, or generic regularization?",
+    "What happens when the projection coefficient is learned by head/layer, annealed over training, or gated by the query?",
+    "Can XSA be retrofitted by continued pretraining into an existing LLM, or does an abrupt projection destroy pretrained function?",
+    "Do residual and FFN probes show increased pointwise specialization while attention probes show increased contextual information, as the division-of-labor hypothesis predicts?",
+    "How much useful contextual signal is removed because contextual values correlate with v_i, and on which linguistic constructions or tasks does that cause regressions?",
+    "Does the exact-zero first-position attention branch explain any training dynamics, and should BOS or learned sink positions be exempted?",
+    "Do gains persist with independent hyperparameter searches, multiple seeds, Chinchilla-like token scaling, Muon, MoE models, and architectures larger than 2.7B/100B tokens?",
+    "Does XSA improve true length extrapolation when trained at 2,048 and evaluated at 4K-128K, including retrieval, RULER, perplexity, and long generation?",
+    "How do XSA, Selective Attention, Differential Transformer, and gated attention compare at matched parameters, tokens, FLOPs, latency, and long-context tasks?",
+    "Can a fused kernel make XSA overhead negligible at both training and autoregressive inference, and what are the exact throughput and KV-cache effects?",
+    "Why does BoolQ lose 3.18 points at the middle scale and SocialIQA lose 1.49 at 2.7B despite improved validation loss?",
+    "Is the middle checkpoint 1.3B or 1.4B non-embedding parameters, and do the Figure 1 diagnostic and Table 2 results use exactly the Table 1 architecture?",
+    "Does XSA alter attention sinks in the StreamingLLM sense—initial-token mass and sliding-window stability—or only preserve its loss gap alongside learned placeholders?",
+    "Can information-theoretic or dynamical analysis specify when projection onto the complement of v_i preserves the expressive class of a residual Transformer?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2410.02703",
+      "title": "Selective Attention Improves Transformer",
+      "url": "https://arxiv.org/abs/2410.02703",
+      "relationship": "direct parameter-free attention-modification competitor",
+      "difference": "Selective Attention applies a constrained selection head to accumulate signals from intermediate tokens and subtract them from future attention logits, suppressing obsolete context and enabling aggressive context-buffer pruning. It reports language-modeling equivalence to roughly twice as many attention heads and substantial attention-memory reductions across context lengths. XSA instead preserves the entire softmax map and projects each output away from its current-position value direction; it targets branch specialization, not key pruning, and does not reduce quadratic attention or KV storage.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, revised 2025-04-24 (first submitted 2024-10-03); ICLR 2025"
+    },
+    {
+      "canonical_id": "arxiv:2410.05258",
+      "title": "Differential Transformer",
+      "url": "https://arxiv.org/abs/2410.05258",
+      "relationship": "direct context-versus-noise attention-architecture competitor",
+      "difference": "Differential Transformer subtracts two separately normalized softmax attention maps with a learned coefficient, permitting negative attention to cancel irrelevant-context noise; its primary study covers language scaling and long-context retrieval, hallucination, in-context learning, and activation outliers through 13.1B parameters and much larger token budgets. XSA instead subtracts a rank-one value-space projection after one ordinary softmax, adds no learned coefficient, and is tested only through 2.7B/100B with within-training-window loss.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, revised 2025-04-07 (first submitted 2024-10-07); ICLR 2025 oral"
+    },
+    {
+      "canonical_id": "arxiv:2505.06708",
+      "title": "Gated Attention for Large Language Models: Non-linearity, Sparsity, and Attention-Sink-Free",
+      "url": "https://arxiv.org/abs/2505.06708",
+      "relationship": "direct post-SDPA output-modification and attention-sink competitor",
+      "difference": "Qiu et al. compare 30 gating variants and find a head-specific sigmoid gate after SDPA effective in 1.7B dense and 15B MoE models trained on up to 3.5T tokens. Its learned query-dependent sparse gate adds nonlinearity, reports under-2% latency overhead, eliminates observed attention sinks, and improves long-context extrapolation. XSA uses a fixed analytic orthogonal projection with no parameters; it has a stronger geometric guarantee but no head-selective bypass, broader-scale controls, exact overhead ratio, or extrapolation task.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, submitted 2025-05-10"
+    },
+    {
+      "canonical_id": "arxiv:2310.18738",
+      "title": "TLM: Token-Level Masking for Transformers",
+      "url": "https://arxiv.org/abs/2310.18738",
+      "relationship": "direct self-token-exclusion predecessor",
+      "difference": "TLM's self-masking regularizer randomly forces a selected token to form its training representation from other tokens by masking self-attention connections, alongside sibling masking; inference returns to standard attention. It evaluates 18 datasets across four NLP task families. XSA deterministically constrains every token/head during both training and inference in value space rather than masking the self link in attention weights, so it does not literally prevent attending to the self position and incurs persistent inference arithmetic.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, submitted 2023-10-28; EMNLP 2023 main conference"
+    },
+    {
+      "canonical_id": "arxiv:2309.17453",
+      "title": "Efficient Streaming Language Models with Attention Sinks",
+      "url": "https://arxiv.org/abs/2309.17453",
+      "relationship": "canonical attention-sink mechanism and direct terminology comparator",
+      "difference": "StreamingLLM identifies semantically unimportant initial tokens that absorb attention, then retains their KVs beside a rolling recent window to stabilize language modeling for up to four million tokens and 22.2x streaming speedup; it also tests a dedicated placeholder sink. XSA calls each same-position diagonal score an implicit sink but leaves scores unchanged and subtracts a value direction. It neither retains a persistent KV nor evaluates windowed streaming, so its sink relationship is analogy/compatibility rather than the same operational mechanism.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v4, revised 2024-04-07 (first submitted 2023-09-29); ICLR 2024"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The author presents XSA as a simple new self-attention modification that completely removes an attention-similarity bias by excluding the self value direction, thereby improving the division of labor between contextual attention and pointwise FFNs. The report claims minimal overhead, better training/validation loss and downstream averages through 2.7B parameters, learning-rate robustness, increasing gains with sequence length, and robustness to learned attention sinks.",
+    "evidence": "Equation 2 and Algorithm 1 establish the exact orthogonality operation; Figure 1 motivates it with layer-wise attention/value correlations; Figures 2-6 and Table 2 provide block compute, three-scale loss, eight-task accuracy, learning-rate, trained-length, and sink-token comparisons over approximately 100B-token runs.",
+    "reviewer_inference": "The defensible novelty is the specific deterministic per-head projection of SDPA output onto the complement of its own value vector and a relatively substantial token-matched pretraining study of that operator. Self-token masking, parameter-free attention suppression, signed/differential maps, post-SDPA gates, and learned attention sinks all have direct primary predecessors. The paper does not establish removal of self-position information, causal attention/FFN specialization, negligible end-to-end cost, context extrapolation, or scale/data generality. Those stronger interpretations require identity-path accounting, mechanism ablations, compute matching, uncertainty, broader scales, and operational long-context tests."
+  },
+  "confidence": 0.9,
+  "reviewer_notes": "Read all seven extracted pages and the complete references, and directly inspected the PDF's two equations, Algorithm 1, architecture table, downstream table, and all six figures; the source contains no appendix. Recomputed PDF/text hashes match fulltext_index. Exact Table 2 scores and stated setup details are author-reported; values explicitly marked approximate are reviewer visual readings from plots and should not be treated as tabulated measurements. Mechanism consequences, residual-path audit, first-position zero result, task-delta synthesis, compute-matching critique, 1.3B/1.4B inconsistency, and attention-sink distinction are reviewer analyses. Competitor IDs, exact titles, mechanisms, current versions, publication status, and dates were checked against official arXiv primary records and primary paper content on 2026-08-23. Confidence is high for the operator and reported table, but below verified because there is no independent replication, numerical loss/overhead table, uncertainty, or complete training code/configuration."
+}

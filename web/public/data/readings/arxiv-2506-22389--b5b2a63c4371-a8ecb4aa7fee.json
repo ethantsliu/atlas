@@ -1,0 +1,196 @@
+{
+  "stable_id": "arxiv:2506.22389",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2506.22389",
+    "pdf_sha256": "363d1d22bc9e6d095378816bebdf41a6d22896e3ccb106d9f5e685af146d5423",
+    "text_sha256": "9d640323847011b2f9fd7d6e7fd0475e03f92b034a9a539c54c94a081b9902c4",
+    "page_count": 36,
+    "extracted_at": "2026-08-23T16:23:00.733038+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a neural network abandon a fixed feed-forward layer order and instead learn, for every token or image patch, a context-dependent sequence of reusable attention and MLP modules while retaining baseline quality and exposing useful compute-allocation and interpretability structure?",
+  "key_findings": [
+    {
+      "claim": "Distributed Neural Architectures replace fixed depth with repeated token-level routing through a shared pool of modules, subsuming several familiar sparse-computation patterns as special cases.",
+      "evidence": "At each of a fixed maximum number of steps, a linear router makes a hard top-k choice for each token, chosen modules process the subsets they receive, and probability-weighted residual outputs are reassembled. Modules may be full Transformer blocks or separated attention and MLP blocks; tokens sent to the same attention module attend only to one another. Repeated module selection yields parameter reuse, while identity modules yield variable compute paths.",
+      "anchors": [
+        {"page": 3, "section": "General setup and intuition"},
+        {"page": 4, "section": "Paths and ribbons"},
+        {"page": 6, "section": "Dynamically sparse attention and routing"},
+        {"page": 7, "section": "Technical details"}
+      ]
+    },
+    {
+      "claim": "At ViT-S scale, routed models train on ImageNet and display data-dependent paths, module reuse, and compute allocation, but the paper does not establish a systems-efficiency advantage.",
+      "evidence": "Top-1 and top-2 DNA variants are trained for 300 epochs and compared with ViT-S. Patch paths specialize by textures, edges, object boundaries, and more specific visual motifs; split attention becomes sparse after a dense early foundation. A top-2 model targeted to skip 25% of computation spends more work on highly textured or boundary-heavy images and less on visually flat patches. The appendix states that every current DNA implementation is slower and uses more memory than its dense counterpart because of dynamic sequence lengths, on-the-fly masks, and worst-case activation storage.",
+      "anchors": [
+        {"page": 8, "section": "Vision experimental details"},
+        {"page": 11, "section": "Vision efficiency"},
+        {"page": 21, "section": "Hardware, memory, and throughput"},
+        {"page": 26, "section": "Patch-level compute distribution"}
+      ]
+    },
+    {
+      "claim": "At roughly GPT-2 Medium scale, top-2 DNA slightly improves language-model validation and most zero-shot metrics, whereas top-1 and explicitly compute-skipping DNA do not consistently match the dense baseline.",
+      "evidence": "Models are pretrained for 21B FineWeb-Edu tokens. The 433M-active-parameter top-2 DNA reaches validation loss 2.674 versus 2.720 for the 406M GPT-2 baseline and is modestly better on ARC-Easy, BoolQ, HellaSwag, LAMBADA, PIQA, and WikiText perplexity, but worse on RACE. Top-1 has loss 2.754 and is generally weaker. The 30%-skip top-2 reaches loss 2.784 and is materially worse than GPT-2 on most benchmarks, despite having 412M active and 596M total parameters; no realized latency or energy result is reported.",
+      "anchors": [
+        {"page": 12, "section": "Language architecture"},
+        {"page": 13, "section": "Language experimental details"},
+        {"page": 14, "section": "Zero-shot evaluation"},
+        {"page": 15, "section": "Language efficiency"}
+      ]
+    },
+    {
+      "claim": "Routing decisions contain human-recognizable structure, but the evidence supports exploratory probing rather than causal mechanistic interpretation.",
+      "evidence": "Image patches sharing trained paths often share edges, color regions, object categories, or boundaries; early language routers group punctuation, word pieces, lexical forms, and semantic categories. Optimizing input pixels to increase the probability of an observed path can reconstruct broad image semantics and shows a coarse-to-global transition across steps. However, randomly initialized DNA also clusters superficially similar patches and has an approximately power-law path distribution, and the work supplies no route intervention, causal scrubbing, concept-prediction metric, or blinded human evaluation.",
+      "anchors": [
+        {"page": 2, "section": "Path distributions and examples"},
+        {"page": 8, "section": "Patches and paths"},
+        {"page": 9, "section": "Path activation maximization"},
+        {"page": 13, "section": "Language routing interpretation"},
+        {"page": 26, "section": "Random-model paths"}
+      ]
+    },
+    {
+      "claim": "The paper is a proof of concept for dynamic modular routing, not yet a realization of physically distributed or asynchronous neural computation.",
+      "evidence": "The authors explicitly label dynamic compute and interpretability as proof-of-principle, modularity as only suggestive, and distributed/asynchronous training as future work. Routers remain indexed by synchronous forward steps, the maximum path length is fixed, early dense backbones are hard-coded for optimization, hardware-constrained connectivity is future work, and the current dynamic implementation is less efficient than dense execution.",
+      "anchors": [
+        {"page": 2, "section": "Stated scope"},
+        {"page": 7, "section": "Router arrangement and backbone"},
+        {"page": 16, "section": "Future work"},
+        {"page": 21, "section": "Memory and throughput"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Represent a model as a pool of reusable sequence modules plus a sequence of token-choice routers, allowing content-dependent module order, sparse within-step attention, parameter sharing, and variable computation to emerge during ordinary end-to-end training.",
+    "mechanism": "A router softmax assigns scores to every module and hard top-k chooses modules for each token. Chosen module outputs are weighted by router probabilities and added residually. An attention module operates only on the tokens routed to it. Dedicated identity modules permit skipping; an autograd-decoupled bias is updated by a sign rule toward a requested average skip rate. Path or ribbon statistics, input optimization against route probabilities, compute counts, and module reuse are then used to analyze the learned graph.",
+    "assumptions": [
+      "Hard top-k selection with gradients through selected probability weights supplies a sufficient and stable learning signal to routers and modules.",
+      "A fixed sequence of step-specific routers and a fixed maximum step count are an adequate proxy for a fully distributed module graph.",
+      "Per-token routing of attention remains semantically and causally appropriate when tokens assigned to different modules cannot interact at that step.",
+      "Comparable active parameter counts and training curves are sufficient for an architectural proof of concept even when total parameters, FLOPs, wall-clock time, and memory differ.",
+      "Route frequency, activation maximization, and visually selected examples reveal meaningful specialization rather than router geometry, initialization similarity, or researcher selection effects.",
+      "Manually specifying a target skip fraction and updating identity biases outside autograd still demonstrates that useful compute allocation is learned from data."
+    ]
+  },
+  "techniques": [
+    {"id": "iterated-token-choice-routing", "role": "Lets every token construct its own ordered module path up to a fixed step budget."},
+    {"id": "hard-top-k-probability-weighted-residual", "role": "Combines discrete routing with trainable selected-route weights and stable residual propagation."},
+    {"id": "routed-subsequence-attention", "role": "Produces data-dependent sparse attention by attending only within each routed token subset."},
+    {"id": "identity-module-compute-skipping", "role": "Allows per-token paths to spend different amounts of computation."},
+    {"id": "external-identity-bias-controller", "role": "Steers average skip rate toward a prescribed target without backpropagating through the bias."},
+    {"id": "path-and-ribbon-profiling", "role": "Summarizes discrete computation graphs, path frequency, module load, and parameter reuse."},
+    {"id": "route-probability-activation-maximization", "role": "Synthesizes inputs that preserve selected routing decisions for qualitative interpretation."},
+    {"id": "separated-attention-mlp-pool", "role": "Tests whether the model independently orders attention and MLP operations rather than recreating standard Transformer blocks."}
+  ],
+  "evaluations": [
+    {
+      "setting": "ImageNet, ViT-S-scale dense baseline and top-1/top-2 DNA models, 300 epochs, batch size 2,048, common augmentation pipeline and small learning-rate/weight-decay sweep",
+      "metric": "Validation accuracy curves, routing flow, path/ribbon frequency, qualitative patch specialization, active/total parameters, module reuse, and normalized compute counts",
+      "result": "DNA trains competitively at this scale; routing is dense early and diversifies later, paths group recognizable patch types, and a 25%-skip model allocates more operations to textured and boundary-heavy inputs. Separated attention/MLP DNA variants report 76.4% top-1 and 78.9% top-2 validation accuracy.",
+      "baseline": "22M-parameter ViT-S and randomly initialized DNA path clusters"
+    },
+    {
+      "setting": "FineWeb-Edu pretraining for 21B tokens at GPT-2-Medium scale with top-1 and top-2 DNA",
+      "metric": "Validation cross-entropy and zero-shot ARC-Easy, BoolQ, HellaSwag, LAMBADA, PIQA, RACE, and WikiText-2 perplexity",
+      "result": "Top-2 DNA improves loss from 2.720 to 2.674 and modestly improves six of seven downstream columns, but loses on RACE; top-1 loss is 2.754 and is usually weaker than GPT-2. The best routed model also has more active and total parameters than the baseline.",
+      "baseline": "406M-parameter GPT-2 Medium without embedding weight tying"
+    },
+    {
+      "setting": "FineWeb-Edu compute-saving comparison",
+      "metric": "Validation loss, zero-shot scores, requested module skip, and active/total parameters",
+      "result": "The 30%-skip top-2 DNA reaches loss 2.784, worse than both GPT-2 at 2.720 and a 30%-shallower GPT-2 at 2.772; downstream degradation is substantial on several tasks. Actual latency, memory, throughput, and energy are not benchmarked, and the implementation is reported slower and more memory intensive.",
+      "baseline": "Full GPT-2 Medium and 30%-shallower GPT-2"
+    },
+    {
+      "setting": "Qualitative interpretability analyses on ImageNet validation inputs, selected language passages, and route-conditioned synthesized images",
+      "metric": "Visual/lexical coherence of same-path examples, path-rank distributions, reconstruction under route-probability maximization, and correlation of reuse/skip patterns",
+      "result": "Many selected routes correspond to recognizable visual boundaries, semantic or lexical categories, and coarse-to-global image features; language module reuse appears largely arbitrary across models. No quantitative concept fidelity or causal necessity result is supplied.",
+      "baseline": "Random-initialization path clusters and cross-model correlation checks"
+    }
+  ],
+  "limitations": [
+    "The central non-depth-ordered token-routing idea closely overlaps the earlier Mixture-of-Modules architecture, which also iteratively selects attention and feed-forward modules but is not discussed or cited.",
+    "Despite the name, the evaluated systems are synchronous single-model computation graphs; distributed placement, asynchronous execution, locality, fault tolerance, and communication-aware training are all future work.",
+    "Current DNA runs are explicitly slower and more memory hungry than dense baselines, so FLOP or skip counts should not be interpreted as realized inference efficiency.",
+    "Comparisons are not consistently parameter-, FLOP-, memory-, or wall-clock-matched: the strongest language DNA uses 433M active and 603M total parameters versus GPT-2's 406M, while routed module reuse further complicates accounting.",
+    "The compute-saving language model underperforms the dense and shallower baselines, and no Pareto frontier across quality, latency, memory, and energy is provided.",
+    "Identity use is pushed toward a manually chosen fraction by a non-gradient bias controller, so emergent allocation is conditional on a prescribed global compute target rather than learned without external pressure.",
+    "The interpretability evidence is largely hand-selected and qualitative; power-law route frequencies occur in random networks too, and activation maximization does not show that a route causally implements the inferred concept.",
+    "Only Transformer, attention, and MLP modules are tested; claimed generality to Mamba, convolution, heterogeneous hardware modules, or unrestricted module graphs remains hypothetical.",
+    "The fixed number of synchronous step-indexed routers retains a latent notion of depth and limits paths; it is not the node-local routing system implied by the broader distributed vision.",
+    "No large-model reasoning experiment tests the proposed latent-computation motivation; the authors explicitly decline reasoning claims at the studied scale."
+  ],
+  "failure_modes": [
+    "Router collapse can overload a few modules, starve others of gradients, and negate parallelism when load balancing is intentionally absent.",
+    "Dynamic token group sizes can destroy accelerator utilization and require worst-case activation storage even when nominal FLOPs decrease.",
+    "Tokens separated into different attention modules lose cross-group communication at that step, potentially isolating information needed for a task.",
+    "Hard top-k discontinuities can make routes unstable near decision boundaries and deny unselected modules useful counterfactual gradient signal.",
+    "Repeated selection can make nominal active-parameter counts overstate distinct capacity while repeated weight application creates hard-to-profile sequential latency.",
+    "The skip controller can meet an average target by discarding unusual, multilingual, code, citation, or noisy-looking sequences that are actually important tail data.",
+    "Route visualization may recover input similarity encoded by initialization or shared residual states rather than a specialized causal algorithm.",
+    "Without locality constraints, independently routed tokens can create irregular all-to-all communication that is far more expensive than the saved arithmetic on real distributed hardware."
+  ],
+  "reusable_insights": [
+    "Separate adaptive capacity, adaptive depth, parameter sharing, and sparse attention when evaluating routed models; one routing mechanism can change all four at once.",
+    "Report total parameters, distinct active parameters, repeated module calls, FLOPs, communication, peak memory, and measured latency together for dynamic architectures.",
+    "A dense early foundation followed by more specialized sparse processing is a recurring empirical pattern worth testing as an explicit architecture prior.",
+    "Compute allocation should be validated against controlled input difficulty, not inferred solely from visually complex examples or task loss.",
+    "Discrete route traces create a useful analysis interface, but route semantics should be tested with interventions, counterfactual rerouting, and quantitative concept labels.",
+    "Hardware topology and routing constraints should be co-designed from the beginning because unconstrained learned connectivity can be computationally cheap yet communication bound.",
+    "Random-router and random-network baselines are essential: route frequency structure and input clustering can emerge before learning.",
+    "Allowing attention and MLP modules to decouple is a clean way to test whether the standard Transformer block order is actually learned or merely imposed."
+  ],
+  "open_questions": [
+    "Can a communication-aware DNA achieve a favorable measured latency/memory/energy frontier on multi-accelerator inference rather than only lower nominal compute?",
+    "How much of DNA's quality and specialization remains under exact active-parameter, total-parameter, FLOP, and wall-clock matching to Mixture-of-Modules, Mixture-of-Depths, MoE, and recurrent baselines?",
+    "Do node-local routers, asynchronous execution, and unrestricted stopping remain trainable without the fixed step schedule and hard-coded dense backbone?",
+    "Can route interventions demonstrate that path-specialized modules are causally necessary and compositional rather than merely correlated with input features?",
+    "What prevents load collapse while preserving genuinely emergent specialization and avoiding a costly global load-balancing objective?",
+    "Does per-token compute track intrinsic algorithmic difficulty and extrapolate to longer or harder instances, or mainly respond to static lexical and visual cues?",
+    "Can heterogeneous pools containing attention, state-space, convolutional, retrieval, memory, and tool modules learn stable routing at meaningful scale?",
+    "How should routing uncertainty, path churn, rare-token coverage, and tail-distribution harms be measured before using DNA as a data-filtering or compute-allocation system?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2407.06677",
+      "title": "Mixture-of-Modules: Reinventing Transformers as Dynamic Assemblies of Modules",
+      "url": "https://arxiv.org/abs/2407.06677",
+      "relationship": "closest prior and substantially overlapping architecture",
+      "difference": "Mixture-of-Modules predates DNA and likewise removes fixed depth by having routers iteratively select attention and feed-forward modules for each token, reporting GLUE/XSUM gains and measured TFLOP/memory tradeoffs. DNA adds image experiments, attention over routed token subsets, identity-based variable compute, route interpretability, and a more expansive distributed framing, but its core arbitrary-order modular routing is not new relative to MoM."
+    },
+    {
+      "canonical_id": "arxiv:2404.02258",
+      "title": "Mixture-of-Depths: Dynamically allocating compute in transformer-based language models",
+      "url": "https://arxiv.org/abs/2404.02258",
+      "relationship": "direct dynamic-compute baseline cited by the paper",
+      "difference": "Mixture-of-Depths keeps the normal layer order and a fixed per-layer token capacity, enabling predictable static shapes and reported inference speedups. DNA allows arbitrary module reuse and order and data-dependent attention groups, but its irregular execution is currently slower and more memory intensive."
+    },
+    {
+      "canonical_id": "arxiv:2507.10524",
+      "title": "Mixture-of-Recursions: Learning Dynamic Recursive Depths for Adaptive Token-Level Computation",
+      "url": "https://arxiv.org/abs/2507.10524",
+      "relationship": "near-contemporaneous scalable alternative combining reuse and adaptive depth",
+      "difference": "MoR shares a recurrent Transformer stack and routes tokens to different recursion depths, reporting a Pareto frontier through 1.7B parameters with throughput and KV-cache benefits. DNA offers a richer arbitrary module pool and route-level interpretation but stops around GPT-2 Medium scale and provides no realized throughput gain."
+    },
+    {
+      "canonical_id": "arxiv:2602.08864",
+      "title": "Understanding Dynamic Compute Allocation in Recurrent Transformers",
+      "url": "https://arxiv.org/abs/2602.08864",
+      "relationship": "subsequent evaluation framework that tests DNA's compute-allocation premise",
+      "difference": "ANIRA uses controlled algorithmic tasks to observe true token difficulty and finds that difficulty-aligned compute can emerge without guaranteeing length generalization; it also separates early static cues from online execution-state halting. DNA infers intelligent allocation from natural images/text and qualitative examples, where difficulty is confounded."
+    },
+    {
+      "canonical_id": "arxiv:1701.06538",
+      "title": "Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer",
+      "url": "https://arxiv.org/abs/1701.06538",
+      "relationship": "foundational sparse conditional-computation baseline",
+      "difference": "Sparse MoE routes tokens among parallel feed-forward experts at fixed network locations and explicitly confronts balancing and distributed systems constraints. DNA generalizes routing across steps and module types, including attention and reuse, but postpones the placement, communication, and robust load-balancing problems that mature MoE systems address."
+    }
+  ],
+  "novelty_assessment": "Reviewer inference: DNA offers a broad and visually compelling integration of arbitrary module paths, routed sparse attention, repeated parameter use, identity-based compute skipping, and route-level interpretation across both vision and language. However, its headline architectural move is very close to the uncited 2024 Mixture-of-Modules paper, whose tokens also iteratively assemble attention and feed-forward modules without fixed depth. Conditional computation, MoE, adaptive depth, recurrence, and neural architecture search further make the general design space well established. The most defensible novelty lies in the particular routed-attention implementation and cross-domain analysis, not in inventing non-feed-forward modular token routing. Practical differentiation is also weakened because the prototype is slower and more memory intensive than dense execution and its compute-saving language result is not competitive.",
+  "confidence": 0.96,
+  "reviewer_notes": "All 36 pages were reviewed, including the complete routing construction, vision and language experiments, route-dreaming objectives, efficiency analyses, hyperparameters, random-network control, appendices, and separated attention/MLP variants. Direct primary-source competitors and follow-on work were checked on arXiv on 2026-08-23. The review treats 'distributed' as an architectural aspiration because physical distribution, asynchronous training, locality, and communication-aware execution are explicitly future work. It also treats the claimed interpretability as hypothesis-generating: the qualitative patterns are interesting, but random models share some route structure and no causal or quantitative validation is supplied."
+}

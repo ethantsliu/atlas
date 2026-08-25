@@ -1,0 +1,512 @@
+{
+  "stable_id": "arxiv:2512.24176",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2512.24176",
+    "pdf_sha256": "99347b79472357ec1d5741fe2fdab4604d1f4f8f4c9e8225c529e6021cc9e71f",
+    "text_sha256": "fccaae50b5173164140b56c7458f6bff225b6a3a0bc914bb98acdd6a3788d32b",
+    "page_count": 20,
+    "extracted_at": "2026-08-23T14:11:54.153373+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a diffusion Transformer train one intermediate layer to emit a deliberately weaker denoised prediction, then extrapolate away from that prediction toward the final-layer output during sampling to improve generation quality and training efficiency without an external guidance model or extra denoiser evaluation?",
+  "key_findings": [
+    {
+      "claim": "Internal Guidance requires training an auxiliary output head on an intermediate Transformer layer with the same clean-data target as the final head.",
+      "evidence": "Equation 3 defines squared x0-prediction losses for intermediate output D_i and final output D_f, and Equation 4 combines them as L_final plus lambda L_inter. This creates a deliberately capacity-limited internal predictor while jointly supervising the shared early network.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "3.2 Training a Diffusion Model with Intermediate Supervision / Equations 3-4"}
+      ]
+    },
+    {
+      "claim": "At sampling time IG linearly extrapolates from the intermediate prediction through the final prediction, with w=1 recovering the ordinary final denoiser.",
+      "evidence": "Equation 5 uses D_w = D_i + w(D_f-D_i). For w greater than one, the method subtracts the weaker intermediate component from an amplified final output, analogous to strong-minus-weak Autoguidance. Both heads are computed in one backbone pass, so no second full denoiser evaluation is required.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "3.2 Internal Guidance During Sampling / Equation 5"}
+      ]
+    },
+    {
+      "claim": "The best auxiliary-head location is early but not earliest universally, and late or multiple heads can materially harm both unguided and guided generation.",
+      "evidence": "In the matched 80-epoch SiT-B/2 Table 1, a layer-4 head changes FID from 33.02 baseline to 30.60 without IG and 19.02 with IG; layer 2 yields 30.45/20.39. Layer 6 gives 34.15/25.04, layer 8 gives 38.05/34.05, layer 10 gives 36.37/35.58, and heads at layers 2 and 6 together give 33.34/31.55. Thus the mechanism is sensitive to placement and extra supervision can be negative.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "5.2 Ablation Study / Table 1 Auxiliary Supervision Position"}
+      ]
+    },
+    {
+      "claim": "Intermediate supervision alone accelerates the small model relative to vanilla training and one dispersed-loss baseline, but it does not beat the paper's SRA comparator.",
+      "evidence": "Table 2 reports baseline FID/IS 33.02/43.71, auxiliary supervision 30.45/47.97, SRA 29.10/50.20, and Disperse 31.45/47.05. IG sampling on the auxiliary model reaches 20.39/61.38. The evidence supports useful deep supervision, not a blanket claim that it is the strongest intermediate-representation regularizer.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "5.2 Comparison with Other Auxiliary Supervision / Table 2"}
+      ]
+    },
+    {
+      "claim": "IG has a tuned, non-monotone guidance-strength optimum; overguidance degrades the main metrics.",
+      "evidence": "For SiT-B/2 with a layer-4 head, Table 3 moves FID from 30.60 at w=1 to 21.88, 19.02, 17.61, and 17.38 at w=1.3, 1.5, 1.7, and 1.9, then worsens to 17.75 at 2.1 and 18.53 at 2.3. IS similarly peaks before the largest full-range setting. IG therefore introduces a scale-search failure mode rather than monotonic improvement.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "5.2 Sampling Scale / Table 3"}
+      ]
+    },
+    {
+      "claim": "A noise-level guidance interval can rescue an overlarge IG scale, but the useful interval differs from the cited CFG guidance-interval behavior.",
+      "evidence": "At w=2.3, applying IG on noise interval [0.3,1) improves FID from the full-range 18.53 to 16.19, whereas [0.3,0.7) gives 18.23 and [0,0.7) gives 20.69. The text observes that IG benefits at higher/noisier stages, opposite the guidance-interval conclusion it reports for CFG. The interval is selected by a rough single-benchmark sweep.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "4.2 Guidance Interval in Internal Guidance / Equation 6"},
+        {"page": 6, "section": "5.2 Guidance Interval / Table 3"}
+      ]
+    },
+    {
+      "claim": "IG and classifier-free guidance are complementary in the small-model sweep, but both weights are tuned and the combined gain is modest relative to IG's initial gain.",
+      "evidence": "Figure 4 reports the best SiT-B/2 CFG-only FID as 7.30 and IG+CFG as 6.50 over a rough coefficient grid. This supports compatibility, but does not isolate a tuning-free interaction or establish the same optimum across architectures and samplers.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "5.2 Combining Internal Guidance with CFG / Figure 4"}
+      ]
+    },
+    {
+      "claim": "Figure 4's caption reverses the direction of the primary metric by saying higher FID is superior even though every table and standard definition mark lower FID as better.",
+      "evidence": "The caption describes higher FID values as indicating superior generation quality while the same page's tables use FID with a downward arrow and interpret 6.50 as better than 7.30. This is a textual error, not a different metric convention.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "5.2 Figure 4 caption"}
+      ]
+    },
+    {
+      "claim": "The auxiliary-loss coefficient is not the main source of the reported gain within the tested range, but all tested coefficients remain worse than adding IG at sampling.",
+      "evidence": "Table 4 reports unguided FID 30.38, 30.60, 31.58, and 31.24 for lambda 0.25, 0.5, 0.75, and 1.0. Variation is modest compared with the roughly 19 FID obtained by sampling guidance, and no lambda-zero head-control beyond the vanilla baseline is possible because no trained intermediate predictor would remain.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "5.2 Auxiliary-Loss Weight / Table 4"}
+      ]
+    },
+    {
+      "claim": "At ImageNet 256 scale, SiT-XL/2 plus IG reports strong random-sampling gains without CFG and a best FID of 1.46 with CFG and an interval, but it does not dominate every accompanying metric or prior method.",
+      "evidence": "Table 5 reports 678M-parameter SiT+IG at 80 epochs as FID 5.31, sFID 5.68, IS 147.7, precision 0.80, recall 0.56; at 800 epochs without CFG it reaches 1.75/4.98/228.6/0.80/0.62, and with CFG/interval 1.46/4.79/265.7/0.80/0.64. REPA-E's guided FID is 1.26 and IS 314.9, and RAE's guided FID is 1.28, so the SiT branch is not the headline state of the art.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "5.3 Comparison with State-of-the-Art Methods / Table 5"}
+      ]
+    },
+    {
+      "claim": "The random-sampling headline for LightningDiT-XL/1 plus IG is FID 1.34 without CFG and 1.19 with CFG/interval, with metric tradeoffs rather than uniform dominance.",
+      "evidence": "Table 5 reports 678M parameters: at 60 epochs, unconditioned-by-guidance metrics are FID 2.42, sFID 3.81, IS 173.7, precision 0.79, recall 0.62; at 680 epochs they are 1.34/3.94/229.3/0.78/0.65, and CFG/interval gives 1.19/4.11/269.0/0.79/0.66. REPA-E has much higher IS 314.9 at FID 1.26; no run-to-run intervals are reported for the small FID margins.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "5.3 Table 5 / LightningDiT Results"}
+      ]
+    },
+    {
+      "claim": "The headline LightningDiT result does not isolate IG because the target run changes optimizer and EMA from the vanilla LightningDiT recipe, and no matched no-IG XL control is reported.",
+      "evidence": "The main text says LightningDiT-XL/1 uses Muon because AdamW was unstable. Table 11 gives Muon, learning rate 0.0002, beta values 0.9/0.95, and EMA 0.9995 for LightningDiT, versus AdamW, 0.0001, 0.9/0.999, and EMA 0.9999 for the SiT/DiT runs. Appendix E says Muon accelerates early convergence. Table 5 compares against published vanilla LightningDiT rather than the same Muon/EMA recipe with the auxiliary head and guidance disabled, so the 2.17-to-1.34 gap cannot be assigned entirely to IG.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "5.1 Implementation Details"},
+        {"page": 14, "section": "Appendix E The Use of Muon"},
+        {"page": 15, "section": "Appendix E Table 11 Default Hyperparameters"}
+      ]
+    },
+    {
+      "claim": "Balanced class sampling improves the headline LightningDiT FID further to 1.07, demonstrating protocol sensitivity at the same scale as state-of-the-art margins.",
+      "evidence": "Appendix A explains that balanced sampling better matches ImageNet labels and matters increasingly at low FID. Table 6 reports LightningDiT+IG at 680 epochs as unguided FID 1.24, IS 229.6, precision 0.78, recall 0.66 and guided FID 1.07, IS 274.1, precision 0.79, recall 0.66. RAE has FID 1.13 and recall 0.67, REPA-E FID 1.15 and IS 304.0, and xAR FID 1.24 and IS 301.6, so the target leads FID in that table but not IS or recall.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 12, "section": "Appendix A Evaluation Metric and Balanced Sampling / Table 6"}
+      ]
+    },
+    {
+      "claim": "The claimed near-zero overhead applies to model size, one sampling pass, and a reported latency measurement, not to the extra training objective, memory, or tuning cost.",
+      "evidence": "Table 7 compares SiT-XL/2+REPA and +IG: parameters 675M versus 678M (+0.44%), FLOPs 114.46 versus 114.47 (+0.01%), and latency 6.18 versus 6.19 (+0.16%), with FID 5.90 versus 1.75. The table omits measurement units and training throughput/memory; auxiliary-head supervision and scale/interval sweeps still add training and selection work.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 13, "section": "Appendix B Inference Cost / Table 7"}
+      ]
+    },
+    {
+      "claim": "On EDM2-S ImageNet-64 the direct Autoguidance comparison is nearly tied and lacks uncertainty.",
+      "evidence": "Table 8 reports EDM2-S FID 1.58, EDM2-S+Autoguidance 1.01, and EDM2-S+IG 0.99. A 0.02 FID difference without seeds, confidence intervals, identical tuning-cost accounting, or additional quality/diversity metrics is not evidence of a material superiority over Autoguidance.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 13, "section": "Appendix C Comparison with Autoguidance / Table 8"}
+      ]
+    },
+    {
+      "claim": "The LightningDiT Autoguidance baseline is deliberately weak and lightly trained, so Table 9 does not test IG against a canonical compute-matched strong weak-model guide.",
+      "evidence": "The appendix creates a degraded 12-layer model, trains it for only 10 epochs, and performs a rough scale search. Table 9 reports CFG 1.35, that Autoguidance 1.81, IG 1.34, and IG+CFG 1.19. The authors state difficulty choosing Autoguidance's weak model; the result demonstrates convenience of the internal head in this setup, not general quality dominance over optimized Autoguidance.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 13, "section": "Appendix C Comparison with CFG and Autoguidance / Table 9"}
+      ]
+    },
+    {
+      "claim": "The ImageNet-512 experiment reports a strong FID but contains a latent-shape inconsistency and underspecifies the exact guidance configuration in the table.",
+      "evidence": "Table 10 reports SiT-XL/2+IG after 60 epochs at FID 1.78, sFID 3.92, IS 286.3, precision 0.81, recall 0.62 versus REPA after 200 epochs at FID 2.08. Figure 8 says IG 1.4 with CFG 1.8, but the table does not label whether its row includes CFG/interval. The setup text describes a 64x64x3 latent for 512 images, inconsistent with the four-channel 32x32x4 256 setup in Table 11 and the usual Stable Diffusion VAE latent channel count, creating a reproducibility ambiguity.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 13, "section": "Appendix D ImageNet 512 Setup"},
+        {"page": 14, "section": "Appendix D Figure 8 and Table 10"},
+        {"page": 15, "section": "Appendix E Table 11 Input Dimensions"}
+      ]
+    },
+    {
+      "claim": "The proposed training-only acceleration target is an interesting extension but is supported only by curves and qualitative toy plots, not a numerical replicated benchmark table.",
+      "evidence": "Equation 7 keeps the intermediate target at x0 and moves the final target to x0 plus omega times a stop-gradient final-minus-intermediate EMA discrepancy, with omega=0.5. Figure 6 says the SiT-B/2 loss curve beats REPA at 400K iterations and is comparable to sampling IG, but provides no exact FID table, seeds, uncertainty, wall-clock cost, or large-scale run for this modified objective.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 8, "section": "6 Further Discussion on Training Acceleration / Equation 7 and Figure 6"}
+      ]
+    },
+    {
+      "claim": "The claim that intermediate supervision alleviates partial gradient vanishing is not directly measured.",
+      "evidence": "The introduction and conclusion attribute faster convergence to reducing vanishing gradients, but experiments report FID/IS/loss rather than per-layer gradient norms, Jacobian spectra, signal propagation, or a causal residual-connection control. The same gains could arise from regularization, an extra prediction constraint, altered feature learning, or optimization changes.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 2, "section": "1 Introduction / Claimed Gradient-Vanishing Effect"},
+        {"page": 8, "section": "6 Training Acceleration and 7 Conclusion"}
+      ]
+    },
+    {
+      "claim": "The 2D analysis offers an exactly scored visualization of the strong-minus-weak direction but is too customized to validate high-dimensional Transformer dynamics.",
+      "evidence": "The supplement constructs two classes with 1,016 anisotropic Gaussian components each, trains a four-hidden-layer width-64 scalar-potential MLP with an intermediate head using exact score matching for 4,096 iterations at batch 4,096, and samples with 32 Heun steps. It cleanly visualizes outlier removal, but differs from latent DiTs in data dimension, architecture, objective, output parameterization, and availability of exact densities.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "4 Analysis of Internal Guidance / Figure 3"},
+        {"page": 15, "section": "Appendix F Details of the 2D Toy Example"},
+        {"page": 16, "section": "Appendix F Dataset and Models"},
+        {"page": 17, "section": "Appendix F Training and Sampling"}
+      ]
+    },
+    {
+      "claim": "Calling IG plug-and-play is misleading in the usual post-training sense because the base method requires architecture modification and joint training.",
+      "evidence": "The method must attach an intermediate output layer and optimize its auxiliary loss from training. A pretrained model without such a head cannot apply the reported IG directly. The paper's use of plug-and-play is better understood as easy integration into a training recipe and one-pass sampling, unlike contemporaneous Self-Guidance that uses existing scores without guidance-specific training and the later SSG adapter that freezes the backbone.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "3.2 Training with Intermediate Supervision"},
+        {"page": 4, "section": "3.2 Internal Guidance Sampling"},
+        {"page": 17, "section": "Appendix G Related Work / Sampling Guidance"}
+      ]
+    },
+    {
+      "claim": "The reported SiT-XL IG scale is inconsistent across the main result and default configuration.",
+      "evidence": "The main Table 5 discussion says SiT-XL/2+IG uses scale 1.8 for its 80- and 800-epoch results, while Table 11 lists the default SiT-XL IG scale as 1.4. Figure 8 at 512 resolution also uses 1.4. Without per-row configuration disclosure, the exact 256 result cannot be reconstructed unambiguously.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "5.3 Table 5 Discussion"},
+        {"page": 14, "section": "Appendix D Figure 8"},
+        {"page": 15, "section": "Appendix E Table 11 Default Hyperparameters"}
+      ]
+    },
+    {
+      "claim": "The qualitative-sample attribution contradicts itself between the supplement prose and figure captions.",
+      "evidence": "Appendix H introduces the following pages as uncurated ImageNet-256 samples from SiT-XL+IG(1.8) with CFG 2.5, but Figures 9-11 label those same pages LightningDiT-XL/1+IG(1.8) with CFG 2.5. The images are plausible class-conditional samples, but the paper does not unambiguously identify which trained model produced them.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 17, "section": "Appendix H More Qualitative Results introduction"},
+        {"page": 18, "section": "Appendix H Figure 9 caption"},
+        {"page": 19, "section": "Appendix H Figure 10 caption"},
+        {"page": 20, "section": "Appendix H Figure 11 caption"}
+      ]
+    },
+    {
+      "claim": "State-of-the-art margins are not statistically supported and epoch counts are not compute-matched across the heterogeneous Table 5/6 systems.",
+      "evidence": "The paper evaluates 50,000 samples and gives point estimates but no training or evaluation seeds, FID confidence intervals, bootstrap ranges, or hypothesis tests. Baselines vary in tokenizer, VAE, parameter count, batch, optimizer, sampler, number of function evaluations, external encoder use, and epoch definition. Differences such as 1.07 versus 1.13 or 0.99 versus 1.01 may be protocol or sampling variation rather than robust ordering.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "5.1 Evaluation Protocol"},
+        {"page": 7, "section": "5.3 Table 5"},
+        {"page": 12, "section": "Appendix A Table 6"},
+        {"page": 13, "section": "Appendices B-C Tables 7-9"}
+      ]
+    },
+    {
+      "claim": "The empirical scope is ImageNet class-conditional generation plus a toy density; portability to text-to-image, video, unconditional data, frozen pretrained models, and human preference is untested.",
+      "evidence": "Quantitative experiments cover ImageNet 64, 256, and 512 with DiT/SiT/LightningDiT/EDM2 variants and a constructed 2D mixture. There are no text-conditioned prompts, human studies, safety/artifact subgroup analyses, cross-dataset transfers, or retrofits to an already trained backbone in the target revision.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "5 Experiments"},
+        {"page": 13, "section": "Appendices C-D"},
+        {"page": 15, "section": "Appendix F 2D Toy Example"}
+      ]
+    },
+    {
+      "claim": "The related-work section miscites Autoguidance as the standard CFG reference in one sentence.",
+      "evidence": "On page 3 the prose refers to the standard classifier-free-guidance strategy with citation [38], but reference [38] is Autoguidance and the paper elsewhere correctly cites CFG as [24]. This is a bibliographic inconsistency rather than a methodological change.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "3.1 Preliminaries / Guidance Citation"},
+        {"page": 9, "section": "References [24] and [38]"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Turn one intermediate layer of a diffusion Transformer into an internal weak model by giving it its own denoising head and target, then use the difference between final and intermediate predictions as a one-pass strong-minus-weak guidance vector during sampling.",
+    "mechanism": "During training, attach an output head after a selected early/intermediate block and minimize both intermediate and final x0-prediction losses with weight lambda. During each sampling step, compute both heads in the same forward pass and replace the final denoiser with D_i+w(D_f-D_i); optionally activate this extrapolation only in a selected noise interval and combine it with CFG. Evaluate head position, loss weight, guidance scale, interval, and CFG interaction on SiT-B/2, then scale to SiT-XL/2 and LightningDiT-XL/1. A separate exploratory objective trains the final head toward x0 plus a stop-gradient EMA final-minus-intermediate discrepancy to internalize guidance during training.",
+    "assumptions": [
+      "An early/intermediate head is weaker in a useful coarse-versus-refined direction rather than merely noisier or biased.",
+      "The final-minus-intermediate prediction difference points toward higher-density or higher-quality samples across denoising time.",
+      "Linear extrapolation beyond the final prediction remains locally valid for tuned w greater than one.",
+      "A single head location transfers across training duration, model scale, latent tokenizer, resolution, and sampler.",
+      "Joint auxiliary supervision does not damage final-layer capacity or redirect shared features adversely; Table 1 shows this fails for late/multiple heads.",
+      "The chosen lambda balances optimization gains against interference and does not require extensive task-specific tuning.",
+      "The guidance scale and noise interval selected on rough sweeps generalize beyond the evaluated ImageNet configuration.",
+      "The intermediate and final outputs share compatible prediction parameterizations and calibration.",
+      "One backbone forward pass truly contains both outputs at negligible inference overhead, while extra activation/memory costs remain small on deployed hardware.",
+      "FID, sFID, IS, precision, and recall on 50,000 ImageNet samples adequately capture perceptual quality and diversity.",
+      "Published comparison rows are sufficiently comparable despite different tokenizers, optimizers, epoch budgets, samplers, external encoders, and parameter counts.",
+      "Muon and the altered EMA in LightningDiT do not account for a material part of the reported IG improvement; no matched no-IG control tests this.",
+      "Random or balanced class sampling is declared consistently and does not change method rankings beyond the reported tables.",
+      "The custom 2D scalar-potential MLP reflects the internal dynamics of high-dimensional latent diffusion Transformers.",
+      "For Equation 7, the stop-gradient EMA discrepancy is a stable training target rather than a self-reinforcing prediction error."
+    ]
+  },
+  "techniques": [
+    {"id": "intermediate-denoising-head", "role": "Produces a deliberately weaker prediction from an internal Transformer block."},
+    {"id": "deep-auxiliary-supervision", "role": "Trains the intermediate head on the same x0 target and changes shared early-layer optimization."},
+    {"id": "strong-minus-weak-extrapolation", "role": "Forms the guided denoiser D_i+w(D_f-D_i), analogous to Autoguidance within one network."},
+    {"id": "noise-level-guidance-interval", "role": "Activates IG only over a tuned sigma range to reduce overguidance."},
+    {"id": "classifier-free-guidance-composition", "role": "Combines class conditional/unconditional extrapolation with the internal extrapolation."},
+    {"id": "ema-stop-gradient-target", "role": "Uses an EMA final-minus-intermediate discrepancy as an exploratory accelerated-training target."},
+    {"id": "flow-matching-and-diffusion-transformers", "role": "Supplies the SiT, DiT, and LightningDiT backbones and samplers to which the head is attached."},
+    {"id": "muon-optimization", "role": "Replaces AdamW in the headline LightningDiT run to address early instability and accelerate convergence."},
+    {"id": "image-generation-distribution-metrics", "role": "Evaluates FID, sFID, IS, precision, and recall on 50,000 generated samples."},
+    {"id": "exact-score-fractal-mixture", "role": "Provides an analytically scored 2D visualization of CFG, Autoguidance, and IG directions."}
+  ],
+  "evaluations": [
+    {
+      "setting": "SiT-B/2 on ImageNet 256 for 80 epochs with intermediate heads at layers 2, 4, 6, 8, 10, or layers 2+6",
+      "metric": "FID and IS with auxiliary supervision alone and with IG",
+      "result": "Layer 4 gives 30.60 FID unguided and 19.02 guided versus baseline 33.02; late and multiple heads degrade sharply, reaching 35.58 guided at layer 10 and 31.55 for layers 2+6.",
+      "baseline": "Vanilla SiT-B/2 FID 33.02 and IS 43.71"
+    },
+    {
+      "setting": "SiT-B/2 80-epoch auxiliary-supervision and intermediate-regularization comparison",
+      "metric": "FID and IS",
+      "result": "Auxiliary supervision obtains 30.45/47.97, better than Disperse 31.45/47.05 but worse than SRA 29.10/50.20; adding IG reaches 20.39/61.38.",
+      "baseline": "Vanilla 33.02/43.71, SRA, and Disperse"
+    },
+    {
+      "setting": "SiT-B/2 guidance-scale and sigma-interval ablation",
+      "metric": "FID and IS over w=1.0-2.3 and three intervals",
+      "result": "Full-range FID is best at w=1.9 with 17.38 and worsens to 18.53 at 2.3; w=2.3 restricted to [0.3,1) reaches 16.19, while [0,0.7) worsens to 20.69.",
+      "baseline": "Unguided w=1 FID 30.60 and full-range w=2.3"
+    },
+    {
+      "setting": "SiT-B/2 rough joint sweep of CFG and IG coefficients",
+      "metric": "Best FID",
+      "result": "Best CFG-only FID is reported as 7.30 and combined IG+CFG as 6.50.",
+      "baseline": "CFG-only coefficient sweep"
+    },
+    {
+      "setting": "SiT-XL/2, 678M parameters, ImageNet 256 random class sampling at 80 and 800 epochs",
+      "metric": "FID, sFID, IS, precision, and recall with and without CFG/interval",
+      "result": "Without CFG FID is 5.31 at 80 epochs and 1.75 at 800; at 800 with CFG/interval FID is 1.46, sFID 4.79, IS 265.7, precision 0.80, recall 0.64.",
+      "baseline": "Published SiT, REPA, REPA-E, REG, and other ImageNet systems in Table 5"
+    },
+    {
+      "setting": "LightningDiT-XL/1, 678M parameters, ImageNet 256 random class sampling at 60 and 680 epochs",
+      "metric": "FID, sFID, IS, precision, and recall with and without CFG/interval",
+      "result": "Without CFG FID is 2.42 at 60 epochs and 1.34 at 680; at 680 with CFG/interval FID is 1.19, sFID 4.11, IS 269.0, precision 0.79, recall 0.66. The run also changes optimizer and EMA from vanilla LightningDiT.",
+      "baseline": "Published LightningDiT 800-epoch FID 2.17 unguided/1.35 guided plus Table 5 state of the art"
+    },
+    {
+      "setting": "LightningDiT-XL/1 ImageNet 256 with balanced 1,000-class sampling",
+      "metric": "FID, IS, precision, and recall",
+      "result": "At 680 epochs, IG reports FID 1.24 without guidance and 1.07 with CFG/interval; guided IS is 274.1, precision 0.79, recall 0.66.",
+      "baseline": "RAE FID 1.13/recall 0.67, REPA-E FID 1.15/IS 304.0, xAR FID 1.24/IS 301.6, and other Table 6 systems"
+    },
+    {
+      "setting": "EDM2-S on ImageNet 64",
+      "metric": "FID",
+      "result": "IG reaches 0.99 versus 1.01 for Autoguidance and 1.58 for the base model, with no uncertainty or additional metrics.",
+      "baseline": "EDM2-S and EDM2-S+Autoguidance"
+    },
+    {
+      "setting": "LightningDiT-XL/1 at 680 epochs with guidance alternatives",
+      "metric": "FID, sFID, IS, precision, and recall",
+      "result": "IG is 1.34 FID and IG+CFG 1.19, versus CFG 1.35 and a custom 12-layer, 10-epoch Autoguidance weak model at 1.81.",
+      "baseline": "CFG and the paper's lightly optimized Autoguidance construction"
+    },
+    {
+      "setting": "SiT-XL/2 on ImageNet 512 after 60 epochs",
+      "metric": "FID, sFID, IS, precision, and recall",
+      "result": "Table 10 reports 1.78/3.92/286.3/0.81/0.62 versus REPA at 200 epochs with FID 2.08; exact table guidance status and latent shape are ambiguous.",
+      "baseline": "SiT/DiT/MaskDiT and REPA rows at 512 resolution"
+    },
+    {
+      "setting": "Two-class, 2,032-component fractal Gaussian mixture with exact score, width-64 four-hidden-layer MLP, 4,096 iterations, batch 4,096",
+      "metric": "Qualitative density fields, outlier branches, and training-loss/convergence curves",
+      "result": "IG visually suppresses low-density branch outliers; the Equation 7 target accelerates the plotted toy and SiT-B/2 curves. No numerical table or replicated uncertainty is given.",
+      "baseline": "Unguided, CFG, Autoguidance, incomplete training, and REPA curves"
+    },
+    {
+      "setting": "SiT-XL/2 versus SiT-XL/2+IG sampling-overhead table",
+      "metric": "Parameters, reported FLOPs, latency, FID, and IS",
+      "result": "IG adds 0.44% parameters, 0.01% FLOPs, and 0.16% latency in the reported measurement while changing FID from 5.90 to 1.75; units and training overhead are omitted.",
+      "baseline": "The paper's SiT-XL/2+REPA row"
+    }
+  ],
+  "limitations": [
+    "Author-visible: late or multiple auxiliary heads substantially degrade quality, so IG is not insensitive to where supervision is attached.",
+    "Author-visible: guidance strength has a finite optimum and excessive full-range IG worsens FID/IS.",
+    "Author-visible: the best noise interval for IG differs from CFG's reported interval behavior and must be selected separately.",
+    "Author-stated: Muon is used for LightningDiT because AdamW training with the aligned tokenizer is unstable, and later instability can still require full-precision resumption.",
+    "Reviewer: the headline XL LightningDiT comparison lacks a no-IG control trained with the same Muon, learning rate, betas, EMA, batch, tokenizer, and schedule.",
+    "Reviewer: all quantitative evidence is class-conditional ImageNet or a custom 2D toy; text-to-image, video, cross-dataset, frozen-backbone, and human-preference claims are untested.",
+    "Reviewer: no seeds, confidence intervals, bootstrap ranges, or significance tests support state-of-the-art differences as small as 0.02-0.06 FID.",
+    "Reviewer: epoch and parameter comparisons are not compute-matched across tokenizers, external encoders, optimizers, samplers, batch sizes, or function evaluations.",
+    "Reviewer: FID gains do not imply uniform metric dominance; several alternatives have higher IS or recall.",
+    "Reviewer: the training-acceleration extension lacks a numeric ablation table, wall-clock accounting, replication, and large-model validation.",
+    "Reviewer: the gradient-vanishing explanation is asserted without measuring gradients or excluding regularization and optimization alternatives.",
+    "Reviewer: the auxiliary head adds training compute, activation memory, parameters, and tuning even though sampling adds almost no full-model computation.",
+    "Reviewer: the qualitative sample pages have contradictory model labels, reducing their evidentiary and reproducibility value."
+  ],
+  "failure_modes": [
+    "Choosing a late or multiple auxiliary head can impair the shared backbone and make guided output almost as poor as the baseline.",
+    "An intermediate head that is noisy rather than systematically coarse can give an extrapolation direction unrelated to sample quality.",
+    "Large w can push samples off manifold or create new outliers, as full-range metrics worsen beyond the tuned optimum.",
+    "A guidance interval tuned for CFG can be harmful for IG because their useful noise regimes differ.",
+    "IG and CFG coefficient searches can overfit FID on one evaluation protocol while reducing diversity, IS, recall, or human preference.",
+    "Optimizer/EMA improvements can be attributed to IG when the no-IG run is not trained under the same recipe.",
+    "Random versus balanced ImageNet label sampling can move FID by more than a claimed state-of-the-art margin.",
+    "Small FID differences can reverse across seeds or evaluation implementations when no uncertainty is reported.",
+    "The Equation 7 self-referential EMA discrepancy can reinforce a biased final-minus-intermediate error rather than a quality direction.",
+    "One-pass overhead can grow with stored intermediate activations, head precision, compilation boundaries, or memory bandwidth even if theoretical FLOPs are tiny.",
+    "The method cannot be applied post hoc to an arbitrary frozen pretrained model lacking a trained intermediate decoder.",
+    "An ambiguous latent tensor shape or undocumented guidance configuration prevents exact ImageNet-512 reproduction.",
+    "A custom undertrained weak model can make Autoguidance look worse without testing a well-tuned strong-minus-weak baseline.",
+    "Class-conditional FID improvements can fail to transfer to open-vocabulary composition, anatomy, typography, long prompts, video consistency, or human judgments."
+  ],
+  "reusable_insights": [
+    "A deep network can amortize a strong-versus-weak guidance pair by decoding both an early and final representation in one forward pass.",
+    "Intermediate supervision location should be treated as a first-class ablation; deeper or more heads are not automatically better.",
+    "Define extrapolative guidance so w=1 exactly recovers the base model, making failure and coefficient sweeps interpretable.",
+    "Schedule internal guidance by noise level independently from CFG because different discrepancy signals can be reliable at different stages.",
+    "Report guidance gains on FID, IS, precision, recall, and human evaluation rather than optimizing a single fidelity statistic.",
+    "For claims of negligible cost, itemize training FLOPs, activation memory, inference FLOPs, latency units/hardware, tuning runs, and number of denoiser evaluations.",
+    "Use a matched no-method control whenever optimizer, EMA, tokenizer, or numerical precision changes in the headline run.",
+    "At FID near one, publish repeated-generation confidence intervals and both random and balanced class-sampling protocols.",
+    "A stop-gradient teacher discrepancy can turn sampling guidance into a training target, but needs stability controls against self-reinforcement.",
+    "Separate 'easy to integrate while training' from 'post-hoc plug-and-play' in method claims.",
+    "Use exact-density low-dimensional tests to visualize guidance vectors, while clearly limiting what they establish about high-dimensional models.",
+    "Configuration consistency across main tables, default-hyperparameter tables, and qualitative captions is part of experimental evidence, not cosmetic editing."
+  ],
+  "open_questions": [
+    "Does IG still improve a LightningDiT-XL/1 no-IG control trained with identical Muon, EMA 0.9995, learning rate, batch, tokenizer, precision recovery, and schedule?",
+    "How much of the gain comes from auxiliary deep supervision versus extrapolative sampling when both are evaluated under matched training compute?",
+    "What representation property makes a layer's final-minus-intermediate direction correlate with high-density or human-preferred images?",
+    "Can head location, w, and guidance interval be chosen from training diagnostics without a benchmark-specific FID sweep?",
+    "How stable are 1.07, 1.19, and 0.99 FID across training seeds, sampling seeds, reference statistics, precision modes, and balanced/random protocols?",
+    "Does IG improve text-to-image prompt adherence, diversity, anatomy, typography, compositionality, video consistency, and human preference?",
+    "Can a small adapter train an IG head on a frozen pretrained latent model, and how does that compare with current Synthetic Self-Guidance?",
+    "How does IG compare with a carefully compute-matched Autoguidance weak model and training-free Self-Guidance across the same architectures?",
+    "Does the Equation 7 target remain stable at XL scale, and what are its exact FID, wall-clock, gradient-norm, and memory improvements?",
+    "Do direct per-layer gradient measurements support the proposed vanishing-gradient mechanism?",
+    "What is the correct ImageNet-512 latent shape and exact CFG/IG/interval configuration for Table 10?",
+    "Which model generated Appendix H Figures 9-11, and can the uncurated sample protocol be reproduced from saved seeds?",
+    "Can multi-head variants be made useful through detached branches, layer-specific targets, or learned head weighting?",
+    "Does the internal discrepancy remain beneficial under alternative prediction targets, solvers, distillation, few-step sampling, and non-Transformer denoisers?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2207.12598",
+      "title": "Classifier-Free Diffusion Guidance",
+      "url": "https://arxiv.org/abs/2207.12598",
+      "relationship": "standard conditional-guidance baseline",
+      "difference": "CFG extrapolates conditional away from unconditional predictions and remains the principal guidance baseline. IG instead extrapolates a final internal prediction away from a weaker intermediate prediction, is class-independent, and can be combined with CFG; both require training support and exhibit quality-diversity/scale tradeoffs.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2207.12598v1 (2022-07-26)"
+    },
+    {
+      "canonical_id": "arxiv:2406.02507",
+      "title": "Guiding a Diffusion Model with a Bad Version of Itself",
+      "url": "https://arxiv.org/abs/2406.02507",
+      "relationship": "closest conceptual predecessor for strong-minus-weak Autoguidance",
+      "difference": "Autoguidance subtracts a separately trained degraded model from a strong model to improve fidelity while preserving diversity. IG amortizes the weak model into an intermediate head and removes the second full pass, but still needs guidance-specific training; the target's own LightningDiT Autoguidance control is not a strong matched implementation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2406.02507v3 (2024-12-19)"
+    },
+    {
+      "canonical_id": "arxiv:2404.07724",
+      "title": "Applying Guidance in a Limited Interval Improves Sample and Distribution Quality in Diffusion Models",
+      "url": "https://arxiv.org/abs/2404.07724",
+      "relationship": "direct predecessor for the guidance-interval schedule",
+      "difference": "Guidance Interval establishes that restricting CFG by noise level can improve quality and diversity. The target directly adopts this scheduling component for IG and reports a different useful noise regime; novelty lies in the signal being scheduled, not the interval mechanism itself.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2404.07724v2 (2024-11-06)"
+    },
+    {
+      "canonical_id": "arxiv:2412.05827",
+      "title": "Self-Guidance: Boosting Flow and Diffusion Generation on Their Own",
+      "url": "https://arxiv.org/abs/2412.05827",
+      "relationship": "training-free self-guidance competitor",
+      "difference": "Self-Guidance compares scores across noise levels and its SG-prev variant reuses the previous step, requiring no guidance-specific training and covering text-to-image/video with human preference metrics. IG uses same-step internal depth differences and no extra full denoiser pass, but must modify and train a head; SG therefore has the stronger post-hoc plug-and-play claim.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2412.05827v5 (2025-09-26)"
+    },
+    {
+      "canonical_id": "arxiv:2503.14494",
+      "title": "Deeply Supervised Flow-Based Generative Models",
+      "url": "https://arxiv.org/abs/2503.14494",
+      "relationship": "closest intermediate deep-supervision training antecedent",
+      "difference": "DeepFlow partitions a flow Transformer into supervised branches and uses VeRA blocks for internal velocity alignment, reporting ImageNet and text-to-image acceleration. IG's simpler single head is reused as a sampling guide and adds almost no inference FLOPs, but the core idea that intermediate velocity supervision accelerates flow training already exists.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2503.14494v2 (2025-09-02; ICCV 2025)"
+    },
+    {
+      "canonical_id": "arxiv:2505.02831",
+      "title": "No Other Representation Component Is Needed: Diffusion Transformers Can Provide Representation Guidance by Themselves",
+      "url": "https://arxiv.org/abs/2505.02831",
+      "relationship": "current exact SRA internal-representation training competitor used in the target ablation",
+      "difference": "SRA aligns early/high-noise internal representations to later/low-noise representations and on the target's own small setup beats auxiliary supervision alone. It operates only during training and has no strong-minus-weak sampling extrapolation; IG's added novelty is turning the trained intermediate output into a one-pass guide.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2505.02831v5 (2026-01-26; ICLR 2026)"
+    },
+    {
+      "canonical_id": "arxiv:2410.06940",
+      "title": "Representation Alignment for Generation: Training Diffusion Transformers Is Easier Than You Think",
+      "url": "https://arxiv.org/abs/2410.06940",
+      "relationship": "external representation-alignment training baseline",
+      "difference": "REPA aligns diffusion hidden states to a pretrained visual encoder and is a strong acceleration baseline. IG avoids an external encoder and exposes an output usable for sampling, but the target's small auxiliary-supervision result is worse than SRA and the headline LightningDiT branch already relies on a DINOv2-aligned tokenizer, complicating claims of independence from pretrained representations.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2410.06940v4 (2025-06-18)"
+    },
+    {
+      "canonical_id": "arxiv:2502.12154",
+      "title": "Diffusion Models without Classifier-free Guidance",
+      "url": "https://arxiv.org/abs/2502.12154",
+      "relationship": "training-objective alternative that removes CFG dependence",
+      "difference": "Model-guidance incorporates the class-posterior effect into training so inference need not use CFG. IG is class-independent and can work without CFG, but its best headline FID still combines IG, CFG, and a guidance interval; the approaches alter different training targets and should be compared at matched inference/training cost.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2502.12154v1 (2025-02-17)"
+    },
+    {
+      "canonical_id": "arxiv:2607.29122",
+      "title": "A Frozen Pixel-Space Diffusion Model Can Guide Itself with Its Own Samples",
+      "url": "https://arxiv.org/abs/2607.29122",
+      "relationship": "current direct successor that retrofits internal self-guidance",
+      "difference": "Synthetic Self-Guidance attaches an intermediate decoder to a frozen pretrained pixel-space diffusion backbone and trains it on the model's own samples for under 1% of full training compute, then uses the intermediate-final discrepancy during sampling. It directly narrows IG's exclusivity and addresses its from-scratch-training limitation, although it is later, focuses on pixel-space models, and still needs adapter training.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2607.29122v1 (2026-07-31)"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim a simple plug-and-play Internal Guidance method that gives a diffusion Transformer an auxiliary intermediate denoising head, uses the final-minus-intermediate output difference to guide sampling without another denoiser pass, improves training efficiency, combines with CFG and guidance intervals, and achieves state-of-the-art ImageNet FID including 1.19 under random and 1.07 under balanced sampling.",
+    "evidence": "The exact indexed 20-page revision supplies Equations 3-6 for training and sampling, matched 80-epoch SiT-B/2 head/weight/scale/interval ablations, large SiT and LightningDiT tables, overhead and Autoguidance comparisons, a 512-resolution table, Equation 7's training-target extension, an exact-score 2D study, configurations, and qualitative pages. Best FID values are strong, while late heads and overlarge w are explicit negative results.",
+    "reviewer_inference": "The defensible novelty is economical reuse of a single jointly trained intermediate prediction as a same-pass Autoguidance-like weak model, plus the empirical demonstration that this signal composes with CFG and a noise interval. CFG, strong-minus-weak Autoguidance, guidance intervals, training-free Self-Guidance, intermediate deep supervision, and internal representation alignment all predate it. The usual meaning of plug-and-play is not supported because the method needs a head and joint training; the later SSG work retrofits a frozen backbone with essentially the same intermediate-final discrepancy. Small-model ablations cleanly show a method effect, but the headline LightningDiT claim is confounded by Muon and EMA changes without a matched no-IG control. State-of-the-art claims are FID-specific and statistically unqualified; balanced sampling shifts the score by more than several competitor margins. The gradient-vanishing mechanism and Equation 7 acceleration remain under-evidenced. Configuration contradictions (SiT scale, 512 latent shape/status, and qualitative model identity) reduce reproducibility. Overall novelty is solid but narrower than the framing: a low-overhead internal weak-guide implementation, not the first self-guidance/deep-supervision principle or a demonstrated universal post-hoc module."
+  },
+  "confidence": 0.93,
+  "reviewer_notes": "Primary full-text review of the exact indexed arXiv:2512.24176v2 PDF (official revision dated 2026-03-31; manuscript marked accepted to CVPR 2026). All 20 pinned pages were read, including every equation, main and supplemental table, ablation, figure/caption, reference, evaluation-metric note, random-versus-balanced protocol, cost comparison, Autoguidance experiments, ImageNet-512 setup, Muon/EMA configuration, complete 2D derivation and training details, related-work supplement, and all three qualitative sample pages. The extraction covers 20/20 pages with no missing text pages. Findings explicitly distinguish author reports, reviewer inference, and contradiction audits; negative layer-placement and overguidance results are retained. Nine exact-version primary competitors/successors were checked on official current arXiv records on 2026-08-23. No model or metric was rerun, so this is primary-full-text-v1 rather than independent verification."
+}

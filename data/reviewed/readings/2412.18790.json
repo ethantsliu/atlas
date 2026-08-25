@@ -1,0 +1,576 @@
+{
+  "stable_id": "arxiv:2412.18790",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2412.18790",
+    "pdf_sha256": "db54c1e1538436467568eed096574bf874761f74bdf7ff04474f56b91e1f5e0f",
+    "text_sha256": "86b2598af181d988e881a310ceacd725eae9d093caf85fbb2d655450fc1b9f9d",
+    "page_count": 24,
+    "extracted_at": "2026-08-23T17:34:16.522176+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Does damping each new gradient according to its smoothed cosine alignment with accumulated momentum make momentum optimizers more stable, generalizable, and robust to distribution shift?",
+  "key_findings": [
+    {
+      "claim": "Torque-Aware Momentum scales the incoming gradient by a smoothed global alignment score before adding it to the momentum buffer.",
+      "evidence": "The method computes S_t as the cosine of m_(t-1) and g_t, exponentially smooths it with gamma, maps the result from [-1,1] to d_t=(1+s_hat_t)/2, and updates m_t=beta m_(t-1)+(epsilon+d_t)g_t. Aligned gradients receive a coefficient near one, persistently opposed gradients near epsilon, and AdaTAM uses the same modified first moment with Adam's second moment.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Torque-Aware Momentum, Equations 2-4 and Algorithm 1"
+        },
+        {
+          "page": 4,
+          "section": "AdaTAM, Equation 7"
+        }
+      ]
+    },
+    {
+      "claim": "The stated algorithm is undefined at standard initialization and at any zero gradient or zero momentum.",
+      "evidence": "Equation 2 divides by ||m_(t-1)|| ||g_t|| without an additive denominator guard. Standard momentum initializes m_0=0, so S_1 is 0/0; the same failure occurs at a stationary point or on any exactly zero stochastic gradient. The paper's epsilon is added only after the cosine is computed and therefore cannot fix this. Algorithm 1 requires an initial m_0 but never supplies a nonzero initialization or a zero-norm convention.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Equations 2-4 and Algorithm 1"
+        },
+        {
+          "page": 4,
+          "section": "Convergence claim near a stationary point"
+        }
+      ]
+    },
+    {
+      "claim": "The default smoothing makes a single newly misaligned gradient only weakly affect its own damping factor.",
+      "evidence": "With gamma=0.9 and s_hat_(t-1)=0, a maximally opposed current gradient gives s_hat_t=-0.1 and d_t=0.45, whereas a perfectly aligned one gives d_t=0.55. Thus the immediate coefficient differs by only 0.10; the near-zero or near-one extremes require sustained history. This is materially weaker than Figure 2's per-gradient geometric story, and the gamma=0 ablation performs similarly, so the role of smoothing is not isolated.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Equations 3-4 and Figure 2"
+        },
+        {
+          "page": 16,
+          "section": "Appendix A.2.4, Table 8 gamma ablation"
+        }
+      ]
+    },
+    {
+      "claim": "The learning-rate transfer derivation uses mutually inconsistent assumptions and its claimed consistent optimum is contradicted by the reported hyperparameters.",
+      "evidence": "Replacing all recent g_s by g_t in the geometric-series argument requires strongly aligned gradients, which would drive the momentum-gradient cosine toward one, not the empirically asserted s*=0 used to recommend eta_TAM=2 eta_SGDM. Table 5 then reports SGDM/TAM best learning rates of 0.01/0.2 for CIFAR10-ResNet34 and CIFAR100-ResNet18, a factor of 20 rather than two; the 100-percent label-flip setting uses 0.01/0.04. Moreover TAM's 0.2 is the upper boundary of its vision grid in every main setting.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Learning Rate Transfer, Equation 5"
+        },
+        {
+          "page": 4,
+          "section": "Equation 6 and consistent-optimum claim"
+        },
+        {
+          "page": 14,
+          "section": "Appendix Tables 4-5 and Figure 8"
+        }
+      ]
+    },
+    {
+      "claim": "A bounded, history-dependent gradient multiplier does not make TAM inherit SGDM's convergence guarantees.",
+      "evidence": "The manuscript offers no theorem, assumptions, proof, finite-time rate, or stochastic-error analysis for TAM. It instead equates an approximate effective learning rate after assuming a constant alignment score and then states that SGDM guarantees carry over. TAM's coefficient depends nonlinearly on current and past stochastic gradients, can approach zero, and is undefined at zero norms, so existing SGDM results do not transfer merely because the scalar lies in a bounded interval.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Learning Rate Transfer derivation"
+        },
+        {
+          "page": 4,
+          "section": "Claim that TAM inherits SGDM convergence guarantees"
+        }
+      ]
+    },
+    {
+      "claim": "AdaTAM is not specified on the same scale as Adam and omits essential implementation details needed to interpret its comparison.",
+      "evidence": "Equation 7 uses m_t=beta m_(t-1)+(epsilon+d_t)g_t rather than Adam's (1-beta) gradient coefficient, while v_t does include (1-beta_2), and no first- or second-moment bias correction is shown. For a constant aligned gradient and beta=0.9, the stated first moment is about ten times the gradient; even at s*=0 it is about five times. All five AdaTAM vision optima occur at the grid's lower boundary 1e-4, commonly one tenth Adam's default 1e-3, consistent with scale compensation rather than a controlled algorithmic comparison. AdaTAMW's decoupled weight-decay rule is never defined.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "AdaTAM, Equation 7"
+        },
+        {
+          "page": 14,
+          "section": "Appendix Tables 4-5, learning-rate grids and optima"
+        },
+        {
+          "page": 16,
+          "section": "Appendix A.2.5, alternative AdaTAM2 moment rule"
+        }
+      ]
+    },
+    {
+      "claim": "A single model-wide or tensor-wide cosine cannot specifically protect against large local gradient conflicts.",
+      "evidence": "Cosine discards gradient magnitude, so a huge and a tiny gradient at the same angle receive the same multiplier, and multiplying by d_t does not cap the resulting norm. A global dot product can also hide opposed coordinates through cancellation and be dominated by high-norm layers, while one scalar rescales every coordinate identically. The paper never states whether the cosine is computed over the whole model, each parameter tensor, layer, or optimizer group; those choices change both behavior and distributed communication cost.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 1,
+          "section": "Introduction, large misaligned-gradient motivation"
+        },
+        {
+          "page": 3,
+          "section": "Equation 2 global cosine and Equation 4 scalar damping"
+        },
+        {
+          "page": 17,
+          "section": "Appendix A.2.8 runtime claim"
+        }
+      ]
+    },
+    {
+      "claim": "The mechanical torque and friction analogy does not match the proposed update mathematically.",
+      "evidence": "Mechanical torque depends on a cross product and lever arm, is zero for both parallel and antiparallel force, and is maximal at 90 degrees. TAM instead uses cosine, suppresses antiparallel gradients most, and contains no lever arm. It also scales the applied gradient rather than adding a velocity-opposing dissipative force. The analogy is mnemonic, not a derivation or physical stability guarantee.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 1,
+          "section": "Introduction, mechanical damping analogy"
+        },
+        {
+          "page": 2,
+          "section": "Torque-Aware Momentum motivation"
+        },
+        {
+          "page": 3,
+          "section": "Equations 2-4 and Figure 2"
+        }
+      ]
+    },
+    {
+      "claim": "Image-classification gains are small and mixed, and the same validation split is used for tuning and headline reporting.",
+      "evidence": "Against SGDM, TAM changes accuracy by +0.6, +0.4, +0.6, -0.4, and +0.1 points across the five main model-dataset pairs; the ImageNet difference is 77.1+/-0.1 versus 77.0+/-0.1. Results use five seeds but no paired tests or confidence intervals. The learning rate is selected by grid search and Table 1 is explicitly validation accuracy; Appendix Table 2 lists CIFAR as 40K train and 10K validation but reports no untouched test split, so the selected validation maximum is optimistically biased.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Section 4.1 setup"
+        },
+        {
+          "page": 5,
+          "section": "Table 1"
+        },
+        {
+          "page": 13,
+          "section": "Appendix Table 2 dataset details"
+        },
+        {
+          "page": 15,
+          "section": "Appendix Table 6 additional image results"
+        }
+      ]
+    },
+    {
+      "claim": "The MTEB conclusion depends heavily on a permissive definition of similar, while the exact per-dataset results are substantially mixed.",
+      "evidence": "Figure 4 counts a result as similar when its difference is below 0.2 percent of the higher score, and Appendix Figure 10 relaxes this to 1 percent. Directly recounting Tables 11-16 without that tolerance, AdaTAMW loses to AdamW on 45 of 56 BERT-base datasets at 10 epochs; on RoBERTa-large it loses on 34, 32, and 34 datasets at 3, 5, and 10 epochs. It also loses on 30 of 56 DeBERTa-base datasets at 5 epochs. Relative percentage heatmaps amplify tiny absolute changes in retrieval settings whose raw scores are near zero, and no multiple-comparison or uncertainty analysis is supplied.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Figure 3 relative-improvement heatmap"
+        },
+        {
+          "page": 6,
+          "section": "Figure 4 and 0.2-percent similarity rule"
+        },
+        {
+          "page": 17,
+          "section": "Appendix Figure 10 and 1-percent similarity rule"
+        },
+        {
+          "page": 19,
+          "section": "Appendix Table 11, BERT-base"
+        },
+        {
+          "page": 21,
+          "section": "Appendix Table 13, DeBERTa-base"
+        },
+        {
+          "page": 24,
+          "section": "Appendix Table 16, RoBERTa-large"
+        }
+      ]
+    },
+    {
+      "claim": "The language experiment does not establish improved large-language-model fine-tuning or useful embeddings.",
+      "evidence": "The largest model is RoBERTa-large at 355M parameters; all six are BERT-family masked-language encoders continued on WikiText, not modern generative LLMs or instruction tuning. The paper omits the untouched pretrained checkpoint, sentence-embedding training, pooling rule, and MTEB encoder configuration. Several retrieval scores are approximately zero, especially for DeBERTa, so comparing AdaTAMW only with AdamW cannot show that either continued-pretraining procedure improves the original representation.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Section 4.2 LLM fine-tuning setup"
+        },
+        {
+          "page": 5,
+          "section": "BERT-family WikiText setup"
+        },
+        {
+          "page": 13,
+          "section": "Appendix Table 3 model sizes"
+        },
+        {
+          "page": 21,
+          "section": "Appendix Table 13 near-zero retrieval scores"
+        },
+        {
+          "page": 22,
+          "section": "Appendix Table 14 near-zero retrieval scores"
+        }
+      ]
+    },
+    {
+      "claim": "The online-learning experiment is a selected label-remapping stress test, not broad evidence of robustness to distribution shift.",
+      "evidence": "Tasks reuse CIFAR10 images while flipping 40, 80, or 100 percent of labels and allocate 40 training epochs per task. Optimizers and learning rates are selected by average online accuracy over the task sequence, and only SGD and SGDM are plotted; momentum reset, Adam-family, replay, and plasticity methods are absent. TAM merely matches SGDM for smooth shifts and, for the larger MLP under harder shifts, matches SGD while SGDM degrades. No numeric table, alignment measurement, forgetting metric, confidence interval, or input/covariate shift is reported.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Section 4.3 online-learning setup"
+        },
+        {
+          "page": 7,
+          "section": "Figure 5 and results"
+        }
+      ]
+    },
+    {
+      "claim": "The warm-up studies confound the alignment rule with learning-rate and state-transition choices.",
+      "evidence": "TAM warm-up uses a learning rate twice SGDM's and switches to SGDM while retaining an optimizer buffer formed under a different recursion; the transfer heuristic assumes s* near zero even though Figure 8 shows the early transient is positive then negative. The essential control d_t=0.5 with doubled learning rate, which is approximately ordinary SGDM, is missing, as are shuffled-angle and matched time-varying-step controls. The GNN study selects among four switch times and three warm-up rates and reports the best validation RMSE without test performance or uncertainty.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "Section 4.4 TAM-to-SGDM warm-up protocol"
+        },
+        {
+          "page": 8,
+          "section": "Figures 6-7 and GNN selection protocol"
+        },
+        {
+          "page": 9,
+          "section": "GNN warm-up results"
+        },
+        {
+          "page": 14,
+          "section": "Figure 8 transient alignment trajectory"
+        }
+      ]
+    },
+    {
+      "claim": "The manuscript is not sufficiently specified to reproduce its central comparisons.",
+      "evidence": "It reports model sizes, dataset sizes, A100 hardware, learning-rate grids, and default beta values, but omits batch sizes, data augmentation and preprocessing, learning-rate schedules, weight decay, momentum and variance bias correction, cosine scope, zero-norm handling, optimizer code, exact online task generation, MTEB pooling, and seed-level results. AdaTAMW is named without an update equation. Linked generic framework and notebook references do not define the optimizer implementation used for the reported tables.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Section 4 experiment overview"
+        },
+        {
+          "page": 13,
+          "section": "Appendix A.1 implementation details"
+        },
+        {
+          "page": 14,
+          "section": "Appendix Tables 4-5"
+        },
+        {
+          "page": 18,
+          "section": "Appendix Table 10 runtime"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Preserve accumulated momentum when a new stochastic gradient points elsewhere by reducing that gradient's contribution according to a smoothed momentum-gradient cosine.",
+    "mechanism": "TAM computes a cosine alignment between the previous first-moment buffer and the current gradient, exponentially smooths the scalar, maps it to a nonnegative damping coefficient, and uses that coefficient in the momentum recursion. A heuristic equates steady-state update magnitudes to recommend doubling a tuned SGDM learning rate. AdaTAM substitutes the same first-moment rule into an Adam-like preconditioned update. The paper evaluates image classification, continued masked-language pretraining followed by MTEB, sequential label flips, continual learning, and optimizer warm-up.",
+    "assumptions": [
+      "Momentum and gradient norms are nonzero, or an unstated zero-norm convention makes every cosine well defined.",
+      "A single cosine at the chosen tensor or model scope meaningfully summarizes harmful coordinatewise conflicts.",
+      "Directional misalignment is a reliable marker of noise or sharp-basin oscillation rather than a necessary response to changing curvature or tasks.",
+      "Suppressing a conflicting current gradient does not excessively preserve stale momentum after a genuine distribution shift.",
+      "The exponentially smoothed alignment is sufficiently stationary for an effective-learning-rate approximation.",
+      "Recent gradients can be replaced by the current gradient in the geometric-series derivation even when the measured asymptotic cosine is near zero.",
+      "Bounding the adaptive multiplier is sufficient to transfer SGDM convergence properties to a nonlinear stochastic recursion.",
+      "AdaTAM's first-moment scale, bias correction, epsilon placement, and weight decay are implemented consistently across baselines.",
+      "Learning-rate grids and validation selection provide comparable tuning budgets and do not bias the same reported metric.",
+      "Label flipping after many epochs per task is representative of practical online distribution shift.",
+      "Raw BERT-family models continued on WikiText provide a meaningful MTEB embedding evaluation without a task-specific sentence encoder.",
+      "Small mean improvements across five seeds and many configurations reflect optimizer effects rather than selection and multiple-comparison noise."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "momentum-gradient-cosine",
+      "role": "Summarizes directional agreement between the previous momentum buffer and current gradient."
+    },
+    {
+      "id": "alignment-ema",
+      "role": "Smooths the stochastic cosine with a separate gamma state."
+    },
+    {
+      "id": "bounded-gradient-gate",
+      "role": "Maps smoothed alignment to a scalar in [0,1] before accumulating the gradient."
+    },
+    {
+      "id": "effective-lr-transfer",
+      "role": "Heuristically doubles a tuned SGDM rate when the long-run cosine is assumed to approach zero."
+    },
+    {
+      "id": "adaptive-tam",
+      "role": "Combines the modified first moment with an Adam-style second-moment denominator."
+    },
+    {
+      "id": "optimizer-grid-comparison",
+      "role": "Selects learning rates for SGD, momentum, Adam, AngularGrad, TAM, and AdaTAM variants."
+    },
+    {
+      "id": "label-flip-stream",
+      "role": "Creates successive CIFAR10 tasks with controlled label remapping as a plasticity stress test."
+    },
+    {
+      "id": "tam-warmup",
+      "role": "Uses TAM early and then transfers its state into SGDM or Adam."
+    },
+    {
+      "id": "mode-connectivity-probe",
+      "role": "Interpolates between independently continued checkpoints to summarize a linear loss barrier."
+    },
+    {
+      "id": "per-dataset-mteb-audit",
+      "role": "Compares continued-pretraining optimizers across 56 embedding datasets and seven categories."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "ResNet18/34 on CIFAR10/100 and ResNet50 on ImageNet, five seeds",
+      "metric": "Best grid-selected validation accuracy",
+      "result": "TAM versus SGDM changes accuracy by +0.6, +0.4, +0.6, -0.4, and +0.1 points across five settings",
+      "baseline": "SGD, SGDM, Adam, AngularGrad, and AdaTAM; no untouched test set or significance analysis"
+    },
+    {
+      "setting": "MobileNet and ImageNet-pretrained ViT on CIFAR10/100",
+      "metric": "Accuracy after learning-rate grid search",
+      "result": "TAM ties SGDM on MobileNet and CIFAR10 ViT and improves CIFAR100 ViT from 85.3+/-0.2 to 86.2+/-0.2",
+      "baseline": "SGD and SGDM, plus adaptive methods for MobileNet; validation/test naming is inconsistent"
+    },
+    {
+      "setting": "Six BERT, DeBERTa, and RoBERTa encoders continued on WikiText for 3, 5, or 10 epochs",
+      "metric": "Validation perplexity selection followed by 56 MTEB dataset scores and category-relative improvements",
+      "result": "Mixed: exact scores favor AdaTAMW in some configurations but it loses 45/56 BERT-base tasks at 10 epochs and 34/56 RoBERTa-large tasks at both 3 and 10 epochs",
+      "baseline": "AdamW only; no untouched pretrained encoder, pooling specification, confidence intervals, or modern generative LLM"
+    },
+    {
+      "setting": "CIFAR10 MLP streams with 40, 80, or 100 percent label flips and 40 epochs per task",
+      "metric": "Average online accuracy curves",
+      "result": "TAM matches SGDM under 40-percent shifts, exceeds degraded SGDM in harder settings, and often matches SGD for the larger MLP",
+      "baseline": "SGD and SGDM only; curves lack numeric summaries and uncertainty"
+    },
+    {
+      "setting": "CLEAR ten-experience continual learning with ResNet50",
+      "metric": "Final per-experience accuracy after the full sequence",
+      "result": "TAM exceeds SGDM for every displayed experience under both naive and learning-without-forgetting setups",
+      "baseline": "SGDM with the same selected learning rate; no seed uncertainty, aggregate forgetting, or broader optimizer panel"
+    },
+    {
+      "setting": "ResNet18 CIFAR10 TAM-to-SGDM warm-up",
+      "metric": "Validation accuracy, gradient norm, and linear mode-connectivity loss barrier",
+      "result": "TAM warm-up plots higher selected validation accuracy and later gradient-norm jumps, with the best switch near epoch 50",
+      "baseline": "SGDM warm-up with a different learning-rate/state recursion; constant-gate and shuffled-alignment controls absent"
+    },
+    {
+      "setting": "MovieLens GNN link prediction with TAM or SGDM warm-up before Adam",
+      "metric": "Best validation RMSE across switch times",
+      "result": "Lowest reported validation RMSE is 0.86 for TAM warm-up at 50 epochs",
+      "baseline": "Adam and SGDM warm-up; no test RMSE, uncertainty, or correction for selecting rates and switch times"
+    },
+    {
+      "setting": "Gamma, alternative AdaTAM moment, and BERT-large runtime ablations",
+      "metric": "CIFAR accuracy and wall-clock minutes",
+      "result": "Gamma from 0 to 0.99 changes accuracy little; AdaTAM2 is similar or worse; AdaTAMW is about 1.12x slower than AdamW",
+      "baseline": "One hardware/model runtime case and no zero-norm, epsilon, beta, cosine-scope, or constant-damping ablation"
+    }
+  ],
+  "limitations": [
+    "Author-stated: more challenging nonstationary and continual-learning settings remain to be studied.",
+    "Author-stated: reinforcement learning and self-supervised learning are unevaluated future directions.",
+    "Reviewer-identified: the cosine is undefined for zero-initialized momentum, zero gradients, and exact stationary points.",
+    "Reviewer-identified: epsilon is placed after the undefined division and does not provide numerical stabilization.",
+    "Reviewer-identified: the effective-learning-rate argument assumes aligned recent gradients while calibrating with an observed cosine near zero.",
+    "Reviewer-identified: no convergence theorem or proof is given for the history-dependent stochastic multiplier.",
+    "Reviewer-identified: the claimed two-times learning-rate optimum is contradicted by multiple best-rate entries in Table 5.",
+    "Reviewer-identified: AdaTAM's first moment lacks Adam's gradient normalization and the equations omit bias correction and AdaTAMW weight decay.",
+    "Reviewer-identified: the scope of the cosine across parameters is unspecified and a global scalar hides coordinate and layer conflicts.",
+    "Reviewer-identified: angle alone does not cap the large gradients named in the motivation.",
+    "Reviewer-identified: headline image results reuse the validation set used for hyperparameter selection and several gains overlap seed variation.",
+    "Reviewer-identified: MTEB claims depend on permissive similarity thresholds and relative percentages on near-zero scores.",
+    "Reviewer-identified: there is no unmodified pretrained embedding baseline or specified pooling method for the language study.",
+    "Reviewer-identified: the label-flip benchmark, baseline set, and 40-epoch tasks do not support broad online-shift claims.",
+    "Reviewer-identified: warm-up comparisons entangle the alignment gate, learning rate, switch time, and incompatible optimizer-buffer states.",
+    "Reviewer-identified: key training, preprocessing, schedule, implementation, and seed-level details are absent."
+  ],
+  "failure_modes": [
+    "A standard zero momentum buffer produces NaN on the first cosine computation.",
+    "A zero mini-batch gradient or exact optimum makes the alignment score undefined during training.",
+    "A stale momentum direction can suppress correct gradients immediately after a genuine task or curvature change.",
+    "One high-norm layer can dominate a model-wide cosine and impose its damping decision on unrelated layers.",
+    "Opposed coordinates can cancel in a positive global dot product even though many parameters need protection.",
+    "A very large misaligned gradient can still produce a large update because TAM rescales but never clips its norm.",
+    "Near s*=0, doubled learning rate and d near one-half can make TAM almost identical to SGDM, so selection noise may be attributed to angle awareness.",
+    "An uncorrected AdaTAM first moment can be five to ten times the gradient scale and require a boundary learning rate to remain stable.",
+    "Validation-set optimizer selection can turn seed noise into a reported generalization gain.",
+    "Relative MTEB improvements can look large when the AdamW denominator is a near-zero retrieval score.",
+    "A permissive similarity threshold can count many exact losses as evidence that AdaTAMW matches or beats AdamW.",
+    "Label remapping can favor preservation of stale momentum for benchmark-specific reasons that do not transfer to covariate or concept drift.",
+    "Transferring a TAM buffer into SGDM or Adam can introduce a discontinuous effective step because the buffers use different recursions.",
+    "The extra cosine reduction can add distributed synchronization overhead beyond the single-GPU 1.12x runtime measurement."
+  ],
+  "reusable_insights": [
+    "Define a safe zero-norm convention before using cosine inside any optimizer; add epsilon to the norm denominator and test exact zeros.",
+    "Separate current-gradient scale, direction, and coordinatewise conflict instead of expecting one global cosine to capture all three.",
+    "A bounded adaptive coefficient does not inherit a base optimizer's theorem; analyze the actual state-dependent recursion.",
+    "Check whether assumptions used for optimizer calibration are compatible with the empirical regime used to estimate calibration constants.",
+    "Always include a constant-coefficient control when an adaptive gate spends most of training near its mean value.",
+    "Compare global, layerwise, tensorwise, blockwise, and coordinatewise alignment rules under equal communication and tuning budgets.",
+    "Report full sensitivity surfaces when recommended learning rates land on search-grid boundaries.",
+    "Use a completely untouched test set after optimizer and checkpoint selection, especially when expected gains are below one percentage point.",
+    "For benchmark suites, report exact win/loss counts, absolute deltas, uncertainty, and multiplicity corrections before thresholded tie summaries.",
+    "Include the original pretrained checkpoint when continued pretraining is evaluated on downstream representation quality.",
+    "Test distribution-shift optimizers on covariate, label, gradual, abrupt, recurring, and adversarial shifts with momentum-reset and replay baselines.",
+    "Warm-up comparisons must match effective steps and optimizer state or reset state explicitly at the switch."
+  ],
+  "open_questions": [
+    "Does a denominator-stabilized TAM converge under standard smooth nonconvex stochastic assumptions?",
+    "What behavior should be defined when either the momentum or gradient norm is zero?",
+    "Is model-wide, layerwise, blockwise, or coordinatewise momentum-gradient alignment most predictive of useful updates?",
+    "Does a constant d=0.5 with twice the learning rate reproduce the reported TAM gains?",
+    "How much benefit remains after matching full learning-rate schedules, weight decay, bias correction, and validation budgets?",
+    "Can norm-aware clipping be combined with alignment without suppressing necessary reversal after a task shift?",
+    "How quickly does TAM adapt when the true optimum moves and the new gradient remains opposite to stale momentum?",
+    "Do alignment trajectories causally predict generalization after controlling for gradient norm and sharpness?",
+    "What are paired seed-level confidence intervals and familywise-corrected results across all image and MTEB comparisons?",
+    "Does AdaTAMW improve modern decoder-only pretraining or instruction tuning at fixed tokens, FLOPs, and wall time?",
+    "Does MTEB improvement survive comparison with the untouched checkpoint and a properly trained sentence-embedding baseline?",
+    "How does TAM compare with Cautious, Grams, AdaBelief, AdEMAMix, MARS, and later alignment-selective optimizers?",
+    "What is the communication cost of the intended cosine scope under data, tensor, and pipeline parallelism?",
+    "Can a principled state conversion or reset rule make TAM warm-up reproducible across target optimizers?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1804.00325",
+      "title": "Aggregated Momentum: Stability Through Passive Damping",
+      "url": "https://arxiv.org/abs/1804.00325v3",
+      "relationship": "momentum-damping predecessor",
+      "difference": "AggMo combines velocity buffers at several decay rates to damp oscillations and analyzes quadratic convergence, at the cost of extra state. TAM keeps one momentum buffer and adds one scalar state, but supplies no comparable theorem and does not test whether its angle gate outperforms a memory-timescale mixture under equal tuning and compute.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:1804.00325v3 / ICLR 2019, 2019-05-01"
+    },
+    {
+      "canonical_id": "arxiv:2006.08217",
+      "title": "AdamP: Slowing Down the Slowdown for Momentum Optimizers on Scale-invariant Weights",
+      "url": "https://arxiv.org/abs/2006.08217v3",
+      "relationship": "directional momentum correction predecessor",
+      "difference": "AdamP and SGDP detect scale-invariant weights and remove the radial component of a momentum update, preserving the functionally relevant tangent direction with analysis and 13 benchmarks. TAM instead gates the new gradient by temporal alignment and applies beyond normalized weights; AdamP shows that directional optimizer geometry and preserved convergence were already studied with more explicit invariance assumptions.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2006.08217v3 / ICLR 2021, 2021-01-18"
+    },
+    {
+      "canonical_id": "arxiv:2010.07468",
+      "title": "AdaBelief Optimizer: Adapting Stepsizes by the Belief in Observed Gradients",
+      "url": "https://arxiv.org/abs/2010.07468v5",
+      "relationship": "closest gradient-prediction predecessor",
+      "difference": "AdaBelief treats momentum as a prediction of the next gradient and reduces coordinatewise step sizes when the observed gradient deviates from that prediction, with convergence analysis and broad experiments. TAM uses only the global angular component of the same mismatch and rescales the incoming first moment; omitting AdaBelief from the baseline panel leaves the claimed stability/generalization mechanism weakly isolated.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2010.07468v5 / NeurIPS 2020, 2020-12-20"
+    },
+    {
+      "canonical_id": "arxiv:2103.17182",
+      "title": "Positive-Negative Momentum: Manipulating Stochastic Gradient Noise to Improve Generalization",
+      "url": "https://arxiv.org/abs/2103.17182v5",
+      "relationship": "noise-and-generalization momentum predecessor",
+      "difference": "PNM maintains two approximately independent momentum states and takes their controlled difference to shape anisotropic stochastic-gradient noise, with theoretical convergence and generalization results for SGD and Adam variants. TAM is cheaper and targets directional conflict, but its claims about enhanced exploration and generalization lack both a noise characterization and a comparison to this established momentum alternative.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2103.17182v5 / ICML 2021, 2022-08-30"
+    },
+    {
+      "canonical_id": "arxiv:2105.10190",
+      "title": "AngularGrad: A New Optimization Technique for Angular Convergence of Convolutional Neural Networks",
+      "url": "https://arxiv.org/abs/2105.10190v2",
+      "relationship": "closest cited angle-aware predecessor",
+      "difference": "AngularGrad uses the angle between consecutive gradients to control an Adam-style step and reports an Adam-like regret bound. TAM argues that momentum-current alignment is the more relevant temporal comparison and does include AngularGrad, but only on image classification; it does not isolate consecutive-gradient versus momentum-gradient information under a shared update and learning-rate scale.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2105.10190v2, 2023-09-09; first submitted 2021-05-21"
+    },
+    {
+      "canonical_id": "arxiv:2409.03137",
+      "title": "The AdEMAMix Optimizer: Better, Faster, Older",
+      "url": "https://arxiv.org/abs/2409.03137v2",
+      "relationship": "contemporaneous multi-timescale momentum alternative",
+      "difference": "AdEMAMix mixes short and very long gradient EMAs and reports that old gradients remain useful for tens of thousands of steps, including a 1.3B-parameter 101B-token language-model study. TAM instead suppresses gradients that conflict with one buffer and evaluates only continued pretraining of at most 355M parameters; AdEMAMix is a stronger current baseline for claims about preserving valuable historical information.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2409.03137v2, 2024-09-27; first submitted 2024-09-05"
+    },
+    {
+      "canonical_id": "arxiv:2411.16085",
+      "title": "Cautious Optimizers: Improving Training with One Line of Code",
+      "url": "https://arxiv.org/abs/2411.16085v4",
+      "relationship": "closest concurrent alignment-gating competitor",
+      "difference": "Cautious optimizers suppress coordinate updates whose momentum and current gradient signs disagree and now provide a Lyapunov analysis plus large-scale pretraining results. Its first arXiv version appeared one month before TAM's arXiv version, although TAM's OpenReview submission predates it, so priority is concurrent; current novelty is the smooth globally smoothed cosine gate rather than the general idea of rejecting momentum-gradient conflict.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2411.16085v4, 2026-02-15; first submitted 2024-11-25"
+    },
+    {
+      "canonical_id": "arxiv:2412.17107",
+      "title": "Grams: Gradient Descent with Adaptive Momentum Scaling",
+      "url": "https://arxiv.org/abs/2412.17107v3",
+      "relationship": "concurrent direction-magnitude decoupling competitor",
+      "difference": "Grams takes update direction from the current gradient and uses momentum only to scale magnitude, explicitly avoiding a stale momentum direction, and supplies a global convergence guarantee plus comparisons with cautious optimizers. It was posted three days before TAM's arXiv version but after TAM's OpenReview submission; its opposite design choice is an essential stress test for TAM's premise that the old direction should dominate conflict.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2412.17107v3 / ICLR 2025 SCOPE Workshop, 2025-03-05; first submitted 2024-12-22"
+    },
+    {
+      "canonical_id": "pmlr:v267:yuan25f",
+      "title": "MARS: Unleashing the Power of Variance Reduction for Training Large Models",
+      "url": "https://proceedings.mlr.press/v267/yuan25f.html",
+      "relationship": "current large-model momentum framework",
+      "difference": "MARS combines scaled stochastic recursive momentum with AdamW, Lion, or Shampoo preconditioning and evaluates GPT-2 training at fixed token budgets, with a formal variance-reduction motivation. TAM is simpler and explores vision and distribution shifts, but its masked-language fine-tuning does not support competitive large-model optimizer claims without token-, FLOP-, and wall-time-controlled comparisons like MARS.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2025, PMLR volume 267, pages 73553-73587"
+    },
+    {
+      "canonical_id": "arxiv:2606.17526",
+      "title": "MGUP: A Momentum-Gradient Alignment Update Policy for Stochastic Optimization",
+      "url": "https://arxiv.org/abs/2606.17526v1",
+      "relationship": "later alignment-selective optimizer",
+      "difference": "MGUP ranks coordinatewise momentum-gradient alignment and applies larger versus smaller nonzero steps to fixed proportions of parameters, integrates with AdamW, Lion, and Muon, and gives a stochastic convergence guarantee for its AdamW variant. It postdates TAM and validates the broader alignment-control direction, while also highlighting TAM's missing coordinate resolution, nonzero-floor design analysis, and theorem.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2606.17526v1, 2026-06-16"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims a new low-memory momentum method that damps torqued gradients, improves loss-landscape exploration and generalization, transfers to Adam, handles online distribution shifts, and serves as an effective warm-up.",
+    "evidence": "The pinned preprint defines a smooth EMA of momentum-gradient cosine and evaluates many vision, embedding, online, continual, and warm-up settings. However, AggMo already targets momentum damping, AdaBelief distrusts gradients that deviate from momentum prediction, AngularGrad uses gradient angles, and concurrent Cautious and Grams methods directly control momentum-gradient conflict. The central algorithm is undefined at zero norms, the convergence statement is unsupported, the learning-rate heuristic conflicts with Table 5, and the largest empirical claims depend on validation selection or thresholded MTEB summaries.",
+    "reviewer_inference": "The most defensible novelty is the exceptionally simple combination of a globally smoothed cosine gate with both heavy-ball and Adam-like moment recursions, plus its exploration as a warm-up and plasticity heuristic. It is a promising empirical optimizer sketch rather than a validated convergence-preserving method. Current positioning must treat alignment gating as a crowded and partly concurrent design space and must resolve the zero-norm definition, scale and bias-correction ambiguities, constant-gate control, modern optimizer baselines, and evaluation-selection issues before broad robustness or generalization claims are credible."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Reviewed every one of the 24 extracted pages against the pinned hashes, including Equations 1-8, Algorithm 1, Figures 1-10, Tables 1-16, all detailed MTEB rows, appendices, and stated limitations. I independently recounted exact AdaTAMW-versus-AdamW wins and losses from the 56-row tables rather than adopting the paper's 0.2-percent or 1-percent similarity thresholds. The zero-denominator failure, effective-rate assumption conflict, Table 5 learning-rate contradiction, and AdaTAM scale were checked algebraically. Current competitors were researched only through official arXiv and PMLR primary records on 2026-08-23."
+}

@@ -1,0 +1,200 @@
+{
+  "stable_id": "arxiv:2506.01158",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2506.01158",
+    "pdf_sha256": "8bd2cc60cb682c46f45059a4e00769d5a8b32e71d2da19aee90af6c0521ae10a",
+    "text_sha256": "484fc9437ef973e047b863c6b11b6b7e751b01b9cbfda9be27adcee3432d46c9",
+    "page_count": 22,
+    "extracted_at": "2026-08-23T16:41:27.191114+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can classical normalizing flows for molecular Boltzmann generators be trained by supervised endpoint regression rather than maximum likelihood, retaining one-pass samples and exact proposal densities while improving stability and sample coverage?",
+  "key_findings": [
+    {
+      "claim": "REGFLOW reframes training an invertible flow as supervised approximation of a fixed invertible transport rather than joint discovery of both a transport and its noise-data coupling under maximum likelihood.",
+      "evidence": "Noise-target pairs are generated once by either a pretrained continuous normalizing flow or an offline optimal-transport pairing. A classical invertible architecture is then fit with squared endpoint error. The paper argues that zero regression error recovers the chosen map on the source support and bounds the learned distribution's Wasserstein-2 error by the teacher CNF's flow-matching error plus the square root of the regression loss.",
+      "anchors": [
+        {"page": 4, "section": "Regression training of normalizing flows"},
+        {"page": 5, "section": "REGFLOW objective"},
+        {"page": 6, "section": "OT and reflow targets"},
+        {"page": 15, "section": "Proofs"}
+      ]
+    },
+    {
+      "claim": "Invertible architecture alone is not enough for stable regression training, so the practical recipe relies on target noise, weight decay, and explicit numerical-invertibility regularization.",
+      "evidence": "Unregularized endpoint regression progressively yields numerically ill-conditioned flows whose reweighted samples deteriorate. The authors add Gaussian noise to targets, optimizer weight decay, and either a squared log-determinant penalty or a forward-inverse round-trip penalty. On alanine dipeptide, both regularizers improve over the unregularized objective, and useful log-determinant weights lie roughly between 10^-6 and 10^-5 before stronger regularization harms fit.",
+      "anchors": [
+        {"page": 5, "section": "Training recipe and regularization"},
+        {"page": 8, "section": "Regularization ablation"},
+        {"page": 19, "section": "Determinant regularization and target noise"}
+      ]
+    },
+    {
+      "claim": "On three short alanine peptides, REGFLOW usually improves energy-distribution and torsion-angle coverage over MLE for the same discrete-flow architecture, but it does not improve effective sample size and some architecture/system combinations still fail badly.",
+      "evidence": "For neural spline flow on alanine dipeptide, energy Wasserstein-1 falls from 13.797 to 0.519 and torus Wasserstein-2 from 1.243 to 0.958, while normalized ESS falls from 0.055 to 0.036. Similar distributional improvements appear for NSF and Res-NVP on tripeptide and tetrapeptide. MLE-trained Res-NVP and Jet collapse, and REGFLOW rescues several cases, but Jet remains effectively failed on larger peptides, with tiny ESS and extreme energy errors; the authors also concede proposal quality remains below state-of-the-art CNFs.",
+      "anchors": [
+        {"page": 7, "section": "Equilibrium sampling results"},
+        {"page": 8, "section": "Target and regularization ablations"},
+        {"page": 9, "section": "Conclusion and limitations"},
+        {"page": 20, "section": "Larger-peptide results"}
+      ]
+    },
+    {
+      "claim": "REGFLOW can make likelihood evaluation for generated proposals much faster by orienting autoregressive flows in their fast generative direction, while retaining the exact change-of-variables density of the learned discrete flow.",
+      "evidence": "For 200,000 alanine-dipeptide samples, NSF likelihood evaluation falls from 277.00 seconds for the MLE orientation to 8.18 seconds for REGFLOW, a reported 33.8x gain. Analytically reversible Res-NVP and Jet see only about 1.03x and 1.11x gains. A DiT CNF takes 26,969.8 seconds because likelihood evaluation integrates a divergence; this is about 450x slower than Jet and 7,700x slower than Res-NVP in the reported setup.",
+      "anchors": [
+        {"page": 7, "section": "Training and inference efficiency"},
+        {"page": 19, "section": "Quality of CNF targets"}
+      ]
+    },
+    {
+      "claim": "The method amortizes a high-quality sampled transport rather than solving energy-based equilibrium sampling from scratch.",
+      "evidence": "Reflow experiments first train a 46.3M-parameter DiT CNF on 100,000 molecular-dynamics samples, then generate about 10 million paired targets per peptide before training the discrete flow. OT experiments pair 100,000 existing prior and data samples in an offline step. The free-energy example similarly starts with 82,024 configurations from each selected state. End-to-end ALDP time to beat MLE includes teacher or OT construction, but coverage cannot exceed modes represented in the available data/teacher without additional sampling.",
+      "anchors": [
+        {"page": 6, "section": "REGFLOW targets"},
+        {"page": 7, "section": "Training-time comparison"},
+        {"page": 9, "section": "Targeted free-energy perturbation"},
+        {"page": 19, "section": "Experimental setup and target quality"},
+        {"page": 21, "section": "TFEP target construction"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Choose a high-quality invertible coupling first, materialize many latent-data endpoint pairs, and train a tractable discrete normalizing flow to imitate that map with ordinary squared regression so its forward pass simultaneously gives a fast sample and an exact proposal density.",
+    "mechanism": "A teacher CNF is numerically integrated from Gaussian noise to molecular coordinates, or a full-dataset OT assignment pairs noise and data samples. RealNVP, neural spline flow, or Jet maps the paired latent to its target. Target noise, weight decay, and log-determinant or forward-backward regularization prevent severe numerical conditioning. Generated proposals are evaluated through change of variables and corrected toward the known Boltzmann density by self-normalized importance sampling.",
+    "assumptions": [
+      "A sufficiently accurate, approximately invertible teacher transport or OT coupling can be obtained before training and covers all scientifically relevant modes.",
+      "The chosen classical flow family can approximate that fixed transport without prohibitive depth, conditioning, or autoregressive cost.",
+      "Endpoint mean-squared error is a useful proxy for distributional and likelihood fidelity once exact architectural invertibility is imposed.",
+      "Small target noise and regularization improve conditioning without materially changing the desired Boltzmann distribution.",
+      "The empirical finite-sample OT pairing behaves like samples from a suitable continuous invertible map even though the discrete assignment does not itself define that map off the training points.",
+      "Self-normalized importance sampling has adequate support overlap and effective sample size to correct residual proposal error.",
+      "The teacher construction cost can be amortized across enough likelihood evaluations and generated samples to justify the extra training pipeline."
+    ]
+  },
+  "techniques": [
+    {"id": "fixed-coupling-endpoint-regression", "role": "Turns normalizing-flow learning into supervised map imitation rather than likelihood optimization."},
+    {"id": "cnf-reflow-targets", "role": "Uses a pretrained continuous flow to produce large paired latent-to-molecule datasets."},
+    {"id": "offline-optimal-transport-pairing", "role": "Provides training pairs without a learned teacher or energy evaluations during map training."},
+    {"id": "logdet-magnitude-regularization", "role": "Penalizes extreme local volume change and numerical collapse."},
+    {"id": "forward-backward-roundtrip-regularization", "role": "Detects numerical loss of invertibility without putting a Jacobian determinant in the loss."},
+    {"id": "target-noise-conditioning", "role": "Broadens low-dimensional molecular support and improves numerical stability."},
+    {"id": "fast-direction-flow-orientation", "role": "Makes prior-to-data evaluation the efficient direction for autoregressive proposal sampling and density tracking."},
+    {"id": "importance-weighted-boltzmann-correction", "role": "Uses exact learned-flow densities and physical energies to asymptotically correct proposal bias."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Alanine dipeptide, tripeptide, and tetrapeptide in Cartesian coordinates; NSF, residual RealNVP, and Jet trained either by MLE or REGFLOW with reflow targets",
+      "metric": "Normalized effective sample size, Wasserstein-1 distance between energy distributions, and Wasserstein-2 distance over backbone torsion angles from 250,000 proposals",
+      "result": "REGFLOW consistently improves the reported energy and torsion distances relative to the same MLE architecture and prevents several complete MLE collapses. ESS is generally lower, and Jet still fails on the larger systems; proposals remain worse than the CNF teacher.",
+      "baseline": "Identical discrete-flow architecture and configuration trained by maximum likelihood"
+    },
+    {
+      "setting": "Likelihood evaluation for 200,000 ALDP proposals",
+      "metric": "Elapsed time to generate/evaluate proposal likelihoods",
+      "result": "NSF improves from 277.00 to 8.18 seconds (33.8x); Res-NVP and Jet improve only marginally; DiT-CNF likelihood evaluation is orders of magnitude slower at 26,969.8 seconds.",
+      "baseline": "MLE-oriented versions of each discrete flow and a flow-matching DiT CNF"
+    },
+    {
+      "setting": "ALDP end-to-end training-time comparison including CNF or OT preprocessing",
+      "metric": "Time until energy-W1 reaches 7.090 or torus-W2 reaches 1.368",
+      "result": "REGFLOW reaches the energy threshold in 6h54 with CNF targets or 7h23 with OT versus 10h10 for MLE, and the torsion threshold in 7h32 or 7h56 versus 12h17, corresponding to the claimed roughly 27%-35% reductions.",
+      "baseline": "MLE training to the same metric threshold"
+    },
+    {
+      "setting": "ALDP regularization, target type, and reflow-dataset-size ablations",
+      "metric": "ESS, energy-W1, torsion-W2, and numerical invertibility",
+      "result": "More teacher pairs generally improve performance; logdet and forward-backward penalties both stabilize training, with moderate regularization best. OT can give strong energy matching but often substantially lower ESS and worse torsion coverage than the largest reflow set.",
+      "baseline": "No regularization, MLE, 100,000 reflow pairs, 10.4M reflow pairs, and 100,000 OT pairs"
+    },
+    {
+      "setting": "Targeted free-energy perturbation between beta-planar and alpha-R ALDP conformations using 82,024 paired state samples",
+      "metric": "Estimated free-energy difference against molecular-dynamics reference",
+      "result": "An OT-target REGFLOW trained without energy evaluations produces a visually close free-energy estimate, demonstrating feasibility. The paper does not report a broad task suite, repeated-trial uncertainty, or a matched variance/cost comparison to modern TFEP estimators.",
+      "baseline": "Molecular-dynamics reference"
+    }
+  ],
+  "limitations": [
+    "REGFLOW needs high-quality samples from the target distribution and either an expensive pretrained CNF or a full-dataset OT pairing; it is primarily transport distillation/amortization, not an energy-only equilibrium sampler.",
+    "The strongest experiments use roughly 10 million reflow pairs generated by a high-quality CNF trained on molecular-dynamics data, so teacher quality and coverage cap the student and shift rather than remove computational difficulty.",
+    "The proof that vanishing MSE yields almost-everywhere convergence is overstated: L2 convergence implies convergence in probability and guarantees an almost-everywhere-convergent subsequence, not necessarily almost-everywhere convergence of the full sequence without additional conditions.",
+    "The Wasserstein bound is a triangle-inequality distillation bound and says nothing about convergence of Jacobians or likelihoods; small endpoint error can coexist with badly wrong local volume change, as the paper's own oscillatory example observes.",
+    "A finite optimal-assignment pairing between empirical samples is not itself a continuous invertible Monge map, so the stated OT invertibility rationale does not automatically apply to the implemented training pairs.",
+    "Forward-backward consistency is identically zero in exact arithmetic for a truly invertible architecture; it measures numerical round-trip error but does not directly guarantee a well-conditioned Jacobian or accurate target density.",
+    "ESS worsens relative to MLE in the main successful comparisons, and extremely low ESS remains a serious cost for importance correction; dismissing MLE's higher ESS as mode-collapse inflation does not make the REGFLOW weights efficient.",
+    "The same three small alanine peptides, closely related to teacher and baseline development, do not demonstrate scaling to proteins, solvents, ligands, diverse chemistry, or rare modes missing from training data.",
+    "Exact density is exact for the learned numerically invertible flow, not necessarily accurate for the target distribution; importance sampling still needs energy evaluations and adequate support overlap.",
+    "Code is promised only after acceptance, and the reported ICLR submission has no public implementation in the paper, limiting independent reproduction at review time."
+  ],
+  "failure_modes": [
+    "A teacher or MD dataset that misses a metastable basin produces paired targets with no signal for that basin, and one-step regression cannot discover it.",
+    "Small endpoint error can hide rapidly oscillating derivatives, yielding poor importance weights even when samples look accurate.",
+    "An ill-conditioned target coupling can force the student toward near-singular Jacobians, numerical inverse failure, or extreme log weights.",
+    "Target noise can blur narrow physical modes or shift the density used for thermodynamic estimates if its effect is not explicitly corrected.",
+    "OT preprocessing scales quadratically in memory and cubically in the stated exact solver time, making full-data pairing infeasible for large molecular datasets.",
+    "Importance sampling can report unstable observables when a few proposals dominate, even if energy and torsion Wasserstein metrics improve on a finite reference set.",
+    "A flow direction optimized for fast proposal generation can still require a slow inverse for likelihoods of arbitrary externally supplied configurations.",
+    "Regularization selected per architecture and molecule can make the training recipe brittle and expensive to tune as dimension and chemistry change."
+  ],
+  "reusable_insights": [
+    "Separate map discovery from map compression: a hard generative problem can become ordinary supervised learning once a useful coupling is materialized.",
+    "For invertible models, report sample fidelity and Jacobian or importance-weight fidelity separately; endpoint regression alone controls only the former directly.",
+    "Orient autoregressive flows around the operation needed most often: generated-sample likelihoods can be cheap even when arbitrary-data inversion is slow.",
+    "Always include target-generation, preprocessing, storage, and teacher cost when claiming a distillation method is cheaper to train.",
+    "Round-trip error, log-determinant magnitude, condition number, and importance-weight tails are complementary numerical-stability diagnostics.",
+    "ESS must be interpreted together with mode coverage because it can be spuriously high for a collapsed proposal and disastrously low for a broadly covering but poorly weighted one.",
+    "A continuous OT theorem does not validate a discrete empirical assignment automatically; spell out the off-sample map and assumptions connecting the two.",
+    "For scientific samplers, validate observable bias and confidence-interval coverage, not only marginal geometry and energy histograms."
+  ],
+  "open_questions": [
+    "Can REGFLOW be trained online from energy evaluations and adaptive proposals, eliminating the need for a pre-existing MD dataset or CNF teacher?",
+    "What Sobolev, Jacobian, or score-matching regularizer gives a theorem connecting regression error to likelihood and importance-weight accuracy?",
+    "Can scalable entropic, minibatch, or learned OT targets preserve useful global couplings without the quadratic/cubic full-dataset cost?",
+    "How does the method perform on unseen metastable states, much larger peptides, explicit solvent, periodic systems, and chemically diverse molecules?",
+    "Can one optimize the pairing for student conditioning and ESS rather than copying whichever invertible map the teacher happens to learn?",
+    "How much of the reported gain remains under a strong modern MLE discrete-flow baseline such as carefully tuned TarFlow or Sequential Boltzmann Generators?",
+    "Does a prospective regularization rule transfer across dimensionality, architecture, temperature, and molecule without per-system sweeps?",
+    "What is the full amortization break-even point after teacher simulation, pair storage, training, generated-sample count, energy evaluations, and uncertainty requirements?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2502.18462",
+      "title": "Scalable Equilibrium Sampling with Sequential Boltzmann Generators",
+      "url": "https://arxiv.org/abs/2502.18462",
+      "relationship": "closest high-performance discrete-flow Boltzmann-generator baseline from overlapping authors",
+      "difference": "Sequential Boltzmann Generators use a fast Transformer normalizing flow plus annealed Langevin/SMC inference and report state-of-the-art Cartesian sampling through hexapeptides. REGFLOW changes the training objective and makes several older flow architectures usable, but evaluates only through tetrapeptide and does not compare against the full SBG inference pipeline in its main table."
+    },
+    {
+      "canonical_id": "arxiv:2306.15030",
+      "title": "Equivariant flow matching",
+      "url": "https://arxiv.org/abs/2306.15030",
+      "relationship": "teacher-class and sample-quality competitor",
+      "difference": "Equivariant flow matching trains symmetry-respecting continuous flows directly and delivers strong Boltzmann proposals without tailored internal coordinates, but numerical integration and divergence evaluation are costly. REGFLOW distills such expressive continuous transports into a one-pass discrete flow with cheap density evaluation at the price of teacher dependence and lower proposal quality."
+    },
+    {
+      "canonical_id": "arxiv:2412.06329",
+      "title": "Normalizing Flows are Capable Generative Models",
+      "url": "https://arxiv.org/abs/2412.06329",
+      "relationship": "competing claim that architecture and training refinements can rescue MLE normalizing flows",
+      "difference": "TarFlow attains strong image likelihood and diffusion-comparable samples with a scalable MLE-trained autoregressive Transformer flow, target noise, denoising, and guidance. REGFLOW attributes much of NF difficulty to MLE and avoids it through paired regression, but does not test whether a comparably optimized modern MLE architecture closes the molecular gap."
+    },
+    {
+      "canonical_id": "arxiv:2509.03726",
+      "title": "Energy-Weighted Flow Matching: Unlocking Continuous Normalizing Flows for Efficient and Scalable Boltzmann Sampling",
+      "url": "https://arxiv.org/abs/2509.03726",
+      "relationship": "subsequent energy-only alternative",
+      "difference": "EWFM trains continuous flows from energy evaluations and arbitrary proposal samples, with iterative and annealed variants that reduce dependence on target-distribution datasets. REGFLOW instead requires paired target samples but produces a discrete one-step flow with substantially cheaper exact proposal-density evaluation."
+    },
+    {
+      "canonical_id": "arxiv:2602.18482",
+      "title": "Boltzmann Generators for Condensed Matter via Riemannian Flow Matching",
+      "url": "https://arxiv.org/abs/2602.18482",
+      "relationship": "subsequent scalable continuous-flow competitor",
+      "difference": "Riemannian flow matching incorporates periodic geometry and uses Hutchinson likelihoods with cumulant bias correction to obtain rigorous free-energy estimates on monatomic ice, directly challenging the categorical claim that stochastic divergence estimates are unusable for Boltzmann reweighting. REGFLOW retains far cheaper discrete-flow likelihoods but has not reached comparable system scale."
+    }
+  ],
+  "novelty_assessment": "Reviewer inference: fixing a teacher-induced or OT coupling and fitting an explicitly invertible one-step student with endpoint regression is a simple, useful synthesis of reflow/distillation and classical normalizing flows. The resulting orientation advantage for autoregressive proposal likelihoods is practically important in Boltzmann generators, and the experiments show that the objective can rescue architectures whose MLE training collapses. The constituent ideas—normalizing flows, flow distillation, reflow, OT pairings, cycle consistency, target noise, and Boltzmann importance correction—are established, so novelty lies mainly in assembling them into this scientific training recipe. Claims should remain narrower than the framing suggests: the approach does not remove the need for a high-quality transport, does not theoretically control likelihood accuracy from MSE, and is not demonstrated as an energy-only sampler.",
+  "confidence": 0.97,
+  "reviewer_notes": "All 22 pages were reviewed, including theoretical statements and proofs, negative shortcut/IMM experiments, full molecular tables, speed accounting, regularization and target-size ablations, TFEP example, hyperparameters, and larger-peptide figures. Direct primary-source competitors and later work were checked on arXiv on 2026-08-23. The review distinguishes exact likelihood under the learned discrete flow from accurate likelihood under the target Boltzmann law, and generated-proposal density evaluation from arbitrary-data inversion. It also flags the proposition's almost-everywhere convergence wording: the supplied L2 argument establishes convergence in probability, not full-sequence almost-everywhere convergence as written."
+}

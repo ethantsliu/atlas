@@ -1,0 +1,295 @@
+{
+  "stable_id": "arxiv:2507.10143",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2507.10143",
+    "pdf_sha256": "8fede0be543774064950b7c28d9f40848f290ea0278f42f2c840bc8a5db67885",
+    "text_sha256": "63923504b19a3004d214fa7da9f650c6c4c7a3a7352e08d6ae9fbec50040c04c",
+    "page_count": 12,
+    "extracted_at": "2026-08-23T16:20:48.409332+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Does repeatedly feeding a segmentation network's output state back alongside its image input improve noise robustness and few-example learning, and can softmax-bounded feedback plus an exponentially damped update make that full-depth recurrence stable?",
+  "key_findings": [
+    {
+      "claim": "The proposed Feedback U-Net turns the entire image-to-segmentation mapping into an unrolled dynamical system by concatenating class-sized feedback state with the original image at every step.",
+      "evidence": "The state h is divided into segmentation channels u and feedback channels v, starts at zero, and accumulates U-Net-produced increments. A head maps u to the mask while a softmax of the feedback slice v is concatenated with x for the next call, so output-level information re-enters the first network layer rather than recurring only inside one block.",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Section 3, Figures 1-2 and Equations 1-2"
+        },
+        {
+          "page": 5,
+          "section": "Feedback dynamics, Equations 3-6"
+        }
+      ]
+    },
+    {
+      "claim": "On the paper's synthetic polygon task, feedback has much higher average F1 than a feedforward U-Net across Gaussian-noise levels.",
+      "evidence": "With 200 training images and Gaussian standard deviation swept from 0 through 10, Table 1 reports feedback F1 between 0.78 and 0.84 across ablations versus 0.32 to 0.34 for the feedforward control when averaged over noise levels. Figure 3 shows similar clean performance followed by much slower degradation for recurrence, and Figure 4 shows qualitatively retained masks.",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Sections 4-5, Table 1"
+        },
+        {
+          "page": 7,
+          "section": "Figure 3 and robustness to noise"
+        },
+        {
+          "page": 8,
+          "section": "Figure 4"
+        }
+      ]
+    },
+    {
+      "claim": "The same experiment suggests a small-sample advantage, but the evidence is only a ten-point synthetic training-size sweep.",
+      "evidence": "On clean single-polygon images with 20 test examples and training sizes one through ten, the feedback curve first exceeds the plotted random baseline with two examples whereas the feedforward curve requires four. There are no confidence intervals, repeated-split statistics, real datasets, or comparison with standard few-shot and augmentation methods.",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Training set size experiment"
+        },
+        {
+          "page": 7,
+          "section": "Impact of noise and training size, Figure 3"
+        }
+      ]
+    },
+    {
+      "claim": "Softmax projection and exponential damping are presented as stability devices rather than the source of the accuracy improvement.",
+      "evidence": "Feedback remains at roughly 0.84 mean F1 when error decay or softmax is ablated, but its principal-component trajectory fails to settle when decay is removed and becomes more unstable when both operations are removed. The paper therefore attributes accuracy to recurrence while using bounded feedback and shrinking updates to control long-horizon state behavior.",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Table 1"
+        },
+        {
+          "page": 9,
+          "section": "Effect of removing stability mechanisms, Figure 5"
+        },
+        {
+          "page": 10,
+          "section": "Figure 6"
+        }
+      ]
+    },
+    {
+      "claim": "The experiments do not establish asymptotic stability despite language suggesting convergence.",
+      "evidence": "Stability is assessed by projecting logits at noise level six onto only their strongest principal component and observing that this one coordinate changes little after several steps. The discussion explicitly concedes that stability is not formally proved, and the omitted decay variants overflow or underflow on ImageNet-scale attempts. No state-norm, residual, spectral-radius, Jacobian, perturbation, or all-component convergence certificate is reported.",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "PCA analysis of internal dynamics"
+        },
+        {
+          "page": 9,
+          "section": "Stability through structure"
+        },
+        {
+          "page": 10,
+          "section": "Limitations and outlook"
+        },
+        {
+          "page": 11,
+          "section": "Limitations and outlook continued"
+        }
+      ]
+    },
+    {
+      "claim": "The paper's strong novelty claim overlooks direct prior Feedback U-Net work that already sends a U-Net output back to its input for a second segmentation pass.",
+      "evidence": "The conclusion claims the first explicit full-network feedback implementation, yet the related-work section does not discuss Shibuya and Hotta's 2020 Feedback U-Net, whose primary arXiv record describes exactly output-to-input feedback with ConvLSTM for cell segmentation. The new paper differs in additive state dynamics, full-trajectory BPTT, and proposed damping, not in first introducing feedback U-Net segmentation.",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Section 2.3, claimed key differences"
+        },
+        {
+          "page": 11,
+          "section": "Conclusion"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Give a U-Net a recurrent output-to-input state so it can revise a segmentation over several internal steps, while constraining the feedback signal to a simplex and attenuating later increments.",
+    "mechanism": "Initialize a hidden tensor h=[u,v] to zero. At each of a fixed number of steps, concatenate the image x with softmax-normalized class feedback v, run a widened U-Net F, multiply its proposed increment by a time-dependent matrix-exponential factor, and add the result to h. Apply a segmentation head G to u. Unroll the whole trajectory and optimize cross entropy with BPTT, accumulating gradients from recurrent calls. The matrix A is represented through eigenvectors and eigenvalues fixed to negative identity in the authors' description, while eigenvector factors are learned. Performance is compared with a one-pass U-Net under noise and tiny training sets; dynamics are visualized through PCA.",
+    "assumptions": [
+      "A class-sized softmax feedback state contains the high-level information needed to correct lower-level features.",
+      "Repeated calls to a shared U-Net yield useful iterative refinement rather than merely additional effective depth and compute.",
+      "The feedforward comparison is fair despite the recurrent model performing multiple U-Net evaluations per prediction.",
+      "The stated matrix-exponential parameterization actually decays all update modes and remains well conditioned during learning.",
+      "Convergence along the leading PCA direction is representative of the entire hidden state and of behavior beyond the measured horizon.",
+      "Binary irregular polygons with additive Gaussian noise are an informative proxy for natural or medical semantic segmentation.",
+      "One train/test draw with 20 test images and tiny sample counts supports claims about data efficiency.",
+      "Fixed-step BPTT remains practical and stable when the image size, class count, backbone, and recurrence horizon increase."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "output-to-input-u-net-recurrence",
+      "role": "Feeds a high-level segmentation state to the first layer for full-hierarchy iterative refinement."
+    },
+    {
+      "id": "segmentation-feedback-state-split",
+      "role": "Separates channels used for the current mask from class-sized channels used as recurrent context."
+    },
+    {
+      "id": "simplex-feedback-projection",
+      "role": "Bounds and normalizes feedback neurons at every step with softmax."
+    },
+    {
+      "id": "matrix-exponential-update-damping",
+      "role": "Shrinks late recurrent increments to encourage a settling trajectory."
+    },
+    {
+      "id": "full-trajectory-bptt",
+      "role": "Backpropagates through every recurrent state rather than differentiating only an equilibrium."
+    },
+    {
+      "id": "pca-state-trajectory-audit",
+      "role": "Visualizes one dominant logit direction over time as an empirical stability diagnostic."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Binary irregular-polygon segmentation with 200 training images and matched train/test Gaussian noise standard deviation from 0 to 10",
+      "metric": "Polygon-class F1 and qualitative masks",
+      "result": "Feedback averages 0.78-0.84 F1 across architectural ablations while the feedforward control averages 0.32-0.34, with the largest visible gap at high noise",
+      "baseline": "One-pass U-Net modified to match relevant output attenuation"
+    },
+    {
+      "setting": "Clean polygon segmentation with training size from one to ten and a fixed 20-image test set",
+      "metric": "Polygon-class F1 relative to a plotted random baseline",
+      "result": "Feedback exceeds random with two examples; feedforward first does so with four",
+      "baseline": "One-pass U-Net"
+    },
+    {
+      "setting": "Feedback ablations with error decay and/or softmax removed",
+      "metric": "F1 averaged over noise levels and leading-PC trajectory of logits at noise standard deviation six",
+      "result": "Accuracy remains high after removing stabilizers, but the observed leading-PC trajectory no longer settles and grows more unstable when both are removed",
+      "baseline": "Feedback model with both softmax and exponential damping"
+    }
+  ],
+  "limitations": [
+    "Author-stated: full-network recurrence increases inference time and is sensitive to internal dynamics.",
+    "Author-stated: stability is not formally proved, and unstabilized variants overflow or underflow on more complex ImageNet-scale attempts.",
+    "The only task is a binary synthetic single-polygon dataset; no public segmentation benchmark or natural corruption is evaluated.",
+    "The few-shot conclusion rests on sample counts one through ten with only 20 test items and no reported seeds, split variance, or statistical test.",
+    "The feedforward baseline is not compute-matched to repeated full U-Net evaluations and is not compared with a deeper/wider U-Net of equal FLOPs or latency.",
+    "The paper does not report parameter count, recurrence horizon sensitivity, runtime, memory, convergence tolerance, calibration, IoU, or boundary metrics.",
+    "A one-dimensional PCA trace cannot certify convergence of the full hidden state, robustness to perturbation, uniqueness of a fixed point, or asymptotic stability.",
+    "The signs in the printed matrix-exponential description appear internally inconsistent: negative eigenvalues for A combined with an explicit minus-t times A exponent would grow rather than decay unless the notation or sign is different from the text.",
+    "Learning Q and Q-inverse requires an enforced inverse relationship and conditioning audit that the paper does not specify.",
+    "The update called prediction error is learned from x and v but is not an explicit sensory residual between a top-down prediction and the observed image.",
+    "The related-work review misses direct prior Feedback U-Net and Feedback Attention segmentation systems, weakening the novelty assessment.",
+    "No comparison is made with recurrent residual U-Nets, equilibrium segmentation models, iterative mask refinement, test-time augmentation, denoising preprocessing, or modern robust-segmentation baselines."
+  ],
+  "failure_modes": [
+    "Hidden-state components orthogonal to the plotted principal component diverge while the diagnostic falsely appears stable.",
+    "The matrix-exponential sign or learned eigensystem produces growing, oscillatory, or ill-conditioned updates.",
+    "Softmax feedback saturates to one class early and prevents correction of minority or ambiguous regions.",
+    "Repeated shared-weight evaluation improves the toy task only because it supplies more compute than the feedforward control.",
+    "The recurrent loop learns a shape prior for one polygon and fails on multiple objects, holes, textures, class imbalance, boundaries, or distribution shift.",
+    "Training and testing with the same Gaussian corruption level overstates robustness to unseen noise or real corruptions.",
+    "BPTT memory and compute grow with the required refinement horizon and erase the claimed practical benefit at high resolution.",
+    "The additive state integrates biased increments and overflows when inference is run longer than the trained horizon.",
+    "A tiny test set makes the two-versus-four-example crossing reverse under another dataset draw."
+  ],
+  "reusable_insights": [
+    "When adding recurrence to dense prediction, distinguish the benefit of feedback topology from the benefit of extra depth, parameters, and FLOPs with compute-matched controls.",
+    "Bound feedback variables and attenuate updates, but validate the entire transition Jacobian rather than inferring stability from output accuracy.",
+    "Train and inspect intermediate states when the transient computation itself is part of the hypothesized mechanism.",
+    "Use a residual-based stopping rule and test beyond the trained horizon before describing a recurrent model as convergent.",
+    "Pair synthetic reductionist tasks with at least one real benchmark so mechanism isolation does not substitute for external validity.",
+    "Search task-specific architectural literature, not only general recurrence papers, before making a first-system novelty claim.",
+    "Evaluate recurrent robustness against corruptions not seen at training time and against equally expensive feedforward refinement."
+  ],
+  "open_questions": [
+    "Does output-to-input feedback outperform an equally deep, wide, and compute-matched feedforward U-Net on established segmentation benchmarks?",
+    "Can contraction, Lyapunov, spectral-radius, or Jacobian conditions guarantee a unique stable state for the full nonlinear U-Net transition?",
+    "Is the reported exponential sign correct, and how are learned Q and Q-inverse constrained and conditioned?",
+    "Which state channels encode genuine prediction error rather than an ordinary recurrent feature representation?",
+    "Does an adaptive residual-based halting criterion allocate more steps to noisy or ambiguous images without destabilizing training?",
+    "How do recurrence horizon, class count, image resolution, skip connections, and feedback bottleneck size affect accuracy and cost?",
+    "Does the two-example advantage survive repeated splits, augmentation baselines, pretrained encoders, and realistic medical-image few-shot protocols?",
+    "Can implicit differentiation or constant-memory recurrent backpropagation retain the trajectory benefit at scale?",
+    "How does this additive feedback compare directly with the 2020 Feedback U-Net, Feedback Attention, R2U-Net, and MDEQ under one implementation?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2004.14581",
+      "title": "Feedback U-net for Cell Image Segmentation",
+      "url": "https://arxiv.org/abs/2004.14581",
+      "relationship": "direct unacknowledged prior",
+      "difference": "Shibuya and Hotta already feed a U-Net output back to its input for a second round and use ConvLSTM state, improving two cell-segmentation datasets. The present paper adds an explicit additive state split, softmax feedback, exponential update schedule, full-trajectory training, and noise/few-shot experiments, but cannot defensibly claim the first full-network feedback U-Net.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2004.14581"
+    },
+    {
+      "canonical_id": "arxiv:2008.06474",
+      "title": "Feedback Attention for Cell Image Segmentation",
+      "url": "https://arxiv.org/abs/2008.06474",
+      "relationship": "direct prior",
+      "difference": "Tsuda et al. connect deep output-layer features back toward shallow U-Net layers through feedback attention and report gains over feedforward cell segmentation. The new work recurs via an output state concatenated directly with the raw input and focuses on dynamical stability, but omits a head-to-head comparison.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2008.06474"
+    },
+    {
+      "canonical_id": "arxiv:1802.06955",
+      "title": "Recurrent Residual Convolutional Neural Network based on U-Net (R2U-Net) for Medical Image Segmentation",
+      "url": "https://arxiv.org/abs/1802.06955",
+      "relationship": "architectural prior",
+      "difference": "R2U-Net replaces U-Net blocks with recurrent residual convolutions and validates three medical segmentation benchmarks at a controlled parameter count. The present method's recurrence spans output to input rather than accumulating features within scales, but its evidence is much narrower and not parameter- or compute-matched.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:1802.06955"
+    },
+    {
+      "canonical_id": "arxiv:1802.04762",
+      "title": "Deep Predictive Coding Network for Object Recognition",
+      "url": "https://arxiv.org/abs/1802.04762",
+      "relationship": "predictive-coding prior",
+      "difference": "Wen et al. implement explicit bottom-up error and top-down prediction cycles at every hierarchy level and show iterative improvement on four recognition benchmarks. This paper uses a simpler output-to-input segmentation loop and damping; its learned increment is less literally a predictive-coding residual but applies the idea to dense output.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:1802.04762"
+    },
+    {
+      "canonical_id": "neurips:2020:766d856ef1a6b02f93d894415e6bfa0e",
+      "title": "Stable and expressive recurrent vision models",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2020/hash/766d856ef1a6b02f93d894415e6bfa0e-Abstract.html",
+      "relationship": "stronger stability and segmentation prior",
+      "difference": "Linsley et al. introduce constant-memory contractor recurrent backpropagation with a local contraction penalty, solve long-range contour tracing, and evaluate MS-COCO panoptic segmentation. The present method uses ordinary BPTT and heuristic damping, offers output-to-input recurrence, but has no contraction proof, memory advantage, or real large-scale benchmark.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2020 proceedings"
+    },
+    {
+      "canonical_id": "arxiv:2006.08656",
+      "title": "Multiscale Deep Equilibrium Models",
+      "url": "https://arxiv.org/abs/2006.08656",
+      "relationship": "equilibrium segmentation prior",
+      "difference": "MDEQ solves simultaneous multiresolution fixed points with implicit differentiation and reaches competitive ImageNet and Cityscapes performance at constant activation memory. This paper preserves and trains an explicit trajectory with output-to-input semantics, but only visually suggests convergence and pays BPTT cost.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2006.08656"
+    },
+    {
+      "canonical_id": "openreview:q1o2mWaOssG",
+      "title": "Brain-inspired predictive coding dynamics improve the robustness of deep neural networks",
+      "url": "https://openreview.net/forum?id=q1o2mWaOssG",
+      "relationship": "robustness prior",
+      "difference": "This prior augments an ImageNet-pretrained VGG16 with predictive-coding recurrent feedback and measures robustness to natural and adversarial noise. The segmentation paper reports a larger toy Gaussian-noise gap and full U-Net recurrence, but does not test adversarial, natural, or unseen corruption on a standard dataset.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2020 submission forum"
+    }
+  ],
+  "novelty_assessment": "Author claim: this is the first system to make an entire segmentation architecture recurrent through direct high-to-low feedback, train its full emergent trajectory, and show that such feedback improves both noise robustness and generalization from extremely few labels, with softmax and exponential decay ensuring convergence. Reviewer inference: the particular additive split-state and damping recipe may be new, and the stability-versus-accuracy ablation is useful. The larger novelty claim does not survive direct related-work research: Feedback U-Net already routed a segmentation output back to its input in 2020, Feedback Attention connected deep output features toward input layers, R2U-Net provided recurrent segmentation, predictive-coding networks implemented explicit top-down corrections, and C-RBP/MDEQ offered substantially stronger stability and scale evidence. Results support a toy proof of concept, not general robustness, data efficiency, or asymptotic stability.",
+  "confidence": 0.98,
+  "reviewer_notes": "Read all 12 extracted pages, including equations, full experimental protocol, ablations, dynamics plots, limitations, and references. The current competitive audit used primary arXiv, OpenReview, and official NeurIPS records through 2026-08-23 and identified direct Feedback U-Net/Feedback Attention predecessors absent from the paper's discussion. The potential sign inconsistency is reviewer analysis of the printed Equation 2 and eigenvalue prose; it should be checked against code before being treated as an implementation bug."
+}

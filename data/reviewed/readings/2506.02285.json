@@ -1,0 +1,235 @@
+{
+  "stable_id": "arxiv:2506.02285",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2506.02285",
+    "pdf_sha256": "c1e078c2de35c74c92e8de467026efa11d3cc7c6b141c38a816603e1fcb338c0",
+    "text_sha256": "673d6a5c3e6b92cd10aed6002d7ba63a88ccbbb6b8f28954fa7436a35e6b372f",
+    "page_count": 11,
+    "extracted_at": "2026-08-23T16:41:07.123679+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Why can raw gradient norms rise sharply during the terminal learning-rate decay of long normalized-network training, and can a learning-rate-dependent weight-decay correction remove that rise without hurting optimization?",
+  "key_findings": [
+    {
+      "claim": "For an exactly scale-invariant normalized weight vector trained by SGD with coupled weight decay, the paper derives a steady-state gradient-to-weight norm ratio proportional to the square root of weight decay divided by learning rate.",
+      "evidence": "Scale invariance makes the instantaneous gradient orthogonal to the weight vector, so the squared norm update separates into decay shrinkage and gradient growth. Equating consecutive expected or representative weight norms and dropping the second-order decay term gives ||g||/||x|| approximately sqrt(2 lambda/gamma). The result is a steady-state approximation, not a general convergence theorem; the authors explicitly acknowledge a noisy, nonstationary system may not possess the assumed equilibrium.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "3. The Induced Weight Dynamics of Normalized Layers, Equation 1"}
+      ]
+    },
+    {
+      "claim": "A decaying learning rate moves that equilibrium toward a larger gradient-to-weight ratio and explains the reported terminal blow-up as normalized layers try, increasingly slowly, to chase a rapidly diverging target.",
+      "evidence": "Substituting gamma_t into the equilibrium gives a ratio proportional to 1/sqrt(gamma_t). In the 100-epoch ResNet-50 traces, per-layer ratios undergo burn-in, track the prediction during a middle phase, and rise sharply near the end of cosine decay. The paper distinguishes the target's rapid increase from the slowing response caused by smaller update steps.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "3.1 Interaction with schedules and momentum, Equation 2"},
+        {"page": 5, "section": "Figure 3"}
+      ]
+    },
+    {
+      "claim": "Under the same idealized dynamics, one global decay and learning rate drive all normalized layers toward the same relative gradient scale, providing a layer-balancing interpretation of weight decay.",
+      "evidence": "The equilibrium expression is independent of layer index, and Figure 2 shows initially different ResNet-50 layer ratios approaching a common predicted value under constant-rate, no-momentum SGD. The paper connects the ratio to relative or angular update size and to prior results on Hessian-block scaling. Equality of ratios is an empirical and idealized balance criterion, not proof that identical effective rates are optimal for every layer.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "Figure 2 setup"},
+        {"page": 4, "section": "Figure 2 and momentum qualification"},
+        {"page": 5, "section": "3.2 Weight decay balances normalized layers"}
+      ]
+    },
+    {
+      "claim": "The AdamW extension is heuristic: in a slowly varying adaptive metric it predicts a comparable balanced ratio, while original Adam with L2 regularization lacks the same common-norm argument.",
+      "evidence": "The derivation sets first-moment momentum aside, assumes the diagonal preconditioner is approximately constant across a step at equilibrium, and works in its weighted norm. For Adam with coupled L2, weight terms appear in incompatible weighted norms, so the proof no longer closes. The subsequent l1/linfinity interpretation uses a SignSGD approximation and a Holder upper bound; the claim that imbalance is a major reason AdamW beats Adam is explicitly a conjecture.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "4. Weight Decay with AdamW"},
+        {"page": 6, "section": "4.1-4.2 Adam versus AdamW and scaling approximations"}
+      ]
+    },
+    {
+      "claim": "AdamC and SGDC multiply ordinary decoupled decay by the current learning-rate fraction on normalized layers, making the idealized target ratio schedule-independent.",
+      "evidence": "The corrected coefficient is lambda-hat_t = lambda times gamma_t/gamma_max. Because ordinary AdamW or SGD applies another gamma_t to decoupled decay, the actual normalized-layer shrinkage term becomes proportional to gamma_t squared divided by gamma_max. Substitution gives a constant target sqrt(2 lambda/gamma_max). Non-normalized layers retain ordinary decay in Algorithm 1.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "5. Correcting Weight Decay"},
+        {"page": 7, "section": "Algorithm 1 AdamC and fixed-ratio derivation"}
+      ]
+    },
+    {
+      "claim": "A 120M-parameter, 200B-token language-model run shows AdamC removing most of the late gradient-norm rise and yielding a visibly lower selected loss curve, but the transformer lies outside the paper's direct normalized-layer theory.",
+      "evidence": "The FineWeb-Edu experiment uses a Llama-3-style model, batch size 256k tokens, cosine decay, weight decay 0.05, and separate power-of-two learning-rate sweeps from 0.001 to 0.02. The authors classify every linear layer except the output as normalized even though transformer normalization is not generally a linear-layer-immediately-followed-by-normalization structure, and explicitly say the theory no longer directly covers it. Seed count, exact endpoint loss, uncertainty, and a weight-decay sweep are not reported.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Figure 4"},
+        {"page": 9, "section": "LLM experimental protocol and qualification"}
+      ]
+    },
+    {
+      "claim": "On ImageNet ResNet-50, SGDC removes the rapid terminal component of gradient growth but not the separate slow upward drift, narrowing the mechanism to one component rather than all gradient-norm behavior.",
+      "evidence": "The comparison uses momentum SGD, cosine decay, batch size 256, five-seed means, and separate learning-rate and weight-decay grids. The selected SGDC curve eliminates the last-stage uptick while an approximately linear rise remains throughout training. The conclusion explicitly leaves residual drift unexplained and asks whether stronger projection-based controls are required.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 9, "section": "Figure 5 and ImageNet protocol"},
+        {"page": 10, "section": "Conclusion"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "View weight decay in scale-invariant layers as setting a balance between radial shrinkage and orthogonal stochastic-gradient growth, then schedule decay so this balance does not move when the learning rate decays.",
+    "mechanism": "The paper derives a squared-weight-norm recurrence for normalized SGD, solves a steady-state relative-gradient ratio, substitutes a time-varying learning rate, and extends the calculation approximately to AdamW's adaptive metric. It corrects only normalized layers by replacing lambda with lambda gamma_t/gamma_max inside ordinary decoupled decay, producing an actual decay step proportional to gamma_t squared. Constant-rate and cosine ResNet traces test the predicted ratios; long LLM and ImageNet runs compare corrected and base optimizers.",
+    "assumptions": [
+      "The relevant weight vector is exactly scale invariant because its linear output is immediately normalized, making gradient and weight orthogonal.",
+      "Weight decay times learning rate is small enough to neglect the quadratic decay term.",
+      "A noisy and nonstationary training process remains close enough to a layer-wise steady state for the equilibrium calculation to predict its trajectory.",
+      "Momentum can be represented by replacing the learning rate with an effective rate gamma/(1-beta).",
+      "For AdamW, first-moment momentum can be ignored and the adaptive diagonal metric changes slowly at equilibrium.",
+      "Adam's normalized step is close to SignSGD after burn-in and the weighted weight norm is represented adequately by an linfinity-based bound.",
+      "Holding the gradient-to-weight ratio constant is desirable across the full learning-rate decay and across normalized layers.",
+      "Treating essentially every transformer linear layer except the output as normalized is a useful operational extension despite the architecture not satisfying the direct theory.",
+      "Changing cumulative decay under AdamC or SGDC does not remove a useful regularization or implicit-bias effect that should instead be matched in a baseline."
+    ]
+  },
+  "techniques": [
+    {"id": "normalized-weight-norm-recurrence", "role": "Separates radial decay from orthogonal gradient-induced norm growth for a scale-invariant parameter vector."},
+    {"id": "gradient-to-weight-equilibrium", "role": "Predicts a layer-relative update scale from learning rate and weight decay."},
+    {"id": "layer-ratio-tracking", "role": "Checks the equilibrium prediction per normalized layer rather than only through a global gradient norm."},
+    {"id": "adaptive-metric-adamw-analysis", "role": "Transfers the norm-balance intuition to a diagonal preconditioner under slow-metric assumptions."},
+    {"id": "schedule-squared-decay", "role": "Applies actual normalized-layer shrinkage proportional to gamma_t squared so the predicted ratio is fixed."},
+    {"id": "normalized-layer-selective-decay", "role": "Leaves output and other non-normalized parameters on standard AdamW or SGD decay."},
+    {"id": "long-horizon-tail-diagnostic", "role": "Uses unusually long token training to expose a behavior that short optimizer benchmarks miss."}
+  ],
+  "evaluations": [
+    {
+      "setting": "ResNet-50 on ImageNet for 100 epochs with constant learning rate 0.1, weight decay 1e-4, and SGD without momentum",
+      "metric": "Per-normalized-layer gradient-norm-to-weight-norm ratio",
+      "result": "Initially dispersed ratios rapidly approach and then remain near the theoretical common equilibrium",
+      "baseline": "The closed-form sqrt(2 lambda/gamma) prediction"
+    },
+    {
+      "setting": "ResNet-50 on ImageNet with cosine decay, warm-up, SGD momentum 0.9, learning rate 0.1, and weight decay 1e-4",
+      "metric": "Per-layer relative-gradient trajectory",
+      "result": "Ratios show burn-in, middle-phase tracking, and a terminal rise that qualitatively follows the moving equilibrium before lagging near zero learning rate",
+      "baseline": "The momentum-adjusted moving steady-state prediction"
+    },
+    {
+      "setting": "120M-parameter Llama-3-style model on FineWeb-Edu for 200B tokens, batch size 256k tokens, cosine schedule, weight decay 0.05, and separately swept learning rates 0.001-0.02",
+      "metric": "Training loss, global gradient norm, and weight norm",
+      "result": "The selected AdamC run has a visibly lower loss curve, largely suppresses second-half gradient-norm growth, and maintains more stable weights than selected AdamW",
+      "baseline": "AdamW with a separately selected learning rate but the same stated fixed decay"
+    },
+    {
+      "setting": "ResNet-50 on ILSVRC2012 ImageNet with momentum SGD, cosine decay, batch size 256, five seeds, learning-rate grid 0.01-1.0, and decay grid 5e-5-1e-2",
+      "metric": "Test accuracy, global gradient norm, and weight norm",
+      "result": "SGDC removes the rapid terminal gradient uptick while leaving a slower full-run increase; curves rather than a numerical table communicate performance",
+      "baseline": "Tuned standard SGD with momentum and ordinary weight decay"
+    }
+  ],
+  "limitations": [
+    "Author-stated: the steady-state argument assumes equilibrium in a noisy, nonstationary dynamical system and is supported empirically rather than proved for training trajectories.",
+    "Author-stated: the transformer architecture is not covered by the direct linear-followed-by-normalization theory; all non-output linear layers are treated as normalized as an operational heuristic.",
+    "Author-stated: the theory explains only the rapid tail component, not the slower ImageNet gradient-norm drift that remains under SGDC.",
+    "Reviewer-identified: exact scale invariance and weight-gradient orthogonality can be broken by normalization epsilon, biases, residual paths, affine parameters, and architectures where normalization precedes rather than follows the linear map.",
+    "Reviewer-identified: the momentum correction is an effective-step heuristic, while the AdamW derivation omits first-moment momentum, freezes a changing preconditioner, and uses non-rigorous l1/linfinity approximations despite AdamC experiments using full Adam.",
+    "Reviewer-identified: the correction substantially lowers cumulative terminal shrinkage; no baseline matches integrated decay or retunes a conventional decay schedule to separate fixed-ratio effects from simply using less weight decay.",
+    "Reviewer-identified: the single 120M LLM architecture, corpus, and exceptionally long 200B-token regime may not represent larger compute-optimal pretraining; no seeds, confidence intervals, exact endpoints, or decay sweep are given for that experiment.",
+    "Reviewer-identified: ImageNet uses five seeds and hyperparameter sweeps but reports curves without tabulated accuracy differences, uncertainty at the endpoint, or the selection rule for the winning configuration.",
+    "Reviewer-identified: lower raw gradient norm is treated as healthier, but the study does not causally link the terminal spike to divergence, downstream quality, calibration, or numerical failure after controlling for loss.",
+    "Reviewer-identified: only cosine schedules are central to corrected-optimizer validation; transfer to linear, WSD, inverse-square-root, step, or schedule-free training is not tested.",
+    "Reviewer-identified: optimizer state, biases, embeddings, normalization parameters, and tied output weights are not given a comprehensive implementation taxonomy beyond normalized versus non-normalized layers."
+  ],
+  "failure_modes": [
+    "Misclassifying a non-scale-invariant layer as normalized can under-decay it late in training and change the learned function rather than only its parameterization.",
+    "If the layer never reaches or cannot track equilibrium, fixing the theoretical target need not stabilize its actual relative gradients.",
+    "A schedule that reaches an extremely small or zero learning rate makes the uncorrected target formally diverge, but raw gradient growth may be harmless because parameter updates simultaneously vanish.",
+    "Reduced cumulative decay can hurt generalization, sparsity, margin, or implicit bias even while lowering training loss.",
+    "Adam's time-varying preconditioner and momentum can invalidate the weighted-norm equilibrium, especially during distribution shifts or loss spikes.",
+    "Global gradient norms can be dominated by uncorrected output, embedding, or normalization parameters and therefore fail to reflect stabilized normalized layers.",
+    "The correction may not transfer to non-cosine schedules or training stopped before the tail regime appears.",
+    "Long overtraining can create the target symptom in a regime irrelevant to compute-optimal production models."
+  ],
+  "reusable_insights": [
+    "Log per-layer gradient-to-weight ratios alongside global norms; scale-invariant layers can share a clear equilibrium that aggregate metrics conceal.",
+    "Treat learning rate and weight decay as a coupled dynamical system rather than independent hyperparameters, especially under normalization.",
+    "When scheduling a hyperparameter to preserve an equilibrium, account for how the optimizer already multiplies that hyperparameter by the learning rate.",
+    "Evaluate optimizer diagnostics at the full intended training horizon; short proxy runs can systematically miss tail-only pathologies.",
+    "Separate exact theory for scale-invariant parameters from heuristic layer classifications in residual and pre-normalized transformers.",
+    "Match cumulative shrinkage and tuning budget when comparing decay schedules so a mechanistic correction is not confounded with weaker regularization.",
+    "Ablate symptom removal from outcome improvement: report update norms, loss, downstream metrics, numerical stability, and generalization independently."
+  ],
+  "open_questions": [
+    "Does AdamC retain its advantage on larger compute-optimal language models, multiple corpora, and multiple random seeds?",
+    "Which transformer parameter groups are genuinely scale invariant, and can that classification be derived automatically from the computation graph?",
+    "Can the AdamW equilibrium be proved with momentum and a time-varying diagonal preconditioner rather than a frozen-metric approximation?",
+    "Is terminal raw-gradient growth harmful once the simultaneously vanishing learning rate is accounted for in actual update norms?",
+    "Would a baseline with matched cumulative shrinkage reproduce AdamC's lower loss and stable weights?",
+    "How should the correction change for WSD, linear, inverse-square-root, step, or schedule-free optimization?",
+    "What mechanism causes the residual slow ImageNet gradient-norm drift after the tail correction?",
+    "Does preserving a constant relative-gradient target across all layers sacrifice useful layer-specific learning-rate structure?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "neurips:2023:040d3b6af368bf71f952c18da5713b48",
+      "title": "On the Overlooked Pitfalls of Weight Decay and How to Mitigate Them: A Gradient-Norm Perspective",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2023/hash/040d3b6af368bf71f952c18da5713b48-Abstract-Conference.html",
+      "relationship": "direct-prior",
+      "difference": "Xie et al. already identify final-phase gradient growth from weight decay and propose gradient-norm-aware Scheduled Weight Decay with broad Adam experiments. The reviewed note supplies a simpler normalization-specific equilibrium mechanism and a schedule-only correction requiring no gradient feedback, but its claim of an unexplained phenomenon must be narrowed because the symptom and weight-decay scheduling intervention predate it.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2023 main-conference record"
+    },
+    {
+      "canonical_id": "pmlr:v235:kosson24a",
+      "title": "Rotational Equilibrium: How Weight Decay Balances Learning Across Neural Networks",
+      "url": "https://proceedings.mlr.press/v235/kosson24a.html",
+      "relationship": "closest-mechanistic-prior",
+      "difference": "Kosson et al. derive neuron- and layer-level rotational equilibria across AdamW, Lion, and momentum SGD, analyze normalization and schedules, explain AdamW versus Adam imbalance, and explicitly control rotation. The reviewed paper recasts a related equilibrium in the especially simple gradient-to-weight ratio and derives the gamma_t-squared decay correction for the terminal schedule, but the broad balancing interpretation and optimizer comparison substantially overlap.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "PMLR volume 235, ICML 2024 conference paper"
+    },
+    {
+      "canonical_id": "neurips:2024:29496c942ed6e08ecc469f4521ebfff0",
+      "title": "Why Do We Need Weight Decay in Modern Deep Learning?",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2024/hash/29496c942ed6e08ecc469f4521ebfff0-Abstract-Conference.html",
+      "relationship": "broader-dynamics-prior",
+      "difference": "D'Angelo et al. distinguish multi-pass vision loss stabilization from near-one-pass LLM bias-variance and stability effects, arguing weight decay changes optimization rather than acting as classical regularization. The reviewed note isolates one normalized-layer schedule interaction and offers a surgical correction, but does not test whether reducing late decay trades off the broader beneficial dynamics identified in that work.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2024 main-conference record"
+    },
+    {
+      "canonical_id": "pmlr:v235:xie24e",
+      "title": "Implicit Bias of AdamW: l-infinity-Norm Constrained Optimization",
+      "url": "https://proceedings.mlr.press/v235/xie24e.html",
+      "relationship": "theoretical-alternative",
+      "difference": "Xie and Li give a full-batch convergence interpretation of AdamW as l-infinity-constrained optimization and link decay to an inverse norm bound under nonincreasing schedules. The reviewed paper uses a heuristic l1/linfinity norm balance to explain layer scaling and modifies the schedule, but does not characterize which constrained solution AdamC approaches after its time-varying decay changes the implicit bias.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "PMLR volume 235, ICML 2024 conference paper"
+    },
+    {
+      "canonical_id": "pmlr:v267:wang25b",
+      "title": "How to set AdamW's weight decay as you scale model and dataset size",
+      "url": "https://proceedings.mlr.press/v267/wang25b.html",
+      "relationship": "concurrent-hyperparameter-scaling",
+      "difference": "Wang and Aitchison interpret AdamW weights as an exponential moving average, derive decay scaling with learning rate, model size, and dataset size, and validate on vision and NanoGPT. AdamC instead preserves a within-run normalized-layer relative-gradient target during learning-rate decay; combining the two implies that lambda's base scale and its temporal schedule should be co-designed, a dimension the reviewed fixed-0.05 LLM experiment does not explore.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "PMLR volume 267, ICML 2025 conference paper"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims a precise normalized-layer explanation for terminal gradient-norm blow-up and a minimal corrected-decay rule, instantiated as AdamC and SGDC, that removes the symptom and improves loss.",
+    "evidence": "It derives the learning-rate-dependent relative-gradient equilibrium, demonstrates per-layer tracking under constant and cosine rates, turns the current-rate fraction into a schedule-squared decay term, and reports long-horizon LLM and ImageNet comparisons.",
+    "reviewer_inference": "The clearest new contribution is the simple gamma_t/gamma_max multiplier applied selectively inside ordinary decay, motivated by holding a relative-gradient equilibrium fixed. The underlying symptom, scheduled-decay remedy, rotational equilibrium, layer balancing, and AdamW-versus-Adam interpretation all have close prior art. Evidence is suggestive but narrow, especially because the Adam and transformer derivations are heuristic and cumulative decay is not controlled. The work is best treated as a concise, testable optimizer patch rather than a complete theory of late-training gradients."
+  },
+  "confidence": 0.92,
+  "reviewer_notes": "Read all 11 cached pages, including every recurrence and approximation, momentum and Adam qualifications, Algorithm 1, both experimental protocols, conclusion, and cited prior-work distinctions. Primary competitor records were checked on official NeurIPS and PMLR pages current 2026-08-23. Figure-based performance is described qualitatively because the paper provides no result table and the plotted endpoints were not independently digitized or reproduced.",
+  "verification": {
+    "reviewer_id": "reviewer-8b722dee552d",
+    "checked_at": "2026-08-23",
+    "passage_check": "Checked the complete 11-page source against Equations 1-2, the constant and scheduled ResNet traces, the momentum effective-rate argument, Sections 3.2 and 4's layer/Adam approximations, the corrected coefficient and Algorithm 1, the 200B-token LLM protocol, the five-seed ImageNet sweep, and the residual-drift caveat.",
+    "competitor_check": "Checked current primary records for NeurIPS 2023 Xie et al., ICML 2024 Kosson et al., NeurIPS 2024 D'Angelo et al., ICML 2024 Xie and Li, and ICML 2025 Wang and Aitchison; compared symptom priority, equilibrium mechanism, decay scheduling, implicit bias, scaling rules, and empirical scope."
+  }
+}

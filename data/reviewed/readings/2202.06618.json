@@ -1,0 +1,200 @@
+{
+  "stable_id": "arxiv:2202.06618",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2202.06618",
+    "pdf_sha256": "4015b58edb1b8631db61a7dfad9ba95f52fe4d97a5e3fea5db466dd77e57e225",
+    "text_sha256": "98cde72cb7f135a021473ee8ba2d1e5718120c7853680fba3105bc563767cc1c",
+    "page_count": 25,
+    "extracted_at": "2026-08-23T21:22:46.832592+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a trainable Gaussian-kernel density model provide a differentiable differential-entropy primitive that adapts during neural-network training and also supports conditional entropy and mutual information?",
+  "key_findings": [
+    {
+      "claim": "KNIFE turns differential-entropy estimation into maximum-likelihood fitting of a fully trainable Gaussian mixture followed by a plug-in cross-entropy estimate.",
+      "evidence": "Unlike fixed-support kernels or a single Gaussian, the estimator learns mixture weights, centers, and positive-definite covariances; its negative average log density is differentiable in both estimator parameters and upstream representations.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "2.2 KNIFE Estimator"},
+        {"page": 4, "section": "Learning step"}
+      ]
+    },
+    {
+      "claim": "Conditional density parameterization extends the same primitive to conditional differential entropy and difference-of-entropies mutual information.",
+      "evidence": "A network maps continuous conditioning values to mixture parameters, while discrete conditioning uses one parameter set per category; marginal entropy minus conditional entropy yields the KNIFE MI estimate.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "2.4 Estimating Conditional Differential Entropy and Mutual Information"}
+      ]
+    },
+    {
+      "claim": "Learned centers provide fast adaptation and multiple kernels handle multimodality better than the selected predecessors in synthetic tests.",
+      "evidence": "On 64-dimensional standard Gaussian entropy, absolute error is 2.8045 plus or minus 0.0796 for KNIFE versus 3.3170 plus or minus 1.8281 for DOE and 9.8919 plus or minus 0.1604 for the fixed-support estimator. Additional runs shrink Gaussian variance and use triangle mixtures, correlated Gaussians, a cubic transform, and uniform variables.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "3.1 Differential Entropy Estimation, Table 1"},
+        {"page": 5, "section": "3.1.2 Triangle Mixture and 3.2 Mutual Information Estimation"},
+        {"page": 6, "section": "Figures 1--3"}
+      ]
+    },
+    {
+      "claim": "Across the reported downstream tasks, the learned estimator is competitive as a training signal rather than merely accurate on synthetic scalar estimates.",
+      "evidence": "On GLUE it reports the best row for MRPC, STS-B, and RTE, including 85.3 F1/90.1 accuracy on MRPC and 72.3 accuracy on RTE. It reaches mean 83.4 in six domain-adaptation directions versus 82.8 for NWJ, and an offline protected-label probe approaches chance on two DIAL tasks with little main-task loss.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "4.1 Information Bottleneck for Language Model Finetuning, Table 2"},
+        {"page": 8, "section": "4.2 Fair Textual Classification and 4.3 Unsupervised Domain Adaptation"},
+        {"page": 9, "section": "Figure 4 and Table 3"}
+      ]
+    },
+    {
+      "claim": "The finite-sample theorem does not establish convergence of the fully learned KNIFE mixture advertised in the method.",
+      "evidence": "Section 2.3 explicitly states that Theorem 1 applies to the classical fixed-support, single-bandwidth Parzen-Rosenblatt special case and not to KNIFE. Thus the learned centers, weights, covariances, conditional networks, and their co-adaptation with representations remain outside the proof.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "2.3 Convergence Analysis, Theorem 1"},
+        {"page": 22, "section": "D Bounding the Error, Theorem 2"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Fit a differentiable mixture density to the current representation distribution and use its sample negative log likelihood as an adaptive entropy surrogate.",
+    "mechanism": "Parameterize normalized kernel weights with softmax, positive-definite precisions through Cholesky factors, and trainable centers; jointly optimize the plug-in entropy and the task network, or predict mixture parameters from a conditioning variable and subtract conditional from marginal entropy for MI.",
+    "assumptions": [
+      "A finite Gaussian mixture is expressive enough for the evolving representation density",
+      "Optimization tracks distribution changes faster than upstream features move",
+      "The fitted cross entropy is close enough to true entropy to give a useful gradient",
+      "Finite minibatches support stable density fitting in the chosen dimension",
+      "The difference of two biased entropy estimates is an adequate MI training objective"
+    ]
+  },
+  "techniques": [
+    {
+      "id": "trainable-gaussian-kernel-mixture",
+      "role": "Adapts support, mode weights, and covariance rather than fixing kernels at initial samples."
+    },
+    {
+      "id": "differentiable-plug-in-cross-entropy",
+      "role": "Provides gradients through samples and estimator parameters for use inside neural objectives."
+    },
+    {
+      "id": "conditional-mixture-hypernetwork",
+      "role": "Produces conditional density parameters for continuous conditioning variables or selects class-specific mixtures for discrete ones."
+    },
+    {
+      "id": "difference-of-entropies-mi",
+      "role": "Builds mutual information from marginal and conditional KNIFE estimates without a contrastive critic."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "10- and 64-dimensional Gaussian entropy plus changing-variance 64-dimensional Gaussian streams",
+      "metric": "absolute entropy error and adaptation over epochs",
+      "result": "KNIFE has the lowest reported bias/variance in the fixed Gaussian table and tracks variance shifts unlike fixed-support kernels",
+      "baseline": "DOE single Gaussian and Schraudolph heteroscedastic fixed-support kernels"
+    },
+    {
+      "setting": "triangle-mixture entropy and 20-dimensional Gaussian, cubic-transformed, and uniform MI streams",
+      "metric": "distance from known entropy or MI over training",
+      "result": "the learned mixture handles multiple modes and non-Gaussian changes more reliably in the displayed runs",
+      "baseline": "DOE, Schraudolph estimator, MINE, NWJ, InfoNCE, and CLUB as applicable"
+    },
+    {
+      "setting": "BERT information-bottleneck fine-tuning on MRPC, STS-B, and RTE over ten seeds",
+      "metric": "F1, accuracy, Pearson, and Spearman",
+      "result": "KNIFE reports 85.3 MRPC F1, 90.1 MRPC accuracy, 90.3/90.1 STS-B correlations, and 72.3 RTE accuracy, the best row in Table 2",
+      "baseline": "BERT, CLUB, InfoNCE, MINE, NWJ, VIBERT, and DOE"
+    },
+    {
+      "setting": "DIAL tweet sentiment and mention classification with race as protected label",
+      "metric": "main-task accuracy and offline protected-label probe accuracy",
+      "result": "the probe approaches random accuracy while main-task accuracy changes little on both tasks",
+      "baseline": "adversarial removal, CLUB, InfoNCE, NWJ, DOE, and other MI estimators"
+    },
+    {
+      "setting": "six unsupervised domain-adaptation directions across MNIST, MNIST-M, USPS, SVHN, CIFAR-10, and STL-10 over three seeds",
+      "metric": "target classification accuracy",
+      "result": "KNIFE averages 83.4, ahead of the next reported mean of 82.8, though it is not best on every direction",
+      "baseline": "source-only, CLUB, DOE, InfoNCE, MINE, and NWJ"
+    }
+  ],
+  "limitations": [
+    "Author-stated: differential-entropy estimation faces fundamental finite-sample difficulty; tighter KNIFE-specific confidence bounds are future work.",
+    "The convergence theorem covers a classical fixed-support Parzen estimator, not the fully learned mixture, conditional parameter network, or joint training dynamics.",
+    "Gaussian-mixture density estimation suffers rapidly with dimension and mode count; full covariances and many kernels add substantial computation and parameters.",
+    "The marginal and conditional cross-entropies are separately biased upper surrogates, so their difference is neither a certified MI upper nor lower bound.",
+    "Jointly trained estimator and representation can exploit transient or biased density fits rather than optimize true entropy.",
+    "The claimed perfect privacy is evidence from one offline classifier family, not a certificate that all information about the protected attribute is absent."
+  ],
+  "failure_modes": [
+    "Mixture covariances collapse around training samples and produce optimistic likelihood without held-out density validation.",
+    "A high-dimensional distribution needs exponentially many components to capture separated modes.",
+    "The conditional hypernetwork emits ill-conditioned covariances or changes faster than its likelihood optimizer can track.",
+    "Bias in marginal and conditional entropy estimates fails to cancel, reversing an MI-minimization gradient.",
+    "An offline fairness probe is too weak and reports chance despite recoverable protected information."
+  ],
+  "reusable_insights": [
+    "For entropy regularizers, evaluate differentiability, computational cost, and adaptation to a moving distribution separately.",
+    "Report both estimation accuracy on known distributions and downstream utility of the resulting gradient.",
+    "Do not transfer a consistency theorem from a fixed estimator to a learned density family without controlling optimization and model selection.",
+    "Use independent density-evaluation samples and covariance floors to detect likelihood collapse.",
+    "Treat privacy probes as attack-specific empirical tests and strengthen them with multiple adversaries."
+  ],
+  "open_questions": [
+    "Can learned-mixture entropy receive finite-sample guarantees that include optimization, component selection, and upstream representation drift?",
+    "Which cross-fitting or bilevel schedule prevents estimator-representation co-adaptation from gaming the entropy surrogate?",
+    "Can scalable structured covariances or score-based estimators avoid the Gaussian-mixture curse of dimensionality?",
+    "When do marginal and conditional estimator biases cancel well enough for reliable MI gradients?",
+    "How robust are the fairness results to stronger probes and distribution shifts?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1811.04251",
+      "title": "Formal Limitations on the Measurement of Mutual Information",
+      "url": "https://arxiv.org/abs/1811.04251",
+      "relationship": "direct difference-of-entropies predecessor",
+      "difference": "McAllester and Stratos prove distribution-free finite-sample limits and propose DoE using learned cross-entropies, including a simple Gaussian entropy model; KNIFE replaces that density with a movable multimodal kernel mixture and extends it to conditional DE.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v4/AISTATS 2020 record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:1801.04062",
+      "title": "MINE: Mutual Information Neural Estimation",
+      "url": "https://arxiv.org/abs/1801.04062",
+      "relationship": "variational neural MI competitor",
+      "difference": "MINE directly optimizes a Donsker-Varadhan lower-bound critic and scales linearly without explicit density estimation; KNIFE fits marginal and conditional densities and estimates DE as a reusable primitive, but inherits density-model bias.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v4/ICML 2018 record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2006.12013",
+      "title": "CLUB: A Contrastive Log-ratio Upper Bound of Mutual Information",
+      "url": "https://arxiv.org/abs/2006.12013",
+      "relationship": "MI-minimization competitor",
+      "difference": "CLUB trains a variational conditional model to form a contrastive MI upper bound suited to minimization; KNIFE subtracts two plug-in entropy estimates and also supports standalone differential entropy, but provides no MI-bound direction.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2/ICML 2020 record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:1905.12957",
+      "title": "Neural Entropic Estimation: A faster path to mutual information estimation",
+      "url": "https://arxiv.org/abs/1905.12957",
+      "relationship": "neural entropy-estimation competitor",
+      "difference": "MI-NEE estimates entropy through divergence from a chosen reference distribution to improve critic convergence; KNIFE estimates the data density explicitly with Gaussian kernels and gains a direct conditional-density construction.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "KNIFE is a fully parameterized differentiable entropy estimator that combines multimodality, adaptation, conditional entropy, and practical neural-network training.",
+    "evidence": "A trainable Gaussian mixture is evaluated on changing and multimodal synthetic distributions and used successfully in text fairness, BERT fine-tuning, and visual domain adaptation.",
+    "reviewer_inference": "The practical contribution is a clean adaptive density-estimation primitive that covers DE as well as MI. The theoretical contribution is narrower than the framing because the finite-sample result is for its classical Parzen special case, not KNIFE's learned mixture or joint optimization."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Read all 25 extracted pages, including implementation and proof appendices, with a second pass on the learned-density objective, theorem scope, all synthetic settings, GLUE values, fairness probe, and domain-adaptation table. Primary records for DoE, MINE, CLUB, and MI-NEE were checked."
+}

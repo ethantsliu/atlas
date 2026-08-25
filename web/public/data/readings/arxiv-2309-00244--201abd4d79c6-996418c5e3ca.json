@@ -1,0 +1,249 @@
+{
+  "stable_id": "arxiv:2309.00244",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2309.00244",
+    "pdf_sha256": "c602b56092c1d44f5c83da1ff0096d3ce356094d1db92e79d7aa0cbc5f6dd15e",
+    "text_sha256": "53b42a8941c9558e9c9e03f0e6a1ed786ba1aced67d532f823d65e78ff701752",
+    "page_count": 4,
+    "extracted_at": "2026-08-23T19:11:01.701687+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a common Python toolkit lower the engineering cost of discovering, manipulating, and comparing sparse weight- or neuron-level subnetworks in Hugging Face models using differentiable mask optimization and pruning baselines?",
+  "key_findings": [
+    {
+      "claim": "NeuroSurgeon packages subnetwork localization as binary masking over a frozen pretrained model rather than modifying the underlying weights.",
+      "evidence": "The user selects weights or neurons inside supported layers, freezes the base model, and optimizes newly introduced mask parameters for a target computation. The resulting hard mask keeps a subset active and ablates the remainder.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 1, "section": "2 Overview"},
+        {"page": 2, "section": "2 Overview / Mask Optimization"}
+      ]
+    },
+    {
+      "claim": "The library implements two learned sparse-mask families and one non-task-aware baseline.",
+      "evidence": "Hard-Concrete Masking stochastically samples gates from a parameterized hard-concrete distribution; Continuous Sparsification deterministically anneals soft gates toward hard values; magnitude pruning removes a requested fraction of low-magnitude weights. The learned methods commonly add an L0 regularization term and can operate at weight or neuron granularity.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 1, "section": "2 Overview / Supported Methods"},
+        {"page": 2, "section": "2 Overview / L0 Objective"}
+      ]
+    },
+    {
+      "claim": "The paper distinguishes a subnetwork from a circuit, but the toolkit itself only returns the former.",
+      "evidence": "A footnote defines a subnetwork as any subset of weights or neurons and a circuit as a portion performing a high-level function; a subnetwork comprises a circuit only when that functional claim holds. Mask optimization supplies a candidate subset, while functional interpretation and validation remain a research task.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "1 Introduction / Footnote 1"},
+        {"page": 2, "section": "5 Discussion"}
+      ]
+    },
+    {
+      "claim": "The visualization layer compares where one or two subnetworks lie in a model but does not visualize information flow, causal edges, or feature semantics.",
+      "evidence": "The sole figure displays two optimized masks across a two-layer GPT-2-style transformer's blocks. Addition and multiplication masks overlap almost completely in layer 0's MLP and diverge more in layer 1, but the view reports mask occupancy and overlap rather than what the retained weights compute.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "3 Visualization / Figure 1"}
+      ]
+    },
+    {
+      "claim": "The paper states broad Hugging Face model support but provides no versioned compatibility or extensibility evidence in the manuscript.",
+      "evidence": "ViT, ResNet, GPT-2, BERT, and 'more' are named. There is no support table by architecture and mask granularity, Transformers or PyTorch version, example API, custom-module protocol, serialization description, or compatibility test result in the four-page paper.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "2 Overview"},
+        {"page": 2, "section": "5 Discussion"}
+      ]
+    },
+    {
+      "claim": "No empirical benchmark in the paper establishes that NeuroSurgeon is correct, faster, easier, or more scalable than existing implementations.",
+      "evidence": "Apart from one qualitative mask visualization, the manuscript reports no mask-faithfulness curve, task-retention score, sparsity comparison, recovery of a known circuit, runtime, memory use, architecture-scale sweep, test suite, user study, or head-to-head result. The contribution is a software announcement and method inventory rather than an evaluated analysis method.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract and 2 Overview"},
+        {"page": 2, "section": "3 Visualization and 5 Discussion"}
+      ]
+    },
+    {
+      "claim": "A sparse performance-preserving mask demonstrates one sufficient residual computation under the chosen ablation, not that every retained element was naturally necessary or that the solution is unique.",
+      "evidence": "The mask is optimized after training under a target loss and an L0 tradeoff while all excluded elements are ablated. Redundant routes can yield multiple masks, soft-gate optimization can recruit compensating pathways, and a different dataset, loss, regularization coefficient, initialization, or ablation value can select a different subset. The paper provides no stability or minimality test.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "2 Overview"},
+        {"page": 2, "section": "2 Overview / L0 Regularization"}
+      ]
+    },
+    {
+      "claim": "Magnitude pruning is useful as an implementation sanity baseline but is not a behavior-specific circuit baseline.",
+      "evidence": "It ranks base weights only by absolute magnitude and ignores the target computation, examples, activation context, and causal effect. Its inclusion can show whether learned masks beat a generic compression heuristic at matched sparsity, but the paper does not actually report that comparison.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "2 Overview / Magnitude Pruning"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Expose a uniform masking interface around common Hugging Face architectures so researchers can fit sparse task-conditioned subnetworks at neuron or individual-weight resolution and compare or visualize the resulting masks.",
+    "mechanism": "Wrap selected modules of a frozen pretrained model with trainable gates. Optimize either stochastic hard-concrete gates or deterministic continuously annealed gates against a behavior loss, typically adding L0 pressure for parsimony, then discretize the mask and run the ablated model. Alternatively, create a fixed mask through magnitude pruning. A visualizer renders the layerwise distribution and overlap of one or two masks.",
+    "assumptions": [
+      "A target behavior can be represented by a dataset and differentiable objective that isolates the computation of interest.",
+      "Ablating nonselected weights or neurons creates a meaningful counterfactual rather than an off-distribution network state.",
+      "Performance retained after masking indicates that the selected subset implements the target behavior.",
+      "L0-regularized local optimization finds a scientifically useful sparse subset rather than one arbitrary compensating solution.",
+      "Weight- or neuron-level masks are an appropriate granularity for the hypothesized circuit.",
+      "Supported Hugging Face module layouts expose all semantically relevant components without implementation-specific omissions.",
+      "Mask overlap is informative about shared computation even when mask solutions are non-identifiable.",
+      "A software wrapper materially lowers the barrier to correct subnetwork analysis without a paper-level usability evaluation."
+    ]
+  },
+  "techniques": [
+    {"id": "frozen-base-mask-training", "role": "Prevents ordinary weight updates while learning which existing elements to retain."},
+    {"id": "hard-concrete-masking", "role": "Uses stochastic relaxed binary gates and L0 pressure to learn a sparse mask."},
+    {"id": "continuous-sparsification", "role": "Anneals deterministic soft gates into a hard subnetwork during optimization."},
+    {"id": "magnitude-pruning-baseline", "role": "Creates a task-agnostic comparison mask by removing low-magnitude weights."},
+    {"id": "weight-level-localization", "role": "Searches individual parameter connections for a fine-grained subnetwork."},
+    {"id": "neuron-level-localization", "role": "Shares gates across a unit to yield a coarser, more tractable mask."},
+    {"id": "dual-subnetwork-visualization", "role": "Displays layerwise occupancy and overlap for one or two candidate subnetworks."},
+    {"id": "huggingface-model-wrapping", "role": "Adapts the masking interface to named Transformer, vision-transformer, and residual-network classes."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Two-layer GPT-2-style model trained jointly on addition and multiplication",
+      "metric": "Qualitative layerwise mask sparsity and overlap",
+      "result": "Both masks are sparse; overlap is high in layer 0, including near-total MLP overlap, and lower in layer 1's MLP and attention heads 1 and 2",
+      "baseline": "Visual comparison of the two learned masks; no numerical overlap or functional ablation score"
+    },
+    {
+      "setting": "Named Hugging Face architectures including ViT, ResNet, GPT-2, and BERT",
+      "metric": "Claimed implementation support",
+      "result": "The paper states these model families are supported",
+      "baseline": "No compatibility matrix, automated test output, or competing toolkit comparison"
+    },
+    {
+      "setting": "Toolkit as a subnetwork-analysis research artifact",
+      "metric": "Paper-level validation coverage",
+      "result": "No quantitative correctness, faithfulness, performance, scale, reproducibility, or usability experiment is reported",
+      "baseline": "Prior mask methods and circuit-discovery systems are discussed or cited but not run head to head"
+    }
+  ],
+  "limitations": [
+    "Reviewer-identified: the manuscript is only four pages and omits an API example, architecture support table, software design, testing methodology, dependency versions, and artifact-maintenance plan.",
+    "Reviewer-identified: there is no quantitative evaluation of masks, library overhead, scalability, ease of use, or agreement with known circuits.",
+    "Reviewer-identified: learned masks are non-identifiable and no seeds, stability analysis, Pareto frontier, or minimality verification are reported.",
+    "Reviewer-identified: preservation under an ablation establishes conditional sufficiency at best; necessity, normal-use mediation, and semantic interpretation require separate tests.",
+    "Reviewer-identified: zeroing weights or neurons can move activations off distribution and make results depend strongly on the ablation baseline.",
+    "Reviewer-identified: supported masking operates on weights or neurons, not computational-graph edges, token-position-specific activations, sparse learned features, or multi-run activation interventions.",
+    "Reviewer-identified: the one addition/multiplication figure lacks task-retention scores, overlap statistics, uncertainty, random-mask controls, or a ground-truth modularity target.",
+    "Reviewer-identified: no license, security implications of loading model code, or reproducible environment information appears in the paper itself."
+  ],
+  "failure_modes": [
+    "Mask optimization can converge to different equally sparse subnetworks across seeds, obscuring claims about one true circuit.",
+    "Redundant pathways let one subset preserve behavior even when the model normally distributes computation more broadly.",
+    "Soft gates during training can induce compensation that disappears or changes when gates are discretized.",
+    "An overly strong L0 coefficient deletes behavior-relevant elements; an overly weak one returns an uninterpretable near-dense mask.",
+    "A biased behavior dataset localizes spurious task cues instead of the intended computation.",
+    "Zero ablation can create artifacts that a mean, resampled, or counterfactual activation baseline would avoid.",
+    "Neuron masks miss distributed directions, while weight masks become expensive and hard to interpret at scale.",
+    "Architecture-specific wrappers can silently omit fused, shared, recurrent, or custom modules after upstream library changes.",
+    "Two masks can overlap because of generally useful infrastructure rather than a shared high-level algorithm."
+  ],
+  "reusable_insights": [
+    "Keep base weights frozen when the research question is where an already learned capability resides.",
+    "Always compare a learned task-specific mask with magnitude, random, and task-shuffled masks at matched sparsity.",
+    "Report a full sparsity-versus-performance frontier and solution stability, not one thresholded mask.",
+    "Use preservation, deletion, interchange, and distribution-shift tests together before calling a subnetwork a circuit.",
+    "Treat mask overlap as a hypothesis about modular reuse that needs functional controls and alignment across independently fitted masks.",
+    "Separate method primitives, architecture adapters, visualization, serialization, and validation so upstream model changes can be tested locally.",
+    "A useful interpretability toolkit should make intervention baseline and mask granularity explicit configuration, because both change the scientific claim."
+  ],
+  "open_questions": [
+    "How often do hard-concrete and continuous-sparsification masks agree at equal behavior retention and sparsity?",
+    "Can the toolkit certify local or global minimality, or enumerate alternative sparse masks to expose non-identifiability?",
+    "How do zero, mean, resample, and counterfactual ablations change the recovered subnetwork?",
+    "What runtime and memory limits arise for weight-level masks in billion-parameter models?",
+    "Can token-position-specific activation patches, graph edges, or sparse learned features be represented in the same interface?",
+    "Does mask overlap predict transfer, compositional reuse, or interference on held-out task combinations?",
+    "What artifact tests and compatibility contracts keep architecture adapters correct as Transformers and PyTorch evolve?",
+    "How should candidate masks be exported with the dataset, objective, seed, threshold, base model revision, and intervention semantics needed to reproduce their meaning?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2010.02066",
+      "title": "Are Neural Nets Modular? Inspecting Functional Modularity Through Differentiable Weight Masks",
+      "url": "https://arxiv.org/abs/2010.02066",
+      "relationship": "direct learned-weight-mask predecessor implemented by the toolkit",
+      "difference": "Csordas et al. introduce behavior-conditioned differentiable binary weight masks and evaluate emergent modularity across architectures and datasets. NeuroSurgeon productizes this family alongside another mask optimizer and a visualizer, but the paper adds no comparative methodological evidence or broader modularity study.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2104.03514",
+      "title": "Low-Complexity Probing via Finding Subnetworks",
+      "url": "https://arxiv.org/abs/2104.03514",
+      "relationship": "direct subnetwork-probing method implemented by the toolkit",
+      "difference": "Cao et al. validate subtractive probes against MLP probes and random-model controls, showing a complexity-accuracy Pareto advantage and layerwise linguistic patterns. NeuroSurgeon makes the method easier to apply across named architectures, but its paper does not reproduce these controls or establish implementation equivalence.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2112.06837",
+      "title": "Sparse Interventions in Language Models with Differentiable Masking",
+      "url": "https://arxiv.org/abs/2112.06837",
+      "relationship": "causal sparse-neuron localization predecessor",
+      "difference": "De Cao et al. learn L0-regularized neuron subsets against changes in token probabilities and compare with REINFORCE on agreement and gender-bias tasks. NeuroSurgeon generalizes mask mechanics across model families and weight granularity, but does not specify an intervention objective or reproduce causal-mediation validation in the paper.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2304.14997",
+      "title": "Towards Automated Circuit Discovery for Mechanistic Interpretability",
+      "url": "https://arxiv.org/abs/2304.14997",
+      "relationship": "contemporary computational-graph circuit-discovery alternative",
+      "difference": "ACDC prunes edges using activation-patching effects and validates recovery of previously hand-built circuits, including 68 of roughly 32,000 GPT-2 Small edges for greater-than. NeuroSurgeon optimizes weight or neuron masks and is architecture-oriented, but offers neither graph-edge flow nor a known-circuit recovery benchmark.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2311.04354",
+      "title": "Uncovering Intermediate Variables in Transformers using Circuit Probing",
+      "url": "https://arxiv.org/abs/2311.04354",
+      "relationship": "direct successor from the same authors",
+      "difference": "Circuit Probing turns sparse parameter masking into a hypothesis test for specific intermediate variables, adds targeted ablation, and evaluates arithmetic algorithms plus syntax in GPT-2 Small and Medium. It supplies the scientific method and evidence largely absent from the NeuroSurgeon announcement, while the toolkit remains the reusable infrastructure layer.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2403.07809",
+      "title": "pyvene: A Library for Understanding and Improving PyTorch Models via Interventions",
+      "url": "https://arxiv.org/abs/2403.07809",
+      "relationship": "later intervention-toolkit competitor",
+      "difference": "pyvene treats interventions as serializable primitives, supports multi-location and multi-run activation exchange, trainable interventions, decoding-time changes, and recurrent, convolutional, and transformer models, with reproduction case studies. NeuroSurgeon is more specialized for learned parameter and neuron masks but its paper documents and validates far less infrastructure.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2407.14561",
+      "title": "NNsight and NDIF: Democratizing Access to Open-Weight Foundation Model Internals",
+      "url": "https://arxiv.org/abs/2407.14561",
+      "relationship": "later scalable internals-access infrastructure competitor",
+      "difference": "NNsight exposes deferred intervention graphs and NDIF remotely executes experiments on very large models, with literature analysis and performance benchmarks. NeuroSurgeon directly provides sparse mask optimizers and overlap visualization, but lacks remote scale, a general intervention graph, and the quantitative systems evaluation of NNsight/NDIF.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "NeuroSurgeon lowers the barrier to mechanistic subnetwork analysis by unifying discovery, manipulation, and visualization for popular Hugging Face models.",
+    "evidence": "The paper describes adapters for several language and vision architectures, implementations of hard-concrete masking, continuous sparsification, and magnitude pruning at weight or neuron level, and a two-mask layerwise visualizer; the code is publicly linked.",
+    "reviewer_inference": "The contribution is practical packaging rather than a new localization algorithm: both learned mask methods, L0 regularization, magnitude pruning, and subnetwork probing predate the toolkit. A consistent cross-architecture interface and comparison view could be valuable, but the manuscript provides almost no evidence for correctness, coverage, usability, or scale. Direct successors and later libraries add hypothesis-specific causal tests, serializable activation interventions, remote large-model execution, and quantitative benchmarks, so NeuroSurgeon's lasting value depends more on code quality and maintenance than on the claims established by this paper."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Primary full-text review of all four indexed pages, including the complete method inventory, single visualization, definitions, discussion, and references. The linked repository itself was not treated as evidence for undocumented current features. Seven closest method and infrastructure papers were checked against primary arXiv records on 2026-08-23, spanning the two implemented mask lineages, causal masking, graph circuit discovery, the authors' successor, pyvene, and NNsight/NDIF. No second-review verification is claimed."
+}

@@ -1,0 +1,116 @@
+{
+  "stable_id": "arxiv:2503.09986",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2503.09986",
+    "pdf_sha256": "5fc83826bbff699615d3069d6edd875fdbfe23d21673ad99e93fabe62638d4ae",
+    "text_sha256": "60a08fb1f32430e4b5835f7e1c78ad50c75c114565651a0a8ed34021705dd1d3",
+    "page_count": 24,
+    "extracted_at": "2026-08-23T17:11:49.400326+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a language model infer the minimal symbolic operator vocabulary needed by a PDE solution and thereby accelerate interpretable symbolic solution search?",
+  "key_findings": [
+    {
+      "claim": "The system predicts a set of solution operators from a postfix representation of the PDE and uses that set to prune the Finite Expression Method's reinforcement-learning search space.",
+      "evidence": "Synthetic PDEs and solutions are represented as expression trees and serialized into operator sequences. BART, T5, and Llama models are fine-tuned for operator-set prediction; FEX then searches only expressions using the predicted vocabulary.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "Section 2, symbolic PDE representation"},
+        {"page": 4, "section": "LLM-to-FEX pipeline"}
+      ]
+    },
+    {
+      "claim": "Llama 3-8B achieves the lowest reported operator mismatch, 0.380 after 12 epochs, but the metric evaluates vocabulary overlap rather than semantic correctness of a recovered PDE solution.",
+      "evidence": "The model-comparison table reports mismatch 0.380 for Llama 3-8B, 0.407 for Llama 3-3B, 1.296 for T5, and 1.645 for BART on the synthetic corpus. It does not show that two algebraically equivalent operator sets receive equivalent credit.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 15, "section": "Operator-prediction model comparison"},
+        {"page": 22, "section": "Dataset and training details"}
+      ]
+    },
+    {
+      "claim": "On 100 sampled test PDEs, operator guidance reduces mean FEX runtime by roughly four to six times while preserving reported solution accuracy when search converges.",
+      "evidence": "For 50 conservation equations, iterations fall from 28.52 to 5.23 and time from 23.67 to 3.95 minutes. For 50 Poisson equations, iterations fall from 28.73 to 6.47 and time from 62.07 to 14.09 minutes, over five runs per equation.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 18, "section": "Conservation-equation results"},
+        {"page": 19, "section": "Poisson-equation results"}
+      ]
+    },
+    {
+      "claim": "The stated policy-gradient complexity guarantee concerns reaching an approximate stationary point and does not guarantee recovery of the correct or globally optimal symbolic expression.",
+      "evidence": "The convergence analysis gives an order epsilon-to-the-minus-four sample/iteration statement under smoothness assumptions. Its endpoint is a stationary policy-gradient condition, whereas expression correctness is evaluated separately by numerical residuals.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 9, "section": "Policy-gradient convergence analysis"},
+        {"page": 11, "section": "Approximate stationarity result"}
+      ]
+    },
+    {
+      "claim": "Claims of interpretability apply to the final symbolic expression, not to a verified causal explanation of the LLM's operator prediction.",
+      "evidence": "The final FEX form is human-readable, but the fine-tuned language model remains a black-box classifier and no mechanistic or expert validation of its inferred symbolic structure is reported.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 4, "section": "Pipeline overview"},
+        {"page": 20, "section": "Discussion and conclusion"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Use a language model as a symbolic-vocabulary proposal mechanism rather than as the final equation generator, then retain FEX's explicit expression search and numerical verification.",
+    "mechanism": "Generate paired PDE/solution expression trees, serialize the PDE in postfix form, train a sequence model to emit minimal solution operators, restrict FEX's operator library to those predictions, and optimize expression structure and coefficients by policy gradient and numerical residual minimization.",
+    "assumptions": [
+      "Training and test PDEs share an operator vocabulary and similar synthetic grammar.",
+      "The true solution can be expressed compactly with the predicted primitives.",
+      "Reducing the operator set does not remove an essential but low-probability operator."
+    ]
+  },
+  "techniques": [
+    {"id": "postfix-expression-serialization", "role": "Turns symbolic PDE trees into language-model sequences."},
+    {"id": "operator-set-prediction", "role": "Proposes a minimal symbolic vocabulary for the solution."},
+    {"id": "finite-expression-method", "role": "Searches interpretable symbolic expressions with numerical residual feedback."},
+    {"id": "policy-gradient-search", "role": "Optimizes discrete expression structure."}
+  ],
+  "evaluations": [
+    {"setting": "198K synthetic symbolic PDE examples", "metric": "Operator-set mismatch", "result": "Llama 3-8B reports 0.380 after 12 epochs, outperforming Llama 3-3B, T5, and BART in the provided comparison.", "baseline": "BART, T5, and smaller Llama variants"},
+    {"setting": "50 random conservation equations, five FEX runs each", "metric": "Search iterations and wall-clock minutes", "result": "Guidance reduces means from 28.52 to 5.23 iterations and 23.67 to 3.95 minutes.", "baseline": "FEX with the full uninformed operator library"},
+    {"setting": "50 random Poisson equations, five FEX runs each", "metric": "Search iterations and wall-clock minutes", "result": "Guidance reduces means from 28.73 to 6.47 iterations and 62.07 to 14.09 minutes.", "baseline": "FEX with the full uninformed operator library"}
+  ],
+  "limitations": [
+    "The corpus is synthetically generated from the same operator grammar used at evaluation.",
+    "No real scientific discovery or out-of-vocabulary operator test is reported.",
+    "Operator mismatch does not capture algebraic equivalence or semantic solution correctness.",
+    "The empirical comparison does not include modern LLM equation-discovery or neural symbolic-regression systems.",
+    "The convergence theorem guarantees stationarity, not correct expression recovery."
+  ],
+  "failure_modes": [
+    "Omitting one necessary operator makes the pruned search incapable of representing the solution.",
+    "Including spurious operators can erase the claimed search-efficiency gain.",
+    "A distribution shift in notation or grammar can break the postfix classifier despite an unchanged PDE.",
+    "Numerically low residuals can select unstable or physically invalid expressions."
+  ],
+  "reusable_insights": [
+    "Use an LLM to propose a constrained symbolic search space while retaining an independently checkable solver.",
+    "Evaluate proposal recall separately from search speed because false-negative operators are catastrophic.",
+    "Canonicalize algebraically equivalent expressions before scoring symbolic predictions."
+  ],
+  "open_questions": [
+    "How well does operator prediction transfer to real PDEs, unfamiliar notation, and unseen primitives?",
+    "Can uncertainty-aware top-k vocabularies balance pruning speed against catastrophic operator omission?",
+    "Does this hybrid outperform direct LLM-SR and differentiable symbolic-regression baselines under equal compute?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2206.10121", "title": "Finite Expression Method for Solving High-Dimensional Partial Differential Equations", "url": "https://arxiv.org/abs/2206.10121", "relationship": "Direct symbolic-search foundation", "difference": "FEX searches an unrestricted user-supplied operator library; this paper adds an LLM predictor that prunes that library before the same style of expression search.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:2404.18400", "title": "LLM-SR: Scientific Equation Discovery via Programming with Large Language Models", "url": "https://arxiv.org/abs/2404.18400", "relationship": "LLM-guided scientific equation discovery", "difference": "LLM-SR iteratively writes and improves equation programs using data feedback; this pipeline predicts only the operator vocabulary and delegates structure/coefficient recovery to FEX.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:1605.06682", "title": "Data-driven Discovery of Partial Differential Equations", "url": "https://arxiv.org/abs/1605.06682", "relationship": "Sparse PDE discovery from observations", "difference": "PDE-FIND selects terms from a fixed candidate library using sparse regression; this work starts from a given PDE and searches for its symbolic solution after learned operator pruning.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"},
+    {"canonical_id": "arxiv:1912.04871", "title": "Deep Symbolic Regression: Recovering Mathematical Expressions from Data via Risk-Seeking Policy Gradients", "url": "https://arxiv.org/abs/1912.04871", "relationship": "Policy-gradient symbolic regression", "difference": "Deep Symbolic Regression directly learns expression-generation policies from numerical data; this method uses an LLM-derived vocabulary to reduce a PDE residual search performed by FEX.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv abstract current on 2026-08-23"}
+  ],
+  "novelty_assessment": {
+    "author_claim": "Predicting solution operators with an LLM makes FEX substantially faster while preserving interpretable symbolic PDE solutions.",
+    "evidence": "The paper trains four sequence-model variants and reports four-to-six-fold runtime reductions on two synthetic PDE families.",
+    "reviewer_inference": "The modular proposal-plus-verifier design is promising, but novelty and generality require comparisons with contemporary LLM symbolic regression and genuine distribution-shift tests."
+  },
+  "confidence": 0.93,
+  "reviewer_notes": "Read all 24 extracted pages, including serialization, convergence claims, runtime tables, model comparison, and dataset appendix. Competitor primary records were checked on arXiv on 2026-08-23."
+}

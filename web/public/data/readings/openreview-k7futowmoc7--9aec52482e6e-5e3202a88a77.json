@@ -1,0 +1,729 @@
+{
+  "stable_id": "openreview:k7FuTOWMOc7",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2206.00364",
+    "pdf_sha256": "0cf53de9ac234366fdba08d472afa236d46edd8202fda340f579aa2db866087a",
+    "text_sha256": "30128fda1b873ffece203afa8e3d5849a4cf4451447e33fb78fac13369596b00",
+    "page_count": 47,
+    "extracted_at": "2026-08-24T00:37:05.414595+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can score-based diffusion models be decomposed into a common set of independently adjustable sampling, preconditioning, and training choices, and can principled changes to those choices improve sample quality and neural-function-evaluation efficiency across existing model families?",
+  "key_findings": [
+    {
+      "claim": "The common denoiser-centered formulation is the paper's most durable contribution and is more than a cosmetic change of notation.",
+      "evidence": "VP, VE, iDDPM, and DDIM are expressed through the same mollified data distribution, denoiser D_theta, probability-flow ODE, signal scale s(t), noise schedule sigma(t), timestep sequence, preconditioning coefficients, training-noise distribution, and loss weight. Appendices B and C derive the transformation from the original SDEs and implementation conventions, including image ranges, discrete noise levels, and pretrained network input/output definitions. This makes previously tangled implementation choices directly comparable and supports drop-in sampler experiments.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Section 2 / Table 1 and common framework"
+        },
+        {
+          "page": 22,
+          "section": "Appendix B.2 / ODE derivation"
+        },
+        {
+          "page": 29,
+          "section": "Appendix C / Reframing implementations"
+        },
+        {
+          "page": 38,
+          "section": "Appendix C.3.4 / Discrete iDDPM import"
+        }
+      ]
+    },
+    {
+      "claim": "The deterministic sampler yields large practical reductions in NFE, but the advertised speedup ratios compare each method at a threshold relative to its own best FID rather than at one fixed absolute quality target.",
+      "evidence": "Table 3 defines NFE as the first point within 3% of the lowest FID observed for that curve. Under this convention, the final sampler uses 35 rather than 256 NFE for VP, 27 rather than 8192 for VE, and 79 rather than 250 for ImageNet DDIM, motivating the reported 7.3x, 300x, and 3.2x factors. Yet VP's minimum FID changes from 2.85 for the original sampler to 2.93 for the final sampler, while VE and ImageNet improve from 5.45 to 3.73 and 2.85 to 2.64. The result is a strong quality-cost frontier improvement overall, not three clean same-quality speed ratios.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Section 3 / Discussion and speedup factors"
+        },
+        {
+          "page": 21,
+          "section": "Appendix A / Table 3 definition and values"
+        }
+      ]
+    },
+    {
+      "claim": "Cross-family sampler transfer is convincing evidence of portability, but it does not establish literal finite-model orthogonality among all design components.",
+      "evidence": "The same Heun integrator, sigma(t)=t, s(t)=1, and rho=7 discretization improve NFE behavior on pretrained VP and VE CIFAR models and a discrete iDDPM ImageNet model. The paper's stronger statement that components have no implicit dependencies is explicitly an in-principle convergence statement and assumes a sufficiently accurate denoiser. Its own experiments show interactions: optimal stochasticity reverses between the original and improved CIFAR training, differs again on ImageNet, preconditioning enables a later loss change, and high-resolution parameter values are expected to require retuning.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Section 2 / Independence claim and Section 3 hypothesis"
+        },
+        {
+          "page": 9,
+          "section": "Section 5 / Preconditioning and loss interaction"
+        },
+        {
+          "page": 10,
+          "section": "Figure 5 and Conclusions / Stochasticity reversal and retuning caveat"
+        }
+      ]
+    },
+    {
+      "claim": "Part of the apparent gain over original samplers comes from repairing baseline implementations and changing numerical handling, so the orange-to-blue comparisons are not pure reformulation ablations.",
+      "evidence": "The VP reimplementation fixes an incorrect Euler multiplier and a final step that can overshoot below zero. The VE reimplementation stores the outer state in float64 to avoid high-step roundoff. The iDDPM reimplementation skips the first eight exceptionally high-noise levels, rounds proposed levels to supported discrete values, and ignores the network's learned variance output. These are reasonable and valuable corrections, but they mix bug fixes, precision changes, endpoint changes, and framework translation with the claimed common-formulation effect.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 32,
+          "section": "Appendix C.1.4 / VP implementation oversights"
+        },
+        {
+          "page": 35,
+          "section": "Appendix C.2.5 / VE double precision"
+        },
+        {
+          "page": 38,
+          "section": "Appendix C.3.4 / iDDPM practical changes"
+        }
+      ]
+    },
+    {
+      "claim": "The power-law timestep schedule is empirically effective, but rho=7 is a benchmark-tuned perceptual choice rather than the output of the truncation-error theory.",
+      "evidence": "The local-RMSE study finds rho about 3 nearly equalizes Heun truncation error, while FID on the same VP, VE, and ImageNet model families improves further for larger rho; the authors fix rho=7 as a value that performs reasonably across those cases. The supposed true local solution is itself approximated by 200 small Euler steps, using 200 samples and initially one VE CIFAR network. Thus the study gives a clear design heuristic and exposes the mismatch between pixel error and perceptual quality, but not a general optimality result for rho=7.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Section 3 / Equation 5 and rho selection"
+        },
+        {
+          "page": 39,
+          "section": "Appendix D.1 / Local-error experiment"
+        },
+        {
+          "page": 40,
+          "section": "Appendix D.1 / RMSE optimum versus FID optimum"
+        }
+      ]
+    },
+    {
+      "claim": "The stochastic churn sampler substantially improves best FID on the imported models, while its quality and cost depend on four separately tuned controls.",
+      "evidence": "Table 4 reports optimal-churn FIDs of 2.27 for VP, 2.23 for VE, and 1.55 for ImageNet versus 2.55, 2.46, and 2.01 for the previous stochastic samplers. Its within-3%-of-best NFE values are 383, 767, and 511 versus 768, 1024, and 384, so ImageNet quality improves while this particular efficiency threshold worsens. The displayed 1.55 ImageNet sample uses 1023 NFE. S_churn, S_tmin, S_tmax, and S_noise are selected separately for each model by a combinatorial grid, and the paper appropriately warns that stochastic evaluation can influence architecture and training choices.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "Section 4 / Evaluation and tuning caveat"
+        },
+        {
+          "page": 14,
+          "section": "Figure 6 / Imported ImageNet examples"
+        },
+        {
+          "page": 21,
+          "section": "Appendix A / Table 4"
+        },
+        {
+          "page": 43,
+          "section": "Appendix E.2 / Table 5 grid search"
+        }
+      ]
+    },
+    {
+      "claim": "The stochastic sampler is an explicitly heuristic correction for learned-score error, and repeated churn demonstrates that its nominal marginal-preservation intuition fails for practical networks.",
+      "evidence": "Algorithm 2 alternates an exact Gaussian noise increase with one approximate ODE step, which preserves the desired marginal only under an accurate denoiser and small numerical error. Repeated fixed-noise iterations instead cause oversaturation, loss of detail, and eventual corruption across CIFAR and ImageNet models, whereas an analytical denoiser does not show the same degradation. The authors attribute this to a non-conservative learned vector field and counter it with noise-range truncation and a slightly inflated S_noise. This is a candid and useful failure analysis, but it means the practical method lacks the clean correctness premise suggested by its two-substep construction.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "Section 4 / Algorithm 2 and practical considerations"
+        },
+        {
+          "page": 41,
+          "section": "Appendix E.1 / Excessive iteration analysis"
+        },
+        {
+          "page": 42,
+          "section": "Figure 14 / Degradation examples"
+        }
+      ]
+    },
+    {
+      "claim": "The preconditioning formulas provide a principled variance-control recipe, but the paper's ablation supports robustness and interaction more strongly than an isolated FID gain.",
+      "evidence": "Appendix B.6 derives input normalization, a minimum-amplification skip coefficient, a unit-variance residual target, and inverse-residual-variance loss weight under a scalar data standard deviation and independent Gaussian noise. In Table 2, changing only to the proposed preconditioning from config C to D improves the extreme 64x64 VE cases dramatically (FFHQ 41.62 to 3.39 and AFHQv2 15.04 to 3.81), yet slightly worsens most VP cases and several CIFAR cases. Its strongest evidence is that it makes the later loss redesign stable across architectures, not that config D alone universally improves sample quality.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "Section 5 / Table 2 and preconditioning discussion"
+        },
+        {
+          "page": 27,
+          "section": "Appendix B.6 / Preconditioning setup"
+        },
+        {
+          "page": 28,
+          "section": "Appendix B.6 / Coefficient derivation"
+        },
+        {
+          "page": 29,
+          "section": "Appendix B.6 / Loss-weight derivation"
+        }
+      ]
+    },
+    {
+      "claim": "Log-normal noise sampling and balanced effective loss produce the clearest repeatable training improvement in the cumulative study.",
+      "evidence": "Moving from config D to E improves all eight CIFAR, FFHQ, and AFHQv2 VP/VE cells: conditional CIFAR reaches 1.88 and 1.86, unconditional CIFAR 2.05 and 1.99, FFHQ 2.60 and 2.81, and AFHQv2 2.29 and 2.28. The proposed distribution concentrates training around intermediate log-noise levels where the measured loss can be reduced, while lambda=1/c_out^2 equalizes the raw network's initial effective weight. The consistency across two architectures and four tasks is strong, though config E depends on the config-D preconditioner and the noise-distribution parameters remain empirical.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "Section 5 / Loss weighting, noise sampling, and Table 2"
+        },
+        {
+          "page": 29,
+          "section": "Appendix B.6 / Effective-weight derivation"
+        },
+        {
+          "page": 46,
+          "section": "Appendix F.3 / Config D-to-E implementation"
+        }
+      ]
+    },
+    {
+      "claim": "Table 2 is a cumulative engineering ladder, not a factorial experiment that identifies independent causal effects.",
+      "evidence": "Config B simultaneously changes GPU count, batch size, gradient clipping, learning rate, ramp-up, EMA, and grid-searched dropout; config C redistributes architecture capacity; configs D, E, and F then accumulate preconditioning, loss/noise sampling, and augmentation. Several intermediate changes reverse direction by model family, most dramatically the VE architecture and preconditioning rows. Because the order is fixed and interactions are large, the table validates a final recipe and selected incremental transitions, not the unique marginal contribution or orthogonality of every component.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "Section 5 / Table 2"
+        },
+        {
+          "page": 45,
+          "section": "Appendix F.3 / Config A-to-B changes and dropout grid"
+        },
+        {
+          "page": 46,
+          "section": "Appendix F.3 / Config C-to-F changes"
+        }
+      ]
+    },
+    {
+      "claim": "The headline FIDs are selected minima at multiple levels, so they should not be interpreted as unbiased point estimates with known uncertainty.",
+      "evidence": "Every FID experiment is run three times and the minimum is reported, despite stated random variation of about plus or minus 2%. For training runs, snapshots are saved every 2.5 million images over 200 million images and the snapshot with the lowest 35- or 79-NFE FID is reported; dropout is additionally selected through a full grid at 1% increments. Some figures show the range of three FIDs, but Table 2 and the record claims do not give confidence intervals or an independently held-out selection metric. Repeated minimum selection systematically favors optimistic values and makes sub-tenth FID comparisons especially fragile.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 44,
+          "section": "Appendix F.1 / Minimum-of-three FID protocol"
+        },
+        {
+          "page": 45,
+          "section": "Appendix F.3 / Best-snapshot and dropout selection"
+        }
+      ]
+    },
+    {
+      "claim": "FID is the sole quantitative outcome, leaving fidelity-diversity decomposition, likelihood, memorization, and human perception untested.",
+      "evidence": "All comparisons use Inception-v3 FID between 50,000 generated images and all available real images. No precision/recall, density/coverage, likelihood, human preference, nearest-neighbor or privacy audit, or class-conditional accuracy is reported. The theory in Appendix B.3 even defines the ideal denoiser for a finite training set as an empirical Gaussian mixture, whose small-noise target can memorize training atoms. A lower training-distribution FID alone therefore cannot establish better generalization, coverage, originality, or perceived quality.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Section 3 / Evaluation protocol"
+        },
+        {
+          "page": 23,
+          "section": "Appendix B.3 / Finite-data ideal denoiser"
+        },
+        {
+          "page": 44,
+          "section": "Appendix F.1 / FID calculation"
+        }
+      ]
+    },
+    {
+      "claim": "The non-leaky augmentation mechanism is promising, but setting its conditioning vector to zero is an intended control signal rather than a mathematical guarantee that a finite model cannot leak transforms.",
+      "evidence": "Six geometric transformations are supplied to the network through a nine-dimensional code, with zero reserved for the unaugmented task and used at inference. Config F improves all Table 2 cells, yielding conditional and unconditional CIFAR FIDs of 1.79 and 1.97. The authors report no visible leakage even at 100% augmentation probability, but provide no quantitative leakage detector, classifier, or theorem about conditional generalization. The word guarantee is consequently stronger than the evidence, although the conditioning design is substantially safer than unlabelled augmentation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 9,
+          "section": "Section 5 / Augmentation regularization"
+        },
+        {
+          "page": 44,
+          "section": "Appendix F.2 / Augmentation pipeline"
+        },
+        {
+          "page": 45,
+          "section": "Appendix F.2 / Zero conditioning and leakage observation"
+        }
+      ]
+    },
+    {
+      "claim": "The 1.36 ImageNet-64 record demonstrates a strong end-to-end recipe but is neither a compute-matched nor a low-NFE deterministic result.",
+      "evidence": "The ADM model has about 296 million parameters and is trained for two weeks on 32 Ampere GPUs, drawing 2.5 billion images in batches of 4096. Figure 7 associates FID 1.36 with stochastic sampling at 511 NFE, while deterministic sampling is 2.23 at 79 NFE. The paper compares 1.36 with a prior record of 1.48 without matching architecture, training images, accelerator budget, tuning, or sampler evaluation. This establishes a historical state of the art for the combined system, not a controlled sample-efficiency or compute-efficiency advantage.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 10,
+          "section": "Section 5 / ImageNet-64 and Figure 5c"
+        },
+        {
+          "page": 15,
+          "section": "Figure 7 / Deterministic and stochastic ImageNet results"
+        },
+        {
+          "page": 46,
+          "section": "Appendix F.3 / ImageNet training budget"
+        },
+        {
+          "page": 47,
+          "section": "Appendix F.4 / ADM parameter count"
+        }
+      ]
+    },
+    {
+      "claim": "NFE is a useful within-network cost coordinate but not a universal speed or energy measure across the evaluated systems.",
+      "evidence": "The paper argues that denoiser evaluation dominates sampling, reports 26.3 CIFAR images per second on one V100, and carefully counts the two evaluations in Heun steps. However, the imported networks range from roughly 62 million to 296 million parameters, architectures and attention differ, the state integration uses float64 while networks use float32, and stochastic and deterministic paths have different memory and random-number operations. No matched wall-time, FLOP, latency, memory, or energy table is given across models or samplers, so equal NFE does not imply equal deployment cost.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Section 3 / NFE rationale"
+        },
+        {
+          "page": 6,
+          "section": "Section 3 / CIFAR throughput"
+        },
+        {
+          "page": 29,
+          "section": "Appendix C / Mixed numerical precision"
+        },
+        {
+          "page": 47,
+          "section": "Appendix F.4 / Architecture scale"
+        }
+      ]
+    },
+    {
+      "claim": "The evidence is intentionally narrow in resolution and task type relative to the paper's broad modularity language.",
+      "evidence": "Training is evaluated on CIFAR-10 at 32x32 and FFHQ, AFHQv2, and class-conditional ImageNet at 64x64. There are no direct experiments on high-resolution pixels, latent diffusion, classifier-free guidance, text conditioning, non-image modalities, likelihood training, or inverse problems. The conclusion calls the contributions orthogonal to high-resolution extensions but also states that many parameter values may need readjustment. Later work on guided solvers, latent flows, and EDM2 confirms that these regimes introduce material new interactions.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Section 3 / Imported model suite"
+        },
+        {
+          "page": 9,
+          "section": "Table 2 / Training datasets"
+        },
+        {
+          "page": 10,
+          "section": "Section 6 / High-resolution caveat"
+        }
+      ]
+    },
+    {
+      "claim": "Reproducibility disclosure is unusually strong for a compute-intensive generative-model paper.",
+      "evidence": "The paper releases a newly written codebase and pretrained models; pins PyTorch, CUDA, and CuDNN versions; documents algorithms, exact preconditioning equations, grids, dataset-specific hyperparameters, training duration, GPU counts, parameter counts, checkpoint cadence, evaluation implementation, imported checkpoint identities, and asset licenses. It also reports roughly 250 MWh for the project and flags ImageNet's license as unclear. These disclosures do not remove selection or compute concerns, but they make the recipe and its limitations substantially more auditable.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 10,
+          "section": "Societal impact / Energy disclosure"
+        },
+        {
+          "page": 43,
+          "section": "Appendix F / Software and code release"
+        },
+        {
+          "page": 45,
+          "section": "Appendix F.3 / Training details"
+        },
+        {
+          "page": 47,
+          "section": "Appendix F.5 / Licenses"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Replace framework-specific diffusion notation with a denoiser-centered probability-flow formulation whose sampling schedule, numerical solver, stochasticity, network parameterization, training-noise distribution, weighting, architecture, and augmentation are explicit design coordinates, then improve and test those coordinates across existing model families.",
+    "mechanism": "The method writes the score as (D(x;sigma)-x)/sigma^2, selects sigma(t)=t and s(t)=1, integrates the resulting ODE with a second-order Heun method on a rho-power noise grid, and optionally adds model-specific stochastic churn before each ODE step. Training uses analytically derived skip/input/output preconditioning, inverse output-variance loss weighting, log-normal sampling of noise levels, capacity redistribution, and transform-conditioned augmentation. Imported VP, VE, and iDDPM networks and newly trained CIFAR, face, animal-face, and ImageNet models are evaluated by 50,000-sample FID.",
+    "assumptions": [
+      "The data can be modeled through additive isotropic Gaussian mollification over a continuous noise level.",
+      "The denoiser approximates the conditional L2 mean well enough that its induced field approximates the score.",
+      "The initial sigma_max distribution is close enough to an isotropic Gaussian and sigma_min is close enough to clean data.",
+      "Schedules are monotone and sufficiently smooth for the ODE/SDE derivations and numerical solver analysis.",
+      "Network fields are Lipschitz on the relevant trajectory region, with manageable constants.",
+      "A scalar sigma_data and per-component variance calculations are adequate preconditioning surrogates for image data.",
+      "FID on 50,000 samples is an adequate optimization and comparison target for perceptual distribution quality.",
+      "NFE dominates sampling cost sufficiently that it is a useful within-model efficiency proxy.",
+      "Case-specific sampler and dropout selection on benchmark FID transfers beyond the exact evaluation sweep.",
+      "Zero augmentation conditioning recovers the unaugmented distribution accurately in a finite trained network."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "denoiser-centered-diffusion-design-space",
+      "role": "Expresses several score-model families through common schedules, scaling, preconditioning, and loss coordinates."
+    },
+    {
+      "id": "probability-flow-ode",
+      "role": "Provides the deterministic transport equation from Gaussian noise to the mollified data distribution."
+    },
+    {
+      "id": "heun-second-order-sampling",
+      "role": "Reduces local integration error with two denoiser evaluations per nonterminal step."
+    },
+    {
+      "id": "power-law-noise-discretization",
+      "role": "Allocates more steps at low noise using a rho-parameterized sigma grid."
+    },
+    {
+      "id": "stochastic-churn",
+      "role": "Injects and subsequently removes controlled noise to correct accumulated learned-score and solver errors."
+    },
+    {
+      "id": "variance-normalized-preconditioning",
+      "role": "Normalizes network inputs and residual targets and minimizes output error amplification through a skip connection."
+    },
+    {
+      "id": "lognormal-training-noise",
+      "role": "Concentrates training examples around intermediate noise levels where denoising loss is reducible and perceptually consequential."
+    },
+    {
+      "id": "balanced-effective-loss",
+      "role": "Uses lambda=1/c_out^2 so the raw network sees equal initial effective loss weight across noise levels."
+    },
+    {
+      "id": "conditional-nonleaky-augmentation",
+      "role": "Labels geometric transforms during training and requests the zero-transform task during generation."
+    },
+    {
+      "id": "cross-checkpoint-sampler-transfer",
+      "role": "Tests sampler changes on independently trained VP, VE, and discrete iDDPM networks."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Pretrained unconditional CIFAR-10 VP, deterministic sampling",
+      "metric": "Minimum FID and NFE within 3% of each curve's minimum",
+      "result": "Final sampler: FID 2.93 and 35 NFE",
+      "baseline": "Original sampler: FID 2.85 and 256 NFE"
+    },
+    {
+      "setting": "Pretrained unconditional CIFAR-10 VE, deterministic sampling",
+      "metric": "Minimum FID and NFE within 3% of each curve's minimum",
+      "result": "Final sampler: FID 3.73 and 27 NFE",
+      "baseline": "Original sampler: FID 5.45 and 8192 NFE"
+    },
+    {
+      "setting": "Pretrained class-conditional ImageNet-64 iDDPM, deterministic sampling",
+      "metric": "Minimum FID and NFE within 3% of each curve's minimum",
+      "result": "Final sampler: FID 2.64 and 79 NFE",
+      "baseline": "Original DDIM sampler: FID 2.85 and 250 NFE"
+    },
+    {
+      "setting": "Pretrained VP, VE, and ImageNet models, stochastic sampling",
+      "metric": "Minimum FID and NFE within 3% of minimum",
+      "result": "Optimal churn: 2.27/383, 2.23/767, and 1.55/511",
+      "baseline": "Previous stochastic methods: 2.55/768, 2.46/1024, and 2.01/384"
+    },
+    {
+      "setting": "Conditional and unconditional CIFAR-10, 32x32",
+      "metric": "50,000-sample FID with deterministic 35-NFE sampling",
+      "result": "Final VP/VE config: 1.79/1.79 conditional and 1.97/1.98 unconditional",
+      "baseline": "Config A: 2.48/3.11 conditional and 3.01/3.77 unconditional"
+    },
+    {
+      "setting": "Unconditional FFHQ and AFHQv2, 64x64",
+      "metric": "50,000-sample FID with deterministic 79-NFE sampling",
+      "result": "Final VP/VE config: FFHQ 2.39/2.53; AFHQv2 1.96/2.16",
+      "baseline": "Config A: FFHQ 3.39/25.95; AFHQv2 2.58/18.52"
+    },
+    {
+      "setting": "Class-conditional ImageNet-64 model trained from scratch",
+      "metric": "50,000-sample FID",
+      "result": "FID 1.36 with stochastic sampling at 511 NFE; deterministic FID 2.23 at 79 NFE",
+      "baseline": "Prior reported record 1.48; imported ADM originally about 2.07"
+    },
+    {
+      "setting": "VE CIFAR local truncation study and three-model rho sweep",
+      "metric": "Pixel RMSE to a 200-substep Euler reference and FID",
+      "result": "rho about 3 nearly equalizes Heun RMSE; rho=7 is selected for FID robustness",
+      "baseline": "Uniform or lower-rho timestep schedules"
+    },
+    {
+      "setting": "Repeated fixed-noise stochastic iteration on CIFAR and ImageNet",
+      "metric": "Qualitative degradation across 100 to 10,000 iterations and FID-versus-churn sweeps",
+      "result": "Practical networks lose detail, oversaturate, or corrupt; range gating and S_noise greater than one partially help",
+      "baseline": "Analytical denoiser and deterministic sampling"
+    },
+    {
+      "setting": "Reproducibility and resource accounting",
+      "metric": "Released implementation, environment pins, hyperparameters, accelerator use, and energy",
+      "result": "Code/models released; ImageNet training uses 32 Ampere GPUs for two weeks; project reports about 250 MWh",
+      "baseline": "No explicit resource or implementation disclosure"
+    }
+  ],
+  "limitations": [
+    "The component-independence argument is asymptotic in an ideal score and does not remove finite-network interactions.",
+    "The deterministic speedup ratios use a within-3%-of-each-curve criterion rather than a shared absolute FID target.",
+    "Several original-to-reimplementation comparisons include baseline bug fixes, endpoint changes, discrete-level rounding, ignored variance output, or float64 state updates.",
+    "rho=7, sigma endpoints, log-normal noise parameters, sigma_data, and churn controls are empirical choices validated on a small model and dataset suite.",
+    "The local truncation reference is 200 Euler substeps rather than an exact solution and begins with one VE CIFAR model.",
+    "Stochastic churn needs a four-dimensional case-specific grid and degrades under repeated iteration because learned score fields are imperfect.",
+    "Table 2 is cumulative and order-dependent rather than factorial, with large architecture-preconditioning interactions.",
+    "Config B changes several optimizer and systems variables simultaneously and chooses dropout on a one-percentage-point grid.",
+    "Every FID is the minimum of three evaluations, and model snapshots are selected by lowest FID across training.",
+    "Key record claims lack confidence intervals and an independent validation metric after hyperparameter and checkpoint selection.",
+    "FID against all available real images is the only quantitative quality measure.",
+    "No precision/recall, density/coverage, likelihood, human study, memorization audit, privacy audit, or conditional accuracy is reported.",
+    "Training experiments cover only 32x32 or 64x64 image synthesis.",
+    "High-resolution, latent-space, guided, text-conditioned, editing, inverse-problem, and non-image regimes are not directly tested.",
+    "NFE does not normalize architecture FLOPs, attention, numerical precision, memory, latency, or energy.",
+    "The ImageNet state-of-the-art comparison is not matched for parameter count, data exposure, compute, tuning, or sampler cost.",
+    "The augmentation leakage claim is qualitative, and zero conditioning is not a finite-model non-leakage theorem.",
+    "The preconditioning derivation compresses data statistics into one scalar standard deviation and independent component variance.",
+    "The finite-dataset ideal denoiser targets the empirical distribution, so the theory does not itself guarantee generalization beyond training examples.",
+    "Project energy is large, and the ImageNet dataset license is reported as unclear."
+  ],
+  "failure_modes": [
+    "A new architecture has error concentrated at different noise levels, making rho=7 and the fixed log-normal training distribution suboptimal.",
+    "Classifier-free guidance stiffens the ODE and makes a second-order Heun step unstable or inefficient at low NFE.",
+    "A high-resolution or latent decoder changes the perceptual importance of numerical errors, invalidating the low-resolution schedule.",
+    "Grid-tuned churn improves the benchmark FID but transfers poorly to another dataset, guidance scale, checkpoint, or metric.",
+    "Repeated churn follows a non-conservative learned field and progressively oversaturates or erases detail.",
+    "Minimum-of-three FID and best-snapshot selection make a small apparent record disappear under fresh seeds.",
+    "Optimizing only FID hides mode loss, memorization, privacy leakage, semantic errors, or poorer human preference.",
+    "An augmentation-conditioned network partially ignores its code and emits mirrored, translated, or scale-distorted content at zero code.",
+    "The scalar sigma_data preconditioner misnormalizes channels or modalities with heterogeneous covariance and dynamic range.",
+    "A discrete pretrained model rounds several proposed sigma values to duplicates, lowering the effective integrator order.",
+    "Float64 outer integration improves a baseline at high step counts but erases expected wall-time or hardware advantages.",
+    "A nominal NFE improvement uses a much larger denoiser, making actual latency, memory, FLOPs, or energy worse.",
+    "A cumulative ablation attributes an interaction benefit to the last component even though an earlier architecture or optimizer change is necessary.",
+    "The initial sigma_max Gaussian approximation or final sigma_min truncation is inadequate for heavy-tailed or constrained data.",
+    "The denoiser generalizes poorly between noise levels or outside its trained discrete support, breaking continuous ODE assumptions.",
+    "Perceptual schedule tuning on one Inception embedding overfits that representation rather than improving the target distribution."
+  ],
+  "reusable_insights": [
+    "Expose schedules, scaling, parameterization, weighting, and solver choices as separate interfaces before comparing generative systems.",
+    "Test sampler changes on frozen checkpoints from multiple training formulations to distinguish portability from retraining gains.",
+    "Correct baseline implementation errors explicitly and report corrected baselines separately from algorithmic ablations.",
+    "Measure both best quality and a common absolute-quality cost threshold; do not infer a speedup from within-curve thresholds alone.",
+    "Use truncation diagnostics to design a schedule, then separately test whether raw numerical error predicts perceptual error.",
+    "Treat training noise levels as tasks and allocate samples and loss weight according to learnability and downstream consequence.",
+    "Normalize the raw network's inputs, targets, residual amplification, and effective loss before tuning architecture details.",
+    "When stochastic correction helps, diagnose learned-field error directly rather than treating noise injection as universally beneficial.",
+    "Report stochastic sampler grids and transfer tests because optimal randomness is model- and checkpoint-dependent.",
+    "Use transform conditioning to isolate augmentation tasks, and quantify leakage with explicit invariant and equivariant tests.",
+    "Run factorial or randomized ablation orders when component interactions are central to the claim.",
+    "Separate model selection from final evaluation and report all FID replicates rather than their minimum.",
+    "Pair FID with precision/recall, modern representation metrics, human judgments, and memorization/privacy checks.",
+    "Report NFE, FLOPs, wall time, peak memory, accelerator type, and energy as distinct efficiency coordinates.",
+    "Include exact software versions, imported checkpoint identities, numerical precision, licenses, and energy in reproducibility records.",
+    "Stress-test any fixed noise schedule across resolution, modality, guidance, architecture, and training maturity."
+  ],
+  "open_questions": [
+    "Can sampler and training coordinates be made conditionally modular with measurable interaction terms rather than assumed orthogonal?",
+    "What schedule minimizes a preregistered combination of perceptual error, likelihood error, and compute on unseen checkpoints?",
+    "Can rho, sigma endpoints, and solver order be adapted online from local error estimates without FID grid search?",
+    "How should stochasticity be chosen from a measurable non-conservativity or calibration diagnostic of the denoiser field?",
+    "Can a conservative-score regularizer remove churn degradation without harming sample quality?",
+    "Why does stochastic sampling help weak or diverse models but hurt the improved CIFAR models?",
+    "Which training-noise allocation is optimal after accounting for gradient conflict, learning progress, and final sample sensitivity?",
+    "Do covariance-aware or channel-aware preconditioners outperform the scalar sigma_data recipe on heterogeneous modalities?",
+    "How much of config E's gain comes from noise sampling versus effective loss weighting in a full factorial experiment?",
+    "Does zero-coded augmentation remain non-leaky under text, rotation-sensitive, medical, or high-resolution datasets?",
+    "How large is the optimism from minimum-of-three FID, best-checkpoint selection, and dropout grid search under an independent rerun?",
+    "Do the reported rankings persist under DINO-based distances, precision/recall, human preference, and memorization audits?",
+    "What is the true latency and energy frontier after matching architecture FLOPs, precision, batch size, and hardware?",
+    "How do EDM schedules interact with classifier-free guidance, latent decoders, diffusion transformers, and flow-matching paths?",
+    "Can the finite-data denoiser theory separate empirical-distribution fitting from generalization and privacy leakage?",
+    "Which conclusions survive at 256x256, 512x512, video, audio, 3D, molecular, or discrete data?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2011.13456",
+      "title": "Score-Based Generative Modeling through Stochastic Differential Equations",
+      "url": "https://arxiv.org/abs/2011.13456",
+      "relationship": "Foundational continuous-time score-SDE and probability-flow-ODE framework that EDM reframes and uses as its VP and VE baselines.",
+      "difference": "Song et al. derive forward/reverse SDE families, predictor-corrector sampling, likelihoods, and black-box ODE sampling from stochastic-process choices. EDM makes the denoiser, marginal noise, scale, solver, and training coordinates explicit, repairs practical baseline issues, and argues those coordinates should be selected for finite-model performance rather than inherited from the SDE derivation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2011.13456; ICLR 2021"
+    },
+    {
+      "canonical_id": "arxiv:2010.02502",
+      "title": "Denoising Diffusion Implicit Models",
+      "url": "https://arxiv.org/abs/2010.02502",
+      "relationship": "Direct deterministic-sampling precursor and source of the sigma(t)=t, s(t)=1 probability-flow parameterization used by EDM.",
+      "difference": "DDIM constructs a non-Markovian process with the DDPM training objective and obtains deterministic, invertible, accelerated sampling. EDM retains its straightening schedule, replaces first-order/subsampled integration with a power-grid Heun solver, and embeds it in a cross-family design table.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2010.02502; ICLR 2021"
+    },
+    {
+      "canonical_id": "arxiv:2102.09672",
+      "title": "Improved Denoising Diffusion Probabilistic Models",
+      "url": "https://arxiv.org/abs/2102.09672",
+      "relationship": "Primary discrete diffusion baseline for learned variances, cosine noise scheduling, likelihood, precision/recall, and reduced-step sampling.",
+      "difference": "Nichol and Dhariwal improve a discrete DDPM package and retain a variational term and learned reverse variance. EDM maps its cosine levels into continuous sigma coordinates, discards the variance output for its imported ADM sampler, and optimizes denoiser preconditioning and FID rather than likelihood or precision/recall.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2102.09672; ICML 2021"
+    },
+    {
+      "canonical_id": "arxiv:2204.00227",
+      "title": "Perception Prioritized Training of Diffusion Models",
+      "url": "https://arxiv.org/abs/2204.00227",
+      "relationship": "Concurrent direct alternative for allocating diffusion training loss across noise levels.",
+      "difference": "P2 reweights timesteps by signal-to-noise ratio to emphasize perceptually important denoising tasks while holding the sampling distribution conceptually separate. EDM jointly chooses a log-normal training-noise distribution, a variance-derived loss weight, and preconditioning; this joint change is larger but its individual causal contributions are less isolated.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2204.00227; CVPR 2022"
+    },
+    {
+      "canonical_id": "arxiv:2206.00927",
+      "title": "DPM-Solver: A Fast ODE Solver for Diffusion Probabilistic Model Sampling in Around 10 Steps",
+      "url": "https://arxiv.org/abs/2206.00927",
+      "relationship": "Concurrent training-free dedicated high-order solver for the same diffusion probability-flow ODE acceleration problem.",
+      "difference": "DPM-Solver analytically integrates the ODE's linear part and approximates only an exponentially weighted neural-network integral, with convergence-order guarantees and strong 10-to-20-evaluation results. EDM uses the simpler generic second-order Heun rule plus a hand-designed noise grid, prioritizing robustness and a broader training/sampling design recipe over extremely few-step solver specialization.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2206.00927; NeurIPS 2022"
+    },
+    {
+      "canonical_id": "arxiv:2202.00512",
+      "title": "Progressive Distillation for Fast Sampling of Diffusion Models",
+      "url": "https://arxiv.org/abs/2202.00512",
+      "relationship": "Contemporary training-based competitor for reducing hundreds or thousands of sampling evaluations to a few.",
+      "difference": "Salimans and Ho repeatedly distill two deterministic teacher steps into one student step and reach about four steps with little quality loss, paying additional training and changing the model. EDM is training-free when replacing samplers and reaches strong quality at 35 to 79 deterministic NFE, while its own training improvements target final quality rather than explicit distillation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2202.00512; ICLR 2022"
+    },
+    {
+      "canonical_id": "arxiv:2210.02747",
+      "title": "Flow Matching for Generative Modeling",
+      "url": "https://arxiv.org/abs/2210.02747",
+      "relationship": "Concurrent broader formulation of probability paths and vector-field regression that subsumes diffusion paths.",
+      "difference": "Flow Matching trains continuous normalizing flows without simulating a diffusion, permits optimal-transport paths, and reports faster training and sampling with off-the-shelf ODE solvers. EDM remains within Gaussian-mollified denoising score matching and optimizes that design space; flow matching challenges the premise that a diffusion path is the best high-level coordinate.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2210.02747; ICLR 2023"
+    },
+    {
+      "canonical_id": "arxiv:2302.04867",
+      "title": "UniPC: A Unified Predictor-Corrector Framework for Fast Sampling of Diffusion Models",
+      "url": "https://arxiv.org/abs/2302.04867",
+      "relationship": "Later training-free arbitrary-order predictor-corrector competitor focused on fewer than ten evaluations.",
+      "difference": "UniPC adds a corrector after an existing solver without an extra model evaluation and provides unified arbitrary-order predictors, outperforming many prior solvers in very few steps across pixel and latent models. EDM's Heun sampler is lower order and generally uses more NFE, but is simpler and is co-designed with preconditioning and training.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2302.04867; NeurIPS 2023"
+    },
+    {
+      "canonical_id": "pmlr:v202:song23a",
+      "title": "Consistency Models",
+      "url": "https://proceedings.mlr.press/v202/song23a.html",
+      "relationship": "Later one- and few-step generative-model family that amortizes a diffusion ODE trajectory rather than numerically integrating it at inference.",
+      "difference": "Consistency models learn a direct map from any trajectory point to data, either by distilling a pretrained diffusion model or training standalone, and can sample in one step. EDM preserves iterative denoising and offers higher multi-step quality and drop-in sampler compatibility without a teacher-student training stage.",
+      "source_kind": "publisher",
+      "checked_at": "2026-08-23",
+      "source_version": "PMLR 202 (ICML 2023)"
+    },
+    {
+      "canonical_id": "arxiv:2303.09556",
+      "title": "Efficient Diffusion Training via Min-SNR Weighting Strategy",
+      "url": "https://arxiv.org/abs/2303.09556",
+      "relationship": "Later direct alternative to EDM's equalized effective loss and log-normal noise allocation.",
+      "difference": "Min-SNR treats timesteps as conflicting tasks and clamps signal-to-noise-based weights, reporting 3.4x faster convergence and strong ImageNet-256 FID. EDM derives unit initial effective weight and changes the sampling density around intermediate noise, but does not explicitly measure gradient conflict or matched convergence speed.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2303.09556; ICCV 2023"
+    },
+    {
+      "canonical_id": "arxiv:2305.08891",
+      "title": "Common Diffusion Noise Schedules and Sample Steps are Flawed",
+      "url": "https://arxiv.org/abs/2305.08891",
+      "relationship": "Later implementation-focused audit of train-sample endpoint mismatches in common diffusion schedules.",
+      "difference": "Lin et al. require zero terminal SNR, starting at the final trained timestep, v-prediction, and guidance rescaling to fix brightness-range failures. EDM also emphasizes endpoint and implementation correctness, but approximates Gaussian initialization with finite sigma_max and was not evaluated in the high-guidance latent setting where terminal mismatch becomes conspicuous.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2305.08891; WACV 2024"
+    },
+    {
+      "canonical_id": "arxiv:2309.10438",
+      "title": "AutoDiffusion: Training-Free Optimization of Time Steps and Architectures for Automated Diffusion Model Acceleration",
+      "url": "https://arxiv.org/abs/2309.10438",
+      "relationship": "Automated-search alternative to EDM's fixed rho schedule and fixed denoiser architecture at every step.",
+      "difference": "AutoDiffusion uses two-stage evolutionary search over timestep subsequences and per-step subnetworks, directly optimizing approximate FID without retraining. It can discover model-specific few-step schedules, but magnifies the benchmark-overfitting and metric-selection risk that EDM already exposes through hand and grid tuning.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2309.10438; ICCV 2023"
+    },
+    {
+      "canonical_id": "arxiv:2312.02696",
+      "title": "Analyzing and Improving the Training Dynamics of Diffusion Models",
+      "url": "https://arxiv.org/abs/2312.02696",
+      "relationship": "Direct successor, EDM2, from the same research line and the closest evidence about which EDM limitations mattered at scale.",
+      "difference": "EDM2 finds that original EDM's unit initial loss and activation heuristics do not prevent magnitude drift during training, then redesigns learned and fixed layers, effective learning rates, normalization, and post-hoc EMA. Its large improvement on ImageNet-512 validates the modular philosophy while demonstrating that EDM's preconditioning was not sufficient to control later training dynamics.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2312.02696; CVPR 2024"
+    },
+    {
+      "canonical_id": "arxiv:2404.14507",
+      "title": "Align Your Steps: Optimizing Sampling Schedules in Diffusion Models",
+      "url": "https://arxiv.org/abs/2404.14507",
+      "relationship": "Later principled alternative to hand-selecting EDM's rho-power sampling schedule.",
+      "difference": "Align Your Steps derives solver-, checkpoint-, and dataset-specific schedules with stochastic-calculus objectives and improves handcrafted schedules across image, video, and toy data, especially in few-step regimes. It confirms schedule importance but contradicts the idea that one rho=7 grid is generally near-optimal.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2404.14507; NeurIPS 2024"
+    },
+    {
+      "canonical_id": "arxiv:2406.12839",
+      "title": "Evaluating the Design Space of Diffusion-Based Generative Models",
+      "url": "https://arxiv.org/abs/2406.12839",
+      "relationship": "Direct theoretical follow-up that analyzes joint score-training and sampling error for design-space choices.",
+      "difference": "Wang, He, and Tao provide non-asymptotic gradient-descent and VE sampling analysis, qualitatively supporting EDM's noise distribution and loss weighting while predicting that schedule preference depends on how accurately the score is trained. This replaces EDM's broad orthogonality intuition with an explicit training-error and sampler interaction, albeit under simplified theory.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2406.12839; NeurIPS 2024"
+    },
+    {
+      "canonical_id": "arxiv:2306.04675",
+      "title": "Exposing Flaws of Generative Model Evaluation Metrics and Their Unfair Treatment of Diffusion Models",
+      "url": "https://arxiv.org/abs/2306.04675",
+      "relationship": "Primary post-publication evaluation study directly relevant to EDM's exclusive optimization of Inception-v3 FID.",
+      "difference": "Stein et al. compare 17 metrics with large-scale human realism judgments, diversity, rarity, and memorization tests, finding weak human correlation for existing metrics and richer behavior from DINOv2 features. EDM's FID-only minimum selection is therefore insufficient to establish a uniformly better generative distribution, even though its historical benchmark gains remain important.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2306.04675; NeurIPS 2023"
+    },
+    {
+      "canonical_id": "arxiv:2301.13188",
+      "title": "Extracting Training Data from Diffusion Models",
+      "url": "https://arxiv.org/abs/2301.13188",
+      "relationship": "Primary privacy and memorization evidence missing from FID-centered diffusion evaluation.",
+      "difference": "Carlini et al. extract more than a thousand memorized examples from state-of-the-art diffusion models and study how modeling and data choices affect leakage. EDM's finite empirical-denoiser derivation and training-set FID do not distinguish distribution learning from memorization, so its evaluation recipe should be paired with exposure and nearest-neighbor audits.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2301.13188; USENIX Security 2023"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim a unified and modular design space for score-based diffusion models, a broadly portable deterministic and stochastic sampler, principled denoiser preconditioning and training-noise/loss choices, non-leaky augmentation, substantially reduced sampling cost, and state-of-the-art CIFAR-10 and ImageNet-64 FID.",
+    "evidence": "The work genuinely changed diffusion practice: it derives VP, VE, iDDPM, and DDIM in one implementable denoiser interface; demonstrates sampler transfer across three frozen model families; identifies an effective Heun-plus-power-grid recipe; provides an unusually candid analysis of stochastic score-field failure; derives a stable preconditioner; and obtains consistent config-E and config-F improvements across two architectures and four datasets. The released code and full hyperparameter disclosure made the recipe reusable, and later EDM2, flow-matching, Min-SNR, optimized schedules, and theoretical design-space papers directly build on or refine these coordinates. The strongest caveats are that component independence is idealized, baseline repairs contaminate some comparisons, the ablation ladder is not factorial, churn and dropout are tuned per case, FID values are repeated minima with best-checkpoint selection, only FID and low-resolution images are evaluated, and the ImageNet record is compute-unmatched and stochastic at high NFE.",
+    "reviewer_inference": "Very high novelty and enduring impact for abstraction, implementation discipline, and co-design of training and sampling. The defensible claim is not that diffusion components are empirically independent or that rho=7 and the full recipe are universally optimal; it is that their dependencies can be exposed as explicit interfaces and tested separately enough to enable rapid progress. A modern successor should model interactions, choose schedules on held-out checkpoints, separate selection from evaluation, report multi-metric uncertainty and privacy, match actual resource costs, and validate across guidance, latent high resolution, diffusion transformers, flow paths, and non-image data."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Read all 47 extracted pages, including the complete main paper, every formula derivation, the VP/VE/iDDPM implementation mappings, Tables 1-8, Figures 1-15, the local truncation study, stochastic degradation study and four-dimensional grid, FID protocol, full training configurations, architecture details, resource disclosure, and licenses. I independently reconciled the headline speedups with Table 3's within-each-curve 3% rule, the 1.55 ImageNet example with its 1023-NFE displayed sample and 511-NFE threshold, and the 1.36 record with stochastic rather than 79-NFE deterministic sampling. I also audited minimum-of-three FID, best-of-roughly-80 snapshot selection, and dropout grid search as compounding selection effects. Competitive work was checked against primary arXiv, PMLR, CVF, NeurIPS, and OpenReview records through 2026-08-23, including solver, distillation, flow, loss-weighting, automated schedule, EDM2, theory, evaluation, and privacy follow-ups."
+}

@@ -1,0 +1,175 @@
+{
+  "stable_id": "arxiv:2411.16085",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2411.16085",
+    "pdf_sha256": "0b429a474de51b1de5e85f4fc1e8c8f42285b93cdd7f6e33fee2f89e5cc632a7",
+    "text_sha256": "5d322ab576bf0df07a3cfd5467d89963e82bd8e516b6cf587ad5c5233874c589",
+    "page_count": 26,
+    "extracted_at": "2026-08-23T17:37:35.818425+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Does masking momentum coordinates that oppose the current gradient make standard optimizers more stable and efficient without destroying their Lyapunov convergence structure?",
+  "key_findings": [
+    {
+      "claim": "The cautious rule removes update coordinates whose current momentum direction would locally increase loss, then rescales the surviving coordinates to preserve update magnitude.",
+      "evidence": "For update u and gradient g, the default mask is I(u*g>0), with scale dimension/(active count+1). It is applied after AdamW's moment normalization and before decoupled weight decay, and the paper provides analogous wrappers for Lion and other momentum methods.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 1, "section": "Algorithm 1"},
+        {"page": 2, "section": "sign-consistency mask and Equation 1"},
+        {"page": 3, "section": "Algorithm 2 Cautious AdamW"},
+        {"page": 21, "section": "Algorithm 3 C-Lion"}
+      ]
+    },
+    {
+      "claim": "In continuous time, suitable masks make both the original Hamiltonian and the actual loss nonincreasing and retain stationary-point convergence for bounded trajectories.",
+      "evidence": "Theorem 2.1 derives the time derivatives under masked Hamiltonian+descent dynamics. Its sufficient elementwise condition upweights aligned coordinates by at least one and assigns nonpositive weight to opposed coordinates; Corollary 2.2 then transfers stationary-point convergence under positive-definiteness and differentiability assumptions.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "2.1 Hamiltonian+Descent"},
+        {"page": 4, "section": "2.2 Cautious Dynamics, Theorem 2.1"},
+        {"page": 5, "section": "Corollary 2.2"},
+        {"page": 16, "section": "A.3 Cautious Adam, Signed Momentum, and Lion"}
+      ]
+    },
+    {
+      "claim": "Empirical gains are consistent but modest at the larger LLM scales, while broader experiments suggest the wrapper is not Adam-specific.",
+      "evidence": "At 130M-1.2B parameters and 1x Chinchilla, C-AdamW improves perplexity by 0.10-1.00 percent. The 1.2B checkpoint wins five of seven downstream point estimates, Mini-ImageNet cautious variants improve AdamW/LaProp/MARS top-1, and appendices report gains for Muon, instruction tuning, PPO, and masked-autoencoder pretraining.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "3.2 100M LLM pretraining"},
+        {"page": 8, "section": "Tables 2-4 scaling, downstream, and vision"},
+        {"page": 24, "section": "E.2-E.4 batch size, Muon, and post-training"},
+        {"page": 25, "section": "Figure 10-11 post-training and MAE"}
+      ]
+    },
+    {
+      "claim": "The theory does not prove multi-step acceleration of the implemented C-AdamW, and the experiments do not isolate the wrapper from tuning and stochastic variance strongly enough to justify universal dominance.",
+      "evidence": "Theorem 2.3 compares only one discrete step under a step-size bound, and the authors explicitly state multi-step comparison admits counterexamples. Separate coordinate-descent searches choose different AdamW and C-AdamW hyperparameters by scale, downstream gains are often smaller than reported standard errors, and no multi-seed pretraining variance is reported. The default +1 scale can also be slightly below the continuous theorem's alpha>=1 sufficient condition when all coordinates are active.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "2.3 Discrete-Time Analysis and multi-step caveat"},
+        {"page": 8, "section": "Tables 2-3"},
+        {"page": 22, "section": "Tables 5-6 optimizer-specific hyperparameter search"},
+        {"page": 26, "section": "training efficiency and throughput"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Treat momentum as useful stored kinetic energy but reject coordinatewise components that currently point uphill, yielding a generic wrapper around momentum-based optimizers.",
+    "mechanism": "The base optimizer computes an update from its state. The wrapper multiplies it by a current-gradient sign-agreement mask and divides by the active fraction. Hamiltonian+descent analysis shows when this reweighting preserves the augmented Lyapunov function while making the raw objective descend; smoothness bounds give local discrete-time comparisons.",
+    "assumptions": [
+      "The current minibatch gradient is a sufficiently useful sign test for whether a momentum coordinate is locally harmful.",
+      "Base dynamics admit the specified separable Hamiltonian+descent representation and bounded trajectories.",
+      "Step sizes and mask scaling satisfy continuous- or discrete-time sufficient conditions.",
+      "Coordinatewise masking is meaningful in the chosen parameter basis despite reparameterization dependence."
+    ]
+  },
+  "techniques": [
+    {"id": "gradient-momentum-sign-mask", "role": "Zeroes coordinates where the proposed momentum update opposes the current gradient."},
+    {"id": "active-fraction-rescaling", "role": "Compensates for the update norm removed by masking."},
+    {"id": "hamiltonian-descent-transfer", "role": "Reuses a base optimizer's Lyapunov structure to analyze the cautious variant."},
+    {"id": "single-step-smoothness-comparison", "role": "Bounds cautious versus base loss after one update from the same state."},
+    {"id": "optimizer-wrapper-ablation", "role": "Tests the same principle across AdamW, Lion, LaProp, MARS, Muon, and Polyak momentum."}
+  ],
+  "evaluations": [
+    {
+      "setting": "A two-dimensional condition-number-four quadratic with Polyak momentum.",
+      "metric": "Objective/Hamiltonian trajectories and fitted convergence-rate heatmaps over learning rate and momentum.",
+      "result": "Cautious variants reduce overshoot, remain monotone in the objective, and obtain better tuned rates than GDM in the reported sweep.",
+      "baseline": "Gradient descent and optimally parameterized gradient descent with momentum."
+    },
+    {
+      "setting": "100M LLaMA on C4 for 50B tokens and 130M-1.2B LLaMA-like models on FineWeb-Edu at 1x Chinchilla.",
+      "metric": "Validation perplexity, learning-rate robustness, and seven downstream benchmark scores.",
+      "result": "C-AdamW/C-Lion improve the reported best perplexities; scale-sweep relative improvement is 0.10-1.00 percent, and C-AdamW wins five of seven downstream point estimates.",
+      "baseline": "Separately tuned AdamW and Lion."
+    },
+    {
+      "setting": "Mini-ImageNet ViT classification plus appendix MAE ImageNet-1K, instruction tuning, PPO RLHF, batch-size, scheduler, and preliminary Muon studies.",
+      "metric": "Top-1 accuracy, reconstruction loss, training loss/reward, or perplexity depending on task.",
+      "result": "Every reported cautious wrapper improves its paired point estimate, though several appendix studies are preliminary or lack uncertainty reporting.",
+      "baseline": "AdamW, LaProp, MARS, and Muon without cautious masking."
+    },
+    {
+      "setting": "100M LLM distributed training throughput.",
+      "metric": "Tokens per second and wall-clock time.",
+      "result": "Naive C-AdamW is reported within roughly 2-3 percent throughput of fused AdamW, with similar wall-clock in a separate table.",
+      "baseline": "Fused PyTorch AdamW."
+    }
+  ],
+  "limitations": [
+    "Author-stated: discrete theory cannot extend the one-step dominance result to arbitrary multi-step trajectories, and strict rate improvement remains future work.",
+    "Author-stated: eigenspace masking, reinforcement learning, and continual learning are not covered by the main study.",
+    "Reviewer inference: coordinatewise sign masking is parameterization dependent and can discard curvature-beneficial motion that temporarily raises minibatch loss.",
+    "Reviewer inference: separate hyperparameter selection and sparse seed/statistical reporting make the small large-scale gains difficult to attribute confidently."
+  ],
+  "failure_modes": [
+    "Noisy minibatch gradients can flip signs and suppress useful momentum coordinates, especially at small batch sizes or near flat minima.",
+    "Mask rescaling amplifies a small surviving subset and can create high-variance or large coordinate updates when alignment is sparse.",
+    "A coordinate basis rotation changes which components are masked even when the underlying optimization problem is unchanged.",
+    "Monotonic short-term training loss can trade away exploration, flat-minimum selection, or downstream generalization."
+  ],
+  "reusable_insights": [
+    "Optimizer state can be filtered against fresh gradient information without redesigning the state estimator itself.",
+    "Distinguish preservation of a Lyapunov certificate, one-step local descent, multi-step rate improvement, and end-task generalization; they are separate claims.",
+    "Generic optimizer wrappers should be tested across bases, batch noise levels, schedules, and paired hyperparameter budgets.",
+    "Report system overhead alongside sample efficiency because a small loss gain may be erased by an unfused elementwise wrapper."
+  ],
+  "open_questions": [
+    "Can masking in a curvature or matrix singular-vector basis yield reparameterization-robust benefits over coordinate masking?",
+    "What stochastic convergence or regret guarantee captures sign errors from minibatch gradients and active-fraction rescaling?",
+    "Do cautious optimizers retain their gains under equal tuning FLOPs, many seeds, fused kernels, and fixed wall-clock budgets at tens of billions of parameters?",
+    "When does permitting temporary loss increase improve basin exploration or downstream generalization enough to beat cautious monotonicity?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2411.02853",
+      "title": "ADOPT: Modified Adam Can Converge with Any Beta2 with the Optimal Rate",
+      "url": "https://arxiv.org/abs/2411.02853",
+      "relationship": "direct Adam modification competitor",
+      "difference": "ADOPT changes the ordering of normalization and momentum to obtain stochastic convergence for broad second-moment decay choices; Cautious preserves the base state equations and masks locally opposed coordinates.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2409.11321",
+      "title": "SOAP: Improving and Stabilizing Shampoo using Adam",
+      "url": "https://arxiv.org/abs/2409.11321",
+      "relationship": "competing LLM optimizer",
+      "difference": "SOAP performs Adam-like updates in Shampoo's evolving eigenbasis to exploit matrix curvature, paying matrix-state/rotation cost; Cautious is a cheap parameter-basis wrapper and explicitly leaves eigenspace masking open.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2411.10438",
+      "title": "MARS: Unleashing the Power of Variance Reduction for Training Large Models",
+      "url": "https://arxiv.org/abs/2411.10438",
+      "relationship": "competing momentum framework",
+      "difference": "MARS reduces stochastic-gradient variance through recursive momentum and supports AdamW/Lion/Shampoo preconditioners; the reviewed wrapper instead suppresses disagreement between current gradient and accumulated update and is directly evaluated on top of MARS.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2502.16982",
+      "title": "Muon is Scalable for LLM Training",
+      "url": "https://arxiv.org/abs/2502.16982",
+      "relationship": "post-submission matrix-optimizer competitor",
+      "difference": "Muon orthogonalizes matrix updates and reports about twofold compute efficiency with models trained into the trillions of tokens; Cautious reports only a preliminary small-scale C-Muon result and much smaller AdamW gains at its largest main scale.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims a one-line, optimizer-agnostic momentum mask that preserves Hamiltonian convergence guarantees and consistently accelerates practical training.",
+    "evidence": "It derives continuous-time sufficient conditions and local discrete-time bounds, then wraps multiple optimizers across language, vision, post-training, and toy experiments.",
+    "reviewer_inference": "The sign-agreement wrapper is unusually simple and broadly reusable, with convincing evidence of a small consistent effect. The paper establishes neither general multi-step acceleration nor a decisive large-scale advantage over tuned AdamW or newer matrix optimizers."
+  },
+  "confidence": 0.96,
+  "reviewer_notes": "Read all 26 extracted pages, including Hamiltonian derivations, discrete proofs, optimizer instantiations, main scaling tables, downstream results, hyperparameter grids, mask ratios, scheduler/batch/Muon/post-training/MAE appendices, and throughput accounting. Primary arXiv competitor records were checked on 2026-08-23."
+}

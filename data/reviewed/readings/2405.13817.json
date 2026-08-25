@@ -1,0 +1,90 @@
+{
+  "stable_id": "arxiv:2405.13817",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2405.13817",
+    "pdf_sha256": "dbae086f9ce74906493d902dd8400f98fa1a1a8f4fd35ebacf1a91f55e66081c",
+    "text_sha256": "a977924abaf2511929a49e098b4ef293d68785492188d6f8a71d4beb1c8ca6d8",
+    "page_count": 17,
+    "extracted_at": "2026-08-23T18:02:22.814603+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a stochastic thermodynamic processing unit solve the curvature linear system in natural-gradient descent cheaply enough to make second-order optimization practical?",
+  "key_findings": [
+    {
+      "claim": "Thermodynamic Natural Gradient Descent (TNGD) maps the generalized-Gauss-Newton or Fisher solve to the equilibrium mean of an analog stochastic dynamical system.",
+      "evidence": "The proposed SPU evolves an Ornstein-Uhlenbeck process dx = -(Ax-b)dt plus thermal noise; averaging equilibrium samples estimates A^{-1}b, while a digital accelerator still computes Jacobians, loss curvature, and gradients.",
+      "anchors": [{"page": 3, "section": "2, Natural Gradient Descent"}, {"page": 4, "section": "3, Thermodynamic Linear Algebra"}]
+    },
+    {
+      "claim": "Analog evolution time provides a continuous optimizer family between an ordinary gradient-like update and a natural-gradient update.",
+      "evidence": "At zero physical evolution time the state has not incorporated curvature, whereas long evolution approaches the inverse-curvature solution; the paper also delays uploaded gradient/curvature states and interprets the lag as a momentum-like effect.",
+      "anchors": [{"page": 5, "section": "4, TNGD algorithm"}, {"page": 6, "section": "4.1, finite-time and delayed variants"}]
+    },
+    {
+      "claim": "The favorable complexity claim moves the dense linear-solve cost into a physical-time term, but it is conditional on an available SPU of sufficient size and precision.",
+      "evidence": "The complexity table assigns TNGD O(b d_z N + t) work and O(b d_z N + b^2 d_z^2) memory, contrasting it with cubic dense NGD and iterative or Woodbury alternatives; the displayed approximately 100x advantage is an estimate over selected dimensions, not a measured hardware benchmark.",
+      "anchors": [{"page": 7, "section": "5, Computational Complexity"}, {"page": 8, "section": "Figure 2 and runtime estimates"}]
+    },
+    {
+      "claim": "Simulated learning curves are encouraging but mixed: hybrid TNGD-Adam improves short-run SQuAD fine-tuning while bare TNGD underperforms Adam there.",
+      "evidence": "MNIST simulations suggest fewer iterations to target loss despite a projected roughly twofold per-iteration cost versus Adam. In DistilBERT LoRA fine-tuning on SQuAD, the combined method is best in the shown short horizon, but TNGD alone trails Adam.",
+      "anchors": [{"page": 9, "section": "6.1, MNIST"}, {"page": 11, "section": "6.2, DistilBERT on SQuAD"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Offload the damped Fisher/GGN linear solve in natural-gradient optimization to a noisy analog dynamical system whose stationary mean is the desired preconditioned gradient.",
+    "mechanism": "Compute minibatch Jacobian and curvature factors digitally, program their linear-system coefficients into a simulated SPU, evolve and average its stochastic state for a chosen physical time, then apply the resulting approximate natural-gradient direction alone or through Adam.",
+    "assumptions": [
+      "A scalable programmable thermodynamic processor can realize the required positive-definite dynamics.",
+      "Programming, communication, equilibration, and sample-averaging overhead fit within the abstract physical-time cost.",
+      "Analog noise and finite precision leave the optimizer direction accurate enough for learning.",
+      "Small-batch Fisher/GGN curvature is a useful preconditioner for the evaluated networks."
+    ]
+  },
+  "techniques": [
+    {"id": "thermodynamic-linear-solve", "role": "Estimates an inverse-curvature vector through equilibrium sampling rather than digital matrix inversion."},
+    {"id": "finite-time-preconditioning", "role": "Tunes analog evolution to interpolate between first- and second-order updates."},
+    {"id": "delayed-curvature-state", "role": "Reuses lagged programmed matrices to reduce updates and introduce momentum-like dynamics."},
+    {"id": "tngd-adam-hybrid", "role": "Feeds thermodynamically preconditioned directions into adaptive first-order state updates."}
+  ],
+  "evaluations": [
+    {"setting": "Analytical complexity across batch, output, and parameter dimensions", "metric": "Asymptotic operations and memory", "result": "TNGD is tabulated as O(b d_z N + t) work with no digital cubic solve", "baseline": "Dense NGD O(N^3 + b d_z N^2), conjugate-gradient, and Woodbury variants"},
+    {"setting": "Projected optimizer runtime over selected model dimensions", "metric": "Estimated wall-clock cost", "result": "The paper estimates up to roughly 100x advantage over examined second-order alternatives in favorable intermediate-output regimes", "baseline": "Digital exact and approximate natural-gradient implementations"},
+    {"setting": "MNIST neural-network training with a simulated SPU", "metric": "Loss/accuracy versus iteration and projected time", "result": "TNGD needs fewer displayed iterations to reach target performance; its per-iteration time is projected at about 2x Adam", "baseline": "SGD and Adam"},
+    {"setting": "DistilBERT LoRA fine-tuning on SQuAD", "metric": "Short-horizon training objective and task score", "result": "TNGD-Adam is best in the shown horizon, while bare TNGD is worse than Adam", "baseline": "Adam and TNGD alone"}
+  ],
+  "limitations": [
+    "All SPU behavior is simulated; no scaled physical device measures end-to-end optimizer throughput.",
+    "Reported speedups depend on projected hardware constants and abstract away programming and communication bottlenecks.",
+    "Analog precision, calibration drift, thermal sampling variance, and matrix-conditioning limits are not validated at model scale.",
+    "Empirical scope is MNIST plus a short DistilBERT LoRA/SQuAD experiment.",
+    "Bare TNGD does not beat Adam in the language-model experiment, making the source of the hybrid gain ambiguous."
+  ],
+  "failure_modes": [
+    "Ill-conditioned curvature can require equilibration or averaging time that erases the physical speed advantage.",
+    "Uploading a new dense system every step can dominate analog evolution time.",
+    "SPU dimension or precision limits can force block approximations with K-FAC-like bias.",
+    "Noisy inverse-curvature directions can destabilize training when damping is too small.",
+    "Adaptive outer-loop state may account for hybrid gains rather than thermodynamic preconditioning."
+  ],
+  "reusable_insights": [
+    "Evaluate analog optimizers end to end, including matrix construction, programming, sampling, and communication.",
+    "Use finite physical evolution as a tunable bias-cost continuum rather than insisting on a fully converged solve.",
+    "Always compare the physical solver against strong structured and matrix-free curvature approximations at equal task quality."
+  ],
+  "open_questions": [
+    "What device size, precision, and bandwidth are required to beat GPU K-FAC or matrix-free methods end to end?",
+    "How does thermodynamic solve error interact with damping and curvature condition number during large-model training?",
+    "Does TNGD-Adam retain an advantage on full pretraining or longer fine-tuning after matched hyperparameter searches?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:1503.05671", "title": "Optimizing Neural Networks with Kronecker-factored Approximate Curvature", "url": "https://arxiv.org/abs/1503.05671", "relationship": "primary structured-curvature competitor", "difference": "K-FAC makes Fisher blocks cheaply invertible using Kronecker structure on digital hardware; TNGD targets a less structurally restricted linear solve by moving inversion into analog stochastic dynamics."},
+    {"canonical_id": "arxiv:2101.00218", "title": "An iterative K-FAC algorithm for Deep Learning", "url": "https://arxiv.org/abs/2101.00218", "relationship": "matrix-free iterative competitor", "difference": "CG-FAC applies conjugate gradients without materializing the Fisher or Kronecker factors; TNGD replaces digital iterations with physical equilibration but requires specialized hardware and sampling."},
+    {"canonical_id": "arxiv:1905.10961", "title": "Fast Convergence of Natural Gradient Descent for Overparameterized Neural Networks", "url": "https://arxiv.org/abs/1905.10961", "relationship": "natural-gradient convergence theory", "difference": "Zhang et al. prove convergence conditions for NGD and K-FAC in overparameterized networks; the reviewed work contributes a proposed hardware route to the linear solve rather than a comparable large-model convergence guarantee."},
+    {"canonical_id": "arxiv:2210.08494", "title": "Brand New K-FACs: Speeding up K-FAC with Online Decomposition Updates", "url": "https://arxiv.org/abs/2210.08494", "relationship": "later efficient-digital competitor", "difference": "Online decomposition updates reduce K-FAC preconditioning complexity on conventional processors and report CIFAR timing; TNGD promises a more general analog solve but currently supports its wall-clock claims through simulation and projection."}
+  ],
+  "novelty_assessment": "The novel idea is the hybrid digital-thermodynamic realization of a natural-gradient linear solve and the use of physical evolution time as an optimizer knob. The work should not yet be interpreted as demonstrating a hardware speedup: the device is simulated, end-to-end costs are projected, and bare TNGD loses to Adam in its language-model test.",
+  "confidence": 0.92,
+  "reviewer_notes": "Read the algorithm derivation, complexity comparison, runtime projections, MNIST and DistilBERT experiments, and implementation appendices. Primary arXiv records for K-FAC, matrix-free curvature, NGD theory, and later online K-FAC were checked on 2026-08-23."
+}

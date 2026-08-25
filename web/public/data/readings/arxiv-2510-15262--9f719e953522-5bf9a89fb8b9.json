@@ -1,0 +1,75 @@
+{
+  "stable_id": "arxiv:2510.15262",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2510.15262",
+    "pdf_sha256": "55ac08f41e175fb7d03052f0772c8c3fd8336f41c2dd8a8b3d1afe64ac187aef",
+    "text_sha256": "f8b1dbc9ea6e4bf74c40ea6f8667c8cf9651a4c5762497fd282c359d31bf20de",
+    "page_count": 17,
+    "extracted_at": "2026-08-23T14:37:47.803473+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "How should AdamW weight decay scale with Transformer width so that maximal-update parameterization transfers useful hyperparameters after training has entered an optimizer-governed steady state?",
+  "key_findings": [
+    {
+      "claim": "At fixed width, the paper reports that AdamW's final matrix singular-value spectra change mainly by an overall factor proportional to the square root of learning rate divided by weight decay, while their shapes remain approximately fixed.",
+      "evidence": "In width-512 LLaMA-style runs on FineWeb, proportionally scaling learning rate and decay nearly overlays the FFN spectra and sublayer gains; doubling decay reduces both by roughly the predicted square-root factor.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 6, "section": "4.1 Matching Weight Matrix Spectra under Fixed Model Width"}, {"page": 7, "section": "Fact F1"}]
+    },
+    {
+      "claim": "Combining the empirical width exponent with the matrix-like muP learning-rate rule yields the proposed square-root weight-decay rule.",
+      "evidence": "The measured top singular value behaves approximately as sqrt(eta/lambda) times d^0.75. With eta proportional to d^-1, matching spectra therefore gives lambda proportional to sqrt(d); vector-like parameters retain constant learning rate and zero decay.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 7, "section": "4.2 Matching Spectra Induces Sublayer Gain Invariance"}, {"page": 8, "section": "Fact F2 and Table 2"}]
+    },
+    {
+      "claim": "The rule aligns empirical learning-rate and weight-decay optima from 19M to roughly 500M parameters, but this is a bounded-width transfer study rather than evidence for asymptotic or frontier-scale universality.",
+      "evidence": "LLaMA-style models of widths 256 through 2048 are trained for 20,000 steps and show aligned minima after rescaling. The largest stated model is about 500M parameters, all runs use one architecture family, one dataset family, and AdamW.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 8, "section": "4.3 Tuning Weight Decay Enables Hyperparameter Transfer"}, {"page": 9, "section": "Figure 3 and scaling strategies"}]
+    },
+    {
+      "claim": "A minimal random-data two-layer FFN reproduces spectral alignment under the same square-root rule, supporting an architectural explanation but not deriving the observed 0.75 exponent.",
+      "evidence": "Across widths 256 to 2048 and 20,000 steady-state steps, the synthetic model aligns top singular spectra when eta scales as 1/d and lambda as sqrt(d). The result is empirical; no theorem establishes why the exponent must be 0.75 in Transformers.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 10, "section": "5 Illustrative Example of Sqrt Weight Decay Scaling"}, {"page": 11, "section": "6 Conclusion"}]
+    },
+    {
+      "claim": "Learning rate and decay form a near-optimal ridge, so the proposed practical workflow can reduce a two-dimensional sweep to one dimension after selecting a reference decay.",
+      "evidence": "The FineWeb loss surface shows nearly equal final losses along a diagonal ridge: increasing decay requires decreasing learning rate. The authors suggest tuning a one-dimensional learning-rate sweep and transferring the pair by the layerwise rule.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 9, "section": "4.4 Tradeoff between Learning Rate and Weight Decay"}, {"page": 10, "section": "Figure 4 discussion"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Use terminal matrix spectra and sublayer gain, rather than only near-initialization update size, as invariants for width transfer.",
+    "mechanism": "Measure optimizer steady-state singular spectra across learning-rate, decay, and width sweeps; fit the width dependence of the top singular value; combine it with muP's tensor-class learning-rate scaling; then validate the resulting parameter-class decay prescription on language models and a synthetic FFN.",
+    "assumptions": ["AdamW training reaches a rotational or norm steady state", "Spectral shape is approximately invariant when eta/lambda is scaled", "The measured d^0.75 alignment factor transfers beyond the tested LLaMA/FineWeb regime", "Vector-like tensors can use zero weight decay"]
+  },
+  "techniques": [
+    {"id": "spectral-gain-matching", "role": "Uses complete matrix singular spectra and input-output RMS gain as width-invariance diagnostics."},
+    {"id": "tensor-class-hyperparameters", "role": "Assigns distinct learning-rate and decay scalings to vector-like and matrix-like parameters."},
+    {"id": "proxy-to-target-transfer", "role": "Tunes a small reference model and deterministically rescales the selected hyperparameters at target width."}
+  ],
+  "evaluations": [
+    {"setting": "LLaMA-style models on FineWeb, widths 256 to 2048, 20,000 steps", "metric": "validation-loss optimum and spectrum/gain alignment", "result": "rescaled learning-rate and decay minima approximately align across the tested widths", "baseline": "fixed, linear, and other width-dependent decay rules"},
+    {"setting": "Two-layer random-data FFN, widths 256 to 2048", "metric": "top singular-value alignment and RMS weight steady state", "result": "lambda proportional to sqrt(d) aligns spectral heads under eta proportional to 1/d", "baseline": "alternative decay exponents"}
+  ],
+  "limitations": [
+    "Author-stated/concurrent-work context: the main width exponent is empirical and another contemporary study obtains norm alignment by changing batch size rather than explicit decay.",
+    "Reviewer inference: testing ends near 500M parameters and does not vary depth, architecture family, optimizer, token budget, or data distribution independently.",
+    "Reviewer inference: matching the top of the spectrum is a diagnostic, not a proof that all functional dynamics or final generalization transfer."
+  ],
+  "failure_modes": ["The d^0.75 factor may shift with depth, attention geometry, batch size, schedule, or non-AdamW optimizers.", "A proxy may match spectral gain while diverging in optimization stability or feature-learning quality at target scale.", "Zero decay for all vector-like parameters may be inappropriate in architectures whose embeddings or normalization gains overfit."],
+  "reusable_insights": ["Separate initialization-controlled and optimizer-steady-state scaling regimes.", "A layerwise invariant can turn expensive target-scale sweeps into falsifiable proxy diagnostics.", "Inspect spectra rather than relying on a single Frobenius or operator norm when tail shape matters."],
+  "open_questions": ["Can the 0.75 exponent be derived from a stochastic or random-matrix model of normalized Transformers?", "Does the rule transfer jointly across width and depth at multi-billion-parameter scale?", "Which spectral statistic best predicts functional transfer before completing target training?"],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2203.03466", "title": "Tensor Programs V: Tuning Large Neural Networks via Zero-Shot Hyperparameter Transfer", "url": "https://arxiv.org/abs/2203.03466", "relationship": "foundational prior", "difference": "muP supplies near-initialization tensor-wise learning-rate and parameterization rules; the reviewed paper adds an empirical steady-state weight-decay correction tied to spectra.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv record checked 2026-08-23"},
+    {"canonical_id": "arxiv:2405.13698", "title": "How to set AdamW's weight decay as you scale model and dataset size", "url": "https://arxiv.org/abs/2405.13698", "relationship": "direct prior", "difference": "Wang and Aitchison derive decay scaling from an EMA-timescale view and advocate model/data-size rules; the reviewed paper instead targets width-invariant sublayer spectra and obtains a square-root law.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv record checked 2026-08-23"},
+    {"canonical_id": "arxiv:2305.17212", "title": "Rotational Equilibrium: How Weight Decay Balances Learning Across Neural Networks", "url": "https://arxiv.org/abs/2305.17212", "relationship": "mechanistic prior", "difference": "Rotational Equilibrium characterizes norm and angular steady states across optimizers; the reviewed work uses that regime to formulate a width-transfer prescription for AdamW matrix spectra.", "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "arXiv record checked 2026-08-23"}
+  ],
+  "novelty_assessment": {"author_claim": "The paper claims the first square-root AdamW decay rule that preserves steady-state sublayer gain under muP width scaling.", "evidence": "Its controlled sweeps connect sqrt(eta/lambda), an empirical d^0.75 spectral factor, and lambda proportional to sqrt(d), then test proxy-to-target transfer.", "reviewer_inference": "The novel contribution is a useful empirical spectral rule and diagnostic, not a universal scaling law: closest prior work already studies decay scaling and rotational equilibrium, and the unexplained exponent is established only in a narrow regime."},
+  "confidence": 0.91,
+  "reviewer_notes": "Read against the complete 17-page extraction. Quantitative statements above are author-reported unless explicitly labeled reviewer inference or contradiction audit. Primary-source competitor records were checked on 2026-08-23."
+}

@@ -1,0 +1,380 @@
+{
+  "stable_id": "arxiv:2603.08343",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2603.08343",
+    "pdf_sha256": "5e3446e709a402b1d02de963a0b21a54de15c9bb28afecf4cb269b9f4d4308e3",
+    "text_sha256": "b30ea4c576bcd83967ab71e971e6d62ffeb72796f447be2acdcdbd19bb934e0a",
+    "page_count": 10,
+    "extracted_at": "2026-08-23T11:56:31.717933+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can the dense d-by-d output projection of multi-head attention be replaced by a fixed Walsh-Hadamard transform plus a learned coordinate-wise affine map, reducing parameters and output-projection arithmetic while retaining language-model quality and improving measured H100 inference efficiency?",
+  "key_findings": [
+    {
+      "claim": "The proposed output map is a fixed orthonormal Walsh-Hadamard mixing followed by learned diagonal scale and bias, not a fully learned Hadamard transform.",
+      "evidence": "For concatenated head output Y, the paper defines O = alpha elementwise-multiplied by (Y H) + beta, with H = H_d/sqrt(d), H^T H = I, and only alpha,beta in R^d learned; Q, K, and V projections remain dense and unchanged.",
+      "attribution": "author-reported",
+      "anchors": [
+        { "page": 4, "section": "4.1 Architecture Overview, Eq. (1)" },
+        { "page": 4, "section": "4.2 Parameter Efficiency Analysis" }
+      ]
+    },
+    {
+      "claim": "The introduction's description of a 'learned Hadamard transformation' overstates what is learned: the transform matrix is fixed and parameter-free, while only the post-transform affine vectors are optimized.",
+      "evidence": "Page 1 calls the replacement a learned Hadamard transformation, whereas the abstract and Sections 4.1-4.2 explicitly call H fixed/parameter-free and identify alpha and beta as the trainable quantities.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        { "page": 1, "section": "1 Introduction" },
+        { "page": 4, "section": "4.1 Architecture Overview, Eq. (1)" }
+      ]
+    },
+    {
+      "claim": "The paper is internally inconsistent about the number of new trainable parameters per attention block.",
+      "evidence": "Equation (3) reports 3d^2 + d attention parameters after replacement, counting only one learned vector, but Eq. (1) learns both alpha and beta and Table 1 reports 2d WHT projection parameters. The formula implied by the stated mechanism is therefore 3d^2 + 2d unless beta is fixed, which the text does not say.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        { "page": 4, "section": "4.2 Parameter Efficiency Analysis, Eq. (3)" },
+        { "page": 5, "section": "Table 1: dense versus Hadamard projection comparison" }
+      ]
+    },
+    {
+      "claim": "The advertised approximately 25% parameter elimination applies to the four attention projections, not to the complete Transformer; the reported whole-model reductions are about 5.7-7.7%.",
+      "evidence": "Table 2 changes Tiny 124M to 117M (-7.1M, 5.7%), Small 354M to 329M (-25.1M, 7.1%), Base 757M to 701M (-56.6M, 7.5%), and Large 1.3B to 1.2B (-100.6M, about 7.7%). The 25% derivation compares d^2 removed from Q/K/V/O's approximately 4d^2 projection parameters.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        { "page": 4, "section": "4.2 Parameter Efficiency Analysis, Eqs. (2)-(5)" },
+        { "page": 6, "section": "Table 2: sizes, architectures, learning hyperparameters, and parameter reductions" }
+      ]
+    },
+    {
+      "claim": "The structured output stage changes its nominal arithmetic from O(T d^2) to O(T d log d), but does not change the O(T^2 d) attention-score/value computation or the other dense projections.",
+      "evidence": "The paper contrasts the output GEMM with an in-place FWHT butterfly using log2(d) stages and states that the attention core remains unchanged; Table 1 lists W_O as d^2 parameters and O(Td^2) compute versus 2d and O(Td log d).",
+      "attribution": "author-reported",
+      "anchors": [
+        { "page": 4, "section": "4.3 Computational Complexity" },
+        { "page": 5, "section": "Table 1: dense versus Hadamard projection comparison" }
+      ]
+    },
+    {
+      "claim": "At the paper's matched reported training-FLOP budgets, WHT variants achieve slightly lower validation perplexity at Small and Base and a larger reported advantage at Large.",
+      "evidence": "Table 3 reports Small 21.54 dense versus 21.39 WHT at 1.55e19 FLOPs; Base 17.41 versus 17.35 at 6.61e19; Large 16.17 versus 15.70 at 2.06e20. WHT models have fewer parameters in each row, and the paper does not describe how tokens/steps were adjusted to equalize FLOPs.",
+      "attribution": "author-reported",
+      "anchors": [
+        { "page": 6, "section": "Table 3: Better training FLOPs utilization of the WHT-Augmented Models" }
+      ]
+    },
+    {
+      "claim": "The isoflop comparison is architecture-matched but neither parameter-matched nor fully auditable as a compute-optimal comparison.",
+      "evidence": "Table 3 pairs models with different parameter counts under the same stated FLOPs, supplies one perplexity per condition, and omits token counts, steps, seeds, confidence intervals, and the allocation procedure used to reach equal FLOPs. Moreover, its 334M Small baseline conflicts with the 354M Small baseline in Table 2.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        { "page": 6, "section": "Tables 2-3" }
+      ]
+    },
+    {
+      "claim": "The plotted scaling evidence is suggestive rather than a quantified scaling-law result.",
+      "evidence": "Figure 4 shows WHT validation-loss curves below/steeper than dense curves over the displayed training-FLOP range, but provides no fitted exponents, fit uncertainty, point table, compute-optimal parameter/token frontier, or replicate curves.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        { "page": 6, "section": "Figure 4: Steeper scaling curves with Hadamard projection layers" }
+      ]
+    },
+    {
+      "claim": "Zero-shot downstream evidence is mixed and plot-only, so it supports rough parity more clearly than preservation of task capacity.",
+      "evidence": "Figure 5 gives bars without a numeric table, error bars, or seeds for PIQA, HellaSwag, ARC-Easy, and BLiMP at Tiny/Small/Base. The WHT bar is not uniformly higher: for example it appears lower on Base HellaSwag and Small ARC-Easy while higher on several other model-task pairs. The text reports only 'comparable performance.'",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        { "page": 7, "section": "5.3.1 Downstream Task Performance, Figure 5" }
+      ]
+    },
+    {
+      "claim": "On one H100, the reported end-to-end prefill throughput uplift grows from 4.0% to 7.0% across Tiny-to-Large, with latency reductions of 1.8-2.7%.",
+      "evidence": "At batch 1024 and input length 64, Table 4 reports throughput 150,126 to 156,133; 53,154 to 55,956; 26,921 to 28,585; and 16,188 to 17,318 tokens/s. Corresponding latency is 33.157 to 32.366, 84.699 to 83.204, 129.595 to 126.442, and 174.158 to 169.501 ms/tok for Tiny through Large.",
+      "attribution": "author-reported",
+      "anchors": [
+        { "page": 8, "section": "Table 4: Prefill benchmark, Baseline vs. Hadamard" }
+      ]
+    },
+    {
+      "claim": "The reported decode uplift is also modest but monotonic with model scale: 1.7-3.8% throughput and 1.7-3.8% lower latency.",
+      "evidence": "At batch 2048 and generation length 64, Table 5 reports tokens/s Tiny 52,820 to 53,730, Small 19,978 to 20,409, Base 10,723 to 11,135, Large 8,025 to 8,312; latency changes 39.662 to 39.002, 105.232 to 102.998, 197.373 to 189.879, and 262.405 to 252.954 ms/tok.",
+      "attribution": "author-reported",
+      "anchors": [
+        { "page": 8, "section": "Table 5: Decode benchmark, Baseline vs. Hadamard" }
+      ]
+    },
+    {
+      "claim": "Absolute peak-memory reductions grow with model size, but relative reductions in the reported operating points remain only about 0.2-1.2% and no maximum-batch experiment is shown.",
+      "evidence": "Prefill peak memory falls by 37, 97, 215, and 383 MB from baselines of 16,264, 21,330, 26,504, and 32,240 MB; decode falls by 40, 96, 216, and 384 MB from 7,299, 16,625, 25,540, and 35,016 MB. These ratios are far smaller than the attention-only parameter reduction.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        { "page": 8, "section": "Tables 4-5" },
+        { "page": 9, "section": "Figure 7 discussion" }
+      ]
+    },
+    {
+      "claim": "The hardware results establish only a narrow microbenchmark: bf16, one H100, three runs of 50 iterations, four decoder-only sizes, and the authors' current FWHT implementation.",
+      "evidence": "Section 5.1 specifies PyTorch, bf16 and 8 H100s for training; the inference paragraph specifies a single H100, mean and standard deviation over three runs with 50 iterations. No GPU family, CPU, mobile accelerator, compiler stack, fused-kernel comparison, or energy measurement is evaluated.",
+      "attribution": "author-reported",
+      "anchors": [
+        { "page": 6, "section": "5.1 Experimental Setup" },
+        { "page": 7, "section": "5.3.3 Inference Throughput and Latency" }
+      ]
+    },
+    {
+      "claim": "The implementation description is incomplete for reported non-power-of-two hidden sizes.",
+      "evidence": "The method defines the recursive d-dimensional Walsh-Hadamard matrix and log2(d) butterfly stages, but Table 2 includes d_model = 768 and 1536. Standard radix-2 FWHT requires a power-of-two dimension; the paper does not state padding, blocking, factorization, truncation, or another generalized construction for those sizes.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        { "page": 4, "section": "4.1 Architecture Overview" },
+        { "page": 6, "section": "Table 2" }
+      ]
+    },
+    {
+      "claim": "The proposed explanation that a dense output matrix is redundant because heads learn complementary, non-overlapping subspaces is a motivation, not an experimentally established mechanism.",
+      "evidence": "Section 3 presents the complementary-head argument and Figure 2 as a conceptual comparison, but the experiments include no head-subspace overlap measurement, representation/rank analysis, learned-W_O spectrum, causal ablation, or comparison against other fixed orthogonal transforms.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        { "page": 3, "section": "3 Motivation, Figure 2" },
+        { "page": 7, "section": "5.3.1 Downstream Task Performance" }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Replace each attention block's dense post-concatenation output projection W_O with a parameter-free normalized Walsh-Hadamard transform across the full model dimension, then restore limited feature adaptation through learned elementwise scale alpha and bias beta.",
+    "mechanism": "Multi-head attention still computes dense Q, K, V projections and concatenates per-head outputs into Y. A radix-2-style FWHT computes YH without materializing H, after which O = alpha ⊙ (YH) + beta. Orthogonality preserves the Euclidean norm before the learned diagonal scaling; full-coordinate mixing crosses head boundaries. Nominal output-stage storage falls from d^2 to 2d and arithmetic from O(Td^2) to O(Td log d), while the rest of the block is unchanged.",
+    "assumptions": [
+      "A fixed Hadamard basis plus diagonal affine adaptation is expressive enough at W_O when upstream heads can reorganize their features during training from scratch.",
+      "The transform is applied over the entire concatenated model dimension so that its coordinate mixing actually crosses head partitions.",
+      "An efficient, numerically suitable FWHT exists for every reported hidden dimension; the paper does not document how this is achieved for d = 768 or 1536.",
+      "Comparing otherwise matched architectures at equal reported training FLOPs isolates useful compute efficiency despite unequal parameter counts and undocumented token/step allocation.",
+      "The throughput benefit of removing a GEMM exceeds the overhead of the FWHT and separate affine operations on the tested hardware and shapes.",
+      "Models are trained from initialization with the structured projection; no claim is established for converting pretrained dense W_O weights without retraining."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "normalized-walsh-hadamard-transform",
+      "role": "Provides a fixed, orthogonal, global coordinate mixer for concatenated attention-head outputs."
+    },
+    {
+      "id": "fast-walsh-hadamard-transform",
+      "role": "Implements the transform as an in-place butterfly in nominal O(T d log d) arithmetic without storing a dense d-by-d matrix."
+    },
+    {
+      "id": "diagonal-affine-adaptation",
+      "role": "Learns per-coordinate alpha and beta to rescale and shift the fixed-basis output while using only 2d stated parameters."
+    },
+    {
+      "id": "isoflop-language-model-comparison",
+      "role": "Compares dense and structured models at three stated equal training-FLOP budgets, although the allocation and statistical protocol are incomplete."
+    },
+    {
+      "id": "prefill-decode-microbenchmarking",
+      "role": "Measures latency, token throughput, and peak memory separately for prefill and autoregressive decode on a single H100."
+    },
+    {
+      "id": "roary-scaling-over-shape",
+      "role": "Sweeps model size, sequence length, and batch size to visually test whether realized hardware gains grow with workload scale."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "From-scratch decoder-only language modeling, Small model, matched stated budget of 1.55e19 training FLOPs",
+      "metric": "Validation perplexity",
+      "result": "WHT 21.39",
+      "baseline": "Dense output projection 21.54; WHT is lower by 0.15 with no seed/error report."
+    },
+    {
+      "setting": "From-scratch decoder-only language modeling, Base model, matched stated budget of 6.61e19 training FLOPs",
+      "metric": "Validation perplexity",
+      "result": "WHT 17.35",
+      "baseline": "Dense output projection 17.41; WHT is lower by 0.06 with no uncertainty report."
+    },
+    {
+      "setting": "From-scratch decoder-only language modeling, Large model, matched stated budget of 2.06e20 training FLOPs",
+      "metric": "Validation perplexity",
+      "result": "WHT 15.70",
+      "baseline": "Dense output projection 16.17; WHT is lower by 0.47, but parameter/token fairness and replication are undocumented."
+    },
+    {
+      "setting": "Whole-model parameter accounting across Tiny/Small/Base/Large configurations",
+      "metric": "Reported model parameters",
+      "result": "117M, 329M, 701M, and 1.2B",
+      "baseline": "Dense 124M, 354M, 757M, and 1.3B; absolute reductions 7.1M, 25.1M, 56.6M, and 100.6M, or approximately 5.7%, 7.1%, 7.5%, and 7.7%."
+    },
+    {
+      "setting": "Zero-shot PIQA, HellaSwag, ARC-Easy, and BLiMP at Tiny/Small/Base scales",
+      "metric": "Task score shown as bars in Figure 5",
+      "result": "Generally close to dense, with WHT wins, ties, and losses depending on task/scale; exact values and uncertainty are not tabulated.",
+      "baseline": "Corresponding dense model for each scale; this evaluation supports approximate parity, not uniform superiority."
+    },
+    {
+      "setting": "Single-H100 bf16 prefill, batch 1024, input length 64, mean over 3 runs of 50 iterations",
+      "metric": "Throughput and latency",
+      "result": "WHT throughput 156,133/55,956/28,585/17,318 tokens/s and latency 32.366/83.204/126.442/169.501 ms/tok for Tiny/Small/Base/Large",
+      "baseline": "Dense throughput 150,126/53,154/26,921/16,188 and latency 33.157/84.699/129.595/174.158; reported gains are 4.0-7.0% throughput and 1.8-2.7% latency."
+    },
+    {
+      "setting": "Single-H100 bf16 decode, batch 2048, generation length 64, mean over 3 runs of 50 iterations",
+      "metric": "Throughput and latency",
+      "result": "WHT throughput 53,730/20,409/11,135/8,312 tokens/s and latency 39.002/102.998/189.879/252.954 ms/tok for Tiny/Small/Base/Large",
+      "baseline": "Dense throughput 52,820/19,978/10,723/8,025 and latency 39.662/105.232/197.373/262.405; reported gains are 1.7-3.8%."
+    },
+    {
+      "setting": "Single-H100 peak-memory measurement at the prefill operating point",
+      "metric": "Peak memory in MB",
+      "result": "WHT 16,227/21,233/26,289/31,857 for Tiny/Small/Base/Large",
+      "baseline": "Dense 16,264/21,330/26,504/32,240; reductions are 37-383 MB, only about 0.2-1.2% of the reported totals."
+    },
+    {
+      "setting": "Single-H100 peak-memory measurement at the decode operating point",
+      "metric": "Peak memory in MB",
+      "result": "WHT 7,259/16,529/25,324/34,632 for Tiny/Small/Base/Large",
+      "baseline": "Dense 7,299/16,625/25,540/35,016; reductions are 40-384 MB, about 0.5-1.1%."
+    },
+    {
+      "setting": "Base-model prefill sequence-length and throughput batch-size sweeps",
+      "metric": "Latency curve (Figure 6) and throughput curve (Figure 7)",
+      "result": "The plotted WHT advantage generally widens at longer sequences and larger batches.",
+      "baseline": "Dense output projection; exact point values, uncertainty, saturation shapes, and kernel profiler evidence are not supplied."
+    }
+  ],
+  "limitations": [
+    "[author-stated] Realized latency is constrained by unoptimized FWHT and affine primitives relative to mature dense GEMM kernels; specialized Triton/CUDA kernels and operator fusion are left to future work (page 9, Section 6).",
+    "[author-stated] Interaction with normalization, especially RMSNorm and the learned scaling vector, is not studied and is left as future work (page 9, Section 6).",
+    "[reviewer-identified] The training corpus, tokenizer, number of training tokens/steps, warmup length, evaluation cadence/harness, exact feed-forward dimensions, and data licenses are not specified, preventing faithful training reproduction.",
+    "[reviewer-identified] No training seed count, run-to-run variance, confidence interval, or significance test is reported for perplexity, scaling curves, or downstream task results; the only explicit repeats are the three inference microbenchmark runs.",
+    "[reviewer-identified] The isoflop study compares unequal-parameter architectures and does not document how steps or tokens were varied to equalize FLOPs, so it is not a parameter-matched or auditable compute-optimal frontier.",
+    "[reviewer-identified] Table 2 lists the Small dense model as 354M whereas Table 3 lists it as 334M, with no explanation; this weakens the parameter and fairness accounting.",
+    "[reviewer-identified] Eq. (3) counts d added trainables while Eq. (1) and Table 1 imply 2d; the reported attention parameter formula is therefore internally inconsistent.",
+    "[reviewer-identified] The recursive FWHT description does not explain how hidden sizes 768 and 1536 are handled even though a standard radix-2 Walsh-Hadamard transform requires power-of-two dimension.",
+    "[reviewer-identified] Downstream results appear only as bars without exact numeric values, seeds, error bars, prompt/evaluation-harness details, or task-level statistical tests.",
+    "[reviewer-identified] The study has only a dense W_O baseline: no low-rank, block-diagonal, butterfly/Monarch/BTT, learned permutation, sparse, or alternative fixed orthogonal output projection is compared.",
+    "[reviewer-identified] There is no component ablation for H alone, learned alpha alone, beta removal, block/per-head transforms, multiple Hadamard factors, or a learned lightweight residual; the source of quality retention is unresolved.",
+    "[reviewer-identified] The evaluation stops at 1.3B parameters, context length 1024 for training, decoder-only language models, and one H100 generation; cross-architecture and cross-hardware generality is unknown.",
+    "[reviewer-identified] The memory measurements are fixed-shape peak allocations rather than demonstrations of larger feasible batch sizes, and their relative reductions are about 0.2-1.2%, despite stronger qualitative wording.",
+    "[reviewer-identified] Latency is labeled ms/token but the paper does not define aggregation or reconcile it algebraically with tokens/s and batch shape, making the absolute timing units difficult to audit.",
+    "[reviewer-identified] Section 5.3.3 first labels prefill compute-bound but attributes the strongest large-batch/long-sequence prefill gains to a memory-bandwidth-bound regime; no profiler or roofline evidence resolves the regime transition.",
+    "[reviewer-identified] No pre-trained dense-to-structured conversion, continued-pretraining, fine-tuning, or compatibility evaluation is provided; all quality evidence is from training with the constraint from scratch.",
+    "[reviewer-identified] The complementary/non-overlapping head-subspace rationale is not measured, and the restricted fixed-basis-plus-diagonal family may fail when task-optimal output mixing cannot be moved into upstream projections."
+  ],
+  "failure_modes": [
+    "A standard full-dimension radix-2 FWHT is undefined for non-power-of-two d without an additional construction; silent padding or blocking could change arithmetic, memory, and cross-head mixing claims for the reported 768/1536 widths.",
+    "If learned alpha coordinates approach zero, the otherwise orthogonal fixed transform becomes rank-deficient after diagonal scaling and can permanently suppress output directions.",
+    "If useful head outputs need a learned rotation after concatenation that upstream Q/K/V/value pathways cannot absorb, a single fixed Hadamard basis plus diagonal scaling can underfit even though H itself is full rank.",
+    "For long-context attention where O(T^2 d) score/value work dominates, eliminating an O(Td^2) output GEMM can become a small fraction of end-to-end cost; asymptotic output-stage savings do not imply comparable full-block savings.",
+    "At small batches or dimensions, kernel launch, layout, and unfused affine overhead can erase the theoretical FWHT advantage; the authors explicitly identify kernel maturity as limiting realized speed.",
+    "Hadamard mixing can cross semantically unrelated coordinate/head partitions; without learnable rotation or permutation, harmful interference may be recoverable only by reorganizing all upstream representations during training.",
+    "A fixed-transform model trained from scratch may work while post-hoc replacement of a pretrained dense W_O fails because the dense map generally has no exact diagonal-times-Hadamard representation.",
+    "Claimed scaling superiority may disappear under parameter-matched, token-matched, or compute-optimal allocation because the reported isoflop protocol does not expose its allocation choices or uncertainty.",
+    "Apparent downstream parity can reverse across tasks or seeds: Figure 5 already contains visible WHT losses on some model-task pairs and has no error estimates.",
+    "Peak-memory benefits can be operationally negligible when activations/KV cache dominate; the reported 37-384 MB reductions are at most about 1.2% at the measured points."
+  ],
+  "reusable_insights": [
+    "Audit efficiency percentages at the correct denominator: removing one of four attention projection matrices is approximately 25% of projection parameters but only 5.7-7.7% of these complete models.",
+    "A fixed orthogonal mixer followed by learned diagonal scaling is a useful minimal full-rank structured layer: it separates global mixing, conditioning, and translation into interpretable components with O(d) trainables.",
+    "Orthogonality preserves norm only before learned scaling; conditioning and rank are governed by alpha, so logging the distribution and minimum magnitude of alpha would directly diagnose degeneration.",
+    "Structured-layer studies should report three fairness views together: architecture-matched, parameter-matched, and compute-optimal token/parameter allocation, each with repeated runs.",
+    "Theoretical operation counts should be accompanied by realized operator profiles and explicit dimension-handling rules; transform factorization and padding can dominate practical conclusions.",
+    "Separate prefill and decode measurements are essential because their bottlenecks and KV-cache contributions differ, but units and aggregation must be defined so latency and throughput are mutually checkable.",
+    "Fixed global mixing is most plausible when the constrained model is trained from scratch, allowing upstream layers to learn the transform's coordinate system; conversion from a dense checkpoint is a distinct problem.",
+    "Ablating fixed H, alpha, beta, transform depth, and learned permutations would distinguish whether gains come from parameter regularization, orthogonal mixing, bias, or hardware arithmetic.",
+    "Report whole-model and subsystem savings side by side to prevent a true local reduction from being mistaken for an end-to-end reduction.",
+    "Plot-only downstream comparisons should be treated as qualitative until exact scores, harness configuration, seeds, and uncertainty are released."
+  ],
+  "open_questions": [
+    "What exact FWHT construction and kernel are used for d_model = 768 and 1536, and do padding/blocking choices preserve full cross-head mixing and the stated O(Td log d) accounting?",
+    "Does the advantage persist under parameter-matched and compute-optimal comparisons with explicit token counts and at least three independent pretraining seeds?",
+    "How do learned alpha spectra evolve by layer and scale, and do they reveal suppressed directions, conditioning problems, or implicit head selection?",
+    "Can a learned permutation, sign pattern, second Hadamard factor, block-Hadamard layout, or low-rank residual recover task-specific rotations at small marginal cost?",
+    "How does the method compare directly with Monarch, BTT, Pixelated Butterfly, SS1, BLAST, low-rank, and block-diagonal structures when restricted specifically to W_O?",
+    "Can dense pretrained checkpoints be projected or distilled into the Hadamard-diagonal family without full retraining, and what quality/compute trade-off results?",
+    "Do exact downstream scores remain statistically equivalent across tasks, seeds, prompt templates, and evaluation harnesses at Base and Large scales?",
+    "How do optimized fused CUDA/Triton kernels change latency across GPUs, sequence lengths, batch sizes, and widths, including small regimes where launch overhead dominates?",
+    "Does merging the diagonal scale with RMSNorm or a neighboring linear layer preserve the intended norm/conditioning properties while further reducing memory traffic?",
+    "At what context length and batch regime does output projection cease to be material relative to quadratic attention, KV-cache traffic, and feed-forward GEMMs?",
+    "Is the complementary-head premise empirically true: how much of dense W_O's learned rotation is redundant after upstream adaptation, measured through spectra, subspace overlap, and functional intervention?",
+    "Why do Table 2 and Table 3 disagree on the Small dense parameter count, and which count underlies FLOP accounting?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2112.00029",
+      "title": "Pixelated Butterfly: Simple and Efficient Sparse training for Neural Network Models",
+      "url": "https://arxiv.org/abs/2112.00029",
+      "relationship": "Direct structured-linear predecessor: replaces attention and MLP matrices using fixed flat/block butterfly sparsity plus low-rank components and trains the sparse models end to end.",
+      "difference": "Pixelated Butterfly searches/uses a more expressive sparse-plus-low-rank family across most network layers and reports ImageNet/WikiText-103 training speedups up to 2.5x against dense MLP-Mixer, ViT, and GPT-2. The target uses one parameter-free full Hadamard mixer plus 2d affine parameters only at attention W_O, evaluates decoder LMs up to 1.3B and single-H100 prefill/decode, but does not compare against this cited structured family.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, revised 2022-05-11; ICLR 2022 spotlight"
+    },
+    {
+      "canonical_id": "arxiv:2204.00595",
+      "title": "Monarch: Expressive Structured Matrices for Efficient and Accurate Training",
+      "url": "https://arxiv.org/abs/2204.00595",
+      "relationship": "Direct structured-matrix predecessor with a hardware-oriented product of two block-diagonal matrices that can replace dense neural-network layers and approximate pretrained dense weights.",
+      "difference": "Monarch is learned, more expressive, supports analytical dense-to-structured approximation, and evaluates end-to-end sparse training, reverse sparsification, and dense-to-sparse fine-tuning on ViT/GPT-2/BERT and other tasks. The target's fixed H plus diagonal affine is far more constrained and only tested from scratch at W_O, but has a simpler O(d) parameterization and explicit prefill/decode measurements.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, submitted 2022-04-01"
+    },
+    {
+      "canonical_id": "arxiv:2406.06248",
+      "title": "Compute Better Spent: Replacing Dense Layers with Structured Matrices",
+      "url": "https://arxiv.org/abs/2406.06248",
+      "relationship": "Direct compute-scaling competitor that replaces dense layers with structured families and explicitly studies initialization, learning-rate scaling, and compute-optimal loss scaling.",
+      "difference": "It proposes learned Block Tensor-Train matrices containing Monarch, compares several structures, and reports dense-compute comparisons on MLPs, ViTs/ImageNet and small GPT-2. The target isolates attention W_O and uses a fixed WHT-diagonal map, but its scaling claim lacks the competitor's initialization/learning-rate analysis and direct structured baselines.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, submitted 2024-06-10; ICML 2024"
+    },
+    {
+      "canonical_id": "arxiv:2410.02117",
+      "title": "Searching for Efficient Linear Layers over a Continuous Space of Structured Matrices",
+      "url": "https://arxiv.org/abs/2410.02117",
+      "relationship": "Direct search-and-scaling competitor over a unified Einstein-summation space that includes low-rank, Kronecker, Tensor-Train, BTT and Monarch operators, including attention projections.",
+      "difference": "Its BTT-MoE is learned and sparsifies computation in every linear layer, with compute-optimal allocation and comparisons against dense and standard MoE. The target hand-selects a single fixed transform for W_O and evaluates denser matched architectures; it offers stronger simplicity but does not search the structure space or establish a compute-optimal frontier.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, revised 2024-10-04; NeurIPS 2024"
+    },
+    {
+      "canonical_id": "arxiv:2406.16450",
+      "title": "Building on Efficient Foundations: Effectively Training LLMs with Structured Feedforward Layers",
+      "url": "https://arxiv.org/abs/2406.16450",
+      "relationship": "Direct contemporary structured-LLM scaling baseline, cited by the target, that replaces dense feed-forward layers with low-rank/block-diagonal parameterizations and trains from scratch up to 1.3B.",
+      "difference": "It targets FFNs, introduces self-guided training and a pre-merge decoding technique, and reports steeper scaling/overtraining behavior for wide structured networks. The target instead targets W_O with fixed orthogonal mixing and reports prefill/decode microbenchmarks, but adopts similar scaling language without comparing the two intervention locations or controlling total structured capacity.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, revised 2024-11-05; NeurIPS 2024"
+    },
+    {
+      "canonical_id": "arxiv:2410.21262",
+      "title": "BLAST: Block-Level Adaptive Structured Matrices for Efficient Deep Neural Network Inference",
+      "url": "https://arxiv.org/abs/2410.21262",
+      "relationship": "Direct efficient-inference competitor using learned or post-hoc block-level adaptive structured matrices for neural linear layers.",
+      "difference": "BLAST evaluates both training medium GPT-2/ViT with structured weights and compressing pretrained Llama-7B/DiT-XL, reporting 40-70% complexity reductions and 2x large-model compression against other structured matrices. The target uses a much cheaper fixed transform at a single attention sublayer and has real H100 timing, but omits post-hoc compression and structured competitors.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, revised 2024-10-30"
+    },
+    {
+      "canonical_id": "neurips:2024:ss1",
+      "title": "SS1: Accelerating Inference with Fast and Expressive Sketch Structured Transform",
+      "url": "https://papers.neurips.cc/paper_files/paper/2024/hash/57ef0373c890b30407eadfe6e06c8c84-Abstract-Conference.html",
+      "relationship": "Direct structured-transform inference competitor that uses GPU-friendly random structured parameter sharing and can project existing dense models into the structured family.",
+      "difference": "SS1 evaluates GPT-2/DLRM training, projected BERT fine-tuning, quantization composition, and a Llama-3-8B proof of concept with 1.11x wall-clock inference, including competing structured variants. The target's WHT-affine map is more specific and parameter-minimal, but only trains from scratch to 1.3B and does not benchmark SS1-like projections or quantization interaction.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2024 proceedings, Advances in Neural Information Processing Systems 37"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors present the first focused replacement of the dense multi-head-attention output projection with a fixed parameter-free Walsh-Hadamard transform followed by learned diagonal affine adaptation, claiming approximately 25% fewer attention parameters and better quality/efficiency scaling at equal training compute.",
+    "evidence": "Within this paper, the intervention is isolated to W_O, trained from scratch at 124M-1.3B scale, evaluated at three stated isoflop budgets, on four zero-shot tasks, and with separate prefill/decode H100 measurements. The current-primary-record audit found extensive prior learned butterfly, Monarch, BTT, BLAST, SS1, and other structured replacements across attention/linear layers, but none of the checked records used exactly one fixed full-dimension WHT plus learned diagonal scale/bias specifically as W_O with this same evaluation package.",
+    "reviewer_inference": "The narrow architectural placement and unusually minimal WHT-diagonal parameterization appear distinctive, but structured transform replacement itself, global butterfly mixing, and compute-scaling arguments are not new. The strength of novelty is therefore implementation/placement-specific rather than a new structured-linear principle. Its empirical superiority is provisional because the paper compares only against dense W_O, has unresolved parameter/FWHT accounting, no replicated training statistics, and no parameter-matched or compute-optimal structured baseline."
+  },
+  "confidence": 0.89,
+  "reviewer_notes": "Primary full-text pass only, not secondary verification. I read all 10 PDF pages end to end (there is no appendix/supplement in the local source), visually checked the method equations, Tables 2-5 and Figures 4-7 against the PDF, and checked the current arXiv record (v2) plus seven primary competitor records on 2026-08-23. Author-reported claims are marked as such; derived whole-model percentages, fairness critiques, missing radix-2 dimension handling, plot-only downstream interpretation, and memory ratios are reviewer inferences; Eq. (3) versus Eq. (1)/Table 1, 'learned transform' wording, and the Small parameter-count mismatch are contradiction audits. Numerical percentages derived by the reviewer use the paper's displayed values. No claim of code execution, independent replication, or verified status is made."
+}

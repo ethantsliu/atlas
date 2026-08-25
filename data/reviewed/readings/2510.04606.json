@@ -1,0 +1,133 @@
+{
+  "stable_id": "arxiv:2510.04606",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2510.04606",
+    "pdf_sha256": "bf868c35e3b0201fba51e3d076cc0121315b21cdcbab5cd3b6d94f5a3ea031c9",
+    "text_sha256": "72b1530d59ee4081de4aaf63759f45c991a9b14694c1cfcff999474b1117d74e",
+    "page_count": 28,
+    "extracted_at": "2026-08-23T14:56:28.288520+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a neural network with a linear readout be trained more effectively by solving that last layer exactly on every step while updating only the nonlinear backbone?",
+  "key_findings": [
+    {
+      "claim": "The envelope theorem removes the need to differentiate through the closed-form ridge solve when the readout is optimal for the current representation.",
+      "evidence": "The reduced objective substitutes the optimal linear last layer into squared loss. At that optimum the derivative with respect to readout parameters vanishes, so the backbone gradient is obtained by holding the solved readout fixed rather than backpropagating through a matrix inverse.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 4, "section": "3 Optimizing with a Closed-Form Last Layer / Theorem 3.1"}]
+    },
+    {
+      "claim": "A proximal mini-batch solve is the practical contribution: it regularizes the new readout toward the preceding solution and avoids the instability of independently fitting a small batch.",
+      "evidence": "Each step solves a ridge-like linear system with a penalty on departure from the previous readout, then takes a backbone gradient step. The update also admits an approximate Kalman-filter interpretation under simplifying assumptions.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 5, "section": "3.2 Stochastic Optimization and Algorithm 1"}, {"page": 14, "section": "A.2 Kalman-filter interpretation"}]
+    },
+    {
+      "claim": "Theoretical guarantees are conditional rather than general: the function-space objective is nonconvex, while almost-sure global convergence is obtained only in an NTK setting with a positive-definite induced kernel and sufficient feature rank.",
+      "evidence": "The paper first exhibits undesirable critical points of the reduced objective, then proves convergence in the neural-tangent regime under its kernel and rank assumptions. A separate comparison shows that an exact readout step decreases loss at least as much as an optimally tuned single gradient step, with the gap controlled by feature-spectrum spread.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 6, "section": "4 Theoretical Analysis / NTK guarantee"}, {"page": 7, "section": "4.2 Closed-form versus gradient readout step"}]
+    },
+    {
+      "claim": "Across molecular regression, a Fourier neural operator, and deep instrumental-variable regression, the proximal variant is most useful in noisy small-batch regimes; its squared-loss formulation becomes a liability for many-class classification.",
+      "evidence": "The reported learning curves show faster or more stable optimization than joint SGD and naive per-batch ridge fitting on QM9, Burgers, and DFIV. Appendix classification experiments are competitive for small or moderate class counts but trail cross-entropy when the number of classes is large.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 8, "section": "5.1 QM9"}, {"page": 9, "section": "5.2 Burgers and 5.3 DFIV"}, {"page": 10, "section": "7 Conclusion and scope"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Replace iterative training of a linear readout under squared loss with its exact regularized solution, and optimize only the feature-producing backbone.",
+    "mechanism": "On each mini-batch the method solves a proximal ridge problem for the last-layer matrix, uses the solved matrix as a constant while differentiating loss through the backbone, and carries the matrix forward as the center of the next proximal problem.",
+    "assumptions": [
+      "The terminal layer is linear and the training loss is squared error, so its conditional optimum has a tractable solve.",
+      "Mini-batch feature covariance systems can be solved at acceptable cost and with adequate numerical conditioning.",
+      "The previous readout is a useful temporal prior for the next mini-batch.",
+      "The NTK convergence theorem requires a positive-definite neural-gradient proximal kernel and sufficient rank; it does not cover arbitrary finite networks."
+    ]
+  },
+  "techniques": [
+    {"id": "variable-projection", "role": "Eliminates the linear readout from the optimization variables by solving it conditionally."},
+    {"id": "proximal-ridge-regression", "role": "Stabilizes the batchwise readout estimate around the preceding solution."},
+    {"id": "envelope-theorem-gradient", "role": "Computes the correct reduced-objective backbone gradient without differentiating through the solve."},
+    {"id": "ntk-convergence-analysis", "role": "Provides a conditional global-convergence result for the induced function-space dynamics."}
+  ],
+  "evaluations": [
+    {
+      "setting": "QM9 molecular property prediction with a neural feature backbone.",
+      "metric": "Validation/test regression error and optimization trajectory across batch sizes.",
+      "result": "The proximal closed-form readout trains faster and is more stable than naive mini-batch ridge at small batch sizes; the advantage narrows as batches grow.",
+      "baseline": "Joint gradient training and closed-form ridge fitted independently per batch."
+    },
+    {
+      "setting": "Burgers equation prediction with a Fourier neural operator.",
+      "metric": "Relative prediction error during training.",
+      "result": "The proposed update accelerates training while the spatial grid supplies many effective readout samples per nominal batch.",
+      "baseline": "Standard end-to-end gradient optimization and ridge variants."
+    },
+    {
+      "setting": "Deep instrumental-variable regression and image classification appendices.",
+      "metric": "Structural prediction error for DFIV and classification accuracy.",
+      "result": "Closed-form two-stage updates improve DFIV optimization, but squared-loss classification falls behind cross-entropy on high-class-count datasets.",
+      "baseline": "Mini-batch DFIV training and cross-entropy SGD."
+    }
+  ],
+  "limitations": [
+    "The exact update is restricted to squared loss with a linear terminal layer; a comparable cross-entropy solve is absent.",
+    "A matrix solve per step can dominate cost when feature or output dimension is large.",
+    "The strongest convergence statement is an NTK-regime theorem, not a finite-feature guarantee.",
+    "The empirical suite is moderate scale and does not establish benefit for large language models or very large output vocabularies."
+  ],
+  "failure_modes": [
+    "An unregularized batchwise solve can overfit noisy small batches and make successive readouts oscillate.",
+    "Ill-conditioned feature Gram matrices can make the exact solve numerically fragile.",
+    "For many-class classification, least-squares targets can be a poor surrogate for calibrated cross-entropy probabilities.",
+    "A stale proximal center can slow adaptation under sharply nonstationary features."
+  ],
+  "reusable_insights": [
+    "When a model block has an exact conditional optimizer, envelope-theorem differentiation can avoid expensive implicit gradients.",
+    "A proximal term can convert an overfit per-batch analytic estimator into a useful streaming state update.",
+    "Feature-spectrum anisotropy predicts when an exact block solve can outperform a single scalar-step gradient update."
+  ],
+  "open_questions": [
+    "Can approximate generalized-linear-model solves extend the method to cross-entropy without losing its simplicity?",
+    "How should the proximal coefficient adapt to batch size, conditioning, and representation drift?",
+    "Do exact readout updates preserve an advantage at language-model scale after accounting for distributed solve cost?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2504.18208",
+      "title": "Ultra-fast feature learning for the training of two-layer neural networks in the two-timescale regime",
+      "url": "https://arxiv.org/abs/2504.18208",
+      "relationship": "Analyzes feature learning when the output layer evolves on a much faster time scale than the features.",
+      "difference": "It is primarily a two-layer asymptotic theory, whereas this paper turns exact fast-layer optimization into a stochastic proximal training algorithm and tests it across architectures.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2403.14917",
+      "title": "Mean-field Analysis on Two-layer Neural Networks from a Kernel Perspective",
+      "url": "https://arxiv.org/abs/2403.14917",
+      "relationship": "Studies two-layer feature learning through a mean-field/kernel formulation related to optimizing a readout and features on distinct scales.",
+      "difference": "Its focus is limiting dynamics and representation theory; it does not propose the per-mini-batch proximal closed-form readout used here.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2010.08895",
+      "title": "Fourier Neural Operator for Parametric Partial Differential Equations",
+      "url": "https://arxiv.org/abs/2010.08895",
+      "relationship": "Provides the operator-learning architecture used in one of the paper's principal application tests.",
+      "difference": "FNO trains its terminal projection conventionally; the present work changes the optimization of that readout and evaluates whether the analytic block update improves training.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper presents a practical stochastic algorithm that keeps a linear last layer conditionally optimal without backpropagating through its closed-form solution.",
+    "evidence": "The combination of envelope-theorem backbone gradients, a proximal batchwise readout solve, theory, and three application families goes beyond treating the two-timescale regime only as an analytical idealization.",
+    "reviewer_inference": "The proximal streaming formulation is the clearest novelty; exact or fast last-layer optimization itself predates the paper, and the scope is materially constrained by squared loss."
+  },
+  "confidence": 0.91,
+  "reviewer_notes": "Full text was read from the cached 28-page extraction. Claims distinguish finite-network experiments from the conditional NTK theorem; competitor records were checked against primary arXiv pages on 2026-08-23."
+}

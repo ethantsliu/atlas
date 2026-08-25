@@ -1,0 +1,190 @@
+{
+  "stable_id": "arxiv:2507.22045",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2507.22045",
+    "pdf_sha256": "b63db0b49c81f7531387ee57e2e9660fa903464fccd885f8eec72759a5fa0385",
+    "text_sha256": "1404d54e6034d8547b4b98cb3d9b7fecf5eef20814ad3acbea90dfe97c575879",
+    "page_count": 34,
+    "extracted_at": "2026-08-23T16:15:55.266879+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Does expressing continuous-depth network weights in a small orthogonal polynomial basis improve the accuracy, stability, and cost of scientific surrogate models across discrete ResNets and optimize-then-discretize neural ODEs?",
+  "key_findings": [
+    {
+      "claim": "The method replaces one weight vector per depth or time with a global polynomial coefficient matrix, reducing parameters while enforcing smooth temporal evolution.",
+      "evidence": "Weights are written as a linear combination of fixed basis functions. In a discretized ResNet, all time-indexed weights are the matrix product of trainable coefficients and precomputed basis evaluations; in a neural ODE, adjoint gradients are projected onto the same coefficients by time integration.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 12, "section": "4 Weight-Parameterization"},
+        {"page": 13, "section": "4.1 Discretize-then-optimize"},
+        {"page": 15, "section": "Equation 9"}
+      ]
+    },
+    {
+      "claim": "Legendre coefficients consistently train more smoothly than same-degree monomials in the displayed experiments, but this is primarily a basis-conditioning result rather than a general proof of dynamical stability.",
+      "evidence": "Monomial trajectories stall on several ResNet tasks, while Legendre curves fall faster. The paper attributes this to a better-conditioned Vandermonde matrix. It neither reports the matrices' actual condition numbers nor derives a bound from basis conditioning to network Jacobians or adjoint error.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 15, "section": "4.3 Weight parameterization and stability"},
+        {"page": 16, "section": "Equations 11-13"},
+        {"page": 26, "section": "Figure 2"},
+        {"page": 27, "section": "Figure 3"}
+      ]
+    },
+    {
+      "claim": "For ResNets, parameter reduction is useful but not uniformly accuracy-preserving, especially as depth changes.",
+      "evidence": "On ELM with the Hamiltonian architecture, degree-3 Legendre improves GNvpro loss at T=1 from 0.0079 to 0.0075, but worsens it at T=10 from 0.0159 to 0.0257. Increasing the Legendre degree narrows the DCR gap, reaching a 0.0033 improvement only at degree 6 and 1,725 degrees of freedom.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 19, "section": "5.2 ResNet results"},
+        {"page": 24, "section": "Tables 2-3"},
+        {"page": 25, "section": "Table 4"}
+      ]
+    },
+    {
+      "claim": "Neural-ODE compute savings are large, yet the aggregate accuracy table directly contradicts the paper's broad accuracy narrative on two of three datasets.",
+      "evidence": "Legendre uses about 7.4x, 5.1x, and 8.6x fewer function evaluations on ELM, CDR, and DCR. But Table 5 reports worse Legendre mean validation error than monomials on CDR (326.4 versus 297.9) and DCR (0.281 versus 0.037), with very large Legendre standard deviations. The prose and a representative Figure 6 trajectory instead describe Legendre as lower-error, so the evidence is internally inconsistent.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 20, "section": "5.3 Neural ODE results"},
+        {"page": 25, "section": "Table 5"},
+        {"page": 30, "section": "Figure 6"}
+      ]
+    },
+    {
+      "claim": "The experimental design does not isolate orthogonality from other numerical effects.",
+      "evidence": "Only monomials and shifted Legendre polynomials are compared, although both span the same finite polynomial space. Coefficient initialization, scaling, optimizer geometry, discrete node choice, and explicit orthogonalization are not controlled, and no Chebyshev, spline, Fourier, normalized-monomial, or QR-conditioned basis is included.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 17, "section": "5 Computational results"},
+        {"page": 22, "section": "7 Future work"},
+        {"page": 25, "section": "Figure 1"}
+      ]
+    },
+    {
+      "claim": "Reproducibility and efficiency claims remain incomplete.",
+      "evidence": "The paper uses MATLAB Meganet and PyTorch, says two datasets are available on request, and reports optimizer settings and function evaluations but no wall-clock, memory, FLOPs, hardware, solver tolerance, code snapshot, or end-to-end inference cost. The data-availability paragraph duplicates the CDR link and does not expose ELM/DCR artifacts.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 18, "section": "5.1 Datasets"},
+        {"page": 20, "section": "5.3 Neural ODE results"},
+        {"page": 31, "section": "Statements and declarations"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Parameterize depth-varying weights with a small, smooth orthogonal basis so model capacity is decoupled from the ODE solver's time grid or a ResNet's layer count.",
+    "mechanism": "Evaluate shifted Legendre or monomial bases over time, learn their coefficient tensors, construct layer weights by a basis matrix product in discrete networks, and project continuous-adjoint gradients onto coefficients in neural ODEs; compare forward-Euler, Verlet, and Dormand-Prince training pipelines.",
+    "assumptions": [
+      "A low-degree polynomial captures the useful evolution of every weight coordinate over depth.",
+      "Smooth weight trajectories improve conditioning without removing task-relevant layer variation.",
+      "Function-evaluation count is a meaningful proxy for neural-ODE compute across bases.",
+      "The reported solver, optimizer, initialization, and stopping criteria are comparable across parameterizations.",
+      "The three surrogate datasets are representative enough to support architectural guidance."
+    ]
+  },
+  "techniques": [
+    {"id": "weight-basis", "role": "Compresses a full time-indexed weight trajectory into shared coefficients."},
+    {"id": "legendre-basis", "role": "Provides a better-conditioned polynomial coordinate system over normalized time."},
+    {"id": "adjoint-projection", "role": "Maps continuous loss gradients back to the finite basis coefficients."},
+    {"id": "verlet-net", "role": "Pairs time-varying weights with a reversible Hamiltonian-inspired discrete architecture."},
+    {"id": "solver-count", "role": "Measures adaptive integration effort independently of epoch count."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Forward-Euler ResNets and Verlet Hamiltonian networks on ELM, CDR, and DCR.",
+      "metric": "Training/testing error over iterations, parameter count, polynomial degree, depth, and optimizer.",
+      "result": "Legendre generally beats same-degree monomials and can approach unparameterized models with fewer weights, but the outcome varies substantially with depth, optimizer, and degree.",
+      "baseline": "Degree-3 monomial, no weight parameterization, ADAM and GNvpro, plus architecture variants."
+    },
+    {
+      "setting": "Dormand-Prince neural ODEs on the same three surrogate tasks over five seeds.",
+      "metric": "Mean and standard deviation of training/validation error and total function evaluations.",
+      "result": "Legendre requires 5-9x fewer evaluations; its aggregate error is better on ELM but worse than monomials on CDR and DCR in Table 5 despite conflicting prose and representative curves.",
+      "baseline": "Degree-3 monomial and an unparameterized neural ODE."
+    },
+    {
+      "setting": "Degree sweep for Legendre-parameterized ResNet and Hamiltonian models.",
+      "metric": "Convergence curves, training error delta, and degrees of freedom.",
+      "result": "Higher degree restores expressivity; for DCR Hamiltonian ADAM, degree 6 slightly improves on the unparameterized loss but uses 72% more coefficients than degree 3.",
+      "baseline": "Legendre degrees 3-6 and the unparameterized network."
+    }
+  ],
+  "limitations": [
+    "Table 5's multi-seed means contradict the accuracy claims in Section 5.3 and the selected trajectories in Figure 6.",
+    "Only two coordinate bases for the same polynomial space are compared, so orthogonality is confounded with scaling and conditioning.",
+    "The paper supplies no measured basis condition numbers, Jacobian spectra, adjoint error, or formal stability result.",
+    "Function evaluations omit per-evaluation basis cost, backward cost, memory, and wall-clock differences.",
+    "Hyperparameter selection and stopping criteria are not specified in enough detail to explain the large cross-seed variance.",
+    "Two datasets are request-only and no immutable code or environment artifact is identified.",
+    "The benchmark omits contemporary neural operators and non-polynomial time-parameterization baselines."
+  ],
+  "failure_modes": [
+    "A low-degree global polynomial underfits abrupt or localized changes in useful layer behavior.",
+    "A high-degree basis restores parameter count and overfits while reintroducing oscillation near interval boundaries.",
+    "Adaptive solvers spend excessive evaluations on poorly scaled learned coefficients despite nominal basis orthogonality.",
+    "Continuous-adjoint gradients drift from gradients of the deployed discretization.",
+    "A Hamiltonian-inspired architecture preserves the wrong geometry for a dissipative surrogate task.",
+    "Results change with time normalization or collocation nodes, making the claimed basis ranking brittle."
+  ],
+  "reusable_insights": [
+    "Separate a function space from its coordinates: two bases can express the same models but create very different optimization geometry.",
+    "Report error versus function evaluations and wall-clock together; neither alone establishes computational efficiency.",
+    "Global depth-wise weight compression is a useful modular alternative to tying all layers or learning every layer independently.",
+    "Representative learning curves must be reconciled with multi-seed summary tables before making stability claims.",
+    "A basis comparison should include conditioning controls such as normalization, QR, or equivalent preconditioning."
+  ],
+  "open_questions": [
+    "Do Legendre gains remain after whitening or orthogonalizing monomial coefficients so both optimizers see matched geometry?",
+    "Which local bases, such as splines or wavelets, outperform global polynomials on non-smooth depth dynamics?",
+    "Can basis degree and knot placement be selected adaptively with a validated complexity penalty?",
+    "How do weight-basis models compare with neural operators on the same public surrogate benchmarks and compute budget?",
+    "What explains the conflict between Table 5 and Figure 6, and which runs determine the stopping point?",
+    "Can solver-aware regularization bound both forward error and continuous/discrete gradient mismatch?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2005.01906",
+      "title": "Time Dependence in Non-Autonomous Neural ODEs",
+      "url": "https://arxiv.org/abs/2005.01906",
+      "relationship": "direct-predecessor",
+      "difference": "NANODE already studies bucketed, polynomial, and other time-varying weight bases with explicit smoothness/capacity tradeoffs; the reviewed paper adds a focused Legendre-versus-monomial surrogate study across discrete and continuous training."
+    },
+    {
+      "canonical_id": "arxiv:2103.00301",
+      "title": "Spline parameterization of neural network controls for deep learning",
+      "url": "https://arxiv.org/abs/2103.00301",
+      "relationship": "direct-basis-competitor",
+      "difference": "Günther et al. decouple layer count from trainable controls with local B-splines and report robustness and propagation accuracy; the reviewed work instead uses global polynomials and emphasizes orthogonal coordinates."
+    },
+    {
+      "canonical_id": "openreview:Sye0XkBKvS",
+      "title": "SNODE: Spectral Discretization of Neural ODEs for System Identification",
+      "url": "https://openreview.net/forum?id=Sye0XkBKvS",
+      "relationship": "spectral-training-competitor",
+      "difference": "SNODE expands trajectories in Legendre spectral elements and jointly penalizes ODE residuals for time-parallel training; the reviewed method expands network weights and retains standard forward/adjoint solvers."
+    },
+    {
+      "canonical_id": "arxiv:1906.04596",
+      "title": "ANODEV2: A Coupled Neural ODE Evolution Framework",
+      "url": "https://arxiv.org/abs/1906.04596",
+      "relationship": "evolving-weight-competitor",
+      "difference": "ANODEV2 evolves model parameters through a coupled learned ODE, allowing nonlinear weight dynamics without a fixed global polynomial basis, at the cost of a more complex control system."
+    },
+    {
+      "canonical_id": "openreview:992vogTP1L",
+      "title": "Generalization bounds for neural ordinary differential equations and deep residual networks",
+      "url": "https://openreview.net/forum?id=992vogTP1L",
+      "relationship": "complementary-theory",
+      "difference": "Marion connects generalization to continuous parameter magnitude and successive-weight variation; it provides theory for the smoothness intuition that the reviewed empirical study does not prove."
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "This is a unified comparison of monomial and Legendre time-weight parameterizations across ResNet and neural-ODE training paradigms on high-dimensional surrogate problems.",
+    "evidence": "The paper implements the same coefficient concept in discrete and continuous pipelines, includes Hamiltonian and standard architectures, and measures accuracy, degree, depth, and solver evaluations on three datasets.",
+    "reviewer_inference": "The side-by-side surrogate benchmark and contradiction-rich empirical record are useful, but polynomial time-varying weights, spline controls, spectral Legendre schemes, and evolving-parameter ODEs all predate it. Its distinctive evidence is the specific cross-paradigm comparison, not a new parameterization principle, and the unreconciled aggregate results weaken its main conclusion."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Read all 34 pages, including derivations, all tables, plots, declarations, and references. Visually checked Table 5 and Figure 6 against extracted values; the CDR/DCR mean-error contradiction is present in the PDF, not an extraction artifact. Primary arXiv and OpenReview records were checked on 2026-08-23."
+}

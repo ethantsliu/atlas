@@ -1,0 +1,451 @@
+{
+  "stable_id": "arxiv:2604.07402",
+  "reading_depth": "verified",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2604.07402",
+    "pdf_sha256": "138e982b05cb7b71d573a2a52b407ca7054a9d89e6bab9bce95c30388913edae",
+    "text_sha256": "408bde459592e04b3ea843b9ac5864c739ceef7e904fb9342a8edf32acbae45b",
+    "page_count": 15,
+    "extracted_at": "2026-08-23T09:56:00.568049+00:00",
+    "review_pass": "secondary-verified-v1"
+  },
+  "question": "Can autoregressive video generators be trained about twice as fast by backpropagating only through local token windows while retaining a full ground-truth prefix, and can adjacent-state continuity regularization recover full-sequence quality and temporal consistency?",
+  "key_findings": [
+    {
+      "claim": "Author-reported baseline trade-off: training on two compressed frame blocks instead of the full five-block, 17-frame sequence reduces memory and increases reported throughput, but blockwise inference causes severe quality loss.",
+      "evidence": "The Fewer-Frames model trains on 2,048 tokens and at inference repeatedly reuses the last 1,024 generated tokens until reaching the baseline's 5,120-token sequence. On FaceForensics (FFS) and SkyTimelapse (SKY), FVD worsens from 73.65 and 89.09 for the full baseline to 229.32 and 292.41. Table 1 reports a train-speed value of 1.75 versus 0.84 and labels it 2.5x, while Table 2 later reports 2.10 for the same model, which is the value actually equal to 2.5 times 0.84.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "4.1 Training on Fewer Frames / Table 1 and Figure 3"},
+        {"page": 5, "section": "4.2 Inconsistency / Figures 4-5"},
+        {"page": 6, "section": "Table 2"},
+        {"page": 13, "section": "A Model Details"}
+      ]
+    },
+    {
+      "claim": "Contradiction audit: Proposition 1 is not proved by Appendix B; its decisive inequalities are assumptions stated in prose.",
+      "evidence": "Equation 16 says a separately trained full-context model is 'expected' to have lower one-step error because it sees more information. That conclusion would require Bayes-optimal or nested-predictor assumptions not stated for the learned models. Equation 17 simply argues, without a stability bound, that exposure-bias perturbations are larger for Fewer-Frames. Equation 18 then promotes these assertions to an inequality between norms of accumulated error sums; per-step expected norm comparisons do not order the norm of a correlated sum because directions can cancel or reinforce. Proposition 1 is therefore a plausible hypothesis supported by Table 1 and Figures 4-5, not a theorem.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Proposition 1 / Equation 5"},
+        {"page": 13, "section": "B Proof of Proposition 1 / Equations 14-18"}
+      ]
+    },
+    {
+      "claim": "Author method: Local-Opt masks gradients outside a sampled window while retaining the preceding ground-truth prefix as context, uses overlapping windows, and keeps standard full-sequence autoregressive inference.",
+      "evidence": "For a window from s through s+W-1, Equation 6 applies cross-entropy only to tokens in that window while conditioning each token on its full ground-truth prefix. Pre-window states receive stop-gradient. With stride S=W/2, overlapping windows revisit tokens. On FFS/SKY, Local-Opt reports FVD 190.46/256.94 and train speed 1.47 (1.7x), improving over Fewer-Frames 229.32/292.41 at 2.10 (2.5x), but remaining far behind baseline quality 73.65/89.09 at 0.84.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "4.3 Training with Local Optimization / Equation 6"},
+        {"page": 6, "section": "Figure 6, Proposition 2, Table 2, and Figure 7"},
+        {"page": 14, "section": "D Algorithm 1 Local-Opt Training"}
+      ]
+    },
+    {
+      "claim": "Contradiction audit: Proposition 2 is largely tautological for Local-Opt's own NLL objective and does not establish the stated squared generation-error ordering.",
+      "evidence": "Appendix C defines theta_LO as a global minimizer of expected Local-Opt negative log-likelihood and observes that its NLL cannot exceed theta_FF's NLL on that same objective. This assumes optimization reaches the global minimum, holds only in expectation over sampled windows rather than 'any given window,' and compares teacher-forced NLL. The next step asserts that lower NLL directly implies lower latent mean-squared or generated-token error, which is false without calibration, decoding, and embedding assumptions. Consequently Equation 21 does not prove Equation 7.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Proposition 2 / Equation 7"},
+        {"page": 13, "section": "C Proof and Explanation for Proposition 2"},
+        {"page": 14, "section": "C.1 Equations 19-21"}
+      ]
+    },
+    {
+      "claim": "Author-reported negative result: unregularized Local-Opt retains a substantial generation gap and does not recover the full-context baseline's temporal quality.",
+      "evidence": "Local-Opt improves FFS/SKY FVD over Fewer-Frames from 229.32/292.41 to 190.46/256.94, but remains far worse than the baseline's 73.65/89.09. Figure 7 explicitly reports slightly lower PSNR than Fewer-Frames, and Figure 10 later shows the balanced Local-Opt generated-loss distribution consistently above baseline. These negative controls establish that full-prefix window masking and first-frame balancing alone are insufficient; most of the quality recovery is attributable to the added ReCo penalty.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "Table 2 and Figure 7 Local-Opt negative controls"},
+        {"page": 7, "section": "Table 3 balanced Local-Opt result"},
+        {"page": 9, "section": "Figure 10 generated-loss analysis"}
+      ]
+    },
+    {
+      "claim": "Contradiction audit: the appendix's claimed multi-context benefit from overlap is inconsistent with its own conditional-loss equations.",
+      "evidence": "Equations 22-23 sum the same term -log P(e_i|E_<i) for every window containing token i. Because the conditioning prefix E_<i is identical, duplicating that expression does not expose e_i to the claimed different contexts E_<s1, E_<s2, and so on; it merely reweights an identical gradient. Algorithm 1 likewise feeds the prefix through max(W) and masks loss/gradients outside the window. If the implementation truncates or changes the effective prefix by window, the equations and algorithm do not specify it. The overlap ablation is empirical evidence for benefit, but the written multi-context mechanism is not established.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "4.3 Overlapping-window rationale"},
+        {"page": 14, "section": "C.2 Contribution of Overlapping Windows / Equations 22-23"},
+        {"page": 14, "section": "D Algorithm 1"},
+        {"page": 15, "section": "E.3 Effect of Window Overlap / Table 8"}
+      ]
+    },
+    {
+      "claim": "Author-reported first-frame correction: oversampling windows that include the first frame closes much of Local-Opt's teacher-forced/generated loss gap while preserving a 2x reported speedup.",
+      "evidence": "The authors observe higher and more uneven loss on Local-Opt-generated sequences, and that supplying a ground-truth first frame reduces later loss. They therefore sample first-frame windows with probability 0.5. FVD improves from 190.46/256.94 for Local-Opt to 127.11/179.84 for the balanced variant on FFS/SKY, while reported train speed rises from 1.47 to 1.68 (2.0x baseline). This is a useful targeted correction, but FVD remains much worse than baseline 73.65/89.09 before ReCo.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "4.4 Imbalance / Figure 8"},
+        {"page": 7, "section": "Figure 9 and Table 3"}
+      ]
+    },
+    {
+      "claim": "Author method: ReCo adds the mean squared distance between adjacent hidden states to Local-Opt's cross-entropy objective as a proxy for smooth autoregressive dynamics.",
+      "evidence": "The model is framed as h_t=g(h_(t-1),e_t;theta). ReCo adds lambda times the average ||h_(i+1)-h_i||^2 inside each window. The narrative invokes an L-Lipschitz transition to write ||epsilon_(t+1)|| <= L||epsilon_t||+delta_t and argues that smaller adjacent changes encourage smaller L, thereby reducing self-generated error amplification.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "5.1 Dynamical systems / Equations 8-9"},
+        {"page": 7, "section": "5.2 ReCo Loss / Equation 10"},
+        {"page": 8, "section": "Equation 11 and 5.3 / Equations 12-13"}
+      ]
+    },
+    {
+      "claim": "Contradiction audit: adjacent-state continuity is not a demonstrated Lipschitz regularizer, so Proposition 3's theoretical error-control language is unsupported.",
+      "evidence": "Penalizing ||h_(i+1)-h_i|| along observed trajectories constrains state increments while both the state and input token change; it does not bound the Jacobian of g with respect to h or a local/global Lipschitz constant over perturbed states. Equation 12 compares g at both different states and different token embeddings, whereas Definition 1 bounds state changes only for the same e; delta_t is introduced without a bound. A degenerate or over-smoothed representation can have small increments without robust predictions. Proposition 3 itself says improved consistency is merely 'expected,' and no Lipschitz estimate or perturbation test is reported.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Definition 1 and Equation 9"},
+        {"page": 7, "section": "5.2 Equation 10"},
+        {"page": 8, "section": "5.3 Equations 12-13 and Proposition 3"},
+        {"page": 15, "section": "E.2 lambda=1 over-regularization / Table 7"}
+      ]
+    },
+    {
+      "claim": "Author-reported main result: ReCo recovers or slightly improves full-sequence FVD while retaining the balanced Local-Opt training-speed advantage across four small class-conditioned datasets.",
+      "evidence": "At the base size, ReCo versus baseline FVD is 72.6 versus 73.7 on FFS, 87.5 versus 89.1 on SKY, 590.3 versus 630.8 on UCF101, and 104.3 versus 115.5 on Taichi-HD. At the larger configuration, ReCo-star versus baseline-star is 42.5 versus 46.1, 58.8 versus 62.7, 251.4 versus 254.5, and 98.3 versus 105.5. ReCo with the LARP tokenizer reaches 46.2/61.7/56.1/104.6 versus LARP 62.6/70.4/57.0/119.5. No run-to-run uncertainty is reported.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "6.1 Experimental Setting and 6.2 Results"},
+        {"page": 9, "section": "Table 4"}
+      ]
+    },
+    {
+      "claim": "Author-reported 7B text-to-video result separates a strong full-cost configuration from a weaker half-cost configuration.",
+      "evidence": "On Vimeo training and zero-shot MSR-VTT evaluation with the 7B Loong architecture, baseline has CLIP 0.2903 and FVD 274 at relative cost 1.0. Full-cost ReCo improves to 0.3056 and 212. ReCo* at cost 0.5 reaches 0.2911 and 267: technically better than baseline at half cost, but by only 0.0008 CLIP and 7 FVD with no uncertainty. Thus the large quality gain and the halved-cost result are achieved by different rows.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "6.3 Text-to-Video Generation"},
+        {"page": 9, "section": "Table 5"}
+      ]
+    },
+    {
+      "claim": "Author-reported motion-stratified appendix result: ReCo's relative benefit is largest at medium motion but high-motion FVD remains very poor.",
+      "evidence": "On UCF101 grouped by average optical flow, ReCo versus baseline FVD is 204.6 versus 215.4 below 3.0 flow (5.0% improvement), 390.2 versus 542.7 for flow 3.0-6.0 (28.1%), and 815.7 versus 985.2 above 6.0 (17.2%). The groups' sample counts and uncertainty are not given, and the high-motion absolute scores show that continuity does not eliminate collapse.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 14, "section": "E.1 Robustness under Different Motion Dynamics"},
+        {"page": 15, "section": "Table 6"}
+      ]
+    },
+    {
+      "claim": "Author-reported ablations show both a continuity-strength optimum and an overlap speed-quality trade-off rather than monotone robustness.",
+      "evidence": "On FFS/SKY, lambda 0 gives FVD 127.11/179.84; 0.01 gives 91.42/105.30; 0.05 gives 73.85/89.22; the default 0.1 gives 72.60/87.50; 0.5 degrades to 76.93/94.15; and lambda 1.0 degrades to 88.24/112.67, labeled over-regularized. With 0%, 50%, and 75% overlap, FVD is 98.4/112.1, 72.6/87.5, and 71.9/86.9, while speed falls from greater than 2x to about 2x to less than 2x.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 15, "section": "E.2 Sensitivity / Table 7"},
+        {"page": 15, "section": "E.3 Effect of Window Overlap / Table 8"}
+      ]
+    },
+    {
+      "claim": "Author-reported long-horizon result: the ReCo advantage persists and grows from 32 to 64 SkyTimelapse frames.",
+      "evidence": "Table 9 reports FVD 78.8 for ReCo versus 83.5 for full-context baseline at 32 frames, and 71.1 versus 79.2 at 64 frames. This is useful horizon evidence, although it covers only one low-motion dataset and two lengths, with no throughput, memory, or uncertainty at those lengths.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 15, "section": "E.4 Long Video Generation / Table 9"}
+      ]
+    },
+    {
+      "claim": "Contradiction audit: several reporting statements do not match their tables or leave the evaluated model size ambiguous.",
+      "evidence": "Table 1 labels 1.75 versus 0.84 as 2.5x although the ratio is about 2.08; its caption calls the upward-arrow scalar 'training time for 24 videos,' even though larger values are treated as faster, so the unit is internally reversed or mislabeled. Table 2 changes Fewer-Frames to 2.10, which is 2.5x. Section 4.4 says balanced Local-Opt gains over both baseline and Local-Opt, but Table 3's lower-is-better FVD 127.11/179.84 is worse than baseline 73.65/89.09. Section 6.1 says the two parameter sizes are 110M and 343M, whereas Table 4's caption says the starred models have 770M parameters. These inconsistencies prevent an exact reconstruction of cost and scale from the paper alone.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "Table 1"},
+        {"page": 6, "section": "Table 2"},
+        {"page": 7, "section": "4.4 prose and Table 3"},
+        {"page": 8, "section": "6.1 parameter sizes"},
+        {"page": 9, "section": "Table 4 caption"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Save backward-pass compute by applying teacher-forced next-token loss only inside sampled local windows of a full video-token prefix, oversample the difficult first-frame window, and regularize adjacent hidden states to make self-generated trajectories smoother.",
+    "mechanism": "Videos are discretized into 5,120 OmniTokenizer tokens for 17 frames. Local-Opt selects a stride-aligned window, runs the prefix through the model, masks loss and gradients outside the window, and uses 50% overlap; inference remains ordinary full-sequence autoregression. A balanced variant samples windows containing the first frame with probability 0.5. ReCo adds lambda times the average squared difference between consecutive hidden representations in the optimized window. The empirical claim is that loss masking halves training cost while full context avoids the severe iterative drift of a 2,048-token Fewer-Frames model, and continuity recovers temporal quality.",
+    "assumptions": [
+      "The frozen ground-truth prefix contains the long-range information needed to train each local transition.",
+      "Masking gradients outside a window saves enough backward compute to dominate the cost of forwarding the full prefix.",
+      "Random stride-aligned windows cover all tokens fairly after the first-frame sampling correction.",
+      "Teacher-forced local cross-entropy predicts free-running full-sequence FVD and temporal consistency.",
+      "The baseline, Fewer-Frames, Local-Opt, and ReCo models are sufficiently optimized for objective comparisons to reflect method differences.",
+      "More conditioning information guarantees lower learned-model error despite separate training objectives and finite optimization.",
+      "Per-step error vectors accumulate monotonically enough for expected norm comparisons to order total error.",
+      "Lower expected NLL on Local-Opt windows implies lower squared latent or generated-sequence error.",
+      "Overlapping windows expose a token to meaningfully different contexts, although the written objective conditions on the same full prefix.",
+      "Adjacent hidden states should be close even when the token identity and desired visual motion change.",
+      "Small adjacent trajectory increments imply a small Lipschitz constant of the transition map with respect to hidden-state perturbations.",
+      "A smaller hidden-state Lipschitz constant translates through the tokenizer decoder to lower FVD, PSNR, and optical-flow error.",
+      "First-frame loss is the principal cause of the observed train-generation loss gap and a 0.5 sampling probability is broadly appropriate.",
+      "FVD values from external methods are comparable under dataset, resolution, frame-count, sampling, and evaluation-protocol differences.",
+      "Reported throughput ratios on four A100 GPUs transfer to larger commercial training stacks and longer sequences."
+    ]
+  },
+  "techniques": [
+    {"id": "local-loss-masking", "role": "Backpropagates next-token loss only through a sampled token window while retaining the preceding prefix as context."},
+    {"id": "frozen-prefix-conditioning", "role": "Stops gradients through pre-window representations to reduce backward memory and compute."},
+    {"id": "overlapping-window-sampling", "role": "Revisits tokens under overlapping optimization ranges and trades throughput for FVD."},
+    {"id": "first-frame-importance-sampling", "role": "Allocates half of windows to the high-loss first frame to reduce free-running drift."},
+    {"id": "adjacent-hidden-state-penalty", "role": "Penalizes squared representation changes between consecutive token positions."},
+    {"id": "fewer-frame-negative-control", "role": "Separates simple sequence shortening from full-prefix local optimization."},
+    {"id": "teacher-forced-vs-generated-loss-profile", "role": "Locates token positions where exposure to model-generated context raises loss."},
+    {"id": "motion-stratified-fvd", "role": "Tests whether continuity helps in low-, medium-, and high-motion regimes."},
+    {"id": "window-overlap-ablation", "role": "Quantifies the speed-quality frontier created by 0%, 50%, and 75% overlap."}
+  ],
+  "evaluations": [
+    {
+      "setting": "17-frame 256x256 FFS and SkyTimelapse class-conditioned generation with 5,120 OmniTokenizer tokens",
+      "metric": "FVD and reported train-speed scalar on A100 hardware (the caption inconsistently calls it training time)",
+      "result": "Baseline is 73.65/89.09 FVD at 0.84; Fewer-Frames is 229.32/292.41 at 2.10 (2.5x); Local-Opt is 190.46/256.94 at 1.47 (1.7x).",
+      "baseline": "Full-sequence teacher-forced autoregressive training and the shorter 2,048-token Fewer-Frames control."
+    },
+    {
+      "setting": "FFS and SKY first-frame sampling variants",
+      "metric": "FVD and reported train speed",
+      "result": "Ground-truth first-frame inference gives 134.73/186.63 at 1.47; 0.5 first-frame window sampling gives 127.11/179.84 at 1.68 (2.0x), still behind baseline quality.",
+      "baseline": "Unbalanced Local-Opt at 190.46/256.94 and full baseline at 73.65/89.09."
+    },
+    {
+      "setting": "Base ReCo and larger ReCo-star on FFS, SKY, UCF101, and Taichi-HD, 300 epochs on four A100 GPUs",
+      "metric": "FVD",
+      "result": "Base ReCo versus baseline is 72.6/87.5/590.3/104.3 versus 73.7/89.1/630.8/115.5; larger ReCo-star is 42.5/58.8/251.4/98.3 versus 46.1/62.7/254.5/105.5.",
+      "baseline": "Same architecture and tokenizer under conventional full-sequence training; the paper conflicts on whether the larger size is 343M or 770M."
+    },
+    {
+      "setting": "ReCo combined with the LARP tokenizer on the same four class-conditioned datasets",
+      "metric": "FVD",
+      "result": "ReCo-LARP reaches 46.2/61.7/56.1/104.6 versus LARP 62.6/70.4/57.0/119.5.",
+      "baseline": "Published LARP tokenizer and autoregressive prior results."
+    },
+    {
+      "setting": "7B Loong architecture trained on about 300K Vimeo video-text pairs and evaluated zero-shot on MSR-VTT",
+      "metric": "CLIP score, FVD, and relative training cost",
+      "result": "Baseline is 0.2903/274 at cost 1.0; full-cost ReCo is 0.3056/212; half-cost ReCo* is 0.2911/267.",
+      "baseline": "Loong 7B at relative cost 1.0."
+    },
+    {
+      "setting": "UCF101 low-, medium-, and high-motion groups defined by average optical flow",
+      "metric": "FVD and reported relative improvement",
+      "result": "ReCo versus baseline is 204.6 versus 215.4 below 3.0 flow, 390.2 versus 542.7 at 3.0-6.0, and 815.7 versus 985.2 above 6.0; reported gains are 5.0%, 28.1%, and 17.2%.",
+      "baseline": "Full-context baseline within each unreported-size motion stratum."
+    },
+    {
+      "setting": "FFS/SKY continuity-weight sweep",
+      "metric": "FVD",
+      "result": "lambda 0, 0.01, 0.05, 0.1, 0.5, and 1.0 yield 127.11/179.84, 91.42/105.30, 73.85/89.22, 72.60/87.50, 76.93/94.15, and 88.24/112.67; lambda 1 is explicitly over-regularized.",
+      "baseline": "Balanced Local-Opt with lambda=0."
+    },
+    {
+      "setting": "FFS/SKY window-overlap sweep",
+      "metric": "FVD and training speedup",
+      "result": "0%, 50%, and 75% overlap give 98.4/112.1 at greater than 2.0x, 72.6/87.5 at about 2.0x, and 71.9/86.9 at less than 2.0x.",
+      "baseline": "No-overlap Local-Opt/ReCo training."
+    },
+    {
+      "setting": "SkyTimelapse generation at 32 and 64 frames",
+      "metric": "FVD",
+      "result": "ReCo versus full-context baseline is 78.8 versus 83.5 at 32 frames and 71.1 versus 79.2 at 64 frames.",
+      "baseline": "Conventional full-context autoregressive model at each sequence length."
+    },
+    {
+      "setting": "Generated-video temporal diagnostics on FFS/SKY",
+      "metric": "PSNR and optical flow over source-target frame gaps 0-3 through 12-15",
+      "result": "ReCo roughly matches baseline PSNR around 27-28 and tracks or improves baseline optical flow, while Local-Opt PSNR falls from about 26.8 to 24.8 and optical flow rises from about 1.5 to 1.75 as the gap grows.",
+      "baseline": "Full baseline and unregularized Local-Opt; values are read from Figure 11 and are not tabulated."
+    }
+  ],
+  "limitations": [
+    "Author-stated: the work emphasizes algorithmic innovation and does not evaluate commercial-scale large language or multimodal models.",
+    "Author-stated: unbalanced Local-Opt has a large teacher-forced versus generated loss gap and particularly high first-frame loss.",
+    "Author-stated: the Fewer-Frames model has severe iterative error accumulation, temporal inconsistency, and slower blockwise inference despite faster training.",
+    "Author-stated negative result: unregularized Local-Opt has slightly lower PSNR than Fewer-Frames, and even first-frame-balanced Local-Opt remains much worse than baseline FVD before ReCo.",
+    "Reviewer-identified: Proposition 1 assumes its one-step and propagation inequalities and mishandles norms of accumulated correlated errors.",
+    "Reviewer-identified: Proposition 2 compares NLL on Local-Opt's own objective and then unjustifiably converts that result to latent MSE and generation error.",
+    "Reviewer-identified: the overlap proof duplicates an identical conditional-loss term while claiming different contexts.",
+    "Reviewer-identified: adjacent hidden-state smoothness does not bound the transition Jacobian or Lipschitz constant, and Proposition 3 is not a theorem.",
+    "Reviewer-identified: no direct estimate of transition Lipschitz constants, perturbation amplification, or representation collapse is reported.",
+    "Reviewer-identified: lower-is-better FVD claims, train-speed values, and larger-model parameter counts are internally inconsistent across Tables 1-4 and Section 6.1.",
+    "Reviewer-identified contradiction: Table 1 calls the upward-arrow train-speed scalar 'training time for 24 videos' while treating larger values as faster; the unit and protocol are not defined clearly enough to reconstruct wall-clock GPU-hours or token throughput.",
+    "Reviewer-identified: no seeds, confidence intervals, significance tests, or evaluation sample counts accompany the FVD and CLIP comparisons.",
+    "Reviewer-identified: external GAN, diffusion, AR, LARP, and tokenizer rows may use different evaluation protocols, so Table 4 is not a controlled head-to-head comparison.",
+    "Reviewer-identified: inference speed is claimed to match baseline but no wall-clock inference table is provided for Local-Opt or ReCo.",
+    "Reviewer-identified: forward-prefix versus backward-window compute and memory are not decomposed, making scaling to much longer prefixes uncertain.",
+    "Reviewer-identified: the half-cost 7B result only narrowly beats baseline, while the large text-to-video quality gain uses full relative training cost.",
+    "Reviewer-identified: the motion groups omit sample counts and the high-motion ReCo FVD of 815.7 remains poor.",
+    "Reviewer-identified: long-horizon validation covers only 32 and 64 frames on SkyTimelapse, without long-video throughput or memory measurements.",
+    "Reviewer-identified: no ablation compares continuity on raw frame-block boundaries versus every token, layer choice for h, normalized states, or motion-aware continuity."
+  ],
+  "failure_modes": [
+    "Late windows still require forwarding a nearly full prefix, so compute savings shrink as sequence length grows.",
+    "Stop-gradient prefixes become stale with respect to parameter updates and fail to train long-range credit assignment.",
+    "A token is revisited by overlap but under the same effective prefix, adding redundant gradient weight rather than contextual diversity.",
+    "First-frame oversampling sacrifices coverage of later high-motion transitions or overfits dataset-specific starts.",
+    "The optimal first-frame sampling fraction changes with tokenizer, frame count, or conditioning modality.",
+    "Adjacent-state regularization collapses or over-smooths representations, as suggested by the lambda=1 degradation.",
+    "Fast genuine motion produces large necessary representation jumps that ReCo incorrectly penalizes.",
+    "Small hidden-state increments coexist with a large Jacobian off the observed trajectory, leaving self-generated perturbations unstable.",
+    "Different token embeddings dominate Equation 12, so a state-only Lipschitz argument fails to control error.",
+    "Teacher-forced local NLL improves while free-running FVD or semantic alignment worsens.",
+    "The tokenizer introduces reconstruction artifacts that continuity cannot repair and FVD attributes to the generator.",
+    "FVD gains on static FFS/SKY data do not transfer to camera cuts, occlusion, rapid motion, or long text-conditioned narratives.",
+    "Relative speedups disappear under distributed activation checkpointing, context parallelism, or optimized full-sequence kernels.",
+    "A half-cost 7B run falls within ordinary training variance and does not reproduce the small reported FVD advantage.",
+    "External-method FVD rankings reverse under a common tokenizer, frame count, resolution, and sampling protocol.",
+    "Local window objectives miss dependencies spanning more than W tokens even though the frozen prefix is visible."
+  ],
+  "reusable_insights": [
+    "Loss masking with a frozen prefix can reduce backward cost without shortening the inference context; report forward and backward costs separately.",
+    "Compare short-context training against full-prefix local loss to distinguish context loss from gradient-window savings.",
+    "Plot teacher-forced and free-running loss by token position to identify where exposure bias first appears.",
+    "Importance-sample high-error positions only after verifying that gains do not come from starving other transitions.",
+    "Treat overlap as an empirical speed-quality knob and specify whether it changes context, loss multiplicity, or both.",
+    "A trajectory smoothness penalty should not be called a Lipschitz constraint without Jacobian or perturbation measurements.",
+    "Stratify temporal generation by motion magnitude because aggregate consistency metrics hide regime-specific collapse.",
+    "Include an over-regularized setting; lambda=1 reveals that representation continuity has a real bias-quality trade-off.",
+    "Separate the strongest full-compute quality row from the resource-matched half-compute row when claiming efficiency-quality dominance.",
+    "Test training accelerators against token-compression and block-prediction alternatives under the same architecture and tokenizer.",
+    "For any surrogate-to-generation proof, state the calibration and decoding assumptions connecting NLL, token error, latent distance, and FVD.",
+    "Audit tables arithmetically: annotated speedup factors and lower-is-better claims should be derivable from the displayed values."
+  ],
+  "open_questions": [
+    "What fraction of Local-Opt's measured speedup comes from saved backward activations versus other implementation choices?",
+    "Does full-prefix local loss outperform standard truncated backpropagation, Transformer-XL recurrence, and Shortformer staged subsequences at matched FLOPs?",
+    "Can a correct theorem relate teacher-forced Local-Opt NLL to free-running token or FVD error under explicit calibration and stability assumptions?",
+    "Do overlapping windows actually change effective context in the released implementation, contrary to Equations 22-23?",
+    "Which hidden layer and normalization make adjacent-state distance most predictive of temporal consistency?",
+    "Can Jacobian penalties, spectral normalization, or perturbation consistency control the transition Lipschitz constant more directly?",
+    "How should continuity be motion-adaptive so that high-motion transitions are not over-smoothed?",
+    "Does the first-frame sampling probability generalize across tokenizers, video lengths, resolutions, and text conditioning?",
+    "Will the 2x training claim hold at commercial scale, with context parallelism and sequences far longer than 5,120 tokens?",
+    "Are the FVD improvements reproducible across seeds and a common evaluation implementation?",
+    "How does ReCo compare directly with VRC, DiCoDe, EVATok, DeRA, LARP, NBP, and NOVA at matched training FLOPs and output quality?",
+    "Why does 64-frame SkyTimelapse FVD improve relative to 32 frames for both methods, and are those scores directly comparable?",
+    "Can local optimization support variable-length or streaming video without forwarding an ever-growing full prefix?",
+    "Does smoother hidden-state evolution improve semantic event coherence, or only low-level frame continuity?",
+    "What is the true larger-model configuration: 343M or 770M, and which reported rows correspond to each?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2410.02757",
+      "title": "Loong: Generating Minute-level Long Videos with Autoregressive Language Models",
+      "url": "https://arxiv.org/abs/2410.02757v2",
+      "relationship": "closest-architecture-and-training-baseline",
+      "difference": "Loong trains unified text-video autoregressive models with progressive short-to-long schedules, loss reweighting, and inference re-encoding to limit long-video imbalance and drift. ReCo is layered on the Loong architecture and changes gradient locality plus representation smoothness; it should therefore be compared against Loong's own progressive schedule at matched compute, not only a generic full-sequence baseline.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2410.02757v2"
+    },
+    {
+      "canonical_id": "doi:10.1609/aaai.v40i16.38391",
+      "title": "Less Is More: Vision Representation Compression for Efficient Video Generation with Large Language Models",
+      "url": "https://ojs.aaai.org/index.php/AAAI/article/view/38391",
+      "relationship": "same-author-direct-efficiency-predecessor",
+      "difference": "VRC, from overlapping authors, compresses token representations fourfold and uses next-segment prediction, reporting 9-14x inference acceleration plus lower training/inference memory. ReCo keeps the tokenizer sequence and full autoregressive inference intact, saving backward training work through local loss; the two methods attack different costs and their combination is not evaluated.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "AAAI-26 official proceedings version, Vol. 40 No. 16, pp. 13826-13834, DOI:10.1609/aaai.v40i16.38391"
+    },
+    {
+      "canonical_id": "arxiv:2502.07737",
+      "title": "Next Block Prediction: Video Generation via Semi-Autoregressive Modeling",
+      "url": "https://arxiv.org/abs/2502.07737v2",
+      "relationship": "direct-blockwise-autoregressive-competitor",
+      "difference": "NBP predicts a full row or frame block in parallel with bidirectional within-block attention, improving both inference speed and spatial dependency modeling and reporting an 11x generation speedup. ReCo retains token-by-token inference and targets training cost; it avoids NBP's architectural change but provides no inference acceleration.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2502.07737v2"
+    },
+    {
+      "canonical_id": "arxiv:2412.14169",
+      "title": "Autoregressive Video Generation without Vector Quantization",
+      "url": "https://arxiv.org/abs/2412.14169v2",
+      "relationship": "direct-efficient-ar-video-competitor",
+      "difference": "NOVA removes vector quantization and combines temporal frame-by-frame causality with spatial set-wise bidirectional prediction, reporting data, training-cost, and inference advantages at 0.6B scale. ReCo operates on discrete OmniTokenizer codes and modifies only training loss locality, making it simpler to retrofit but still subject to long token sequences.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2412.14169v2"
+    },
+    {
+      "canonical_id": "arxiv:2412.04446",
+      "title": "DiCoDe: Diffusion-Compressed Deep Tokens for Autoregressive Video Generation with Language Models",
+      "url": "https://arxiv.org/abs/2412.04446v2",
+      "relationship": "direct-token-compression-training-competitor",
+      "difference": "DiCoDe uses diffusion-informed deep tokens with roughly 1000x token-count compression and trains 100M-3B AR video models on four A100s. ReCo instead retains low-level discrete sequences and halves reported backward training cost; DiCoDe attacks the sequence-length root cause and is a necessary matched quality-cost comparator.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2412.04446v2"
+    },
+    {
+      "canonical_id": "arxiv:2410.21264",
+      "title": "LARP: Tokenizing Videos with a Learned Autoregressive Generative Prior",
+      "url": "https://arxiv.org/abs/2410.21264v2",
+      "relationship": "direct-tokenizer-and-representation-competitor",
+      "difference": "LARP learns holistic discrete tokens jointly with a lightweight AR prior so the latent space is reconstruction-efficient and generation-friendly. ReCo regularizes hidden states of the downstream AR model and reports additive gains when using LARP, but does not isolate whether continuity remains useful across LARP token counts or prior strengths.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2410.21264v2"
+    },
+    {
+      "canonical_id": "arxiv:2512.04483",
+      "title": "DeRA: Decoupled Representation Alignment for Video Tokenization",
+      "url": "https://arxiv.org/abs/2512.04483v1",
+      "relationship": "concurrent-efficient-tokenizer-competitor",
+      "difference": "DeRA factorizes appearance and motion into a compact one-dimensional tokenizer and resolves alignment-gradient conflict, reporting 25% better UCF101 reconstruction FVD than LARP and improved downstream AR generation. ReCo is tokenizer-agnostic in principle but never tests this stronger compact representation or separates motion-aware representation alignment from generic adjacent-state smoothness.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2512.04483v1"
+    },
+    {
+      "canonical_id": "arxiv:2603.12267",
+      "title": "EVATok: Adaptive Length Video Tokenization for Efficient Visual Autoregressive Generation",
+      "url": "https://arxiv.org/abs/2603.12267v1",
+      "relationship": "concurrent-adaptive-efficiency-competitor",
+      "difference": "EVATok allocates variable token counts based on video complexity and reports at least 24.4% average token savings against LARP and a fixed-length baseline. ReCo uses a fixed token budget and uniform continuity penalty; EVATok directly addresses the possibility that static and high-motion clips need different compute, which also challenges ReCo's uniform smoothing assumption.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2603.12267v1"
+    },
+    {
+      "canonical_id": "arxiv:2012.15832",
+      "title": "Shortformer: Better Language Modeling using Shorter Inputs",
+      "url": "https://arxiv.org/abs/2012.15832v2",
+      "relationship": "omitted-short-input-training-antecedent",
+      "difference": "Shortformer shows that staged shorter subsequences reduce Transformer training time by 1.65x and combines them with cached recurrent context and position-infused attention. Local-Opt's central efficiency premise is closely related but uses random loss windows with a frozen full prefix and adds video-specific first-frame balancing and continuity; the paper does not compare or cite this antecedent.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2012.15832v2"
+    },
+    {
+      "canonical_id": "arxiv:1901.02860",
+      "title": "Transformer-XL: Attentive Language Models Beyond a Fixed-Length Context",
+      "url": "https://arxiv.org/abs/1901.02860v3",
+      "relationship": "omitted-segment-recurrence-antecedent",
+      "difference": "Transformer-XL trains with segment-level recurrence and stopped-gradient cached states to preserve long context without full backpropagation through history. Local-Opt similarly freezes preceding representations but appears to recompute a full prefix and masks an arbitrary window; a matched recurrence baseline would clarify whether its novelty is sampling, implementation, or video-specific loss design.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:1901.02860v3"
+    },
+    {
+      "canonical_id": "arxiv:2104.10157",
+      "title": "VideoGPT: Video Generation using VQ-VAE and Transformers",
+      "url": "https://arxiv.org/abs/2104.10157v2",
+      "relationship": "foundational-discrete-ar-video-baseline",
+      "difference": "VideoGPT establishes the two-stage VQ-VAE plus GPT formulation used by the reviewed paper's baseline. ReCo leaves that architecture unchanged and supplies a training recipe, so its generality should be judged across modern tokenizers and models rather than as a new generative formulation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2104.10157v2"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Local optimization with a frozen full prefix reduces autoregressive video training cost while avoiding the drift of fewer-frame training, and a Lipschitz-inspired representation-continuity loss recovers or exceeds baseline video quality at about half the training cost.",
+    "evidence": "The paper reports FFS/SKY controls for Fewer-Frames, Local-Opt, first-frame balancing, and ReCo; four-dataset FVD tables at two claimed sizes; a 7B Vimeo/MSR-VTT result; tokenwise loss, PSNR, and optical-flow plots; and appendix sweeps over motion, continuity weight, overlap, and 32/64-frame horizons.",
+    "reviewer_inference": "The credible novelty is an empirically effective video-specific recipe combining random local loss masking, first-frame importance sampling, and adjacent hidden-state smoothing, with unusually useful ablations. The theoretical framing is not validated: Propositions 1 and 2 assume or misconvert their key inequalities, the overlap mechanism contradicts Equations 22-23, and ReCo does not bound a Lipschitz constant. Segment recurrence, short-input training, block prediction, and multiple token-compression methods substantially narrow the systems novelty. At small scale the full ReCo rows improve baseline FVD, but the resource-matched 7B half-cost row only slightly beats baseline and all comparisons lack uncertainty and reconstructable GPU-hour accounting."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Independent secondary review read every line of all 15 extracted pages of arXiv:2604.07402v1 (ACL 2026 Findings), including references, model details, Tables 1-9, Figures 1-12, Propositions 1-3, proofs B-C.2, Algorithm 1, motion/weight/overlap/long-video appendices, and error cases. The exact indexed PDF SHA-256 138e982b05cb7b71d573a2a52b407ca7054a9d89e6bab9bce95c30388913edae and text SHA-256 408bde459592e04b3ea843b9ac5864c739ceef7e904fb9342a8edf32acbae45b were rechecked; a fresh official v1 PDF matched the indexed PDF pin. This pass independently verified every finding and table value, made the negative Local-Opt result explicit, and added the overlooked Table 1 speed-versus-time labeling contradiction. Eleven current official primary competitor records were rechecked at exact revisions, including same-author VRC, Loong, NBP, NOVA, DiCoDe, LARP, DeRA, EVATok, Shortformer, Transformer-XL, and VideoGPT. Exact table values are retained; Figure 11 PSNR/flow values remain explicitly approximate because the paper does not tabulate them. Confidence is 0.97 because source passages were independently audited but training/evaluation code and FVD sampling were not rerun.",
+  "verification": {
+    "reviewer_id": "reviewer-c842e1febe47",
+    "checked_at": "2026-08-23",
+    "passage_check": "Checked all 15 pages against the pinned extraction, including every table/figure, Propositions 1-3, Equations 1-23, proof steps on pp13-14, Algorithm 1, and appendix Tables 6-9/error cases on pp14-15. Recomputed displayed speed ratios and FVD differences, checked the first-frame, lambda, overlap, motion, 7B, and 32/64-frame results, and verified the NLL-to-MSE, same-prefix overlap, norm-sum, Lipschitz, model-size, lower-is-better, and speed-unit contradiction audits at their cited passages.",
+    "competitor_check": "Re-searched and inspected eleven official current primary records: arXiv:2410.02757v2, arXiv:2502.07737v2, arXiv:2412.14169v2, arXiv:2412.04446v2, arXiv:2410.21264v2, arXiv:2512.04483v1, arXiv:2603.12267v1, arXiv:2012.15832v2, arXiv:1901.02860v3, arXiv:2104.10157v2, and the AAAI-26 VRC proceedings version (DOI 10.1609/aaai.v40i16.38391). Exact-version URLs and source_version fields now separate frozen provenance from checked_at and concretely distinguish training-window masking from token compression, block prediction, segment recurrence, and short-input curricula."
+  }
+}

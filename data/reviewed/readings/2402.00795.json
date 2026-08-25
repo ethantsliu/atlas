@@ -1,0 +1,78 @@
+{
+  "stable_id": "arxiv:2402.00795",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2402.00795",
+    "pdf_sha256": "cc4d120760090665438daa15a200ef9f1beefd40295caf8466b8313c46e5ae98",
+    "text_sha256": "425bfdf035f33d749ac680b6565476c1fd7857f6da0e0dcd8d445aae86f5eb9a",
+    "page_count": 21,
+    "extracted_at": "2026-08-23T18:40:49.062113+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a text-pretrained Llama model infer the transition distributions of unseen deterministic, chaotic, and stochastic dynamical systems directly from serialized trajectories, and how does prediction error change with context length?",
+  "key_findings": [
+    {"claim": "Llama-2-13B makes increasingly accurate next-state distribution predictions for several synthetic dynamical systems without parameter updates or instructional prompting.", "evidence": "Serialized trajectories from random Markov chains, logistic maps, Lorenz dynamics, Brownian motion, geometric Brownian motion, and Ornstein-Uhlenbeck processes are followed by token-probability queries; most reported losses fall as more states are supplied.", "attribution": "author-reported", "anchors": [{"page": 1, "section": "Abstract and contributions"}, {"page": 3, "section": "4 Experiments"}, {"page": 11, "section": "Appendix A.4"}]},
+    {"claim": "Hierarchy-PDF reconstructs a continuous density from autoregressive digit probabilities while pruning unlikely refinements and reusing the key-value cache.", "evidence": "Each successive digit refines one decimal bin; exhaustive three-digit refinement would require 10^(n-1) queries per state, so the algorithm recursively expands high-probability branches and shares prefix computation.", "attribution": "author-reported", "anchors": [{"page": 2, "section": "3.2 Extraction of transition rules"}, {"page": 3, "section": "Hierarchy-PDF algorithm"}, {"page": 20, "section": "Appendix A.10"}]},
+    {"claim": "For a noisy chaotic logistic map, the model approximates both state-dependent conditional mean and variance.", "evidence": "At r=3.9 with Gaussian input perturbations, the extracted distribution tracks the analytic transformed-Gaussian transition law and its standard deviation proportional to the local derivative; performance is temperature-sensitive and variance figures use a tuned temperature of 0.7.", "attribution": "author-reported", "anchors": [{"page": 4, "section": "4.2 Noisy logistic map"}, {"page": 17, "section": "A.9 Temperature and variance"}]},
+    {"claim": "Power-law fits describe many context-loss curves, but two nonstationary processes plateau early.", "evidence": "The paper fits L(D_in)=(D_in/D_c)^alpha to ten-seed average curves. Brownian and geometric Brownian motion flatten around 10^2 steps; the authors attribute this to trajectories drifting without an invariant distribution.", "attribution": "author-reported", "anchors": [{"page": 4, "section": "5 In-context neural scaling law"}, {"page": 15, "section": "A.6"}, {"page": 16, "section": "A.8"}]},
+    {"claim": "The results demonstrate conditional-density estimation from examples, not identification of a symbolic governing principle.", "evidence": "Evaluation compares one-step predictive distributions at observed states; no equation, conserved quantity, causal parameter, or interpretable transition operator is recovered, and full learned functions are generally not queried over the state domain.", "attribution": "contradiction-audit", "anchors": [{"page": 2, "section": "3 Methodology"}, {"page": 16, "section": "A.7 Baselines"}]},
+    {"claim": "The claimed scaling law is descriptive and not shown to extrapolate beyond the measured context regime.", "evidence": "Exponents are fits to a small set of finite curves with different metrics for stochastic and deterministic tasks, visible deviations, no held-out extrapolation test, and no confidence intervals over the exponent estimates.", "attribution": "reviewer-inference", "anchors": [{"page": 1, "section": "Figure 1"}, {"page": 15, "section": "Figure 20"}]}
+  ],
+  "method": {
+    "core_idea": "Serialize numerical trajectories as digit strings, interpret next-token logits as a hierarchical distribution over the next number, and compare that distribution with a known synthetic transition kernel as context grows.",
+    "mechanism": "Rescale values into a fixed decimal range, delimit states with commas, recursively query digit continuations using cached prefixes, use Bhattacharyya distance for stochastic transitions and squared deviation from the mean for deterministic ones, and fit power laws versus the number of observed states.",
+    "assumptions": ["Decimal serialization and tokenizer behavior do not inject a misleading prior.", "The tested trajectories provide sufficient state coverage to identify their one-step transition law.", "One-step predictive density is an adequate proxy for learning the governing dynamics.", "Different loss functions across deterministic and stochastic systems can support a common scaling-law interpretation.", "Pretraining contamination is negligible for randomized sequences even if system families are familiar."]
+  },
+  "techniques": [
+    {"id": "numeric-string-serialization", "role": "Turns a real-valued time series into an unprompted language-model continuation task."},
+    {"id": "hierarchical-digit-density", "role": "Composes conditional digit logits into variable-resolution probability bins."},
+    {"id": "kv-cached-pdf-refinement", "role": "Avoids recomputing shared trajectory prefixes and prunes low-mass bins."},
+    {"id": "transition-kernel-audit", "role": "Uses known synthetic dynamics to score the model's conditional distribution rather than only a point forecast."},
+    {"id": "context-length-power-law-fit", "role": "Summarizes empirical error decay against the number of in-context observations."}
+  ],
+  "evaluations": [
+    {"setting": "Ten random four-state Markov chains and variants up to nine states, primarily Llama-2-13B.", "metric": "Bhattacharyya distance between next-token state probabilities and the true transition row.", "result": "Average error decreases rapidly with context length; larger models sometimes improve loss but do not change the qualitative conclusion.", "baseline": "Unigram and transition-count bigram estimators."},
+    {"setting": "Noisy logistic map at r=3.9 with Gaussian perturbations.", "metric": "Bhattacharyya distance and state-dependent conditional standard deviation.", "result": "The extracted PDF approaches the analytic transition distribution and eventually competes with a trained nonlinear Gaussian AR(1) network.", "baseline": "Linear and three-hidden-layer nonlinear AR(1) models trained separately at each context length."},
+    {"setting": "Deterministic logistic and partially observed Lorenz systems plus stochastic Brownian, geometric Brownian, and Ornstein-Uhlenbeck trajectories.", "metric": "Squared deviation from the mean or Bhattacharyya distance versus context length.", "result": "Most curves decrease approximately as fitted powers, while the two unbounded nonstationary processes plateau early.", "baseline": "Static or autoregressive baselines only for selected systems."}
+  ],
+  "limitations": [
+    "Author-stated: data leakage is not conclusively excluded and newer models were not evaluated.",
+    "Reviewer inference: the main evidence comes from one Llama-2 checkpoint family and a small synthetic system suite, without tokenization controls or randomly initialized/text-shuffled model controls.",
+    "Reviewer inference: temperature 0.7 is selected by grid search for variance plots while primary loss curves use temperature 1, complicating calibration claims.",
+    "Reviewer inference: baseline models receive architectural distribution assumptions and are retrained per context, but no statistically efficient classical kernel-density or system-identification baseline is included.",
+    "Reviewer inference: one-step prediction along sampled trajectories cannot establish extrapolation, long-rollout stability, or recovery of governing principles."
+  ],
+  "failure_modes": [
+    "A tokenizer prior over decimal strings masquerades as inference of the underlying physics.",
+    "Accurate one-step densities compound into unstable or physically impossible long rollouts.",
+    "Rare transition regions are never observed and therefore remain wrong despite low trajectory-weighted loss.",
+    "Nonstationary drift makes old context irrelevant, breaking the fitted context scaling.",
+    "Changing numerical precision, scale, delimiters, or temperature changes the apparent learned variance."
+  ],
+  "reusable_insights": [
+    "Known simulators permit a stronger audit of in-context learning by comparing entire conditional distributions rather than point predictions.",
+    "Hierarchical token probabilities are a general interface for extracting calibrated densities from digit-generating models.",
+    "Scaling claims should be stress-tested on stationary and distribution-shifting processes separately.",
+    "Distinguish predictive imitation of a transition kernel from symbolic or causal discovery of a governing law."
+  ],
+  "open_questions": [
+    "Does the error law predict performance at context lengths and system classes excluded from fitting?",
+    "Can probes or interventions recover an explicit transfer operator, equation, or sufficient statistic used by the model?",
+    "How do digit tokenization and text pretraining compare with equally sized time-series-pretrained transformers under identical compute?",
+    "What classical Bayesian or nonparametric estimator matches the exact information available to the LLM?",
+    "Do calibrated one-step gains survive long autonomous rollouts, observation noise, missing variables, and control inputs?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2310.07820", "title": "Large Language Models Are Zero-Shot Time Series Forecasters", "url": "https://arxiv.org/abs/2310.07820", "relationship": "direct-prior", "difference": "Gruver et al. introduce numerical serialization and continuous densities for broad forecasting benchmarks; this paper narrows to synthetic dynamics with known kernels and studies transition-distribution error versus context."},
+    {"canonical_id": "arxiv:2403.07815", "title": "Chronos: Learning the Language of Time Series", "url": "https://arxiv.org/abs/2403.07815", "relationship": "competing-foundation-model", "difference": "Chronos pretrains purpose-built transformer language models on real and synthetic time series and benchmarks 42 datasets; the reviewed work asks what an off-the-shelf text LLM can infer with no time-series training."},
+    {"canonical_id": "arxiv:2402.02592", "title": "Unified Training of Universal Time Series Forecasting Transformers", "url": "https://arxiv.org/abs/2402.02592", "relationship": "contemporary-foundation-model", "difference": "Moirai is trained on 27 billion time-series observations for universal probabilistic forecasting; this paper instead isolates in-context adaptation of a text model to known synthetic transition laws."},
+    {"canonical_id": "arxiv:2602.18679", "title": "Transformers for dynamical systems learn transfer operators in-context", "url": "https://arxiv.org/abs/2602.18679", "relationship": "subsequent-mechanistic-work", "difference": "Bao et al. train a minimal transformer and identify a delay-embedding/transfer-operator mechanism for cross-system forecasting; the reviewed paper provides phenomenological Llama curves without locating a mechanism."}
+  ],
+  "novelty_assessment": {
+    "author_claim": "Text-pretrained LLMs recover probabilistic governing rules of dynamical systems, Hierarchy-PDF exposes them, and error obeys a new in-context neural scaling law.",
+    "evidence": "The known-kernel experiments and density extractor support in-context conditional prediction and context-dependent error decay.",
+    "reviewer_inference": "Direct scoring against synthetic transition kernels and the cached hierarchical extractor are useful extensions of prior LLM time-series work. 'Governing principles' and 'scaling law' are stronger than the evidence: the work neither recovers symbolic laws nor prospectively validates universal power-law scaling."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Read all 21 pages and appendices, including baseline construction, invariant-measure explanation, temperature search, and PDF pseudocode. Current primary competitors were checked on 2026-08-23."
+}

@@ -1,0 +1,216 @@
+{
+  "stable_id": "arxiv:2310.03084",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2310.03084",
+    "pdf_sha256": "e57fdb53da2ec3f26ca9faa97fdcf789e6a626291bca81b0036baacbd90ee794",
+    "text_sha256": "ba010643b47d4464b18f0d0d340f286c98d78b8572ad2adb9405917884a0851e",
+    "page_count": 35,
+    "extracted_at": "2026-08-23T18:55:22.397733+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Do pretrained language models contain sparse parameter or neuron subnetworks whose removal selectively suppresses a chosen collection of relational facts while preserving other knowledge and language modeling?",
+  "key_findings": [
+    {
+      "claim": "The paper operationalizes a knowledge-critical subnetwork through a four-way objective: suppress target facts, preserve control facts, preserve general language modeling, and minimize mask density.",
+      "evidence": "Straight-through Gumbel-sigmoid masks are learned over either individual weights or input neurons. The complement of the learned mask is evaluated after removal; target predictions are pushed toward a uniform vocabulary distribution while KL losses retain the original model's distributions on a separate control knowledge graph and WikiText-2.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "4.1 Differentiable Subnetwork Masks"},
+        {"page": 4, "section": "4.2 Multi-objective Subnetwork Learning"},
+        {"page": 5, "section": "Equation 6 final loss"}
+      ]
+    },
+    {
+      "claim": "Weight masking finds very sparse GPT2-small subnetworks whose removal damages target tail-token prediction far more than equally sparse random removal while leaving the measured controls nearly unchanged.",
+      "evidence": "Averaged over three seeds, WordNet masks have 98.6% sparsity with target delta-PPL 590.9, control-KG delta-PPL -0.2, and WikiText delta-PPL 0.5; random weight masks at the same sparsity yield target delta-PPL 24.3. ConceptNet masks reach 99.1% sparsity with target delta-PPL 636.4 versus 21.0 for random masks, with control deltas 2.8 and 0.2.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "6 Experimental Results and Table 2"},
+        {"page": 7, "section": "larger-model results"},
+        {"page": 23, "section": "Table 18 model-scale results"}
+      ]
+    },
+    {
+      "claim": "Neuron-level masks suppress target facts more strongly but are not reliably selective, suggesting that the chosen neuron granularity entangles target and control behavior.",
+      "evidence": "On GPT2-small, WordNet neuron masks keep about 4.7% of masked neurons and produce target delta-PPL 715.9, but control-KG and WikiText deltas rise to 22.2 and 4.1. ConceptNet neuron removal drives target delta-PPL to 22,422 but control-KG to 71.9; ablations and hyperparameter tables report that valid neuron-mask checkpoints are harder or sometimes impossible to find.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "Table 2"},
+        {"page": 7, "section": "Neuron-masked Subnetworks"},
+        {"page": 20, "section": "Table 9 hyperparameter study"}
+      ]
+    },
+    {
+      "claim": "The discovered weight subnetworks are behaviorally sufficient removal sets but not unique localizations: same-target masks found from different seeds overlap only 3-4% at the parameter level.",
+      "evidence": "Masks concentrate in similar upper-layer regions, yet their mean same-KG Jaccard overlap is 3-4%, rising only to 10-12% in the final attention output sublayer. Taking the union of three masks increases target suppression about sixfold, from delta-PPL 379.1 to 1984.4, while also worsening control-KG delta-PPL from 0.7 to 44.9.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "6.1 Subnetwork Structure and Composition"},
+        {"page": 24, "section": "Table 21 composition results"},
+        {"page": 32, "section": "Figure 10 weight-mask IoU"}
+      ]
+    },
+    {
+      "claim": "Removal impairs transfer on a knowledge-linked CommonsenseQA subset, but the evidence supports temporary expression dependence rather than permanent knowledge erasure.",
+      "evidence": "Across head tuning, LoRA, and full fine-tuning, weight-mask removal yields an average 7.3-point accuracy drop on 363 filtered questions, with the largest drop under head tuning. Neuron-masked models can recover during parameter-efficient tuning, and later work directly shows that pruned concepts can be relearned, so delta-PPL and downstream deficits do not establish deletion from all prompts or retraining trajectories.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "6.2 Downstream Task Transfer and Table 6"},
+        {"page": 23, "section": "Table 19 CommonsenseQA details"},
+        {"page": 25, "section": "Appendix E split-target analysis"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Learn a sparse binary mask whose removal makes selected fact completions uninformative while the remaining model matches its original behavior on unrelated facts and ordinary language.",
+    "mechanism": "Continuous mask logits are sampled with Gumbel noise and discretized by a straight-through estimator. Suppression minimizes KL divergence between the pruned model and a uniform vocabulary distribution on target prompts; maintenance minimizes KL to the original model on control-KG and WikiText inputs; density regularization favors a small removed subnetwork. Separate variants mask individual weights or neuron inputs in the upper half of GPT-2 transformer blocks.",
+    "assumptions": [
+      "Tail-token perplexity and rank on a chosen verbalization are valid proxies for expression of a relational fact.",
+      "The control knowledge graph and WikiText-2 adequately represent behaviors that should remain unchanged.",
+      "A sparse sufficient removal set can be interpreted as knowledge-critical even when multiple disjoint sets satisfy the objective.",
+      "Knowledge relevant to the sampled WordNet or ConceptNet subgraph resides in the maskable upper-half transformer weights.",
+      "The learned binary-mask optimization and selected hyperparameters find representative rather than merely convenient subnetworks."
+    ]
+  },
+  "techniques": [
+    {"id": "straight-through-gumbel-mask", "role": "Learns discrete weight- or neuron-removal decisions with gradient optimization."},
+    {"id": "uniform-output-suppression", "role": "Penalizes confident target-tail predictions by pushing the remaining model toward a uniform vocabulary distribution."},
+    {"id": "dual-behavior-maintenance", "role": "Constrains both unrelated relational predictions and general language modeling to remain close to the original network."},
+    {"id": "mask-density-regularization", "role": "Searches for a small critical subnetwork instead of a broad destructive intervention."},
+    {"id": "matched-random-pruning-control", "role": "Tests whether targeted corruption exceeds the effect of removing the same number of arbitrary components."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Seven WordNet and three ConceptNet target subgraphs in GPT2-small, averaged over three mask seeds.",
+      "metric": "Mask sparsity plus target, control-KG, and WikiText delta-PPL/rank after removal.",
+      "result": "Weight masks exceed 98% sparsity and raise target PPL by roughly 591-636 on average while measured controls move little.",
+      "baseline": "Random weight and neuron masks matched to each learned mask's sparsity."
+    },
+    {
+      "setting": "Three WordNet targets across GPT2-medium, large, and XL.",
+      "metric": "Target and maintenance delta-PPL after learned weight-mask removal.",
+      "result": "Average target delta-PPL remains positive at 256 for medium, 5780 for large, and 536 for XL, with small maintenance changes; suppression is non-monotonic with scale.",
+      "baseline": "The original unpruned model and GPT2-small masking results."
+    },
+    {
+      "setting": "Twenty held-out paraphrases per target and control relation.",
+      "metric": "Delta-PPL under verbalizations not used during mask learning.",
+      "result": "Weight-mask selectivity broadly transfers to new prompt forms, whereas neuron masks transfer target suppression but poorly preserve controls.",
+      "baseline": "The training verbalization chosen for minimum original-model perplexity."
+    },
+    {
+      "setting": "CommonsenseQA after removing a mask learned from ConceptNet triples linked to 363 test questions.",
+      "metric": "Development, full-test, and filtered-subset accuracy after head tuning, LoRA, or full fine-tuning.",
+      "result": "Weight removal causes an average 7.3-point filtered-subset drop while overall accuracy changes less; the effect is largest for head tuning and smaller for full fine-tuning.",
+      "baseline": "Full GPT2-small, a sparsity-matched random mask, and neuron-mask removal."
+    },
+    {
+      "setting": "Same-target mask seeds and their union, intersection, and floral composition.",
+      "metric": "Parameter Jaccard overlap, sparsity, and target/control delta-PPL.",
+      "result": "Individual weight masks overlap only 3-4%; unions amplify suppression about sixfold but accumulate control damage.",
+      "baseline": "Individual learned masks and additional random removal."
+    }
+  ],
+  "limitations": [
+    "Author-stated: experiments are English-only and depend on lexical knowledge resources such as WordNet.",
+    "Author-stated: only autoregressive GPT-2 variants up to 1.5B parameters are studied; 7B-scale, masked-language, and text-to-text architectures are not tested.",
+    "Author-stated: the hyperparameter search is not exhaustive and more precise subnetworks may require broader tuning.",
+    "Reviewer inference: target graphs are tiny—often 11-40 triples—and verbalizations are selected for the lowest base-model PPL, narrowing the tested notion of knowledge.",
+    "Reviewer inference: embeddings, LM head, layer norms, biases, and the lower half of transformer blocks are never mask candidates, so localization is conditional on a restricted search space.",
+    "Reviewer inference: low cross-seed overlap and composition effects show that a learned mask is not a unique causal storage location.",
+    "Reviewer inference: behavioral suppression does not establish training-data unlearning or robustness to adversarial prompting, relearning, and alternative elicitation."
+  ],
+  "failure_modes": [
+    "A target prompt can lose probability because of collateral lexical or syntactic disruption rather than removal of the underlying relation.",
+    "Facts represented redundantly admit many disjoint masks, making seed-dependent localization unstable and mechanistic conclusions non-identifiable.",
+    "A narrow control set lets damage to unmeasured abilities pass the maintenance objective.",
+    "Larger or differently architected models may route recall through components excluded from the upper-layer GPT-2 mask space.",
+    "Fine-tuning can recreate or reroute a suppressed concept, defeating any interpretation of the mask as permanent erasure.",
+    "Uniform-vocabulary suppression can encourage generic uncertainty or distributional collapse if maintenance weights are mistuned."
+  ],
+  "reusable_insights": [
+    "Causal localization objectives should combine target intervention, broad preservation controls, and complexity rather than optimize target degradation alone.",
+    "Compare multiple random restarts and report set overlap; a sufficient ablation set need not be a unique mechanism.",
+    "Test both paraphrase generalization and downstream transfer because prompt-level suppression alone can overstate knowledge removal.",
+    "Use matched random ablations and loss-term ablations to separate targeted structure from generic pruning damage.",
+    "Treat component granularity as an empirical choice: individual weights can separate behaviors that coarse neuron masks entangle."
+  ],
+  "open_questions": [
+    "Can causal identifiability criteria distinguish a true minimal mechanism from one of many redundant sufficient-removal masks?",
+    "How stable are knowledge-critical subnetworks across model seeds, architectures, scales, languages, and broader prompt distributions?",
+    "Do masks still appear selective under adversarial elicitation, generation-based factuality tests, and comprehensive capability suites?",
+    "Can suppressed knowledge be permanently unlearned without retraining, and how should relearning resistance be measured?",
+    "Would path- or activation-level causal tests validate the low-overlap weight masks as coherent computational circuits?",
+    "How does localization change when the entire model, rather than only upper transformer weights, is searchable?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2104.03514",
+      "title": "Low-Complexity Probing via Finding Subnetworks",
+      "url": "https://arxiv.org/abs/2104.03514",
+      "relationship": "direct subtractive-subnetwork predecessor",
+      "difference": "Subnetwork probing preserves a sparse network that performs linguistic classification and measures probe complexity. The reviewed method instead removes a sparse complementary set and jointly optimizes target-fact suppression plus behavioral maintenance.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2104.08696",
+      "title": "Knowledge Neurons in Pretrained Transformers",
+      "url": "https://arxiv.org/abs/2104.08696",
+      "relationship": "fact-localization and editing predecessor",
+      "difference": "Knowledge Neurons uses attribution to identify feed-forward neurons correlated with BERT fact expression and intervenes on them. The reviewed work searches finer individual weights or neuron masks in autoregressive GPT-2 with explicit control-KG, language, and sparsity objectives.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2202.05262",
+      "title": "Locating and Editing Factual Associations in GPT",
+      "url": "https://arxiv.org/abs/2202.05262",
+      "relationship": "causal localization and model-editing competitor",
+      "difference": "ROME uses causal tracing to locate mid-layer feed-forward recall and applies a rank-one update that replaces a fact. The reviewed method learns removable sparse masks for collections of facts and evaluates suppression rather than counterfactual rewriting.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2304.14997",
+      "title": "Towards Automated Circuit Discovery for Mechanistic Interpretability",
+      "url": "https://arxiv.org/abs/2304.14997",
+      "relationship": "automated causal-circuit competitor",
+      "difference": "ACDC prunes edges by activation-patching effects to recover compact computational circuits for specified behaviors. The reviewed mask optimization scales to individual parameters but identifies sufficient removal sets without assembling or validating an end-to-end causal circuit.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2401.01814",
+      "title": "Large Language Models Relearn Removed Concepts",
+      "url": "https://arxiv.org/abs/2401.01814",
+      "relationship": "post-removal robustness challenge",
+      "difference": "This work tracks pruned concepts during retraining and finds rapid recovery through relocation and polysemantic reuse. It directly limits interpreting the reviewed paper's post-mask deficits as permanent erasure, while leaving its narrower claim of current-model expression dependence intact.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    },
+    {
+      "canonical_id": "arxiv:2403.00745",
+      "title": "AtP*: An efficient and scalable method for localizing LLM behaviour to components",
+      "url": "https://arxiv.org/abs/2403.00745",
+      "relationship": "post-publication scalable localization competitor",
+      "difference": "AtP* approximates activation patching, diagnoses gradient false negatives, and verifies recall of causally important components up to Pythia-12B. It localizes component effects rather than optimizing a sparse destructive mask and supplies a complementary verification route for claimed knowledge-critical components.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims that multi-objective differentiable masks reveal highly sparse knowledge-critical subnetworks whose removal selectively suppresses relational knowledge and harms transfer to a task requiring it.",
+    "evidence": "Across WordNet and ConceptNet targets, GPT-2 scales, paraphrases, matched random masks, objective ablations, and CommonsenseQA, weight removal produces substantially larger target damage than controls while usually preserving measured maintenance behavior.",
+    "reviewer_inference": "The substantive advance over earlier subnetwork probes and knowledge-neuron attribution is the simultaneous optimization of suppression, two maintenance distributions, and sparsity at individual-weight resolution. The result demonstrates sparse, behaviorally selective sufficient removal sets; low seed overlap, restricted search space, and relearning evidence prevent the stronger conclusion that these masks uniquely locate or permanently contain the knowledge."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Read all 35 extracted pages, including objectives, datasets, scale and paraphrase studies, CommonsenseQA transfer, ablations, hyperparameter sweeps, composition, overlap analyses, limitations, and references. Six primary arXiv records spanning subtractive probing, knowledge neurons, causal model editing, circuit discovery, concept relearning, and scalable activation localization were checked on 2026-08-23; the paper's EMNLP 2024 ACL Anthology record was also verified."
+}

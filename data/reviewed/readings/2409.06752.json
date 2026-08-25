@@ -1,0 +1,264 @@
+{
+  "stable_id": "arxiv:2409.06752",
+  "reading_depth": "verified",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2409.06752",
+    "pdf_sha256": "d054cd537bf468236bd5cb4bff10adcd568aa56d58ca0aff2e2e55012bfff3c4",
+    "text_sha256": "f5de7e2e7c121535dae97381e14c178b14e82dd21eaa321d37b77d6e189cc85b",
+    "page_count": 21,
+    "extracted_at": "2026-08-23T17:50:31.056897+00:00",
+    "review_pass": "secondary-verified-v1"
+  },
+  "question": "How can forward- and reverse-mode automatic differentiation for real-differentiable complex programs be derived as real-linear JVPs and VJPs, rewritten with Wirtinger derivatives, and implemented without assuming every primitive is holomorphic?",
+  "key_findings": [
+    {
+      "claim": "Complex forward-mode AD can be defined unambiguously by identifying a complex program with a real map, applying its real Jacobian, and mapping the result back to the complex representation.",
+      "evidence": "Equation 9 defines the latent JVP from the 2-by-2 real Jacobian of the real and imaginary output components. Equations 10-12 show that it reduces to ordinary complex multiplication by the derivative for holomorphic functions, while Equations 13-15 and Figure 3 demonstrate real-linear propagation through conjugation.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 7, "section": "Section 4, Equation 9"},
+        {"page": 8, "section": "Section 4, Equations 10-14"},
+        {"page": 9, "section": "Section 4, Figure 3 and Equation 15"}
+      ]
+    },
+    {
+      "claim": "Wirtinger derivatives provide a compact two-channel representation of the same real-linear JVP, with separate coefficients for a tangent and its conjugate.",
+      "evidence": "Equations 17-19 derive the identity Df[z']=(partial_z f)z'+(partial_conj(z) f)conj(z') from the real Jacobian. Equations 22-23 apply it to z^5 conj(z)^4. The algebraic transform is valid, but the accompanying claim that {z,conj(z)} itself is a basis of C over R is not: for real or purely imaginary z the two proposed elements are dependent, and a basis cannot depend on the vector being expanded.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "Section 5, Equation 16"},
+        {"page": 11, "section": "Section 5, Equations 17-20"},
+        {"page": 12, "section": "Section 5, Equations 22-23"}
+      ]
+    },
+    {
+      "claim": "Reverse-mode complex AD is convention-dependent because mapping a real cotangent pair back to one complex number can preserve either the literal Jacobian convention or the adjoint/optimization convention, but not both simultaneously.",
+      "evidence": "Equations 24-27 introduce the two sign choices. Pages 13-14 explain the three-way trade-off and choose the plus convention used by the manuscript for subsequent derivations. Table 1 reports that JAX 0.4.31 returns 1+i for grad(z^2/2) at 1+i, while PyTorch 2.4.1 and TensorFlow 2.17.0 return 1-i; current official framework documentation still describes the JAX-versus-PyTorch/TensorFlow convention split.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 12, "section": "Section 6, Equation 24"},
+        {"page": 13, "section": "Section 6, Equations 25-27"},
+        {"page": 14, "section": "Section 6, Table 1"}
+      ]
+    },
+    {
+      "claim": "The symmetrized Wirtinger transposition identity yields a latent VJP compatible with the chosen plus convention and reduces to the usual adjoint rule for holomorphic functions.",
+      "evidence": "Equations 28-33 convert the real transpose into paired f/conj(f) and z'/conj(z') channels. Equations 34-36 derive the rule for f(z)=conj(z)^T A z, and Equation 37 gives the holomorphic reduction. For a real-valued final loss, the resulting complex vector or its convention-adjusted conjugate represents steepest ascent; for a general complex output, no single complex number represents the full 2-by-2 real Jacobian.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 15, "section": "Section 7, Equation 28"},
+        {"page": 16, "section": "Section 7, Equations 29-33"},
+        {"page": 17, "section": "Section 7, Equations 34-37"}
+      ]
+    },
+    {
+      "claim": "Equation 21 is not the latent JVP implied by either Equation 15 or its immediately preceding Wirtinger derivatives when A is complex.",
+      "evidence": "Equation 20 gives partial_conj(z) f=z^T A^T, so Equation 19 requires the second directional term z^T A^T conj(z'). Equation 21 instead prints conj(z')^T conj(A)^T z, equivalently z^T conj(A) conj(z'). The two agree only under an additional Hermitian-matrix condition, not for the generic complex A sampled by Figure 3. A direct finite-difference check with a complex 2-by-2 A matched Equation 15 and not Equation 21.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "Section 4, Equation 15"},
+        {"page": 11, "section": "Section 5, Equations 19-21"}
+      ]
+    },
+    {
+      "claim": "The non-holomorphic quadratic example's real/imaginary decomposition silently treats A as real even though the executable example samples A as complex.",
+      "evidence": "Equations 13-14 label x^T A x+y^T A y and x^T A y-y^T A x as the real and imaginary parts u and v. Those quantities need not be real for complex A. Figure 3 explicitly creates A with dtype=complex. Equation 15's final differential remains algebraically correct, but the stated real-Jacobian derivation is not justified as written for the code's complex matrix.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Section 4, Equations 13-14"},
+        {"page": 9, "section": "Section 4, Figure 3 and Equation 15"}
+      ]
+    },
+    {
+      "claim": "Figure 5's custom-VJP test can pass while its transformed forward value is wrong because the forward rule omits conjugation and the assertion checks only the pullback.",
+      "evidence": "The target function on Figure 5 line 14 is dot(conj(v),A@v), but fun_fwd on line 23 returns dot(v,A@v). Under the stated JAX 0.4.31, both supplied complex scripts complete and the pullback assertion passes, yet an explicit jax.vjp call returns the wrong primal from fun_fwd; for one seeded run it returned 1.7799938+2.4122393i instead of -0.7614129-2.206606i. The script discards that primal with an underscore.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 18, "section": "Figure 5, lines 12-38"}
+      ]
+    },
+    {
+      "claim": "Section 8 incorrectly conflates failure of holomorphicity with failure of real differentiability and understates when its latent derivatives are genuine derivatives.",
+      "evidence": "For a non-holomorphic but real-differentiable map under C identified with R squared, the latent JVP is exactly the real derivative and the latent VJP is its valid pullback; holomorphicity is needed only to compress a general Jacobian into one complex derivative or to use a holomorphic-only wrapper. For a real-valued real-differentiable loss, the convention-encoded complex gradient is a genuine steepest-ascent direction, contrary to the source's statement that it is not the true gradient. If real differentiability fails, the latent rules are not automatically well-defined. The source's three statements therefore require separate real-differentiability, holomorphicity, and objective-codomain conditions.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 17, "section": "Section 7, consistency with holomorphicity; Section 8"},
+        {"page": 18, "section": "Section 8, concluding paragraph"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Treat each complex value as two real coordinates, derive ordinary real-linear JVPs and transpose rules there, then use Wirtinger coordinates to express the same operations compactly without imposing holomorphicity on every primitive.",
+    "mechanism": "For f(z)=u(x,y)+iv(x,y), forward mode applies the real 2-by-2 Jacobian to (x',y') and repackages the result as a complex tangent. The Wirtinger form separates coefficients of z' and conj(z'). Reverse mode transposes the real Jacobian, chooses a convention for packing cotangents into complex values, and propagates paired Wirtinger contributions; custom JAX JVP/VJP examples show how to encode the rules.",
+    "assumptions": [
+      "The complex program is differentiable as a map between finite-dimensional real vector spaces, even when it is not holomorphic.",
+      "Every custom primitive exposes enough real-linear derivative information to propagate both tangent and conjugate-tangent effects.",
+      "The framework's cotangent convention is known and conversions at custom-rule boundaries are applied consistently.",
+      "Optimization statements concern real-valued scalar losses; a complex scalar output does not have a convention-independent steepest-ascent direction.",
+      "Shapes, transposes, conjugations, and inner-product conventions are tracked explicitly for vector and matrix inputs.",
+      "Code examples are interpreted under the package versions printed in Table 1 rather than assumed portable across arbitrary releases."
+    ]
+  },
+  "techniques": [
+    {"id": "realification", "role": "Represents a complex map as a real map with doubled coordinates so ordinary real differentiation applies."},
+    {"id": "real-linear-jvp", "role": "Propagates a complex tangent through both the tangent and its conjugate rather than assuming complex linearity."},
+    {"id": "wirtinger-splitting", "role": "Rewrites real partial derivatives as partial_z and partial_conj(z) channels for concise custom rules."},
+    {"id": "cotangent-convention", "role": "Makes the JAX versus PyTorch/TensorFlow conjugation choice explicit at reverse-mode boundaries."},
+    {"id": "symmetrized-transposition", "role": "Pairs a function and its conjugate so the real transpose can be represented in complex notation."},
+    {"id": "custom-jvp", "role": "Attaches an analytically derived forward rule to a structured complex-valued operation."},
+    {"id": "custom-vjp", "role": "Attaches a convention-adjusted reverse rule while caching required primal values."},
+    {"id": "directional-check", "role": "Compares a proposed real-linear directional derivative with a finite-difference perturbation to expose conjugation errors."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Five code listings embedded in the exact arXiv v3 source bundle; complex JVP and VJP scripts executed in an isolated environment with JAX 0.4.31",
+      "metric": "Script completion, supplied allclose assertions, and consistency of transformed primal values",
+      "result": "Both complex derivative assertions pass. The Figure 5 VJP script nevertheless returns an incorrect primal under jax.vjp because fun_fwd omits conj(v); the included assertion discards that value and checks only the pullback.",
+      "baseline": "JAX-generated JVP/VJP for the original function and direct evaluation of dot(conj(v),A@v)"
+    },
+    {
+      "setting": "Equation 21 checked on a fixed complex 2-by-2 matrix and complex point/direction",
+      "metric": "Agreement with a one-sided finite-difference directional derivative at step 1e-7",
+      "result": "The finite difference was approximately -2.08-9.36i and matched Equation 15; Equation 21 produced 10.46+0i for the same inputs.",
+      "baseline": "Equation 15 and the chain rule applied directly to conj(z)^T A z"
+    },
+    {
+      "setting": "Gradient-convention probe f(z)=z^2/2 at z=1+i",
+      "metric": "Complex value returned by the framework gradient API",
+      "result": "Table 1 reports JAX 0.4.31 returning 1+i and PyTorch 2.4.1 plus TensorFlow 2.17.0 returning 1-i. The JAX value was reproduced exactly. Current JAX and PyTorch documentation supports the split, and PyTorch's official note states that its convention matches TensorFlow; TensorFlow was not independently rerun or documented here from a separate first-party page.",
+      "baseline": "Literal complex derivative z versus its conjugate, evaluated at 1+i"
+    },
+    {
+      "setting": "Exact source artifact downloaded as arXiv:2409.06752v3 source tarball, SHA-256 56bb654ab5d4a0327b9413855e2d6f2d2296472b8cc6787d1036218acc9df971",
+      "metric": "Presence of executable examples, dependency specification, tests, license, README, and external release identity",
+      "result": "The bundle contains tutorial.tex, tutorial.bbl, and five Python listings. It has no dependency file, test harness, README, software license, external repository, or release tag; versions appear only in the output table, and the multi-framework script imports all three frameworks together.",
+      "baseline": "A standalone tutorial artifact with a locked environment and checks for both derivative and primal-value correctness"
+    }
+  ],
+  "limitations": [
+    "Author-acknowledged (p.2): the notes are a tutorial and everything is known in some form; any novelty is primarily assembly and exposition rather than a new differentiation algorithm.",
+    "Author-acknowledged (pp.12-14): reverse-mode packing requires a gradient convention, and one cannot simultaneously preserve every real-arithmetic intuition about literal VJPs, adjoints, and unit-cotangent gradients.",
+    "Author-acknowledged (pp.17-18): non-holomorphic programs can return plausible-looking complex derivative objects without signaling that no single complex derivative exists.",
+    "Reviewer-identified: Equation 16's {z,conj(z)} basis explanation is false for real or purely imaginary z and obscures that Wirtinger calculus is a coordinate change on the complexified real differential, not a value-dependent basis of C.",
+    "Reviewer-identified: Equations 13-14 call complex expressions real and imaginary parts without restricting A to be real, despite Figure 3 sampling a complex A.",
+    "Reviewer-identified: Equation 21 has an erroneous conjugation of A and contradicts Equations 15, 19, and 20 for complex A.",
+    "Reviewer-identified: Figure 5's custom forward rule computes a different primal function, while its assertion discards the transformed primal and therefore misses the defect.",
+    "Reviewer-identified: there are no multidimensional shape tests, finite-difference test suite, higher-order derivative checks, implicit-differentiation example, or end-to-end scientific application despite those being primary motivations.",
+    "Reviewer-identified: the source bundle has no dependency lock or reusable package, and only the JAX 0.4.31 portions were executable without installing two additional large frameworks.",
+    "Reviewer-identified: statements that latent derivatives remain well-defined require real differentiability; Wirtinger notation does not rescue discontinuous or nonsmooth primitives automatically.",
+    "Reviewer-identified: Section 8 incorrectly treats non-holomorphic real derivatives as non-true gradients; real differentiability makes the latent derivative exact under realification, while holomorphicity is only the stronger complex-linearity condition."
+  ],
+  "failure_modes": [
+    "Dropping the conjugate-tangent channel silently treats a merely real-linear primitive as complex-linear and yields wrong derivatives.",
+    "Copying a VJP rule between JAX and PyTorch or TensorFlow without a boundary conjugation can reverse the intended gradient convention.",
+    "Calling one complex number the gradient of a general complex-to-complex map hides two real output channels and four real Jacobian degrees of freedom.",
+    "Using a complex-valued matrix inside a derivation that labels algebraic summands as real and imaginary parts can introduce unnoticed conjugation errors.",
+    "A custom VJP can provide a correct pullback for the wrong forward value if its forward residual function does not reproduce the primal computation.",
+    "Derivative-only assertions can pass while transformed primal values are wrong, as Figure 5 demonstrates.",
+    "Finite differences along only one complex direction can miss errors in the independent conjugate direction.",
+    "Nonsmooth real components can invalidate the real Jacobian even though the program returns finite complex values.",
+    "Version-dependent framework behavior or API restrictions can make an unpinned multi-framework example fail or change meaning."
+  ],
+  "reusable_insights": [
+    "Specify whether a derivative is complex-linear, real-linear, a Wirtinger partial, an adjoint, or a framework cotangent before manipulating it.",
+    "Derive complex custom rules by realification first, then use Wirtinger notation as a compression rather than as a substitute for the underlying real derivative.",
+    "Test custom JVPs in at least the real and imaginary basis directions and compare their linear combination against a finite difference.",
+    "Test both the primal returned by a custom VJP forward rule and its pullback; either half can be wrong independently.",
+    "Keep framework convention conversions at explicit boundaries instead of scattering conjugations throughout a formula.",
+    "Reserve steepest-descent language for real-valued objectives, where the complex encoding of the real gradient has a clear optimization meaning.",
+    "For structured complex linear algebra, validate generic complex matrices rather than accidentally testing only the real special case."
+  ],
+  "open_questions": [
+    "Can a framework-neutral notation and executable conformance suite specify complex tangent and cotangent conventions across JAX, PyTorch, TensorFlow, and Julia ChainRules?",
+    "How should custom-rule APIs represent the full real Jacobian of complex-to-complex maps without overloading one complex cotangent convention?",
+    "Which convention minimizes errors when composing implicit differentiation, adjoint ODE solvers, and complex matrix factorizations?",
+    "Can static analysis detect missing conjugations or a custom-VJP forward rule that computes a different primal function?",
+    "What finite-difference and higher-order tests are sufficient for complex matrix primitives near repeated eigenvalues or singular values?",
+    "How should tutorials distinguish failure of holomorphicity from failure of real differentiability so plausible outputs are not mistaken for valid derivatives?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:0906.4835",
+      "title": "The Complex Gradient Operator and the CR-Calculus",
+      "url": "https://arxiv.org/abs/0906.4835v1",
+      "relationship": "Foundational tutorial predecessor",
+      "difference": "Kreutz-Delgado gives a substantially deeper treatment of Wirtinger/CR calculus for real-valued functions of complex vectors, including Hessians and optimization. Krämer is narrower but connects the calculus explicitly to JVP/VJP program transformations and contemporary framework conventions.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "arXiv:0906.4835v1, submitted 2009-06-26"
+    },
+    {
+      "canonical_id": "arxiv:2003.04295",
+      "title": "A scheme for automatic differentiation of complex loss functions",
+      "url": "https://arxiv.org/abs/2003.04295v1",
+      "relationship": "Closest prior complex-AD algorithm",
+      "difference": "Guo and Poletti already give an efficient complex reverse-mode scheme compatible with real losses and apply it to tensor-network quantum physics. Krämer adds a JVP-first pedagogical derivation, explicit competing cotangent conventions, and custom JAX rules, but no application benchmark.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "arXiv:2003.04295v1, submitted 2020-03-02; journal version Phys. Rev. E 103, 013309 (2021)"
+    },
+    {
+      "canonical_id": "arxiv:2207.06114",
+      "title": "Automatic Differentiation: Theory and Practice",
+      "url": "https://arxiv.org/abs/2207.06114v1",
+      "relationship": "Closest prior general tutorial",
+      "difference": "Lezcano-Casado develops coordinate-free forward and reverse AD in both real and complex settings and derives matrix-function rules. Krämer deliberately avoids that geometric formalism and offers a more elementary realification/Wirtinger route focused on complex JVPs, VJPs, and framework convention differences.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "arXiv:2207.06114v1, submitted 2022-07-13"
+    },
+    {
+      "canonical_id": "arxiv:1909.02659",
+      "title": "Automatic Differentiation for Complex Valued SVD",
+      "url": "https://arxiv.org/abs/1909.02659v3",
+      "relationship": "Structured complex-primitive predecessor",
+      "difference": "Wan and Zhang derive a concrete reverse rule for complex SVD, including the gauge issue central to tensor-network software. Krämer explains generic rule construction but does not cover spectral degeneracy, gauge fixing, or a complete structured linear-algebra primitive.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "arXiv:1909.02659v3, revised 2019-11-06"
+    },
+    {
+      "canonical_id": "arxiv:2406.06361",
+      "title": "Challenges with Differentiable Quantum Dynamics",
+      "url": "https://arxiv.org/abs/2406.06361v2",
+      "relationship": "Contemporary systems challenge",
+      "difference": "Narayanan et al. empirically show that complex initial-value problems and eigendecompositions were not jointly supported by surveyed AD frameworks. This validates Krämer's motivation, while also showing that correct local JVP/VJP formulas alone do not solve library coverage, solver adjoints, or end-to-end interoperability.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "arXiv:2406.06361v2, revised 2024-06-18; published DOI 10.1137/1.9781611979039.19"
+    },
+    {
+      "canonical_id": "arxiv:2403.14606",
+      "title": "The Elements of Differentiable Programming",
+      "url": "https://arxiv.org/abs/2403.14606v4",
+      "relationship": "Current broad tutorial competitor",
+      "difference": "Blondel and Roulet's now much larger book surveys differentiable programming through optimization and probability, including AD as one component. Krämer remains more focused and accessible for complex arithmetic, but its scope and five scripts are much narrower than the current v4 reference.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "arXiv:2403.14606v4, revised 2026-08-03"
+    },
+    {
+      "canonical_id": "arxiv:2506.22935",
+      "title": "Differentiable Radar Ambiguity Functions: Mathematical Formulation and Computational Implementation",
+      "url": "https://arxiv.org/abs/2506.22935v1",
+      "relationship": "Post-target complex-AD application",
+      "difference": "GRAF applies Wirtinger-aware differentiation to a complete FFT-based radar ambiguity pipeline with code, stability analysis, and practical optimization. It is domain-specific rather than a general tutorial, but supplies the end-to-end implementation and evaluation that Krämer's conceptual notes omit.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "arXiv:2506.22935v1, submitted 2025-06-28; code archived at Zenodo DOI 10.5281/zenodo.15763301"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The manuscript explicitly disclaims algorithmic novelty, describing itself as a tutorial that assembles known complex automatic-differentiation material, with potentially new derivations and a practical emphasis on JVPs, VJPs, custom rules, and gradient conventions.",
+    "evidence": "Sections 1-2 position the contribution against Maclaurin, Kreutz-Delgado, complex-backpropagation papers, Lezcano-Casado, framework documentation, and the Matrix Cookbook. The core realification and Wirtinger identities predate the tutorial; the distinctive package is the linear-algebra-first exposition, paired forward/reverse derivation, and small cross-framework convention probe.",
+    "reviewer_inference": "The durable contribution is pedagogical synthesis, not a new AD method. Its clean separation of real-linear JVPs, Wirtinger compression, and cotangent conventions is useful for custom-rule authors, but the basis narrative, Equation 21, the complex-A real/imaginary derivation, and Figure 5's wrong transformed primal materially weaken its role as a correctness reference. Earlier work is deeper mathematically or more complete operationally, and later application work demonstrates end-to-end value absent here."
+  },
+  "confidence": 0.92,
+  "reviewer_notes": "Primary and independent secondary reviews covered all 21 pages of the exact current arXiv:2409.06752v3 PDF, every Equation 1-37, Figures 1-5, Table 1, footnotes, references, and all five source listings. Fresh v3 PDF bytes reproduce the pinned hash; arXiv v3 dated 2024-12-10 remains the current lineage endpoint. The primary pass executed the JAX 0.4.31 scripts and reproduced the Figure 5 primal mismatch and Equation 21 counterexample. The secondary pass independently verified those defects from source and algebra but did not claim a second execution because local package extraction exhausted disk space. Current JAX and PyTorch documentation was checked; PyTorch states its convention matches TensorFlow, which was not independently rerun. Seven primary competitors were version-checked through 2026-08-24; no journal version or closer later general tutorial was found.",
+  "verification": {
+    "reviewer_id": "reviewer-053597a71b03",
+    "checked_at": "2026-08-24",
+    "passage_check": "Independently checked the exact 21-page arXiv v3 source, Equations 1-37, Figures 1-5, Table 1, all source listings, and the complete no-appendix boundary. Confirmed the four central equation/code defects and reconciled the stronger Section 8 real-differentiability contradiction and framework-documentation attribution.",
+    "competitor_check": "Independently confirmed all seven primary competitor versions through 2026-08-24 and found no later journal version or closer general complex-JVP/VJP tutorial."
+  }
+}

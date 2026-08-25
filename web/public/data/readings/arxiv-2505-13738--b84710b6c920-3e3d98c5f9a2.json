@@ -1,0 +1,118 @@
+{
+  "stable_id": "arxiv:2505.13738",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2505.13738",
+    "pdf_sha256": "bd5c8a47769c36fde536852e7deb811916361c99a7ccac1431d39d69e0df565f",
+    "text_sha256": "61fbe9cb085c843f2a84312f8e7891519cc26da062cf985e3a804fc2dc01b3f3",
+    "page_count": 31,
+    "extracted_at": "2026-08-23T16:52:31.925199+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "How should AdamW weight decay and batch size change as LLM model size, training tokens, and time-versus-compute objectives scale?",
+  "key_findings": [
+    {
+      "claim": "For fixed model and data size below the critical-batch regime, optimal AdamW weight decay grows approximately linearly with batch size because the normalized update-averaging timescale remains stable.",
+      "evidence": "At 610M parameters and 20 tokens per parameter, sweeps over batches 63 through 2016 place the optimal normalized timescale near 0.21. Learning rate is less flexible because high values become unstable, while tuning weight decay remains viable.",
+      "anchors": [{"page": 4, "section": "2.4 Results and Figure 2"}, {"page": 5, "section": "Table 1"}]
+    },
+    {
+      "claim": "The optimal normalized AdamW timescale decreases as a power law in tokens per parameter and predicts held-out larger runs.",
+      "evidence": "The fitted relationship has reported R-squared 0.975, with bootstrap exponent percentiles from -0.529 to -0.507. Four larger evaluation configurations, including a run about three orders of magnitude more expensive than a small fitting run, fall on the extrapolated trend.",
+      "anchors": [{"page": 5, "section": "2.4 Results: scaling tau and lambda"}]
+    },
+    {
+      "claim": "Both optimal and critical batch size are modeled more consistently as power laws in total training tokens than in model size, compute, or target loss.",
+      "evidence": "The paper fits batch-specific loss-versus-data curves, infers tokens needed for an iso-loss target, then fits the McCandlish step-data tradeoff. Reported R-squared values are 0.984 for optimal batch and 0.940 for critical batch; the critical-batch exponent 0.462 closely matches an independent prior estimate of 0.47.",
+      "anchors": [{"page": 7, "section": "3.2 Critical-batch estimation"}, {"page": 8, "section": "3.3 Results"}]
+    },
+    {
+      "claim": "Under the paper's hardware-time proxy, overtrained models can lie on the joint time-compute Pareto frontier, but that recommendation is sensitive to system and critical-batch modeling assumptions.",
+      "evidence": "At target loss 2.6, the constructed iso-loss curves put some greater-than-20-TPP settings on the frontier when time is proportional to FLOPs divided by batch. The authors show that using steps as time yields a different frontier and warn that critical-batch exponent errors change which models appear optimal.",
+      "anchors": [{"page": 10, "section": "4.3 Results and Figure 6"}, {"page": 11, "section": "Sensitivity of Pareto frontier"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Combine maximal-update parameterization with hundreds of controlled pretraining sweeps to fit power laws for an AdamW timescale, optimal batch size, and critical batch size.",
+    "mechanism": "The normalized timescale B/(eta lambda D) converts decoupled weight decay into the fraction of training updates retained by the parameter exponential average. Batch-specific loss-data curves interpolate the data needed to reach fixed losses; those points fit a step-versus-data hyperbola whose asymptotes define critical batch. The fitted laws feed an iso-loss time-compute frontier.",
+    "assumptions": [
+      "Maximal-update parameterization transfers learning-rate behavior across model scales.",
+      "The tested architecture, data mixture, AdamW optimizer, and schedule are representative of other LLM pretraining regimes.",
+      "Power-law extrapolation remains stable beyond the observed range.",
+      "FLOPs divided by batch is an adequate first-order proxy for wall-clock training time."
+    ]
+  },
+  "techniques": [
+    {"id": "hyperparameter-power-law-fitting", "role": "Forecasts weight decay and batch quantities from smaller controlled runs."},
+    {"id": "adamw-timescale-normalization", "role": "Couples learning rate, weight decay, batch size, and data size in one dimensionless variable."},
+    {"id": "iso-loss-step-data-fitting", "role": "Estimates critical batch without rerunning every schedule to the exact same loss."}
+  ],
+  "evaluations": [
+    {"setting": "111M to 3.3B parameter Cerebras LLMs over 20 to 1280 tokens per parameter", "metric": "fit R-squared and held-out hyperparameter prediction", "result": "Timescale power law has R-squared 0.975 and tracks four larger held-out configurations.", "baseline": "Constant normalized AdamW timescale and learning-rate-only tuning prescriptions."},
+    {"setting": "Batch sweeps across model and token budgets", "metric": "fit R-squared for optimal and critical batch", "result": "Reported R-squared is 0.984 for optimal batch and 0.940 for critical batch as functions of data size.", "baseline": "Scaling batch size with compute, model size, or target loss."},
+    {"setting": "Iso-loss target 2.6 across 150M to 2.1B models", "metric": "time-compute Pareto dominance", "result": "Overtrained settings join the frontier under the FLOPs-per-batch time proxy, whereas undertrained base settings do not.", "baseline": "Approximately 20-TPP compute-optimal and undertrained allocations."}
+  ],
+  "limitations": [
+    "Author-stated: the exponential-moving-average interpretation ignores dependence of each update on earlier parameters.",
+    "Author-stated: experiments use AdamW, one standard learning-rate schedule, one data setup, and Cerebras hardware.",
+    "Author-stated: wall-clock conclusions change with the time model and with critical-batch estimation error.",
+    "Reviewer inference: high in-range R-squared does not by itself validate extrapolation to frontier-scale architectures, mixtures, or optimizers."
+  ],
+  "failure_modes": [
+    "A different optimizer or learning-rate schedule breaks the fitted timescale relationship.",
+    "Hardware utilization saturates so increasing batch no longer reduces time as assumed.",
+    "A misestimated critical-batch exponent systematically selects the wrong model-data allocation.",
+    "Loss interpolation across batch-specific runs hides instability or data-regime transitions."
+  ],
+  "reusable_insights": [
+    "Normalize coupled hyperparameters into a dimensionless training-timescale before fitting scaling laws.",
+    "Separate the batch that minimizes loss from the larger batch that trades extra tokens for fewer sequential steps.",
+    "Scaling recommendations should expose the hardware-time model and sensitivity of the resulting Pareto frontier."
+  ],
+  "open_questions": [
+    "Do the exponents transfer across tokenizers, data mixtures, architectures, and non-AdamW optimizers?",
+    "Can online estimators identify critical batch accurately enough to avoid broad sweeps?",
+    "What frontier emerges under measured end-to-end time, communication, energy, and inference demand rather than FLOPs alone?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2405.13698",
+      "title": "How to set AdamW's weight decay as you scale model and dataset size",
+      "url": "https://arxiv.org/abs/2405.13698",
+      "relationship": "direct-theoretical-prior",
+      "difference": "Wang and Aitchison motivate a constant AdamW averaging timescale, especially for multi-epoch image training. Power Lines confirms batch coupling but finds that the optimal normalized timescale decreases predictably with LLM tokens per parameter.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:1812.06162",
+      "title": "An Empirical Model of Large-Batch Training",
+      "url": "https://arxiv.org/abs/1812.06162",
+      "relationship": "critical-batch-prior",
+      "difference": "McCandlish et al. introduce the gradient-noise and step-data tradeoff used to define critical batch. Power Lines adapts the relation to LLM pretraining, estimates iso-loss points via batch-specific loss curves, and fits how critical batch scales with total data.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2410.21676",
+      "title": "How Does Critical Batch Size Scale in Pre-training?",
+      "url": "https://arxiv.org/abs/2410.21676",
+      "relationship": "direct-empirical-competitor",
+      "difference": "Zhang et al. independently study critical-batch scaling using constant learning rates and weight averaging. Power Lines uses schedule-agnostic loss interpolation, jointly tunes weight decay, and reports a closely agreeing data-size exponent.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2203.03466",
+      "title": "Tensor Programs V: Tuning Large Neural Networks via Zero-Shot Hyperparameter Transfer",
+      "url": "https://arxiv.org/abs/2203.03466",
+      "relationship": "parameterization-prior",
+      "difference": "Tensor Programs V develops muP to transfer tuned hyperparameters across width. Power Lines uses muP as experimental control but focuses on changes with data, batch, weight decay, and dual time-compute objectives that width transfer alone does not resolve.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": "Reviewer inference after comparison: the contribution is a unified empirical account linking weight-decay timescale and both optimal and critical batch to tokens per parameter or total tokens, plus a demonstration that these laws alter time-compute allocation. It is stronger than a single scaling fit, but external validity remains prospective.",
+  "confidence": 0.94,
+  "reviewer_notes": "Full-text review covered derivations, sweep design, held-out points, confidence intervals, Pareto analysis, appendical limitations, and comparison to independent critical-batch work. Competing arXiv records were checked on 2026-08-23."
+}

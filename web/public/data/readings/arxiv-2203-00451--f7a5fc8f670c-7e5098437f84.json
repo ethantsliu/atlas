@@ -1,0 +1,107 @@
+{
+  "stable_id": "arxiv:2203.00451",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2203.00451",
+    "pdf_sha256": "9c02b6143fce436dba680cde4b7fe6ddf20b5640d8215425ff9dfdc817180afc",
+    "text_sha256": "57532a14ce7cf9de16c61683e6e6742823d5cb5b216405dd64893a9bc5838de3",
+    "page_count": 8,
+    "extracted_at": "2026-08-23T21:19:58.373257+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can an unsupervised physics-informed neural network sequentially discover normalized, mutually orthogonal eigenfunctions and eigenvalues while satisfying quantum boundary conditions and known parity by construction?",
+  "key_findings": [
+    {
+      "claim": "The solver combines a learned scalar eigenvalue with a neural eigenfunction and hard boundary parameterization, then uses normalization, prior-state orthogonality, and optional parity constraints to avoid trivial or repeated solutions.",
+      "evidence": "The differential residual trains both the scalar lambda and f. Multiplying the network output by a boundary-vanishing function enforces finite-domain Dirichlet values; the norm term targets a unit quadrature norm, and stored solutions are introduced into an orthogonality term before searching for another state.",
+      "attribution": "author-reported",
+      "anchors": [{"page": 2, "section": "III Methodology and Eqs. 4-5"}, {"page": 3, "section": "A-D, Eqs. 6-9"}]
+    },
+    {
+      "claim": "The ortho-loss as typeset does not guarantee pairwise orthogonality.",
+      "evidence": "Equation 7 is the raw dot product between the current prediction and the sum of all stored eigenfunctions, with no square or absolute value shown. Minimizing a signed dot product can reward negative overlap, and even setting the aggregate dot product to zero permits overlaps with different stored states to cancel. This conflicts with the abstract's pairwise-orthogonal wording unless the implementation uses an unstated different loss.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 3, "section": "B Orthogonality Loss, Eq. 7"}, {"page": 7, "section": "V Conclusion"}]
+    },
+    {
+      "claim": "Hard-coding even or odd parity can prevent an observed false solution, but the evidence is a single qualitative training trace rather than a controlled convergence study.",
+      "evidence": "For the symmetric double-well example, the parity-constrained model visits analytical energy plateaus while the unconstrained model converges to an incorrect eigenvalue. No repeated seeds, time-to-tolerance distribution, parameter-matched alternative, or asymmetric-potential control quantifies the claimed acceleration.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 3, "section": "C Embedding Even and Odd Symmetry"}, {"page": 4, "section": "Algorithm 1 symmetry switching"}, {"page": 6, "section": "C Symmetry vs No Symmetry, Figure 4"}]
+    },
+    {
+      "claim": "The reported eigenvalue errors are small on the selected one-dimensional analytic problems, but not consistently within the paper's stated approximately one-percent level.",
+      "evidence": "Finite single- and double-well table entries are at most 0.61 percent, while hydrogen entries include 1.46, 4.08, 2.38, 2.52, and 1.44 percent. The text nevertheless says true eigenvalues are found to approximately one-percent error consistently.",
+      "attribution": "contradiction-audit",
+      "anchors": [{"page": 6, "section": "D Hydrogen Atom"}, {"page": 7, "section": "Table I and accompanying claim"}]
+    },
+    {
+      "claim": "The experiments establish feasibility on small analytic benchmarks, not superiority to classical or contemporary neural eigensolvers.",
+      "evidence": "All tests use two hidden layers of 50 sine units on one-dimensional square wells or a separated radial hydrogen equation. There is no runtime, residual certificate, memory, mesh-refinement, repeated-run, high-dimensional, classical finite-element/spectral, Deep Ritz, or multistate-neural baseline comparison.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 4, "section": "IV Experiments and training setup"}, {"page": 5, "section": "Single and multiple finite wells"}, {"page": 6, "section": "Hydrogen Atom"}, {"page": 7, "section": "Future Research"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Optimize an eigenfunction network and a trainable scalar eigenvalue directly against the differential-equation residual while hard-wiring boundary values and parity and sequentially deflating previously found states through loss terms.",
+    "mechanism": "Random spatial collocation points, perturbed each epoch, feed a two-layer sine network. Automatic differentiation evaluates the operator residual. A squared quadrature-normalization penalty avoids the zero function; a stored-state dot-product term pushes the next output away from earlier states; residual and patience thresholds decide when to store or parity-switch the model.",
+    "assumptions": [
+      "The operator is Hermitian with a discrete orthogonal spectrum on the truncated computational domain.",
+      "Known parity is valid for the potential, and finite boundary truncation accurately represents decay at infinity.",
+      "Low collocation residual plus a training-loss plateau reliably distinguishes a true eigenpair from an optimizer artifact."
+    ]
+  },
+  "techniques": [
+    {"id": "trainable-eigenvalue-pinn", "role": "Learns the scalar eigenvalue jointly with a differentiable neural eigenfunction from operator residuals."},
+    {"id": "quadrature-norm-loss", "role": "Prevents collapse to the zero function and approximately enforces unit norm on sampled points."},
+    {"id": "sequential-orthogonality-loss", "role": "Uses stored earlier predictions to steer the current network toward another spectral state."},
+    {"id": "parity-embedded-network", "role": "Combines outputs on x and minus x by addition or subtraction to enforce even or odd symmetry."},
+    {"id": "hard-dirichlet-parameterization", "role": "Multiplies a free network by a function that vanishes at specified computational boundaries."},
+    {"id": "patience-based-state-recognition", "role": "Stores a state when both residual and plateau tests pass and switches parity after a residual-failing plateau."}
+  ],
+  "evaluations": [
+    {"setting": "One-dimensional finite square well with length 1, depth 20, and truncated boundaries", "metric": "Eigenvalue error and normalized eigenfunction MSE for four states", "result": "Displayed eigenvalue errors range from 0.00 to 0.46 percent and normalized MSE from 3.7e-4 to 9.1e-4.", "baseline": "Analytical stitched eigenpairs; no numerical or neural solver baseline."},
+    {"setting": "One-dimensional double finite square well", "metric": "Eigenvalue error and normalized eigenfunction MSE for four states", "result": "Displayed eigenvalue errors range from 0.25 to 0.61 percent and normalized MSE from 4.8e-4 to 8.7e-4.", "baseline": "Analytical solutions and one unconstrained-parity training trace."},
+    {"setting": "Double-well parity ablation", "metric": "Learned scalar energy across training epochs", "result": "The parity-embedded run moves among analytical plateaus while the shown generic network settles at a non-eigenvalue.", "baseline": "The same basic network without embedded even/odd symmetry."},
+    {"setting": "Separated radial hydrogen equation for angular momentum l=0 through 3 and accessible n=1 through 4", "metric": "Eigenvalue percent error and normalized eigenfunction MSE", "result": "Eigenvalue error spans 0.08 to 4.08 percent; the interval r below 0.1 is excluded to avoid the origin singularity.", "baseline": "Analytical hydrogen energies and radial functions."}
+  ],
+  "limitations": [
+    "Author-stated: the work is limited to one-dimensional or radially separated problems; full three-dimensional and time-dependent equations remain future work.",
+    "Reviewer inference: Eq. 7's signed overlap with the sum of prior states is not a valid pairwise orthogonality penalty as written.",
+    "Reviewer inference: solution recognition depends on user-chosen residual, rolling-window, and patience thresholds and can store collocation-specific false positives.",
+    "Reviewer inference: the hydrogen origin is removed rather than enforcing physical regularity there, while infinity is approximated by an unspecified finite right boundary.",
+    "Reviewer inference: results omit classical solver cost/accuracy, contemporary neural baselines, mesh or collocation convergence, random-seed variability, and out-of-sample residual certification.",
+    "Reviewer inference: the coefficient description says replacing drive loss sets nu_norm to zero, whereas Algorithm 1 and the conclusion retain norm loss; this appears to be an unresolved typo for nu_drive."
+  ],
+  "failure_modes": [
+    "Aggregate overlap cancellation can make the displayed ortho-loss small while the new state remains nonorthogonal to individual stored states.",
+    "Parity switching is invalid for asymmetric potentials and can exclude legitimate mixed-symmetry eigenfunctions.",
+    "A network can interpolate small residuals at sampled points yet have large residuals between them, especially near discontinuities or singularities.",
+    "Truncating an infinite domain or excluding the Coulomb origin can shift eigenvalues and admit boundary artifacts.",
+    "Sequentially retraining one network can accumulate state-detection and deflation errors and miss degenerate eigenspaces."
+  ],
+  "reusable_insights": [
+    "Hard-code exact boundary conditions and known symmetries when they are genuinely invariant across the target problem family.",
+    "Use a squared Gram-matrix penalty or explicit projection/QR deflation when pairwise orthogonality is required.",
+    "Validate eigenpairs with independent dense/adaptive collocation, Rayleigh quotients, residual bounds, and boundary/regularity tests.",
+    "Benchmark neural eigensolvers against sparse spectral or finite-element methods at matched error and wall-clock cost."
+  ],
+  "open_questions": [
+    "Does a corrected pairwise Gram penalty or projection deflation reliably recover clustered and degenerate spectra?",
+    "Can adaptive residual sampling and a posteriori certificates replace heuristic patience thresholds?",
+    "At what spatial dimension and parameter-family size does amortized neural solution become cheaper than classical eigensolvers?",
+    "How should Coulomb cusps, origin regularity, and infinite-domain tails be hard-wired without deleting difficult regions?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:2010.05075", "title": "Unsupervised Neural Networks for Quantum Eigenvalue Problems", "url": "https://arxiv.org/abs/2010.05075", "relationship": "direct predecessor by the same authors", "difference": "The 2020 solver already jointly learns eigenpairs, hard-wires boundaries, and scans for arbitrarily many states; the reviewed paper replaces inverse-amplitude heuristics with normalization/orthogonality losses, adds parity, and automates state recognition.", "source_kind": "arxiv", "checked_at": "2026-08-23"},
+    {"canonical_id": "arxiv:1710.00211", "title": "The Deep Ritz Method: A Deep Learning-Based Numerical Algorithm for Solving Variational Problems", "url": "https://arxiv.org/abs/1710.00211", "relationship": "foundational variational neural eigensolver", "difference": "E and Yu minimize variational/Rayleigh-type energies and include eigenvalue problems; this paper minimizes the strong-form differential residual and learns the eigenvalue as a separate parameter.", "source_kind": "arxiv", "checked_at": "2026-08-23"},
+    {"canonical_id": "arxiv:2104.02741", "title": "Conditional Physics Informed Neural Networks", "url": "https://arxiv.org/abs/2104.02741", "relationship": "prior unsupervised eigenproblem PINN", "difference": "Kovacs et al. use a Rayleigh-Ritz-informed conditional PINN to learn an entire parameterized family of magnetic eigenproblems in one network; the reviewed method learns several states of one quantum potential sequentially.", "source_kind": "arxiv", "checked_at": "2026-08-23"},
+    {"canonical_id": "publisher:nature-s41598-022-06442-x", "title": "Neural Network Approaches for Solving Schrodinger Equation in Arbitrary Quantum Wells", "url": "https://www.nature.com/articles/s41598-022-06442-x", "relationship": "contemporaneous quantum-well neural solver", "difference": "Radu and Duque train supervised surrogates on 151,000 finite-element solutions to amortize arbitrary potentials and test distribution shift; the reviewed solver is data-free but must optimize anew for each potential/state and tests only analytic cases.", "source_kind": "publisher", "checked_at": "2026-08-23"},
+    {"canonical_id": "arxiv:2209.11134", "title": "Neural Networks Based on Power Method and Inverse Power Method for Solving Linear Eigenvalue Problems", "url": "https://arxiv.org/abs/2209.11134", "relationship": "subsequent direct neural eigensolver", "difference": "Yang et al. embed classical power and inverse-power iterations and evaluate one-, two-, and higher-dimensional problems, including targeted interior eigenvalues; this paper uses heuristic residual plateaus and sequential overlap penalties.", "source_kind": "arxiv", "checked_at": "2026-08-23"},
+    {"canonical_id": "arxiv:2302.01413", "title": "Solving Two-Dimensional Quantum Eigenvalue Problems Using Physics-Informed Machine Learning", "url": "https://arxiv.org/abs/2302.01413", "relationship": "subsequent dimensional extension", "difference": "Holliday et al. generalize normalized and orthogonal PINN eigenpair learning to two-dimensional rectangular, elliptic, triangular, and cardioid domains and Helmholtz modes; the reviewed experiments remain one-dimensional or radially separated.", "source_kind": "arxiv", "checked_at": "2026-08-23"},
+    {"canonical_id": "arxiv:2211.04607", "title": "First Principles Physics-Informed Neural Network for Quantum Wavefunctions and Eigenvalue Surfaces", "url": "https://arxiv.org/abs/2211.04607", "relationship": "subsequent parametric quantum PINN", "difference": "Mattheakis et al. learn continuous wavefunction and eigenvalue surfaces over molecular geometry and encode Coulomb cusps for H2-plus; the reviewed solver handles fixed benchmark potentials and avoids the hydrogen singular region.", "source_kind": "arxiv", "checked_at": "2026-08-23"}
+  ],
+  "novelty_assessment": "Author claim: physics-aware norm and ortho losses, parity-embedded architecture, nonzero-boundary parameterization, and patience recognition extend data-free neural eigenpair discovery to finite wells and hydrogen. Reviewer inference after primary-source comparison: the work is chiefly an incremental refinement of the authors' 2020 solver, while variational neural eigensolvers, conditional eigenproblem PINNs, and a simultaneous multistate Schrödinger solver already existed. Hard parity and normalization are useful engineering choices; the sequential algorithm is distinctive, but the published ortho-loss is mathematically insufficient and the evaluation does not establish scale or efficiency.",
+  "confidence": 0.96,
+  "reviewer_notes": "Read all eight extracted pages, including the full algorithm, every equation and result table, hydrogen truncation, and references. I audited the typeset loss rather than assuming the implementation silently squares it, and checked every Table I percentage against the accompanying approximately-one-percent claim. Seven primary-source predecessor, contemporaneous, and subsequent methods were checked on arXiv or an official publisher page on 2026-08-23."
+}

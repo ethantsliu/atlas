@@ -1,0 +1,291 @@
+{
+  "stable_id": "openreview:-Qp-3L-5ZdI",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/1909.13371",
+    "pdf_sha256": "b1cac2291b7e746eeeb0eb73166032af6f5dca09c1e9ffa3340e7875394ec4a2",
+    "text_sha256": "95dc9b772e2321c84b0f8604dbcf8a0d80c1fe7da5fa74c09117d91adb39eb0d",
+    "page_count": 12,
+    "extracted_at": "2026-08-24T00:35:56.141820+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can reverse-mode automatic differentiation turn an ordinary optimizer into an online optimizer of its own continuous hyperparameters, and can that transformation be recursively stacked to reduce sensitivity to human initialization?",
+  "key_findings": [
+    {
+      "claim": "Selective detachment makes one-step hypergradients available through ordinary reverse-mode automatic differentiation without retaining the complete training history.",
+      "evidence": "Model weights and the current gradient are detached at each update, preventing the computation graph from growing across all training steps, while the edge from the current hyperparameter into the next model state is preserved. Backpropagation at the next step therefore deposits a gradient on the hyperparameter with only the optimizer update added to the graph.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Section 2.2, selective detachment"
+        },
+        {
+          "page": 4,
+          "section": "Figure 1"
+        }
+      ]
+    },
+    {
+      "claim": "The implementation generalizes the earlier hand-derived learning-rate hypergradient to multiple optimizer families and multiple continuous hyperparameters.",
+      "evidence": "The paper applies the same interface to SGD, Adam, AdaGrad, and RMSProp and differentiates learning rates, momentum coefficients, and RMS decay. Domain-constrained coefficients are represented through a scaled sigmoid, and Adam's initial second moment is changed to avoid a nondifferentiable zero square root.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Manual Adam derivatives"
+        },
+        {
+          "page": 4,
+          "section": "Section 2.3"
+        },
+        {
+          "page": 6,
+          "section": "Table 1"
+        }
+      ]
+    },
+    {
+      "claim": "Treating an optimizer itself as the optimizer of a lower-level hyperparameter yields a compact recursive construction of taller hyperoptimizer towers.",
+      "evidence": "The update of alpha is factored into an optimizer.step call; replacing that optimizer with another HyperSGD instance recursively creates height-two and higher stacks, and optimizer types can be mixed across levels.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Section 2.4"
+        },
+        {
+          "page": 5,
+          "section": "Recursive optimizer pseudocode"
+        }
+      ]
+    },
+    {
+      "claim": "Online hyperoptimization often repairs moderately poor initial learning rates or momenta on the selected MLP, ResNet, and character-RNN tasks.",
+      "evidence": "On MNIST, all displayed hyperoptimized variants improve their corresponding default baseline. On CIFAR-10 ResNet-20, the hyperoptimizer matches or improves final test accuracy for each of nine learning-rate and momentum starts and learns a decay resembling the hand schedule. On Tolstoy Char-RNN, it substantially improves the too-small start and modestly improves the too-large start.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Table 1"
+        },
+        {
+          "page": 7,
+          "section": "Section 3.3.1 and Figure 2"
+        },
+        {
+          "page": 8,
+          "section": "Section 3.3.2 and Figure 3"
+        }
+      ]
+    },
+    {
+      "claim": "Taller towers flatten the measured sensitivity curve over several orders of magnitude, but they do not eliminate hyperparameter engineering.",
+      "evidence": "Figure 4 shows broader ranges of useful base learning rates at heights one through three. However, the upper-level rates are initialized by a piecewise rule that depends on the base rate, and the authors report that rates set too high still make larger networks diverge before adaptation can respond.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "Section 3.4 initialization scheme"
+        },
+        {
+          "page": 9,
+          "section": "Figure 4"
+        },
+        {
+          "page": 10,
+          "section": "Section 5"
+        }
+      ]
+    },
+    {
+      "claim": "The empirical study does not establish that recursive hyperoptimization is generally stable, parameter-free, or superior under equal tuning budgets.",
+      "evidence": "Most tabulated MNIST results use three runs, the stack's own learning rates are manually chosen, architectures use different initialization heuristics, and there is no matched search budget against tuned AdamW, schedule-free, parameter-free, or learned-optimizer alternatives. The paper itself calls for a deeper convergence analysis.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Section 3.1 protocol"
+        },
+        {
+          "page": 8,
+          "section": "Section 3.4"
+        },
+        {
+          "page": 10,
+          "section": "Sections 4-5"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Differentiate through exactly one optimizer update online, detach the older history, and expose the hyperparameter as the parameter of another optimizer that can itself be wrapped recursively.",
+    "mechanism": "After each loss backward pass, update an optimizer hyperparameter using its current hypergradient and a higher-level optimizer, update model weights with the new hyperparameter, and detach old model and optimizer state while preserving the dependency needed for the next one-step hypergradient. Repeat the same optimizer protocol at arbitrary tower heights.",
+    "assumptions": [
+      "The optimizer update and tuned hyperparameters are differentiable or have safe differentiable reparameterizations.",
+      "A one-step online hypergradient is informative despite minibatch noise and short-horizon bias.",
+      "Manual initialization of every upper-level rate lies inside a stable regime.",
+      "Detachment boundaries preserve the intended dependency and remove every stale graph edge.",
+      "Optimizer state mutations do not silently invalidate automatic differentiation.",
+      "Improved end-of-run test metrics over the selected starts reflect robustness beyond those starts."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "hypergradient-ad",
+      "role": "Computes online derivatives of the current loss with respect to optimizer hyperparameters."
+    },
+    {
+      "id": "graph-detach",
+      "role": "Bounds memory and time by truncating dependencies at each training step."
+    },
+    {
+      "id": "domain-map",
+      "role": "Maps raw momentum and decay values through a sigmoid to enforce valid domains."
+    },
+    {
+      "id": "optimizer-wrap",
+      "role": "Abstracts the hyperparameter update behind the same step interface as model optimization."
+    },
+    {
+      "id": "recursive-stack",
+      "role": "Optimizes each level's step size with the optimizer at the next level."
+    },
+    {
+      "id": "sensitivity-sweep",
+      "role": "Tests tower height across orders of magnitude of base learning-rate initialization."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "One-hidden-layer tanh MLP on MNIST with SGD, Adam, AdaGrad, and RMSProp variants.",
+      "metric": "Test error after 30 epochs for SGD or five epochs for faster optimizers, summarized over three runs.",
+      "result": "Every displayed hyperoptimizer stack improves its corresponding default baseline; jointly tuning additional Adam and RMSProp coefficients sometimes improves over tuning the learning rate alone.",
+      "baseline": "PyTorch-default or stated fixed optimizer hyperparameters and reruns at the final learned values."
+    },
+    {
+      "setting": "ResNet-20 on CIFAR-10 over a three-by-three grid of initial learning rates and momentum, plus a 500-epoch schedule comparison.",
+      "metric": "Training behavior and final test accuracy or loss.",
+      "result": "Hyperoptimization matches or improves all nine fixed-start configurations and roughly matches the hand-engineered two-drop schedule, except that jointly extreme starts remain worse than the good fixed initialization.",
+      "baseline": "Fixed SGD and the hand-designed He et al. learning-rate schedule."
+    },
+    {
+      "setting": "Two-layer LSTM character model on Tolstoy with initial Adam learning rates 1e-4, 2e-3, and 1e-2.",
+      "metric": "Perplexity after 50,000 gradient steps.",
+      "result": "The hyperoptimizer is comparable at the expert start, improves too-high initialization from 5.77 to 5.45, and improves too-low initialization from 8.71 to 6.51, with reported run-to-run variation.",
+      "baseline": "Fixed Adam at each initial learning rate."
+    },
+    {
+      "setting": "Tower heights through three on MNIST, CIFAR-10, Tolstoy, and Caltech-256 fine-tuning with a pretrained ResNet-152.",
+      "metric": "Performance across base learning-rate orders of magnitude and added runtime.",
+      "result": "Taller stacks broaden the useful initialization interval; each added level is reported to add roughly one to two percent runtime, but upper-level initializations are changed according to the base rate and task stability.",
+      "baseline": "Height-zero fixed optimizer and shorter hyperoptimizer towers."
+    }
+  ],
+  "limitations": [
+    "Author-stated: excessively high initial hyperparameters cause divergence before the hyperoptimizer can correct them.",
+    "Author-stated: graph retention by loggers can leak memory, and some built-in modules silently mutate graphs and yield incorrect hypergradients.",
+    "Author-stated: a deeper convergence analysis and safer differentiable-programming abstractions are still needed.",
+    "Reviewer inference: every recursive level introduces another manually initialized rate, and the reported piecewise initialization rule uses knowledge of the base rate.",
+    "Reviewer inference: one-step truncation is computationally cheap but can optimize immediate minibatch loss against long-horizon generalization.",
+    "Reviewer inference: most uncertainty estimates use only three runs, and the paper does not report a standardized optimizer benchmark or equal hyperparameter-search budget.",
+    "Reviewer inference: the large-model evidence is fine-tuning a pretrained ResNet rather than training a modern large model from scratch.",
+    "Reviewer inference: the runtime plot does not quantify memory, compiler overhead, distributed communication, or sensitivity to mixed precision."
+  ],
+  "failure_modes": [
+    "A high initial learning rate destroys the model before the delayed hypergradient can reduce it.",
+    "Noisy consecutive gradients drive the online hyperparameter into oscillation or a boundary.",
+    "A short-horizon hypergradient improves the next minibatch while degrading eventual validation performance.",
+    "A missed detach retains the entire history and causes quadratic work or an out-of-memory failure.",
+    "An in-place optimizer or recurrent module severs or corrupts dependencies and silently returns the wrong gradient.",
+    "A constrained parameter saturates its sigmoid and becomes difficult to adapt.",
+    "Tower depth amplifies instability because an upper-level adjustment changes on a slower and poorly scaled timescale."
+  ],
+  "reusable_insights": [
+    "Optimizer state should be represented as differentiable data with explicit, testable graph boundaries.",
+    "A one-step online adapter and a long-horizon tuner solve different objectives and should be benchmarked separately.",
+    "Sensitivity should be measured as an area or worst case over an initialization range, not only performance at one default.",
+    "Recursive optimizer composition is valuable as a software abstraction even when infinite conceptual recursion is not statistically justified.",
+    "Claims of parameter-free training must count every upper-level rate, clamp, schedule, and stopping rule."
+  ],
+  "open_questions": [
+    "Can stability constraints or trust regions make the first few online hypergradient steps safe from destructive initial rates?",
+    "How should hypergradients combine immediate training loss with delayed validation or generalization objectives?",
+    "Can upper-level rates themselves be normalized from observable gradient statistics instead of hand initialized?",
+    "When does increasing tower height improve worst-case sensitivity rather than merely add another controllable timescale?",
+    "How do online hyperoptimizers compare with D-Adaptation, Prodigy, and schedule-free AdamW under the AlgoPerf protocol?",
+    "Can functional optimizer state eliminate silent graph-mutation bugs in distributed and compiled training systems?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1703.04782",
+      "title": "Online Learning Rate Adaptation with Hypergradient Descent",
+      "url": "https://arxiv.org/abs/1703.04782",
+      "relationship": "direct-predecessor",
+      "difference": "Baydin and colleagues derive and test the inexpensive consecutive-gradient learning-rate hypergradient for SGD, momentum, and Adam. This paper's contribution is automatic differentiation across optimizer variants, additional hyperparameters, and recursive composition rather than the online hypergradient itself.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2007.07869",
+      "title": "Gradient-based Hyperparameter Optimization Over Long Horizons",
+      "url": "https://arxiv.org/abs/2007.07869",
+      "relationship": "long-horizon-alternative",
+      "difference": "Micaelli and Storkey use forward-mode differentiation with sharing to address long-horizon memory and gradient degradation; the recursive hyperoptimizer deliberately truncates to an inexpensive one-step objective and is therefore exposed to short-horizon bias.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2211.09760",
+      "title": "VeLO: Training Versatile Learned Optimizers by Scaling Up",
+      "url": "https://arxiv.org/abs/2211.09760",
+      "relationship": "meta-learned-optimizer-competitor",
+      "difference": "VeLO amortizes optimizer design over a massive task distribution with a neural update rule and no advertised task tuning; recursive hyperoptimization is transparent and training-free but adapts only the hyperparameters of a hand-designed update online.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2301.07733",
+      "title": "Learning-Rate-Free Learning by D-Adaptation",
+      "url": "https://arxiv.org/abs/2301.07733",
+      "relationship": "parameter-free-competitor",
+      "difference": "D-Adaptation estimates the distance-to-solution scale with convex guarantees and no extra function or gradient evaluation, then supplies SGD and Adam variants across large tasks. The tower instead learns rates by noisy local hypergradients and introduces higher-level rates without comparable guarantees.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2306.06101",
+      "title": "Prodigy: An Expeditiously Adaptive Parameter-Free Learner",
+      "url": "https://arxiv.org/abs/2306.06101",
+      "relationship": "learning-rate-free-competitor",
+      "difference": "Prodigy improves D-Adaptation's theoretical rate and tests vision, language, recommendation, and medical-imaging workloads, often approaching tuned Adam. Hyperoptimizer towers offer arbitrary differentiable coefficient adaptation but a substantially weaker scale and tuning comparison.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2405.15682",
+      "title": "The Road Less Scheduled",
+      "url": "https://arxiv.org/abs/2405.15682",
+      "relationship": "schedule-free-competitor",
+      "difference": "Schedule-Free learning unifies momentum and iterate averaging to remove a stopping-time-dependent decay schedule without adding hyperparameters over standard momentum optimizers. This paper learns a schedule-like trajectory online but still requires base and hyper-level rate initialization.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "pmlr:v267-chu25a",
+      "title": "Provable and Practical Online Learning Rate Adaptation with Hypergradient Descent",
+      "url": "https://proceedings.mlr.press/v267/chu25a.html",
+      "relationship": "current-theoretical-successor",
+      "difference": "Chu and colleagues give a convergence analysis that explains hypergradient instability, obtain local superlinear convergence, and build heavy-ball and Nesterov variants for deterministic convex problems. Recursive hyperoptimization supplies broader differentiable software composition and deep-learning experiments but no corresponding stability theorem.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "A small selective-detachment change converts common optimizers into automatically differentiated hyperoptimizers that tune multiple coefficients, compose recursively, and become less sensitive as the tower grows.",
+    "evidence": "The paper supplies concise PyTorch-style pseudocode and tests SGD, Adam, AdaGrad, and RMSProp on MLP, CNN, RNN, and transfer settings with sensitivity curves through three hyper-levels.",
+    "reviewer_inference": "The strongest novelty is the elegant optimizer-as-data abstraction and empirical realization of recursive towers. The core online hypergradient is inherited from Almeida and Baydin, while later D-Adaptation, Prodigy, schedule-free, and analyzed hypergradient methods provide stronger parameter-free claims, standardized scale, or theory. The tower is therefore best understood as a modular differentiable-programming pattern, not the ultimate or tuning-free optimizer."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Read and visually checked all 12 pages, including computation-graph diagrams, every table and sensitivity plot, stated initialization recipes, limitations, and references. Competitors were checked at primary arXiv, OpenReview, NeurIPS, and PMLR records on 2026-08-23. Source lineage is an identity-preserving override: the collection keeps OpenReview ID -Qp-3L-5ZdI, while the reviewed PDF is the authors' same-title arXiv manuscript 1909.13371 with matching authors and NeurIPS 2022 attribution; it is not claimed to be byte-identical to the OpenReview-hosted revision."
+}

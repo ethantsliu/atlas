@@ -1,0 +1,353 @@
+{
+  "stable_id": "arxiv:2606.18524",
+  "reading_depth": "verified",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2606.18524",
+    "pdf_sha256": "f983dfcb336cefc3ed856389f96fb776ca30f73723dc35a02c31cac6a7e2fb6f",
+    "text_sha256": "5017a58d6802e19d160aaa853998a980af0918ee0295d511714bfdcc943c19e8",
+    "page_count": 19,
+    "extracted_at": "2026-08-23T09:49:56.935364+00:00",
+    "review_pass": "secondary-verified-v1"
+  },
+  "question": "How should residual branches and learning rates scale when the same Transformer block is applied repeatedly, and does the resulting loop-count law transfer from an idealized shared ReLU recurrence to finite SwiGLU language models with both physical depth and recurrent depth?",
+  "key_findings": [
+    {
+      "claim": "For the paper's single shared ReLU recurrence, parameter tying changes residual accumulation from a random-walk picture to coherent linear growth, yielding a 1/N residual scale rather than the familiar 1/sqrt(N) depth scale.",
+      "evidence": "The model h_(n+1)=h_n+epsilon W phi(h_n) reuses one Gaussian W. Factoring the residual as W times the sum of nonnegative ReLU features and applying a Gaussian-gain argument on the positive cone makes the squared residual sum scale as Theta(N^2). Theorem 1 therefore requires epsilon N=O(1), equivalently alpha at least 1 for epsilon=N^(-alpha), to keep the residual stream bounded in the stated regime.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "3.1 Single-Layer Looped Residual Scaling"},
+        {"page": 4, "section": "Theorem 1"},
+        {"page": 13, "section": "A.2 Positive-cone lemmas"},
+        {"page": 14, "section": "A.2 Proof of Theorem 1"}
+      ]
+    },
+    {
+      "claim": "The 1/N necessity theorem is rigorous only conditional on activation mass and a uniform positive-cone gain; it does not prove that arbitrary tied residual blocks accumulate linearly.",
+      "evidence": "Theorem 1 assumes the average ReLU coordinate mass stays bounded below independently of N, the average activation squared norm stays bounded above, and W has lower and upper gain on every vector in the nonnegative cone. Lemma 5 establishes the gain event for a square Gaussian W at large width, but the activation conditions are not derived from the recurrence. Signed or centered activations can cancel and fall outside the cone argument. The paper explicitly says SwiGLU transfer is empirical rather than covered by the proof.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "3.2 Theorem 1 assumptions and beyond-ReLU remark"},
+        {"page": 13, "section": "A.2 Lemmas 4-5"},
+        {"page": 14, "section": "A.2.1 Conditional proof"},
+        {"page": 9, "section": "Limitations"}
+      ]
+    },
+    {
+      "claim": "The single-layer learning-rate theorem is an exact one-update sufficient bound under stable trajectories, not proof that the loss-optimal AdamW learning rate is exactly loop invariant.",
+      "evidence": "Appendix A.3 subtracts the pre- and post-update ReLU recurrences and bounds their actual output difference by O(eta epsilon N) using operator-norm, activation, and epsilon-N stability assumptions; it is not merely a first-order Taylor result. A separate trajectory-direction condition makes that order sharp. Setting epsilon proportional to 1/N therefore permits an N-independent sufficient update scale, but the theorem does not analyze AdamW moments, loss curvature, multi-step convergence, or the validation-loss optimum. The multi-layer Proposition 7, by contrast, is explicitly linearized.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "3.3 Theorem 2"},
+        {"page": 14, "section": "A.3.1 Exact sufficient upper bound"},
+        {"page": 16, "section": "A.5 Multi-layer linearized update bound"},
+        {"page": 17, "section": "Proposition 7 proof and sharpness condition"}
+      ]
+    },
+    {
+      "claim": "The proposed two-axis law factorizes repeated-loop and physical-depth effects as epsilon=lambda/(N sqrt(L)), with a sufficient multi-layer learning-rate ceiling proportional to 1/(lambda sqrt(L)).",
+      "evidence": "For L distinct residual layers repeated N times, formal Theorem 6 first assumes nondegenerate loop-averaged branch norms, conditional branch means of order beta=epsilon N, and single-layer replacement influence of order beta. Under those assumptions it bounds unscaled branch variance by O(N^2(L+beta^2 L^2)); epsilon=lambda/(N sqrt(L)) then yields an O(lambda^2+lambda^4) residual contribution, with a matching Theta(LN^2) statement only for sufficiently small lambda and an additional nondegeneracy condition. Proposition 7 gives an O(eta lambda sqrt(L)) linearized update bound and requires explicit coherence for sharpness. Thus the factorization is conditional rather than derived from weight independence alone.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "4.1-4.2 Multi-layer block setup"},
+        {"page": 6, "section": "4.2 Theorem 3 and 4.3 learning-rate scaling"},
+        {"page": 15, "section": "A.4 Assumptions and Theorem 6"},
+        {"page": 16, "section": "A.4 Consequences and A.5 Proposition 7"},
+        {"page": 17, "section": "A.5 Proof and coherence qualification"}
+      ]
+    },
+    {
+      "claim": "Diagnostics support coherent repeated increments but do not directly verify the multi-layer theorem's conditional-mean and replacement-stability hypotheses.",
+      "evidence": "The N=64 Figure 3 snapshot after ten optimizer steps shows non-shared off-diagonal cosines in [-0.037,0.034] versus looped cosines in [0.027,0.995], both without residual scaling. Ten-seed norm and update diagnostics show much stronger N-growth under weaker scaling. After 20,000 steps, N=8 and N=4 cosine matrices retain positive early/middle pairs but final-step pairs become weak or negative. None of these measurements estimates Equations 8-9's conditional branch means or counterfactual effect of replacing one layer matrix, and the paper does not state that Figure 3 itself is averaged over ten seeds.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "Figures 3-4"},
+        {"page": 7, "section": "Figure 6 and 5.1 protocol"},
+        {"page": 15, "section": "A.4 Equations 8-9"},
+        {"page": 19, "section": "B.4 Figure 8 and B.5 Figure 9"}
+      ]
+    },
+    {
+      "claim": "The language-model sweep is useful but remains a small, single-corpus, single-seed transfer test.",
+      "evidence": "The authors train L=12, 24, and 48 decoder-only Transformers with N in {1,2,4,8}, approximately 183.5M, 268.4M, and 438.3M parameters, on 10B FineWeb-Edu tokens for 20,000 steps. The configuration table records random seed 0 and a single full run per setting; only the short diagnostics use ten seeds.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "5 Experiments / model structure"},
+        {"page": 8, "section": "5.2-5.4 full-training protocol"},
+        {"page": 9, "section": "Limitations"},
+        {"page": 18, "section": "B.1-B.3 Architecture and training tables"}
+      ]
+    },
+    {
+      "claim": "Within the fully trained N<=8 range, linear loop scaling produces the cleanest displayed learning-rate transfer and stable final norms, while the square-root alternative shifts its optimum at L=12.",
+      "evidence": "Figure 5 compares square-root versus linear loop scaling only at L=12 and shows aligned per-N optima for linear scaling; L=24 and L=48 panels show linear scaling only. Figure 7 shows similar final residual norms across N in {2,4,8} under linear scaling after full training. Unscaled, square-root, and linear rules are compared together only in the ten-step N<=64 diagnostics, not the 10B-token sweep. These results establish finite-range behavior, not a full asymptotic or all-rule depth comparison.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "Figure 5 learning-rate transfer"},
+        {"page": 7, "section": "5.1 three-rule diagnostic"},
+        {"page": 8, "section": "Figure 7 and 5.2-5.3 transfer"},
+        {"page": 9, "section": "Discussion and limitations"}
+      ]
+    },
+    {
+      "claim": "The performance advantage over square-root scaling at the largest fully trained loop count is small and cannot be separated cleanly from scale calibration.",
+      "evidence": "At N=8 the text reports roughly a 0.025-nat validation-loss improvement for linear over square-root scaling. Lambda is fixed rather than tuned separately for every scaling family, and residual scaling changes both stability and the magnitude of the recurrent computation. Consequently the comparison does not identify whether the gain comes from the exponent itself, a better effective step size, or regularization/expressivity changes.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 8, "section": "5 Results"},
+        {"page": 9, "section": "Limitations"},
+        {"page": 18, "section": "B.3 Hyperparameters"}
+      ]
+    },
+    {
+      "claim": "The central proof mechanism and the implemented Transformer use different nonlinearities, leaving the positive-cone explanation only partially transferred to practice.",
+      "evidence": "Theorems 1 and 2 use ReLU non-negativity to obtain coherent accumulation. The experiments use SwiGLU, and the paper argues that a positive-gated component can create similar effects, but it does not prove the same N^2 accumulation for the full signed SwiGLU branch or measure which component causes the observed correlation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "3.2 Remark beyond ReLU"},
+        {"page": 9, "section": "Limitations"},
+        {"page": 13, "section": "A.2 ReLU positive-cone argument"}
+      ]
+    },
+    {
+      "claim": "The extended Figure 9 result concerns optimizer-step output updates, not residual-stream norms, and it supports only order-level boundedness under linear scaling.",
+      "evidence": "Figure 9 plots the RMS change in the final hidden state after each of the first ten optimizer steps for N up to 64, using ten seeds and a common 1e-4 base learning rate. Under epsilon=1/N the update remains within roughly a fourfold range and saturates near N=32, whereas unscaled and square-root curves track approximately N and sqrt(N). Residual-stream norms up to N=64 are instead Figure 2. Neither diagnostic is full training at N>8, and exact N-invariance is not observed.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "Figure 2 residual-stream norm"},
+        {"page": 8, "section": "5.1 update-bound qualification"},
+        {"page": 19, "section": "B.5 Figure 9 multi-step output-update diagnostic"}
+      ]
+    },
+    {
+      "claim": "Removing diverged configurations from some plotted comparisons makes the stable transfer region easier to read but can visually understate failure frequency.",
+      "evidence": "The results text says L=48,N=8 base learning rates above 2e-3 diverge, and Figure 5 omits every run whose final validation loss exceeds 4. The omission is disclosed, but a censored curve cannot convey failure severity or how the viable interval changes across loop count; with one full seed, divergence is also not a probability estimate.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Figure 5 caption and discussion"},
+        {"page": 8, "section": "5 Results"},
+        {"page": 18, "section": "B.3 Optimization sweep"}
+      ]
+    },
+    {
+      "claim": "The paper reports a detailed recipe but does not provide an immutable implementation, model, or data-sample artifact for exact reproduction.",
+      "evidence": "Tables 2-4 give architecture sizes, optimizer parameters, schedule, seed, learning-rate grid, and scaling rules, and the authors state that these permit replication. The PDF supplies no code repository or commit, training framework/version, FineWeb-Edu revision and sample order, validation subset identity, tokenizer checkpoint revision, raw curves, or trained weights; it explicitly says no model weights or datasets are released. Exact reruns and the censored divergence boundary therefore cannot be reconstructed from a pinned artifact.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "Ethical Considerations / no released weights or datasets"},
+        {"page": 18, "section": "Tables 2-4 architecture, optimizer, and single seed"},
+        {"page": 19, "section": "Figure 9 aggregate diagnostic without raw data"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Analyze parameter-tied residual recurrence separately from ordinary depth, derive an N-dependent residual and learning-rate scale from coherence induced by weight sharing, then test the factorized N-by-L prescription in decoder-only language models.",
+    "mechanism": "Repeated use of one residual matrix lets the residual sum factor as W times a sum of nonnegative ReLU features. Conditional on nonvanishing activation mass and uniform cone gain, this produces O(N) magnitude rather than O(sqrt(N)), so the branch is divided by N. A formal but assumed weak-influence structure across distinct physical layers adds a separate sqrt(L) factor. The exact single-layer one-update bound scales with eta epsilon N; the multi-layer bound is linearized and scales with eta lambda sqrt(L).",
+    "assumptions": [
+      "The idealized shared matrix is Gaussian at initialization and operates in the stated mean-field regime.",
+      "ReLU non-negativity creates a nonvanishing coherent component across repeated applications.",
+      "Average coordinate activation mass remains bounded below independently of N; this is assumed rather than derived.",
+      "Features, gradients, and local Jacobians remain bounded over the considered trajectory.",
+      "The linearized output perturbation is an informative sufficient proxy for optimizer stability and useful learning-rate transfer.",
+      "Distinct physical layers have sufficiently weak cross-layer dependence to accumulate at square-root rather than linear rate.",
+      "The conditional-mean and replacement-stability conditions in the multi-layer proof hold for trained Transformers.",
+      "SwiGLU experimental behavior is close enough to the ReLU mechanism for the derived exponent to transfer.",
+      "FineWeb-Edu validation loss after 10B tokens is representative of broader looped-model training behavior.",
+      "A fixed lambda and common hyperparameter grid provide a fair comparison among residual-scaling exponents."
+    ]
+  },
+  "techniques": [
+    {"id": "shared-residual-recurrence", "role": "Separates the repeated parameter-tied axis from ordinary network depth."},
+    {"id": "positive-cone-gaussian-gain", "role": "Converts nonnegative accumulated ReLU features into a lower bound on coherent residual growth."},
+    {"id": "one-update-sensitivity-bound", "role": "Bounds the exact post-update single-layer recurrence and, separately, the linearized multi-layer response."},
+    {"id": "two-axis-factorization", "role": "Combines linear repeated-loop accumulation with square-root accumulation across distinct layers."},
+    {"id": "loop-increment-cosine-diagnostic", "role": "Measures whether residual updates at different recurrent steps are positively aligned."},
+    {"id": "depth-loop-learning-rate-grid", "role": "Tests transfer across L in {12,24,48}, N in {1,2,4,8}, and several base learning rates."},
+    {"id": "residual-norm-tracking", "role": "Checks whether forward activations remain controlled under competing scaling exponents."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Shared Gaussian ReLU recurrence (PDF pp. 3-4, 13-14)",
+      "metric": "Asymptotic squared residual sum and normalized final-state norm as N grows",
+      "result": "Conditional on nondegenerate positive activation mass and cone gain, the residual sum has Theta(N^2) squared norm and bounded final state requires epsilon N=O(1).",
+      "baseline": "Appendix A.1's independent-layer mean-field calculation, which yields the familiar alpha>=1/2 threshold in expectation."
+    },
+    {
+      "setting": "One exact parameter update in the shared ReLU recurrence (PDF pp. 4, 14)",
+      "metric": "Width-normalized difference between post- and pre-update final states",
+      "result": "Theorem 2 gives an O(eta epsilon N) sufficient bound under stable activations, bounded operator norms, and epsilon N=O(1); a trajectory-direction condition is needed for sharpness.",
+      "baseline": "No convergence or loss-optimality theorem; Proposition 7's multi-layer result is separately linearized."
+    },
+    {
+      "setting": "Ten-step pre-norm Transformer norm diagnostic, N or L in {1,2,4,8,16,32,64} (PDF pp. 3, 7)",
+      "metric": "Normalized residual-stream norm over ten seeds",
+      "result": "For non-shared depth, 1/sqrt(L) remains near one; for tied loops, no scaling and 1/sqrt(N) grow strongly while 1/N remains bounded and approximately flat.",
+      "baseline": "No scaling, 1/sqrt(depth), and 1/depth in deep versus tied configurations with batch size 1, sequence length 128, and fixed random tokens."
+    },
+    {
+      "setting": "N=64 tied versus 64-copy untied correlation snapshot and one-step update diagnostic (PDF p. 5)",
+      "metric": "Pairwise loop-increment cosine and RMS final-hidden-state change after one optimizer step",
+      "result": "Untied off-diagonal cosines lie in [-0.037,0.034], tied cosines in [0.027,0.995]; updates track roughly N, sqrt(N), and a bounded sub-fourfold curve under epsilon=1, 1/sqrt(N), and 1/N.",
+      "baseline": "Same effective depth with independent block copies; the correlation plot has no reported multi-seed uncertainty."
+    },
+    {
+      "setting": "L=12, 183.5M-parameter models trained 20,000 steps/10B FineWeb-Edu tokens, N in {1,2,4,8} (PDF pp. 6, 8, 18)",
+      "metric": "Final held-out loss over eight base learning rates",
+      "result": "Linear 1/N scaling aligns the plotted per-N optima and at N=8 improves the reported minimum by 0.025 nat relative to 1/sqrt(N).",
+      "baseline": "Square-root loop scaling only; unscaled full-training curves are not shown. Every configuration uses seed 0."
+    },
+    {
+      "setting": "L=24/48, 268.4M/438.3M-parameter models with linear loop scaling (PDF pp. 6, 8, 18)",
+      "metric": "Final held-out loss after applying eta0(L/12)^-1/2 over N in {1,2,4,8}",
+      "result": "A common base learning rate is near the displayed optimum across N and L; L=48,N=8 base rates above 2e-3 diverge.",
+      "baseline": "Linear scaling at L=12. No square-root or unscaled full-training panel is supplied at L=24/48, and final-loss>4 runs are omitted."
+    },
+    {
+      "setting": "Post-training recurrence diagnostics at N=8 and N=4 (PDF pp. 7-9, 19)",
+      "metric": "Loop-step cosine matrices and final residual norm after 20,000 steps",
+      "result": "Early/middle increments remain positively correlated across L=12/24/48, final-step pairs can be zero or negative, and final norms under 1/N are similar across N=2/4/8 within each depth.",
+      "baseline": "Initialization/ten-step mechanism; these are single trained configurations rather than multi-seed full-run estimates."
+    },
+    {
+      "setting": "Ten-seed multi-step update diagnostic through N=64 (PDF p. 19)",
+      "metric": "RMS hidden-state output update for optimizer steps 1-10",
+      "result": "Unscaled and square-root curves remain approximately parallel to N and sqrt(N) references; 1/N updates stay within roughly a fourfold range and saturate near N=32.",
+      "baseline": "All rules use the same 1e-4 base learning rate; this is not a residual-norm or converged-language-model experiment."
+    }
+  ],
+  "limitations": [
+    "Author-stated: formal results assume ReLU whereas the language-model experiments use SwiGLU.",
+    "Author-stated: the study covers moderate models and loop counts rather than production-scale pretraining or very long recurrence.",
+    "Author-stated: the theory supplies sufficient stability conditions and simplified dynamics, not a complete optimizer-convergence analysis.",
+    "Reviewer-identified: Theorem 1 assumes nonvanishing average ReLU mass and bounded activation scale independently of N; these are not derived from the recurrence.",
+    "Reviewer-identified: Theorem 6 assumes beta-scaled conditional means and single-weight replacement stability, so the 1/(N sqrt(L)) factor is conditional rather than a consequence of independent W_l alone.",
+    "Reviewer-identified: Proposition 7 is a worst-case linearized multi-layer upper bound and becomes sharp only under a strong coherence condition that is not measured.",
+    "Reviewer-identified: every full 10B-token configuration uses one random seed, so loss differences and divergence have no uncertainty estimate.",
+    "Reviewer-identified: the empirical suite uses one corpus, one decoder family, one normalization/layout recipe, and no downstream or reasoning evaluation.",
+    "Reviewer-identified: the multi-layer assumptions are not measured directly; positive cosine similarity is only indirect evidence.",
+    "Reviewer-identified: lambda is not tuned independently for every exponent, confounding exponent choice with effective residual amplitude.",
+    "Reviewer-identified: the N<=64 evidence consists of ten-step norm and optimizer-update diagnostics rather than full convergence or quality at that loop count.",
+    "Reviewer-identified: full 10B-token comparison of 1/sqrt(N) versus 1/N is shown only at L=12; L=24/48 panels contain linear scaling alone, and no unscaled full-training baseline is reported.",
+    "Reviewer-identified: censored divergent points and one seed prevent estimation of a stable-learning-rate probability or boundary.",
+    "Reviewer-identified: residual scaling also changes effective recurrent computation and expressivity, so validation loss is not a pure stability test.",
+    "Reviewer-identified: no code/commit, framework version, exact FineWeb-Edu sample order, validation IDs, trained weights, or raw sweep data is pinned."
+  ],
+  "failure_modes": [
+    "If repeated features alternate sign or decorrelate, the positive-cone N^2 argument can overpredict accumulation and oversuppress the residual branch.",
+    "If physical layers become correlated, the sqrt(L) factor can be too weak and norms or updates can still grow with depth.",
+    "If the 1/N branch becomes too small at large N, extra loops may approximate an identity flow and add compute without useful representation change.",
+    "An apparently transferred learning-rate optimum can be a coarse-grid artifact when neighboring values are not resolved finely enough.",
+    "A model can be norm stable yet train poorly because gradient conditioning, optimizer moments, or recurrent credit assignment deteriorate.",
+    "SwiGLU gating can create signed cancellations or rare large activations that are absent from the ReLU proof.",
+    "Omitting divergent runs can make a parameterization look robust while hiding an increasingly narrow viable region.",
+    "Finite-width saturation at large N can invalidate asymptotic approximations before the intended recurrent-compute regime is reached.",
+    "A multi-layer model can violate the assumed beta-scaled replacement stability, causing coherent accumulation across L as well as N.",
+    "Mutable data and software defaults can move the single-seed optimum enough to erase a 0.025-nat comparison."
+  ],
+  "reusable_insights": [
+    "Treat parameter reuse as a separate scaling axis: tying weights can turn nominally independent residual increments into coherent accumulation.",
+    "Derive residual and learning-rate prescriptions jointly because forward stability and update sensitivity share the same accumulated path factor.",
+    "Use loop-step cosine matrices and norm trajectories as fast pretraining diagnostics before committing to expensive recurrent-depth sweeps.",
+    "Factorized laws such as loop-linear times layer-square-root are testable through orthogonal N-by-L grids rather than one-dimensional depth sweeps.",
+    "Report divergent trials as outcomes with seeds and survival curves instead of removing them from transfer plots.",
+    "Separate order-level stability from exact invariance; a bounded fourfold range can support O(1) theory without establishing constant finite-model behavior.",
+    "Validate proof-critical statistics directly, such as conditional means, replacement influence, and cross-layer covariance, rather than using only downstream loss agreement.",
+    "Distinguish an exact one-update recurrence bound from a linearized tangent bound and from an empirically optimal learning rate."
+  ],
+  "open_questions": [
+    "Does the 1/N law remain optimal for gated, normalized, attention-containing blocks when N reaches hundreds and the model is trained to convergence?",
+    "Can the coherent component of SwiGLU loop increments be derived and measured without relying on a ReLU analogy?",
+    "What scaling is required when different loop iterations use adapters, routing, stochastic depth, or partially untied parameters?",
+    "Do the same base learning rate and lambda transfer to billion-parameter models, longer token budgets, post-normalization, and non-language modalities?",
+    "How much useful computation survives as N grows under 1/N scaling, and does inference quality improve per extra recurrent FLOP?",
+    "Can direct estimates of cross-layer covariance predict when the sqrt(L) physical-depth factor fails?",
+    "Would per-scaling lambda tuning preserve the reported advantage over square-root scaling?",
+    "How do optimizer choice, momentum timescale, and gradient clipping interact with the eta epsilon N sensitivity law?",
+    "Can a scaling prescription jointly guarantee norm stability, non-lazy feature learning, and trainability through long recurrent credit paths?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2607.13491",
+      "title": "DeepLoop: Depth Scaling for Looped Transformers",
+      "url": "https://arxiv.org/abs/2607.13491v2",
+      "relationship": "Closest later direct competitor deriving a residual law specifically for revisited Transformer blocks.",
+      "difference": "DeepLoop models tied-depth update reuse with a visit-alignment coefficient and adapts Post-LN DeepNorm, using alpha=(2N)^(1/2) and beta=(8N)^(-1/2) in its own parameterization; it reports GPT-2-small/medium validation and downstream gains. The reviewed paper instead studies a pre-norm additive branch, proves a conditional ReLU positive-cone 1/N law, and factorizes physical depth. The exponents are not directly interchangeable because the architectures and alpha/beta conventions differ, but DeepLoop defeats any claim that 1/N is the only current tied-depth formulation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2 (2026-08-06)"
+    },
+    {
+      "canonical_id": "arxiv:2309.16620",
+      "title": "Depthwise Hyperparameter Transfer in Residual Networks: Dynamics and Scaling Limit",
+      "url": "https://arxiv.org/abs/2309.16620v2",
+      "relationship": "Closest ordinary-depth scaling and hyperparameter-transfer precursor.",
+      "difference": "Bordelon et al. combine muP with 1/sqrt(depth) residual scaling, demonstrate transfer on ResNets and ViTs, and derive a joint infinite-width/depth feature-learning limit for distinct layers. The reviewed paper's main novelty is showing that exact parameter reuse invalidates that independent-layer random walk under its ReLU conditions; it does not provide a comparable joint limit or multi-seed scale of validation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2 (2023-12-08), ICLR 2024"
+    },
+    {
+      "canonical_id": "arxiv:2505.01618",
+      "title": "Don't be lazy: CompleteP enables compute-efficient deep transformers",
+      "url": "https://arxiv.org/abs/2505.01618v4",
+      "relationship": "Closest Transformer parameterization work joining depth transfer with useful feature learning.",
+      "difference": "CompleteP shows that hyperparameter transfer alone can remain in a lazy regime and reports 12-34% compute-efficiency improvements across distinct-layer shapes. The reviewed recipe imports a depth correction and adds a loop-specific 1/N factor, but measures neither non-lazy feature change nor compute efficiency per recurrent FLOP; norm stability therefore does not establish that added loops are used productively.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v4 (2026-01-19)"
+    },
+    {
+      "canonical_id": "arxiv:2510.25741",
+      "title": "Scaling Latent Reasoning via Looped Language Models",
+      "url": "https://arxiv.org/abs/2510.25741v5",
+      "relationship": "Closest large-scale practical looped-language-model predecessor and same-lab motivation.",
+      "difference": "Ouro pretrains 1.4B/2.6B looped models on up to 7.7T tokens with entropy-regularized learned depth and broad reasoning evaluation. It establishes practical recurrent-depth value but does not isolate the residual exponent or loop-invariant learning-rate law. The reviewed paper contributes that focused mechanism, while its 183M-438M, 10B-token single-seed sweep is far smaller and has no adaptive-depth or reasoning outcome.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v5 (2026-07-01)"
+    },
+    {
+      "canonical_id": "arxiv:2409.14199",
+      "title": "Loop Neural Networks for Parameter Sharing",
+      "url": "https://arxiv.org/abs/2409.14199v3",
+      "relationship": "Direct earlier empirical language-model study of looping residual model subsets.",
+      "difference": "Ng and Wang revisit inputs through a looped subset of GPT-2 and report better language modeling at similar parameter count without extra data. They do not derive residual or learning-rate scaling. The reviewed paper supplies a stability prescription and controlled N-by-L sweeps, but does not compare directly with this architecture or show whether 1/N improves its iterative-refinement benefit.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3 (2024-11-08)"
+    },
+    {
+      "canonical_id": "arxiv:2502.17416",
+      "title": "Reasoning with Latent Thoughts: On the Power of Looped Transformers",
+      "url": "https://arxiv.org/abs/2502.17416v1",
+      "relationship": "Closest theory-and-experiment predecessor on effective depth and reasoning in looped Transformers.",
+      "difference": "Saunshi et al. show k-layer models looped L times can approach kL untied layers on synthetic and language reasoning tasks and prove iterative expressivity/latent-thought results. They do not study the residual stability threshold. The reviewed paper addresses optimization parameterization instead, but its 1/N scaling could also attenuate the effective computation whose benefits this predecessor measures, a tradeoff left unevaluated.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 (2025-02-24), ICLR 2025"
+    },
+    {
+      "canonical_id": "arxiv:1807.03819",
+      "title": "Universal Transformers",
+      "url": "https://arxiv.org/abs/1807.03819v3",
+      "relationship": "Foundational weight-tied recurrent-depth Transformer architecture.",
+      "difference": "Universal Transformers repeatedly apply shared transition and attention computation and optionally halt per position, with algorithmic, language-understanding, and translation evaluations. The reviewed paper's residual/LR law is new relative to this architectural precursor, but its fixed-loop pre-norm stack does not cover dynamic halting, per-position recurrence, or the normalization and transition details of UT.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3 (2019-03-05), ICLR 2019"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims the first principled residual and learning-rate scaling law for looped Transformers, replacing the ordinary square-root depth heuristic by linear scaling in repeat count and factorizing repeat count from physical layer depth.",
+    "evidence": "The shared-ReLU factorization and positive-cone theorem isolate a genuine difference between tied recurrence and independent depth, and the N-by-L FineWeb-Edu sweep is qualitatively consistent with 1/(N sqrt(L)). The exact single-layer one-update bound and conditional multi-layer factorization go beyond earlier looped architectures and distinct-layer depth-transfer work. A later current competitor, DeepLoop v2, derives a different tied-depth rule for Post-LN DeepNorm using visit alignment.",
+    "reviewer_inference": "High novelty for explicitly treating parameter visits as a separate scaling axis and for connecting a conditional 1/N forward law to loopwise learning-rate transfer. Moderate support for the multi-layer prescription and low support for universal or optimal wording: activation mass and weak cross-layer influence are assumed, the production nonlinearity differs, the multi-layer update law is a sufficient linearized bound, and full training uses one seed with N<=8. DeepLoop confirms the importance of tied-depth scaling but shows the current design space is architecture-dependent. The defensible contribution is a principled pre-norm hypothesis plus finite-scale evidence, not a unique or production-validated universal law."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Independent second reviewer read all 19 pages of arXiv:2606.18524v1, including every theorem, proof, figure, reference, configuration table, limitation, and appendix diagnostic. The official v1 PDF (submitted 2026-06-16) is byte-identical to the cached source at SHA-256 f983dfcb336cefc3ed856389f96fb776ca30f73723dc35a02c31cac6a7e2fb6f; the page-delimited extraction is pinned by 5017a58d6802e19d160aaa853998a980af0918ee0295d511714bfdcc943c19e8. This pass corrected the prior misclassification of Figure 9 as a residual-norm experiment (it is an optimizer-update diagnostic), corrected the single-layer theorem from 'linearized' to an exact one-update bound, fixed section anchors, narrowed full-training baselines, and made the multi-layer assumptions explicit. Seven official primary competitors were rechecked at exact current versions through 2026-08-23. No code, model, data-sample, or raw-log commit is pinned in the paper.",
+  "verification": {
+    "reviewer_id": "reviewer-09c3129f7c69",
+    "checked_at": "2026-08-23",
+    "passage_check": "Re-read the byte-pinned 19-page v1 PDF end-to-end and directly checked Equations 1-15, Theorems 1/2/6, Proposition 7, Figures 2-9, Tables 1-4, author limitations, all appendix proofs, every numeric result, and every page anchor. Corrected substantive Figure 9, theorem-linearity, baseline-scope, anchor, and reproducibility mismatches rather than carrying them forward.",
+    "competitor_check": "Checked official arXiv titles, abstracts, version histories, and versioned URLs for 2607.13491v2, 2309.16620v2, 2505.01618v4, 2510.25741v5, 2409.14199v3, 2502.17416v1, and 1807.03819v3 through 2026-08-23; added the later direct DeepLoop competitor and distinguished its Post-LN DeepNorm convention from this paper's pre-norm 1/N rule."
+  }
+}

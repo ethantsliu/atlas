@@ -1,0 +1,235 @@
+{
+  "stable_id": "arxiv:2603.06601",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2603.06601",
+    "pdf_sha256": "c7fec0b36c087c3aad633c6a93c17661ba1ada8d7597e1dd75e39f149e80d594",
+    "text_sha256": "936a9bad59e66a249482639f8158f0498a064fcd782b41cd5c5239f838a85e83",
+    "page_count": 14,
+    "extracted_at": "2026-08-23T11:56:06.486625+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can per-unit learned binary activation switches discover compact, input-adaptive subnetworks during ordinary supervised training and convert their estimated active fraction into deployable inference savings?",
+  "key_findings": [
+    {
+      "claim": "SWAN attaches a learned probability and binary switch to every neuron or channel.",
+      "evidence": "A gating network z_i(x;phi) produces p_i(x)=sigmoid(z_i), a hard gate g_i=1[p_i>=tau], and switched activation g_i h_i. The formulation therefore permits different active sets for different inputs rather than a single fixed pruning mask.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "2 Switchable Activation Networks"},
+        {"page": 3, "section": "2.1 Probabilistic and hard gates"}
+      ]
+    },
+    {
+      "claim": "The training description is internally inconsistent about whether the forward pass uses soft or hard gates.",
+      "evidence": "Section 2.3 says training uses soft p_i h_i and deployment thresholds to hard gates, but the following section describes a straight-through estimator with hard gates in the forward pass and sigmoid derivatives in the backward pass. These are different estimators with different batch-normalization statistics and sparsity behavior; the experiments do not disambiguate which generated the reported curves.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 3, "section": "2.3 Soft switching during training"},
+        {"page": 4, "section": "2.4 Straight-through estimation"}
+      ]
+    },
+    {
+      "claim": "The paper correctly notes that soft activation attenuation does not itself reduce multiply-accumulate work or demonstrate deployment accuracy.",
+      "evidence": "All units must be computed before a soft p_i h_i scaling, and batch normalization can partly undo such scaling. The authors therefore recommend a hard forward path and batch-normalization recalibration after thresholding.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "2.4 Why soft gates are insufficient"},
+        {"page": 5, "section": "2.5 Batch-normalization recalibration"}
+      ]
+    },
+    {
+      "claim": "SWAN combines expected activity, nominal FLOP cost, and a one-sided active-budget penalty with delayed schedules.",
+      "evidence": "The objective adds R0, a mean gate-probability surrogate; RF, a cost-weighted probability sum; and RT=max(0, alpha-alpha*)^2. Cosine ramps delay and gradually strengthen sparsity so task learning begins before the gates are pressured toward a target fraction.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "3.1 Sparsity objectives"},
+        {"page": 6, "section": "3.2 Target-activity regularization"},
+        {"page": 7, "section": "3.3 Scheduling and credit assignment"}
+      ]
+    },
+    {
+      "claim": "Input-dependent switches cannot generally be globally pruned into the fixed dense compact model also promised by the paper.",
+      "evidence": "A channel that is inactive for one example but active for another must remain available. Yet the text repeatedly says inactive units can be pruned away into a compact dense model while also emphasizing per-input gating and retention of the full model. No dataset-wide always-off criterion or distinct static-gate variant is specified.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "1 Claimed deployment modes"},
+        {"page": 3, "section": "2.2 Input-dependent subnetworks"},
+        {"page": 10, "section": "5.3 Model-size and FLOP claims"},
+        {"page": 11, "section": "6 Discussion"}
+      ]
+    },
+    {
+      "claim": "The computational saving is not operationally established because the gate predictor and evaluation order are underspecified.",
+      "evidence": "The paper leaves z_i(x;phi) abstract. If a switch depends on the very activation it is meant to skip, the activation cost has already been paid; if it uses a separate predictor, that predictor's architecture and cost must be counted. Reported efficiency is active fraction/theoretical FLOPs, with no latency, energy, memory traffic, wall-clock, or hardware measurement.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "2.1 Gating function"},
+        {"page": 6, "section": "3.2 FLOP-aware regularization"},
+        {"page": 10, "section": "5.3 Budget comparison"},
+        {"page": 11, "section": "6 Hardware caveats"}
+      ]
+    },
+    {
+      "claim": "The plots show aggressive nominal sparsity with high reported accuracy, but the experimental record lacks the detail and uncertainty needed to substantiate the headline trade-off.",
+      "evidence": "The MNIST curves approach roughly 3% active units with near-100% train/validation accuracy; VGG16 and ResNet50 plots reach roughly 20% and 5% activity while hard validation curves remain near 90%. Figure 5 reports over 90% after short fine-tuning at a 5% target. The VGG/ResNet dataset is not named, results are mostly read from plots, and seeds, confidence intervals, gate architectures, exact baselines, model modifications, and full hyperparameters are absent.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "4 Experimental protocol"},
+        {"page": 8, "section": "5.1 MNIST"},
+        {"page": 9, "section": "5.2 VGG16 and ResNet50"},
+        {"page": 10, "section": "Figure 5 fixed-budget comparison"}
+      ]
+    },
+    {
+      "claim": "The claimed fair advantage over conventional dropout and channel pruning is not established at matched deployment semantics.",
+      "evidence": "Standard dropout is removed at inference and does not define a compact 5%-width model; comparing it at a hard budget appears to require an additional random-deletion procedure. Static channel pruning and dynamic conditional execution have different storage and latency contracts. The paper does not report matched hardware, predictor overhead, fine-tuning compute, or parameter budgets.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 9, "section": "5.2 Baselines"},
+        {"page": 10, "section": "Figure 5 and comparison discussion"},
+        {"page": 11, "section": "6 Limitations"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Make activation topology trainable by multiplying each neuron or channel by a learned binary gate and regularizing the expected active set toward an efficiency budget.",
+    "mechanism": "A sigmoid gate predictor is optimized jointly with network weights. The paper alternately describes soft-forward training and hard-forward straight-through training, adds unweighted and FLOP-weighted expected-activity penalties plus a one-sided target penalty, ramps these penalties after a warmup, thresholds gates for inference, and recalibrates batch-normalization statistics before optional fine-tuning.",
+    "assumptions": [
+      "A low-cost gate predictor can decide whether to skip a unit before paying most of that unit's computation.",
+      "Straight-through gradients provide useful credit assignment for hard input-dependent decisions.",
+      "Expected sigmoid probability is a faithful proxy for hard active fraction and realized hardware cost.",
+      "Batch-normalization recalibration is sufficient to close the soft-to-hard distribution shift.",
+      "An active-fraction target can be compared across layers and architectures despite unequal operator and routing costs.",
+      "Dynamic per-input sparsity can be deployed efficiently on target hardware or converted to a static model through an unspecified aggregation rule."
+    ]
+  },
+  "techniques": [
+    {"id": "per-activation-binary-gating", "role": "Defines an input-conditioned active set of neurons or channels."},
+    {"id": "sigmoid-gate-probability", "role": "Supplies a differentiable activity surrogate and the derivative used by the straight-through estimator."},
+    {"id": "hard-forward-straight-through", "role": "Purports to train the discrete inference path while backpropagating through the soft sigmoid."},
+    {"id": "expected-l0-surrogate", "role": "Penalizes average gate probability to encourage sparse activation."},
+    {"id": "flop-weighted-gate-penalty", "role": "Weights activity by nominal per-unit compute."},
+    {"id": "one-sided-budget-penalty", "role": "Penalizes activity only when estimated active fraction exceeds a requested target."},
+    {"id": "delayed-cosine-sparsity-ramp", "role": "Lets task learning begin before progressively applying sparsity pressure."},
+    {"id": "batchnorm-recalibration", "role": "Updates running statistics after thresholding soft gates into hard gates."}
+  ],
+  "evaluations": [
+    {"setting": "MNIST network trained for 100 epochs", "metric": "Train/validation accuracy and active-neuron fraction plotted over epochs", "result": "The plotted active fraction falls to about 3% while accuracy remains near the top of the plotted range", "baseline": "Ungated baseline and earlier epochs; no seed uncertainty reported"},
+    {"setting": "VGG16 and ResNet50 on an unnamed image-classification dataset", "metric": "Soft/hard validation accuracy and active fraction", "result": "Plots indicate hard accuracy near 90% with activity around 20% for VGG16 and around 5% for ResNet50", "baseline": "Ungated model; exact numerical tables and dataset identity are absent"},
+    {"setting": "Target active fractions 50%, 30%, 10%, and 5% with optional five-epoch fine-tuning", "metric": "Accuracy versus nominal active fraction", "result": "Figure 5 depicts SWAN above 90% after fine-tuning at 5%, while the paper reports channel-pruning values of 16.1% for VGG16 and 10% for ResNet", "baseline": "Dropout and channel pruning under incompletely specified and semantically mismatched budget construction"}
+  ],
+  "limitations": [
+    "The paper gives incompatible soft-forward and hard-forward training descriptions.",
+    "The gating network z_i(x;phi), its inputs, timing, parameter count, and compute cost are not specified.",
+    "Input-dependent activation cannot generally be globally removed to produce the fixed compact dense model promised in parts of the paper.",
+    "The VGG16/ResNet50 dataset is not identified in the reviewable text.",
+    "No seeds, error bars, numerical result tables, ablations, or complete hyperparameters are reported.",
+    "No measured latency, throughput, energy, memory traffic, accelerator utilization, or routing overhead supports the practical-efficiency claim.",
+    "The paper itself acknowledges that irregular dynamic sparsity may not accelerate GPUs or TPUs and can introduce variable latency.",
+    "Dropout and static pruning comparisons do not share the same inference semantics or matched resource accounting.",
+    "Experiments do not isolate the effects of R0, RF, RT, schedules, threshold tau, BN recalibration, or fine-tuning."
+  ],
+  "failure_modes": [
+    "A gate computed from the target activation pays the computation it claims to skip.",
+    "A separate predictor can consume enough FLOPs or memory traffic to erase theoretical savings.",
+    "Soft training followed by hard thresholding can cause abrupt distribution shift and batch-normalization mismatch.",
+    "The straight-through estimator can yield biased gradients, premature gate collapse, or chattering near tau.",
+    "A one-sided activity target can undershoot dramatically without reward for using capacity that improves accuracy.",
+    "Dynamic masks can fragment dense kernels and reduce throughput despite lower nominal FLOPs.",
+    "Rarely active units cannot be statically pruned without harming the examples that route through them.",
+    "Gate policies can become class-, frequency-, or dataset-specific and fail under distribution shift.",
+    "Variable per-example execution can violate tail-latency constraints even when mean activity is low."
+  ],
+  "reusable_insights": [
+    "Separate three deployment contracts: soft attenuation, static structural pruning, and dynamic conditional compute; each needs different baselines and accounting.",
+    "A skip mechanism must expose what information is available before the skipped operation and charge the decision network's full cost.",
+    "Hard-path accuracy, batch-statistic recalibration, and actual kernel execution are necessary checks before treating gate probability as efficiency.",
+    "Budget comparisons should report nominal FLOPs, measured latency, memory traffic, parameter storage, gate overhead, and tail latency together.",
+    "Input-dependent masks need coverage and rare-route analyses before any globally prunable subset is inferred.",
+    "Straight-through training claims should specify the exact forward graph and include soft-forward, hard-forward, and stochastic hard-concrete controls."
+  ],
+  "open_questions": [
+    "What exact architecture and input lets each SWAN gate make a decision before the corresponding unit is computed?",
+    "Are the reported VGG16 and ResNet50 results on CIFAR-10, ImageNet, or another dataset?",
+    "Do active-fraction reductions survive full predictor overhead and measured accelerator latency?",
+    "How often is each channel active across examples, and is there a nontrivial always-off subset that can actually be removed statically?",
+    "Which of the soft-forward or hard-forward training algorithms produced each result?",
+    "How sensitive are accuracy and route stability to tau, sparsity ramps, target fraction, batch size, and BN recalibration?",
+    "How does SWAN compare with FBS and Channel Gating on the same architecture, dataset, measured hardware, and cost definition?",
+    "Do learned routes remain calibrated under corruptions, class imbalance, and domain shift?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1712.01312",
+      "title": "Learning Sparse Neural Networks through L0 Regularization",
+      "url": "https://arxiv.org/abs/1712.01312v2",
+      "relationship": "closest differentiable discrete-gating predecessor",
+      "difference": "Louizos et al. derive stochastic hard-concrete gates with a differentiable expected L0 objective and exact-zero parameters. SWAN uses deterministic input-conditioned switches and a straight-through threshold, but does not supply the same estimator derivation, reproducibility, or deployment evidence.",
+      "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "v2, 2018-06-22"
+    },
+    {
+      "canonical_id": "arxiv:1805.12549",
+      "title": "Channel Gating Neural Networks",
+      "url": "https://arxiv.org/abs/1805.12549v2",
+      "relationship": "closest input-specific channel-gating predecessor",
+      "difference": "Channel Gating predictively skips spatial/channel computation per input and reports FLOPs, memory accesses, and accelerator speedup on CIFAR-10 and ImageNet. SWAN generalizes the narrative to arbitrary activations and budget penalties but leaves the predictor and hardware realization unspecified.",
+      "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "v2, 2019-10-28"
+    },
+    {
+      "canonical_id": "arxiv:1810.05331",
+      "title": "Dynamic Channel Pruning: Feature Boosting and Suppression",
+      "url": "https://arxiv.org/abs/1810.05331v2",
+      "relationship": "direct dynamic-channel competitor",
+      "difference": "FBS adds small predictive auxiliary connections, dynamically skips CNN channels, and reports ImageNet compute/accuracy results. SWAN's per-unit abstraction is broader and its target penalty explicit, but it does not demonstrate a decision-before-compute implementation or beat FBS at matched conditions.",
+      "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "v2, 2019-01-28"
+    },
+    {
+      "canonical_id": "arxiv:1711.09485",
+      "title": "SkipNet: Learning Dynamic Routing in Convolutional Networks",
+      "url": "https://arxiv.org/abs/1711.09485v2",
+      "relationship": "dynamic-routing predecessor",
+      "difference": "SkipNet learns per-input residual-block skipping through hybrid supervised and reinforcement learning and quantifies compute savings. SWAN operates at finer unit/channel granularity with an STE objective, which may offer more flexibility but creates a harder hardware and gate-overhead problem.",
+      "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "v2, 2018-07-25"
+    },
+    {
+      "canonical_id": "arxiv:1711.08393",
+      "title": "BlockDrop: Dynamic Inference Paths in Residual Networks",
+      "url": "https://arxiv.org/abs/1711.08393v4",
+      "relationship": "per-instance execution-path predecessor",
+      "difference": "BlockDrop trains a policy network to select residual blocks and reports ImageNet wall-clock speedup. SWAN claims neuron-level switches trained directly with an STE; it is more granular but supplies no measured speed and no defined policy cost.",
+      "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "v4, 2019-01-28"
+    },
+    {
+      "canonical_id": "arxiv:1701.06538",
+      "title": "Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer",
+      "url": "https://arxiv.org/abs/1701.06538v1",
+      "relationship": "conditional-computation foundation",
+      "difference": "Sparse MoE routes examples to a few expert subnetworks to expand capacity at bounded compute and addresses load balancing at distributed scale. SWAN instead suppresses individual units to shrink active compute, without expert specialization or systems-scale routing evidence.",
+      "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "v1, 2017-01-23"
+    },
+    {
+      "canonical_id": "arxiv:1812.08928",
+      "title": "Slimmable Neural Networks",
+      "url": "https://arxiv.org/abs/1812.08928v1",
+      "relationship": "runtime-switchable-width predecessor",
+      "difference": "Slimmable networks train a shared model at several externally selected widths with switchable batch normalization, yielding dense hardware-friendly subnetworks. SWAN learns irregular per-input masks, potentially more adaptive but much less directly deployable and not globally compact.",
+      "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "v1, 2018-12-21"
+    },
+    {
+      "canonical_id": "arxiv:1908.09791",
+      "title": "Once-for-All: Train One Network and Specialize it for Efficient Deployment",
+      "url": "https://arxiv.org/abs/1908.09791v5",
+      "relationship": "deployment-specialization competitor",
+      "difference": "Once-for-All trains a supernet and selects fixed dense subnetworks for measured device constraints across depth, width, kernels, and resolution. SWAN keeps input-dependent switches at inference and therefore offers different adaptivity, but cannot claim OFA's static compactness without an aggregation procedure.",
+      "source_kind": "arxiv", "checked_at": "2026-08-23", "source_version": "v5, 2020-04-29"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "SWAN is presented as a general method for learning switchable activation topology that yields compact, efficient subnetworks with smooth accuracy-efficiency control.",
+    "evidence": "The paper combines per-unit sigmoid/hard gates, STE training, activity/FLOP/target penalties, schedules, BN recalibration, and plot-based experiments on MNIST, VGG16, and ResNet50.",
+    "reviewer_inference": "Per-activation packaging and the particular three-term budget objective are incremental variations within a mature conditional-computation and L0-gating literature. The missing gate implementation, contradictory training algorithm, dynamic-versus-static conflation, and absence of measured systems results prevent a novelty or practical-efficiency claim stronger than a preliminary formulation. Channel Gating and FBS are especially close and more operationally validated."
+  },
+  "confidence": 0.91,
+  "reviewer_notes": "Atomic full-text pass over all 14 extracted pages of arXiv:2603.06601. Equations and the architecture schematic on pages 3-7 and all result plots on pages 8-10 were inspected in rendered-page form; references on pages 12-14 were also read. Page anchors target only the 14 extracted pages and none are missing. The official arXiv record was checked on 2026-08-23: current source is v1, submitted 2026-02-17. Eight unique primary arXiv competitors were directly inspected at the exact versions recorded here. Values described as approximate are read from figures because the paper provides few numerical tables. This primary review does not infer an unnamed dataset or silently resolve the soft/hard training contradiction."
+}

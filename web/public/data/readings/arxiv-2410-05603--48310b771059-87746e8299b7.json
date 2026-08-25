@@ -1,0 +1,189 @@
+{
+  "stable_id": "arxiv:2410.05603",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2410.05603",
+    "pdf_sha256": "ed38a13fefac0803fd5dc6124ef79f5ec6e461b94e096155bc5c0f8e29cd0a24",
+    "text_sha256": "e16bc4e3066caf02213c6e37677ff6b346a89c2aedc3298f373025b09ded4a85",
+    "page_count": 27,
+    "extracted_at": "2026-08-23T17:47:43.803107+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "When a prompt mixes demonstrations from several latent tasks, can a transformer preserve probability mass for all task-consistent answers, how might it represent that mixture, and how does this behavior scale?",
+  "key_findings": [
+    {
+      "claim": "GPT-3.5, Llama-3 70B, and Qwen-1.5 72B assign nontrivial probability to multiple task-consistent answers when demonstrations from distinct tasks are interleaved.",
+      "evidence": "Across four constructed mixtures—multilingual addition, country capital/continent/capitalization, operand copy/addition, and first/last-letter casing—100 randomized prompts contain 20 demonstrations per task. Every model has non-negligible median probability on at least two correct task answers, although preferences and irrelevant mass vary substantially.",
+      "anchors": [{"page": 4, "section": "Figure 2"}, {"page": 5, "section": "3"}]
+    },
+    {
+      "claim": "A small GPT-2 trained only on single-task contexts generalizes to mixed-task contexts with probabilities that track the demonstration mixture.",
+      "evidence": "An approximately 86M-parameter, 12-layer GPT-2 is trained on one retrieval or add-constant task per prompt. At test time, mixing two previously learned tasks shifts probability between their answers roughly in proportion to the mixture, despite mixed contexts never occurring in training.",
+      "anchors": [{"page": 5, "section": "4"}, {"page": 6, "section": "Figure 3 and Equation 1"}]
+    },
+    {
+      "claim": "A constructive expressivity result shows that a seven-layer transformer can execute K known tasks in parallel and weight them by their frequency in context.",
+      "evidence": "The construction uses one attention head/independent stream per task, approximates smooth task functions with ReLUs, compares predictions with demonstrated labels to form task indicators, averages indicators over m examples, and weights each task output. Embedding dimension is O(d+log(mn)).",
+      "anchors": [{"page": 7, "section": "5 and Theorem 1"}, {"page": 18, "section": "Appendix D.1"}, {"page": 26, "section": "Appendix D.4"}, {"page": 27, "section": "Theorem 1 proof"}]
+    },
+    {
+      "claim": "Mixed prompts yield internal task-vector locations correlated with convex combinations of single-task vectors, and patched convex combinations can causally induce multiple task answers.",
+      "evidence": "For Llama-3 8B, LDA projections place mixed copy/add and translation task vectors between their pure-task clusters according to demonstration ratios. Patching convex combinations at selected layers changes answer probabilities for both tasks, but produces more irrelevant mass and less linear calibration than actual mixed prompts.",
+      "anchors": [{"page": 8, "section": "6 and Figure 4"}, {"page": 9, "section": "Figure 5"}, {"page": 17, "section": "Appendix C"}]
+    },
+    {
+      "claim": "Within Qwen-1.5, larger models generally place more of six task answers in their top-six outputs and better match imposed task mixtures.",
+      "evidence": "Across 100 prompts under each of three six-task distributions, the number r of correct task outputs in the top six mostly rises with parameter count and KL divergence from the demonstration distribution falls; one 4B-versus-1.8B condition is non-monotonic.",
+      "anchors": [{"page": 9, "section": "7"}, {"page": 10, "section": "Figure 6"}]
+    },
+    {
+      "claim": "The evidence demonstrates a multimodal conditional distribution more directly than usable simultaneous task execution.",
+      "evidence": "Standard autoregressive decoding selects one first token and then tends to continue only one task, which the authors call generation collapse. Multi-token answer probabilities are computed by teacher-forced sequence likelihood, and no application extracts all answers from one ordinary generation.",
+      "anchors": [{"page": 10, "section": "8"}, {"page": 16, "section": "Appendix B and Equation 3"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Interleave demonstrations whose identical input format admits several output rules, then inspect whether the model's conditional distribution preserves one answer mode per rule and whether internal task-vector geometry tracks the mixture.",
+    "mechanism": "The empirical study enumerates the exact answer for each candidate task and calculates its full autoregressive sequence probability. It varies tasks, demonstration proportions, pretrained model families, and Qwen model size. A from-scratch GPT-2 control tests emergence without mixed-task training. Llama-3 8B residual states are averaged into task vectors, visualized with LDA, and patched as convex combinations. A separate theorem constructs parallel task-specific transformer streams, task identifiers from demonstration error, frequency aggregation, and weighted outputs.",
+    "assumptions": [
+      "The candidate task set and its correct outputs are known to the evaluator.",
+      "Multiple high-probability answers constitute simultaneous task performance even when standard decoding emits only one.",
+      "Demonstration frequency is the target probability distribution the model should infer.",
+      "Sequence likelihoods with different token lengths are comparable enough for the reported task calibration.",
+      "Averaged hidden states at a layer selected for intervention accuracy isolate a task representation rather than correlated prompt features.",
+      "A hand-constructed transformer establishes relevant capacity despite saying nothing about how pretrained networks implement it."
+    ]
+  },
+  "techniques": [
+    {"id": "mixed-task-icl-prompt", "role": "Creates ambiguity by interleaving demonstrations of multiple deterministic mappings in one context."},
+    {"id": "candidate-sequence-probability", "role": "Measures probability mass assigned to each known task-consistent multi-token answer."},
+    {"id": "single-task-meta-training", "role": "Tests whether mixed-task inference emerges without ever presenting mixtures during training."},
+    {"id": "task-vector-extraction-and-patching", "role": "Extracts layerwise mean residual vectors, selects a causally effective layer, and intervenes with vector mixtures."},
+    {"id": "parallel-head-expressivity-construction", "role": "Proves representational capacity by assigning an independent head stream to each known task."},
+    {"id": "mixture-calibration-metrics", "role": "Counts correct candidate answers in top-K and measures KL divergence from demonstration frequencies."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Four synthetic task mixtures on GPT-3.5, Llama-3 70B, and Qwen-1.5 72B",
+      "metric": "Full-sequence probability of each task-consistent answer over 100 prompts",
+      "result": "At least two answer modes have non-negligible median mass in every model/setting, with strong task biases in several cases",
+      "baseline": "Uniform probability implied by equal demonstration counts"
+    },
+    {
+      "setting": "86M GPT-2 trained from scratch on eight retrieval tasks or ten add-constant tasks",
+      "metric": "Two answer probabilities as test-time demonstration mixture varies",
+      "result": "Both probabilities track mixture ratios despite single-task-only training contexts",
+      "baseline": "Pure single-task contexts at mixture endpoints"
+    },
+    {
+      "setting": "Llama-3 8B task-vector analysis",
+      "metric": "LDA position of mixed vectors and output probabilities after vector interpolation",
+      "result": "Mixed vectors lie between pure clusters and convex patches causally elicit both answers, but less faithfully than prompts",
+      "baseline": "Actual mixed-demonstration prompts"
+    },
+    {
+      "setting": "Qwen-1.5 family from 0.5B to 14B on six arithmetic transformations",
+      "metric": "Correct modes among top six and KL divergence to three mixture distributions",
+      "result": "Capacity and calibration generally improve with scale, with one local non-monotonic result",
+      "baseline": "Smaller models in the same family"
+    },
+    {
+      "setting": "Formal transformer construction",
+      "metric": "Depth, width, and head complexity sufficient for K-task mixture execution",
+      "result": "Seven layers, K heads per attention layer, and O(d+log(mn)) embedding dimension suffice under smooth-task and identification assumptions",
+      "baseline": "K separately specified task transformers embedded as parallel streams"
+    }
+  ],
+  "limitations": [
+    "The central measurement prespecifies every candidate task and answer; it does not discover latent tasks in open-ended prompts.",
+    "Ordinary decoding returns one branch, so the phrase 'perform multiple tasks simultaneously' overstates what a user receives without specialized decoding.",
+    "Tasks are small synthetic transformations with deliberately compatible input/output formats; real heterogeneous workflows are not tested.",
+    "Raw sequence probabilities are affected by tokenization and output length, especially across numerical and multilingual forms.",
+    "The scaling study uses a single model family, only six arithmetic tasks, three mixture distributions, and sizes up to 14B.",
+    "LDA geometry is correlational, and convex task-vector patches leave large irrelevant probability; the intervention does not fully explain the mechanism.",
+    "The theorem allocates one head/stream per already-implemented task and assumes separable task identification, so it is an expressivity witness rather than a learned-mechanism theory.",
+    "No compute, latency, or quality comparison demonstrates a practical advantage over separate calls or existing multi-generation decoding."
+  ],
+  "failure_modes": [
+    "Two tasks share the same output on a query, making their probability modes unidentifiable.",
+    "Task answers have different token lengths, so product probabilities favor shorter strings and distort mixture calibration.",
+    "A model treats demonstration order, recency, or semantic familiarity as evidence stronger than frequency.",
+    "Autoregressive generation collapses after the first branch token and fails to preserve alternative tasks over long answers.",
+    "Candidate answer mass leaks to paraphrases that the evaluator puts in the 'other' bucket.",
+    "Interpolated hidden states leave the model's learned task manifold and trigger unrelated outputs.",
+    "As K grows, each mode becomes too small to survive top-K truncation or finite-precision decoding."
+  ],
+  "reusable_insights": [
+    "Inspect a model's full candidate distribution when an ambiguous prompt may encode several legitimate mappings; top-one accuracy hides maintained alternatives.",
+    "Train only pure components and test mixtures to distinguish compositional generalization from memorized co-occurrence.",
+    "Separate latent mixture representation, probability calibration, and the decoder's ability to emit multiple branches as three distinct capabilities.",
+    "Use causal vector patching alongside projections; geometric interpolation alone is weak mechanistic evidence.",
+    "Normalize or otherwise control for token length when comparing probabilities of semantically parallel answers."
+  ],
+  "open_questions": [
+    "Can a decoder recover all task branches with one shared KV-cache while preserving long-form coherence and factuality?",
+    "How can latent tasks and their mixture weights be inferred without enumerating candidate answers?",
+    "Does superposition persist for conflicting instructions, tool use, multi-step reasoning, and tasks with different output schemas?",
+    "Which attention heads or sparse features causally form, route, and dissolve mixed task states across layers and tokens?",
+    "What is the capacity law in K after controlling for task difficulty, similarity, context length, and total probability mass?",
+    "Can calibrated task mixtures improve uncertainty estimation or expose prompt ambiguity in deployed systems?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2310.15916",
+      "title": "In-Context Learning Creates Task Vectors",
+      "url": "https://arxiv.org/abs/2310.15916",
+      "relationship": "Shows that ICL demonstrations can be compressed into a residual-stream task vector that causally reproduces a learned mapping.",
+      "difference": "It focuses on one task per context; the reviewed paper studies mixtures and asks whether task-vector interpolation accounts for multimodal task behavior."
+    },
+    {
+      "canonical_id": "arxiv:2310.15213",
+      "title": "Function Vectors in Large Language Models",
+      "url": "https://arxiv.org/abs/2310.15213",
+      "relationship": "Uses causal mediation to find compact function vectors and demonstrates limited semantic composition by vector addition.",
+      "difference": "It localizes causal attention heads and composed functions; the reviewed paper interpolates task vectors to represent a probability mixture rather than execute one composite function."
+    },
+    {
+      "canonical_id": "arxiv:2405.18400",
+      "title": "Superposed Decoding: Multiple Generations from a Single Autoregressive Inference Pass",
+      "url": "https://arxiv.org/abs/2405.18400",
+      "relationship": "Generates several coherent drafts in one autoregressive pass by superposing token embeddings and pruning candidate branches.",
+      "difference": "It solves the practical multi-generation decoding problem and reports speed/user studies; the reviewed paper characterizes latent task-mixture distributions and explicitly leaves generation collapse unresolved."
+    },
+    {
+      "canonical_id": "arxiv:2202.09318",
+      "title": "DataMUX: Data Multiplexing for Neural Networks",
+      "url": "https://arxiv.org/abs/2202.09318",
+      "relationship": "Superposes multiple inputs into one representation and demultiplexes their outputs to reduce inference cost.",
+      "difference": "It trains an explicit multiplexing architecture with one output per input; the reviewed paper observes emergent probability modes for several mappings of one query."
+    },
+    {
+      "canonical_id": "arxiv:2212.04089",
+      "title": "Editing Models with Task Arithmetic",
+      "url": "https://arxiv.org/abs/2212.04089",
+      "relationship": "Combines parameter-space task vectors through arithmetic to merge or negate learned behaviors.",
+      "difference": "Its vectors are fine-tuning weight differences and alter model parameters; the reviewed paper mixes context-induced hidden-state vectors during inference."
+    },
+    {
+      "canonical_id": "arxiv:2506.09048",
+      "title": "Understanding Task Vectors in In-Context Learning: Emergence, Functionality, and Limitations",
+      "url": "https://arxiv.org/abs/2506.09048",
+      "relationship": "Proposes a linear-combination account of ICL task vectors and identifies failure on high-rank mappings through theory and LLM experiments.",
+      "difference": "It offers a later mechanistic boundary on when linear task-vector composition works, directly qualifying the reviewed paper's convex-mixture explanation."
+    },
+    {
+      "canonical_id": "openreview:FIfjDqjV0B",
+      "title": "Unifying Attention Heads and Task Vectors via Hidden State Geometry in In-Context Learning",
+      "url": "https://openreview.net/forum?id=FIfjDqjV0B",
+      "relationship": "Provides a later two-stage causal account linking attention-head roles, hidden-state geometry, and task vectors in ICL.",
+      "difference": "It analyzes separability and alignment across layers; the reviewed paper's mechanistic evidence is limited to averaged-vector geometry and interpolation."
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims the first systematic demonstration that LLMs can in-context learn several tasks in superposition, that the behavior emerges from single-task training, scales with model size, and relates to mixed task vectors.",
+    "evidence": "It combines three pretrained model families, an 86M from-scratch control, a constructive theorem, Llama task-vector interventions, and a within-family scaling study.",
+    "reviewer_inference": "The cleanest novelty is identifying and quantifying multiple task-consistent modes under deliberately ambiguous mixed demonstrations. Task/function-vector composition, input/model multiplexing, and superposed decoding are adjacent prior lines; the paper does not yet show simultaneous usable execution beyond the output distribution."
+  },
+  "confidence": 0.91,
+  "reviewer_notes": "Read all 27 extracted pages, including probability calculation, task-vector layer selection, full seven-layer construction, scaling study, and generation-collapse limitation. Current competing primary records were checked on arXiv and OpenReview on 2026-08-23."
+}

@@ -1,0 +1,388 @@
+{
+  "stable_id": "arxiv:2502.17405",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2502.17405",
+    "pdf_sha256": "adcb992b95216a62eb3fe09f056c9aa0270d2f5495cca97790e0bc56a4a9028b",
+    "text_sha256": "95cca5d76b7d8c16354e60804cf1dbff23f569a424d5f24a7f5f74d6a7102f3d",
+    "page_count": 27,
+    "extracted_at": "2026-08-23T17:19:06.178978+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can the output-function change caused by each parameter tensor's optimizer update be measured cheaply, and can matching those layerwise magnitudes between a proxy and scaled model transfer the proxy's learning-rate optimum across width, depth, initialization scale, and LoRA rank?",
+  "key_findings": [
+    {
+      "claim": "A single random projection of network outputs yields an unbiased Monte Carlo sample for the squared norm of the first-order function change caused by one tensor's update.",
+      "evidence": "For a parameter update delta W_l, the paper defines delta_l f as the Jacobian-vector product J_l delta W_l and measures its RMS over batch examples and output coordinates. Differentiating a Gaussian random projection phi of all outputs gives delta_l phi; conditional on J_l delta W_l, this scalar is Gaussian with variance equal to the desired squared RMS. One extra backward pass produces samples for every tensor simultaneously. The equality applies to the linearized output change, not the exact finite-step change of a nonlinear network.",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Section 3.1, Equations 1-7"
+        }
+      ]
+    },
+    {
+      "claim": "The practical estimator reduces variance by imposing a Kronecker-factored covariance model on update-times-gradient elements and accumulating only a few scalar moving averages per tensor.",
+      "evidence": "Writing Z_ij as the elementwise product between an optimizer update and the random-output gradient, the exact target sums every covariance among Z elements. The method assumes Cov(Z_ij,Z_i'j')=U_ii'V_jj', derives the target from expected row sums, column sums, and Frobenius norm, and tracks those with EMAs. This changes an unbiased but noisy estimator into a lower-variance, model-dependent biased estimator. Appendix C.6 visually compares IID, Kronecker, and no-assumption variants, but does not establish the factorization across architectures, layers, scales, or training phases.",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Section 3.2, Equations 8-11"
+        },
+        {
+          "page": 4,
+          "section": "Section 3.2, Equations 12-18"
+        },
+        {
+          "page": 16,
+          "section": "Appendix C.6 and Figure 15"
+        }
+      ]
+    },
+    {
+      "claim": "Measured layerwise function-space learning rates vary substantially during ordinary Adam training even when parameter-space learning rates remain constant.",
+      "evidence": "With 40 EMA warm-up batches and measurement every 100 steps, most tensor-specific rates decline in both a residual MLP and a PostNorm transformer, while the ResMLP later turns upward in some hidden/input layers and transformer embeddings increase. Tensor roles form distinct bands; the paper reports the second feedforward matrices as roughly an order of magnitude more influential than the readout in its logit metric. These are useful optimizer diagnostics, but individual layer norms are not additive contributions because the squared total output change contains cross-layer inner products.",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Figure 1"
+        },
+        {
+          "page": 6,
+          "section": "Section 4.1"
+        },
+        {
+          "page": 18,
+          "section": "Appendix C.1 and Figure 6"
+        }
+      ]
+    },
+    {
+      "claim": "FLeRM converts measured sensitivities into tensor-specific learning rates so a scaled model matches the base model's layerwise output-change magnitudes.",
+      "evidence": "The target model first estimates its function-space change for a notional learning rate of one. Its parameter learning rate is then the base global rate times the ratio of the recorded base-model function-space rate to the target-model estimate. Rates can be fixed after initialization or recomputed periodically. Width and initialization changes have natural tensor correspondences; for added depth, FLeRM heuristically divides a base residual block's target magnitude among the newly corresponding blocks rather than deriving a unique match.",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Algorithm 1"
+        },
+        {
+          "page": 5,
+          "section": "Section 3.3, Equation 19"
+        }
+      ]
+    },
+    {
+      "claim": "FLeRM markedly aligns learning-rate optima across the tested width, depth, and initialization-scale sweeps and sometimes prevents scale-dependent divergence.",
+      "evidence": "Figures 2-4 compare global learning-rate sweeps with and without tensorwise matching for a flattened-CIFAR ResMLP and three normalization variants of a shallow WikiText transformer. Width-dependent optima largely align; depth-dependent shifts shrink, and PostNorm instability thresholds coincide; functionally equivalent initialization rescalings of PreNormPostMod also align. One PreNormPostMod depth sweep already transfers without FLeRM, and some residual shifts remain. The paper does not compare these plots head-to-head against muP, depth-muP, Modula, or u-muP under equal tuning and compute.",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Figure 2"
+        },
+        {
+          "page": 6,
+          "section": "Figure 3 and Section 4.2"
+        },
+        {
+          "page": 7,
+          "section": "Sections 4.2.1-4.2.3 and Figure 4"
+        }
+      ]
+    },
+    {
+      "claim": "Matching function-space rates transfers the sensitive LoRA-B learning rate across ranks 2-32 in short continual-pretraining runs, but the LoRA evidence uses a special startup workaround and only one base seed.",
+      "evidence": "On GPT-2 and Llama-3.2-1B with about four million MathPile or French-law tokens, standard Adam's optimal B rate shifts with rank, by more than an order of magnitude for Llama; FLeRM mostly aligns optima and instability thresholds. Because B starts at zero, A initially has zero gradient and FLeRM would divide by zero, so rates are measured at step five and set at step six. Runs last 500 iterations, base rates use one seed, and Appendix C.5 finds A's learning rate often has little effect even before matching.",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "Section 4.2.4"
+        },
+        {
+          "page": 8,
+          "section": "Figure 5"
+        },
+        {
+          "page": 13,
+          "section": "Appendix A.3, LoRA setup and zero-gradient workaround"
+        },
+        {
+          "page": 16,
+          "section": "Appendix C.5"
+        }
+      ]
+    },
+    {
+      "claim": "Ablations show that some transfer comes from coarse sensitivity normalization, while exact base-model layer allocations modestly improve loss and depth transfer depends on a hand-designed input/output-layer rule.",
+      "evidence": "Replacing measured base targets by equal values that sum to one usually preserves transfer but slightly worsens training loss. If equal targets are redistributed across all layers as depth grows, shrinking input and readout importance too, PreNormPostMod depth transfer disappears; one deepest configuration improves while PostNorm degrades. Periodic recomputation produces results similar to one initial match. Thus measured magnitudes add value, but the depth result also depends materially on correspondence and allocation heuristics.",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "Section 4.2.5"
+        },
+        {
+          "page": 15,
+          "section": "Appendices C.2-C.4"
+        },
+        {
+          "page": 20,
+          "section": "Figures 7-9"
+        },
+        {
+          "page": 23,
+          "section": "Figure 13"
+        }
+      ]
+    },
+    {
+      "claim": "Matching an RMS logit displacement is an empirically effective transfer heuristic, not a guarantee of matching optimization trajectories or predictive functions.",
+      "evidence": "The metric records only first-order magnitude on sampled inputs. It discards update direction, cross-layer interference, curvature, loss alignment, gradient noise, and future data distribution. Raw logits also contain gauge freedoms: a common shift changes the measured function norm without changing softmax probabilities, and output rescaling changes the metric. Experiments use training loss as the main endpoint; the appendix notes CIFAR test curves do not align perfectly because of overfitting. These constraints narrow claims that the quantity universally controls learning in function space.",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Section 3.1, first-order definition"
+        },
+        {
+          "page": 6,
+          "section": "Section 4, train-loss evaluation protocol"
+        },
+        {
+          "page": 16,
+          "section": "Appendix C.7, test-loss qualification"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Measure the optimizer-induced Jacobian-vector product of each parameter tensor in output space through randomized scalar projections, then rescale tensor-specific parameter learning rates so a larger or otherwise modified model reproduces the proxy model's layerwise output-change magnitudes.",
+    "mechanism": "Save each tensor before an ordinary optimizer step and derive its notional unit-learning-rate update. On a fresh batch, draw Gaussian weights over every output, differentiate their normalized random projection, and elementwise multiply that gradient by the tensor update. Under a Kronecker covariance approximation, update three scalar EMA statistics per matrix and recover the RMS linearized output displacement. Record target profiles from a small base model across candidate global learning rates. In a changed model, estimate the same unit-rate quantities, multiply each tensor's global rate by target/current sensitivity, and either freeze these rates or refresh them periodically. Split a base block's target profile among additional residual blocks for depth scaling.",
+    "assumptions": [
+      "The first-order Taylor approximation J delta W accurately represents the exact output change for learning rates near the useful regime.",
+      "RMS change in raw output logits on sampled data is the appropriate function-space geometry for comparing models and layers.",
+      "A Gaussian random projection over batch-output coordinates provides sufficiently stable estimates after 40 warm-up batches and sparse refreshes.",
+      "The covariance among elementwise update-gradient products is close enough to a Kronecker product that reduced variance outweighs bias.",
+      "Fresh batches used for measurement represent the same input distribution relevant to training and downstream performance.",
+      "Matching layerwise output-change magnitudes is sufficient despite not matching update directions, layer cross-terms, loss decrease, or curvature.",
+      "Parameter tensors have meaningful correspondences between the base and scaled models.",
+      "Dividing a base residual block's target magnitude among new blocks preserves the right relative role of hidden versus embedding and readout layers.",
+      "The base optimizer's layerwise profile is worth preserving at larger scale rather than merely an artifact of finite proxy size.",
+      "A learning-rate optimum measured on a short proxy sweep transfers even when model size, training horizon, batch size, and data regime may jointly change."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "random-output-projection-jvp-norm",
+      "role": "Estimates each tensor's squared linearized output change with one reverse-mode pass instead of one pass per output."
+    },
+    {
+      "id": "kronecker-covariance-variance-reduction",
+      "role": "Compresses covariance estimation to row, column, and Frobenius scalar statistics at the price of approximation bias."
+    },
+    {
+      "id": "ema-function-rate-tracking",
+      "role": "Smooths stochastic sensitivity estimates with 40-batch warm-up and optional measurements every 100 updates."
+    },
+    {
+      "id": "unit-learning-rate-counterfactual-update",
+      "role": "Normalizes sensitivity estimates so changing schedules or tensor rates do not contaminate the EMA target."
+    },
+    {
+      "id": "function-space-learning-rate-matching",
+      "role": "Sets each target tensor's parameter learning rate by the ratio of base and target linearized output-change magnitudes."
+    },
+    {
+      "id": "depth-profile-splitting",
+      "role": "Maps a shallow base profile to additional residual blocks by dividing corresponding hidden-block targets."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Four-block residual MLP on flattened CIFAR-10 and two-block decoder transformers on one tenth of WikiText-103",
+      "metric": "Tensorwise RMS function-space learning rate over training",
+      "result": "Rates change despite constant Adam learning rate, generally decay, and form architecture-specific layer-role bands",
+      "baseline": "Fixed parameter-space learning rates"
+    },
+    {
+      "setting": "Width scaling for ResMLP and PreNorm, PostNorm, and PreNormPostMod transformers, with the widest shallow transformer reported near 814M parameters",
+      "metric": "Training-loss curve versus candidate global learning rate across widths",
+      "result": "FLeRM largely removes width-dependent optimum shifts and sometimes improves wide-model loss",
+      "baseline": "Standard Kaiming/depth-scaled parameterization with one shared learning rate"
+    },
+    {
+      "setting": "Depth and initialization-scale sweeps across the same model families",
+      "metric": "Alignment of loss optima and divergence thresholds",
+      "result": "FLeRM reduces depth shifts, aligns PostNorm instability, preserves an already invariant PreNormPostMod case, and aligns curves across functionally redundant initialization scales",
+      "baseline": "Standard practice without tensorwise matching"
+    },
+    {
+      "setting": "GPT-2 and Llama-3.2-1B LoRA continual pretraining on roughly four million MathPile or Cold French Law tokens for 500 iterations",
+      "metric": "Training log likelihood versus LoRA rank and A/B learning rate",
+      "result": "FLeRM mostly aligns the B-parameter optimum and instability across ranks 2-32; A-rate sensitivity is weak in the standard setup",
+      "baseline": "Adam/AdamW without matching"
+    },
+    {
+      "setting": "Appendix ablations across scheduling, layer target profiles, affine LayerNorm, joint width-depth scaling, and several optimizers",
+      "metric": "Learning-rate-curve alignment and loss",
+      "result": "Periodic and initial-only matching are similar; equal profiles often retain transfer with worse loss; careless depth allocation breaks transfer; qualitative alignment persists across tested optimizers",
+      "baseline": "Measured base profile, standard practice, and equal-profile variants"
+    }
+  ],
+  "limitations": [
+    "The estimator measures a first-order Jacobian-vector product, not the exact finite-step function change; no systematic Taylor-error audit is reported across learning-rate regimes.",
+    "Raw-logit Euclidean RMS is not invariant to common-logit shifts, output temperature, label-space transformations, or choice of sampled input distribution.",
+    "Layerwise norms cannot be summed as causal contributions because total squared change includes signed cross-layer interactions.",
+    "The Kronecker covariance approximation introduces bias and is validated mainly by a visual appendix comparison rather than broad quantitative error bounds.",
+    "FLeRM matches magnitude but not output-change direction, alignment with the loss gradient, curvature, stochasticity, or represented features.",
+    "Measurement requires fresh data, an additional forward/backward pass per sample, and 40 warm-up batches; this may not be negligible for short fine-tuning or frontier-scale models.",
+    "Matching across depth requires manually defining tensor correspondence and splitting target rates among new blocks; ablations show this choice can make or break transfer.",
+    "Claims of architectural arbitrariness apply more clearly to measurement than transfer, which needs corresponding tensors and special cases such as zero-initialized LoRA.",
+    "The base profile is recorded separately for every candidate global rate and averaged over eight seeds, preserving the need for a proxy sweep and adding sensitivity-measurement compute.",
+    "The LoRA study uses one base seed, two datasets, about four million tokens, 500 updates, and a step-five workaround for zero gradients.",
+    "Main endpoints average training loss over the last 200 batches; CIFAR test-loss alignment is weaker and no downstream or long-horizon generalization metric is central.",
+    "The transformer is only two blocks at base, trained for one epoch on one tenth of WikiText-103; large parameter count comes primarily from width rather than realistic depth and duration.",
+    "There is no compute-matched empirical comparison against muTransfer, depth-muP, Modula, u-muP, or feature-speed scaling despite these being the principal alternatives.",
+    "Only learning rates are transferred; batch size, optimizer moments, weight decay, training duration, data scale, and initialization families also change in real scaling programs.",
+    "No theorem connects matched function-space magnitude to invariant loss dynamics or optimal learning rate outside the presented sweeps."
+  ],
+  "failure_modes": [
+    "A large step crosses nonlinear activation or normalization regimes, so the linearized displacement severely underestimates or misdirects the exact change.",
+    "A tensor mostly causes a common shift to every class logit, receiving a large FLeRM penalty despite leaving probabilities and loss unchanged.",
+    "Two layers make large opposing output changes; separate magnitude matching preserves neither their cancellation nor the total update.",
+    "Kronecker covariance is poor for attention or convolution tensors, yielding systematically biased rates that compound across layers.",
+    "A fresh sensitivity batch differs from the training or deployment distribution, so learning rates are normalized around irrelevant inputs.",
+    "The proxy and target learn different features even at matched output-step magnitude, causing optima to drift later in training.",
+    "New depth blocks have nonexchangeable roles, making uniform division of a shallow block's target inappropriate.",
+    "Zero or near-zero unit-rate sensitivity creates division by zero or extreme tensor learning rates, as seen at LoRA initialization.",
+    "EMA lag or noisy denominators make periodically updated rates oscillate during abrupt phase changes.",
+    "A short training-loss optimum transfers but produces worse validation loss, calibration, or downstream behavior after long training.",
+    "Forty extra warm-up passes erase the cost benefit for short adapter tuning or become expensive on a full-size target model.",
+    "Joint changes in width, depth, batch, horizon, optimizer, and data invalidate a profile calibrated along one scaling axis."
+  ],
+  "reusable_insights": [
+    "Random projections turn otherwise intractable output-Jacobian norm measurements into one extra backward pass and are broadly useful for optimizer instrumentation.",
+    "Report both exact-unbiased small-sample estimates and structured low-variance approximations so covariance-assumption bias is visible.",
+    "Distinguish layerwise displacement magnitude from layer contribution; audit cross-layer cosines and total predicted versus realized output change.",
+    "Choose a function-space metric aligned with the predictive distribution or task, such as centered logits, KL/Fisher geometry, or loss-relevant projections.",
+    "For scale transfer, evaluate update direction, loss decrease, feature change, curvature and noise in addition to a single scalar step norm.",
+    "Depth transfer needs an explicit correspondence policy for new modules; treat it as a first-class design choice and ablate it.",
+    "Test transfer against established parameterization baselines under equal proxy-search, measurement, and target-training compute.",
+    "Include long-horizon validation and realistic joint scaling because a learning-rate landscape can align early while trajectories diverge later."
+  ],
+  "open_questions": [
+    "How accurately does the linearized norm predict the exact output change at candidate learning rates, especially near instability thresholds?",
+    "Would centered logits, predictive KL, Fisher-Rao distance, representation change, or loss decrease transfer better than raw-logit RMS?",
+    "Can an unbiased multi-sample estimator be made cheap enough to remove the Kronecker assumption at critical calibration points?",
+    "How large and structured are cross-layer output-change inner products, and should FLeRM match their covariance as well as marginal norms?",
+    "Can optimal transport or learned module correspondence map base profiles when width, depth, attention layout, or architecture changes nonuniformly?",
+    "Does FLeRM still transfer optima across realistic 7B-70B deep transformers trained for compute-optimal token horizons?",
+    "What is the total cost-benefit relative to muP, depth-muP, Modula, u-muP, and later Complete parameterizations after proxy and warm-up compute?",
+    "Can the approach jointly transfer learning rate, weight decay, optimizer moments, batch size, schedule, and training duration?",
+    "Why does preserving Adam's measured layer profile improve loss over equal targets, and is that profile stable across datasets and tasks?",
+    "Can safeguards regularize near-zero denominators and constrain extreme tensor rates without breaking transfer?",
+    "Does matching function-space rates preserve calibration, robustness, emergence timing, and downstream fine-tuning behavior, not just final training loss?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "openreview:Bx6qKuBM2AD",
+      "title": "Tensor Programs V: Tuning Large Neural Networks via Zero-Shot Hyperparameter Transfer",
+      "url": "https://openreview.net/forum?id=Bx6qKuBM2AD",
+      "relationship": "foundational direct competitor",
+      "difference": "muTransfer derives width-dependent parameterization rules that preserve feature learning and transfers proxy-tuned hyperparameters to much wider networks. FLeRM empirically measures realized layerwise logit displacement and works away from idealized initialization, but needs extra passes and per-tensor target profiles; the paper does not directly compare performance or cost with muP.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2022 conference version"
+    },
+    {
+      "canonical_id": "openreview:KZJehvRKGD",
+      "title": "Depthwise Hyperparameter Transfer in Residual Networks: Dynamics and Scaling Limit",
+      "url": "https://openreview.net/forum?id=KZJehvRKGD",
+      "relationship": "direct width-and-depth transfer competitor",
+      "difference": "Depth-muP combines muP with one-over-square-root-depth residual scaling and gives theory plus CIFAR-10 and ImageNet evidence on ResNets and vision transformers. FLeRM is more plug-in and optimizer-specific, but its new-layer allocation is heuristic and its evaluation omits the head-to-head comparison needed to establish an advantage over this closer prior.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2024 conference version"
+    },
+    {
+      "canonical_id": "arxiv:2405.14813",
+      "title": "Scalable Optimization in the Modular Norm",
+      "url": "https://arxiv.org/abs/2405.14813",
+      "relationship": "direct architecture-aware norm competitor",
+      "difference": "Modula recursively defines a modular parameter norm and normalizes any base optimizer so learning rates transfer across width and depth, with Lipschitz guarantees for well-behaved modules. FLeRM avoids rewriting a model into special modules and learns layer targets from data, but lacks Modula's global metric guarantees and still requires manual correspondence for depth.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2405.14813"
+    },
+    {
+      "canonical_id": "arxiv:2311.18718",
+      "title": "The Feature Speed Formula: a Flexible Approach to Scale Hyper-parameters of Deep Neural Networks",
+      "url": "https://arxiv.org/abs/2311.18718",
+      "relationship": "direct function-dynamics alternative",
+      "difference": "Chizat and Netrapalli express feature-update speed through update/backprop angle, loss decay, and Jacobian conditioning, recovering and extending scaling rules for deep MLPs and ResNets. FLeRM measures output displacement with autodiff in arbitrary finite networks, but discards the directional angle that the feature-speed analysis identifies as central.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2311.18718"
+    },
+    {
+      "canonical_id": "openreview:rgwhJ7INtZ",
+      "title": "Super Consistency of Neural Network Landscapes and Learning Rate Transfer",
+      "url": "https://openreview.net/forum?id=rgwhJ7INtZ",
+      "relationship": "loss-landscape explanation of transfer",
+      "difference": "Noci et al. study preservation of sharpness and edge-of-stability behavior across scale under rich parameterizations, providing a curvature-based explanation for learning-rate transfer. FLeRM instead matches first-order output movement; a combined comparison could test whether its aligned optima arise from matched function displacement, matched sharpness, or both.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2024 conference version"
+    },
+    {
+      "canonical_id": "arxiv:2407.17465",
+      "title": "u-muP: The Unit-Scaled Maximal Update Parametrization",
+      "url": "https://arxiv.org/abs/2407.17465",
+      "relationship": "practical parameterization competitor",
+      "difference": "u-muP combines maximal-update transfer with unit-scaled activations, weights, and gradients, simplifies defaults, and supports FP8. FLeRM can wrap ordinary PyTorch architectures without a prescribed parameterization, but adds calibration passes and does not address low-precision numeric range or compare target loss at equal tuning budget.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2407.17465"
+    },
+    {
+      "canonical_id": "neurips:bdcd9f6327db5877dee502cdec183159",
+      "title": "Hyperparameter Transfer Enables Consistent Gains of Matrix-Preconditioned Optimizers Across Scales",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2025/hash/bdcd9f6327db5877dee502cdec183159-Abstract-Conference.html",
+      "relationship": "concurrent optimizer-general transfer study",
+      "difference": "Qiu et al. analyze width, depth, weight decay, blocking, grafting, and spectral normalization for Shampoo, SOAP, Muon, and AdamW and validate 190M-1.4B Llama training speedups. FLeRM has broader architectural plug-in appeal and supports layer diagnostics, but its shallow-language experiments and qualitative optimizer appendix are weaker evidence for modern preconditioned optimizers.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2025 conference version"
+    },
+    {
+      "canonical_id": "arxiv:2602.06204",
+      "title": "Learning Rate Scaling across LoRA Ranks and Transfer to Full Finetuning",
+      "url": "https://arxiv.org/abs/2602.06204",
+      "relationship": "subsequent direct LoRA-rank competitor",
+      "difference": "Maximal-Update Adaptation derives rank- and initialization-dependent LoRA learning-rate regimes and demonstrates LoRA-to-full-finetuning transfer across language, vision, image generation, and RL. It substantially broadens and theorizes the specific rank-transfer phenomenon for which FLeRM presents two short continual-pretraining sweeps.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2602.06204"
+    },
+    {
+      "canonical_id": "arxiv:2512.22382",
+      "title": "Completed Hyperparameter Transfer across Modules, Width, Depth, Batch and Duration",
+      "url": "https://arxiv.org/abs/2512.22382",
+      "relationship": "subsequent multi-axis and per-module transfer competitor",
+      "difference": "Complete(d)P transfers learning rates, Adam parameters, weight decay, initialization, and residual multipliers across width, depth, batch, duration, and per-module search, reportedly from a 50M proxy to a roughly 14,000-times larger FLOP budget. FLeRM's empirical sensitivity matching is simpler to attach to existing code but covers only learning rate and far smaller joint scaling changes.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2512.22382 / ICLR 2026"
+    },
+    {
+      "canonical_id": "arxiv:2510.03871",
+      "title": "Optimal Scaling Needs Optimal Norm",
+      "url": "https://arxiv.org/abs/2510.03871",
+      "relationship": "subsequent measured-invariant alternative",
+      "difference": "Filatov et al. identify output-operator-norm transfer as a necessary optimum condition across model and data sizes using more than two thousand runs up to 1.3B parameters and 138B tokens, while also showing the invariant is not sufficient. This later result reinforces the need to test FLeRM's measured output-step norm at realistic data horizons and against other candidate invariants.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv:2510.03871 / ICLR 2026"
+    }
+  ],
+  "novelty_assessment": "Author claim: the work is the first practical way to measure and set layerwise function-space learning rates in arbitrary networks away from initialization, and FLeRM transfers the optimal learning rate across width, depth, initialization scale, and LoRA rank. Reviewer inference: the Gaussian random-projection estimator is a clear, reusable technical contribution, and the breadth of empirical transfer axes is valuable. The transfer mechanism is less definitive than the framing suggests: its operational metric is linearized raw-logit RMS, its low-variance estimator is biased under a Kronecker assumption, and magnitude matching ignores direction and cross-layer interaction. Depth correspondence is heuristic and empirically sensitive. A substantial prior field already transfers hyperparameters through muP, depth-muP, modular norms, feature speed, landscape consistency, and unit scaling; without compute-matched head-to-head baselines, superiority is unresolved. Subsequent work covers per-module/multi-axis transfer, realistic matrix optimizers, norm invariants, and LoRA-rank theory at much broader scale.",
+  "confidence": 0.98,
+  "reviewer_notes": "Read all 27 extracted pages, including the exact random-projection proof, Kronecker derivation and tensor extension, FLeRM algorithm, every main experiment, model and LoRA setup, equal-profile/depth-allocation ablations, estimator comparison, test-loss qualification, schedulers, affine norms, joint scaling, and alternate optimizers. Ten primary competitors were checked through 2026-08-23, spanning the closest prior parameterizations and subsequent 2025-2026 scale-transfer results."
+}

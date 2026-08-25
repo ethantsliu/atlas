@@ -1,0 +1,504 @@
+{
+  "stable_id": "arxiv:2602.00816",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2602.00816",
+    "pdf_sha256": "9ce6939f09851aa5cf4e2b7fc3d9fe69b64cc891d8f4b44823c6523870e161e6",
+    "text_sha256": "0d38363e4f4dc24af586bdccbc3c98b45af012c8fce3178d4c6e46aedf14a07e",
+    "page_count": 14,
+    "extracted_at": "2026-08-23T13:27:00.500586+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can finite-difference Hessian-vector products be made native to Fully Sharded Data Parallel training so that stochastic Lanczos quadrature and inverse-Hessian solves remain numerically faithful and operationally practical for foundation-scale language models, and do the resulting measurements justify rejecting block-diagonal curvature approximations?",
+  "key_findings": [
+    {
+      "claim": "The systems contribution is a shard-local central finite-difference Hessian-vector product that composes ordinary FSDP gradient evaluations with local vector arithmetic.",
+      "evidence": "For a fixed direction v, the implementation evaluates gradients at theta+epsilon v and theta-epsilon v and forms their difference divided by 2 epsilon on each parameter shard. One HVP therefore costs two ordinary distributed gradient evaluations plus local AXPYs and at most small scalar reductions; Lanczos, SLQ, and conjugate gradient call this primitive without materializing a Hessian or gathering a full parameter vector on one rank.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "3.1 Shard-local Finite-Difference HvPs under FSDP, Equation 1 and Algorithm 1"
+        },
+        {
+          "page": 5,
+          "section": "5 Systems Characterization: Cost, Scaling, and Runtime"
+        },
+        {
+          "page": 13,
+          "section": "C Appendix C: Detailed Cost"
+        }
+      ]
+    },
+    {
+      "claim": "The finite-difference primitive has a genuine bias-noise tradeoff, but its theorem does not make the computed operator mathematically exact.",
+      "evidence": "Theorem 3.1 gives central-gradient truncation error of order epsilon squared and roundoff amplification of order machine-epsilon divided by epsilon, with a cube-root balancing scale. The local-averaging identity further shows that the directional curvature is a triangular average over a segment rather than the point Hessian. The paper's own practical remark places nominal fp32 steps around 1e-3 to 1e-2 and bf16 around 1e-1.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "3.1 Theorem 3.1 and Remark 3.2"
+        },
+        {
+          "page": 4,
+          "section": "3.2 Local averaging, Theorem 3.3 and Figure 1"
+        },
+        {
+          "page": 11,
+          "section": "A Understanding Finite Difference Hessian Approximations"
+        },
+        {
+          "page": 12,
+          "section": "A.1 Finite Difference as Local Averaging"
+        }
+      ]
+    },
+    {
+      "claim": "Repeated descriptions of the method as exact or faithful need the narrower qualification 'full, non-block-diagonal finite-difference operator on the chosen data sample.'",
+      "evidence": "The HVP differs from the point Hessian by deterministic truncation and floating-point error, and dataset subsampling changes the objective whose Hessian is measured. An inverse-Hessian-vector product obtained by conjugate gradient additionally depends on damping, conditioning, tolerance, and convergence. Thus the method avoids a structural block approximation but is neither an exact point HVP nor an exact IHVP in the unconditional mathematical sense.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 1,
+          "section": "Abstract"
+        },
+        {
+          "page": 3,
+          "section": "Table 1 and 3.1 Shard-local Finite-Difference HvPs"
+        },
+        {
+          "page": 4,
+          "section": "3.2 Local averaging"
+        },
+        {
+          "page": 8,
+          "section": "7.1 Lanczos vectors precision, epsilon and sub-sampling"
+        }
+      ]
+    },
+    {
+      "claim": "The stated Lanczos finite-difference error theorem is not proved by the appendix and relies on assumptions that conflict with the actual Krylov process.",
+      "evidence": "Theorem 4.1 states perturbation, Ritz-value, and ghost-orthogonality bounds with an unbiased independent finite-difference error model and delocalization factor. The appendix first proves the gradient central difference result, then starts a separate unlabeled proof for a scalar function-value second difference with error O(epsilon squared times a fourth derivative plus sigma_f divided by epsilon squared) and a fourth-root optimum. It never derives the stated Delta-T_m, Ritz, ghost, or probe-delocalization bounds. Deterministic truncation is biased, while successive Lanczos queries and errors depend on earlier noisy basis vectors, so independence is also not established.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "4 Stochastic Lanczos Quadrature and Theorem 4.1"
+        },
+        {
+          "page": 5,
+          "section": "Theorem 4.1 continuation and Remark 4.2"
+        },
+        {
+          "page": 11,
+          "section": "A proof following the references"
+        },
+        {
+          "page": 12,
+          "section": "Truncation, noise, and optimisation derivation"
+        }
+      ]
+    },
+    {
+      "claim": "The reported 1.3-1.8% overhead is Lanczos bookkeeping relative to an already expensive HVP, not end-to-end spectral probing relative to first-order training.",
+      "evidence": "Table 2 reports 23.99 versus 24.30 seconds for a one-step, no-reorthogonalization 7B setting and 71.26 versus 72.53 seconds for an eight-step, reorthogonalized 1.5B setting. These ratios subtract the HVP time from the Lanczos-iteration time. The cost equations say one HVP is approximately two gradient evaluations and full SLQ costs s probes times m iterations, so calling the full procedure a modest constant-factor overhead over first-order training is unsupported without end-to-end s, m, and total-time comparisons.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "5 Systems Characterization and end-to-end SLQ cost"
+        },
+        {
+          "page": 6,
+          "section": "Table 2 Lanczos overhead relative to the HVP primitive"
+        },
+        {
+          "page": 14,
+          "section": "C End-to-end complexity"
+        }
+      ]
+    },
+    {
+      "claim": "The scaling experiments show useful speedup but do not demonstrate near-linear strong scaling, and two comparisons change the batch size.",
+      "evidence": "For Qwen-0.6B at fixed batch 160 and sequence length 1024, HVP time falls from 12.40 seconds on one GPU to 2.16 seconds on eight GPUs, a 5.74x speedup or about 72% parallel efficiency. The 32B two-node table changes batch 64 to 72 while reporting 1.80x speedup. The single-node comparison against HessFormer uses batch 32 for HessFormer and batch 80 for the proposed method (89.57 versus 22.21 seconds), so it is neither equal work nor normalized throughput; the proposed run also peaks at 74.71 GB versus 71.91 GB.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Tables 3-5: single-node scaling, multi-node scaling, and HessFormer comparison"
+        },
+        {
+          "page": 13,
+          "section": "B FSDP vs DP for small models"
+        }
+      ]
+    },
+    {
+      "claim": "Layer-block masking reveals substantial cross-block response for the two tested small models, but it does not establish that all K-FAC, GPTQ, pruning, or influence approximations fail catastrophically.",
+      "evidence": "With 28 Qwen-0.6B transformer blocks on WikiText, the mean norm error is 0.082+/-0.054, relative error 0.941+/-0.059, and cosine 0.311+/-0.120. With 24 DeepSeek-1.3B blocks after code fine-tuning, the values are 0.00442+/-0.00444, 1.214+/-0.150, and 0.00443+/-0.127. The experiment compares one layer-block Hessian proxy under a random probe, whereas named downstream methods use different curvature matrices, block granularities, damping, objectives, and task metrics. Relative error can also be unstable when the full block response in its denominator is small, as the tiny absolute errors in the code setting suggest.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "6.1 Model on generic data and Table 6"
+        },
+        {
+          "page": 7,
+          "section": "6.2 Code generation fine-tuning experiment and Table 7"
+        },
+        {
+          "page": 9,
+          "section": "8 Conclusion"
+        }
+      ]
+    },
+    {
+      "claim": "The 120B result is an indicative ten-Ritz-value probe, not a validated high-resolution spectral density estimate.",
+      "evidence": "Figure 2 uses the open 120B model on WikiText-2, sequence length 64, epsilon 1e-4, ten Lanczos iterations, no reorthogonalization, and only essential vectors rather than a stored Krylov basis. The authors explicitly lack the training data and regimen and call the plot indicative. No repeated probes, uncertainty, orthogonalized reference, dataset-size sweep, or density-distance diagnostic is reported. The plotted stem weights therefore cannot support a confident full-density characterization at this scale.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "7 Exp II: Hessian Spectra and Figure 2"
+        },
+        {
+          "page": 8,
+          "section": "7.1 Lanczos vectors precision, epsilon and sub-sampling"
+        }
+      ]
+    },
+    {
+      "claim": "Negative curvature on an evaluation corpus does not show that the corpus was not memorized and does not by itself provide evidence for hallucination.",
+      "evidence": "The paper interprets very negative Ritz values on tokenized WikiText as proving non-memorization and as possible evidence for hallucination. A negative Hessian direction only establishes local non-convex curvature of the selected loss at the selected parameters; it neither identifies training-set membership nor connects a direction to factual errors. The argument is especially weak because the model's training data are unknown and the spectral estimate uses only ten unreorthogonalized iterations.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "7 Exp II: Hessian Spectra, interpretation of Figure 2"
+        },
+        {
+          "page": 9,
+          "section": "8 Conclusion and downstream claims"
+        }
+      ]
+    },
+    {
+      "claim": "The Pythia experiments identify a narrow empirical epsilon regime and useful basis-storage compression, while also supplying negative evidence against broad numerical claims.",
+      "evidence": "Pythia-160M uses 1,000 examples from a 100,000-row Pile subset, sequence length 2048, full reorthogonalization, float32 scalars and tridiagonal entries, and either bf16 or fp32 basis storage. Structure is absent at epsilon 1e-5 and 1e-2 and isolated outliers appear at 1e-4 to 1e-3; bf16 versus fp32 basis storage is only qualitatively similar. This does not validate a bf16 arithmetic optimum near 1e-1 because the tested precision change is basis storage, nor does it establish general mixed-precision stability from one 160M model.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "7.1 Pythia-160M setup and Figures 3-4"
+        },
+        {
+          "page": 8,
+          "section": "7.1 Figures 5-7 and bf16/fp32 basis-vector comparison"
+        }
+      ]
+    },
+    {
+      "claim": "Subsampling and model-scale conclusions are qualitative and based on too few controlled comparisons.",
+      "evidence": "The paper reports that increasing the Pythia subset from 1% to 30% causes little visible spectral change and that Pythia-1.4B is stable around epsilon 1e-4 to 1e-3. No quantitative spectrum distance, repeated-probe uncertainty, or matched sweep across additional sizes is given. A two-model comparison cannot establish that larger models are globally more numerically stable, and a single 30x data comparison cannot establish broad subsampling invariance.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "7.1 Impact of Subsampling, Deviations at Scale, and Figures 7-8"
+        }
+      ]
+    },
+    {
+      "claim": "Training-mode finite differences require matched stochastic state across the two gradient evaluations, a correctness condition the implementation discussion omits.",
+      "evidence": "The code fine-tuning experiment deliberately keeps the model in training mode. If dropout masks, data order, gradient scaling, or other stochastic state differ between theta+epsilon v and theta-epsilon v, their gradient difference contains stochastic noise amplified by 1/(2 epsilon), not just curvature. Algorithm 1 specifies parameter perturbation and restoration but does not specify RNG replay, identical microbatches/masks, loss-scaling state, or a small-model comparison against an autograd HVP.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "3.1 Algorithm 1"
+        },
+        {
+          "page": 7,
+          "section": "6.2 Code generation fine-tuning experiment"
+        },
+        {
+          "page": 12,
+          "section": "Finite-Precision and Noise Error"
+        }
+      ]
+    },
+    {
+      "claim": "The trillion-parameter and reproducibility claims exceed the reported evidence.",
+      "evidence": "Table 1 labels the method exact and scalable to 10^12+ parameters, while the largest reported run is the roughly 120B open model and no trillion-parameter execution appears. The manuscript gives no code or repository URL, and many experiments omit hardware topology, probe count or seed, exact dataset iterator size, data-order controls, confidence intervals, and epsilon-selection procedure. For a potentially sparse 120B model, active versus total parameters and which expert parameters enter each loss/HVP are also unspecified.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Table 1 Curvature/Hessian methods at LLM scale"
+        },
+        {
+          "page": 6,
+          "section": "Tables 2-6"
+        },
+        {
+          "page": 7,
+          "section": "Table 7 and Figure 2"
+        },
+        {
+          "page": 9,
+          "section": "8 Conclusion and broader-impact discussion"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Replace double-backward HVPs that conflict with FSDP graph disposal by evaluating the same loss gradient at symmetric shard-local parameter perturbations, then expose that approximate full-operator product to Krylov algorithms.",
+    "mechanism": "Normalize and shard a probe v; perturb each local parameter shard by plus epsilon v; run a dataset-averaged FSDP gradient pass; move to minus epsilon v and repeat; divide the shard-local gradient difference by 2 epsilon; restore parameters; use repeated products in Lanczos/SLQ for Ritz values and spectral weights or in conjugate gradient for a damped inverse solve. Optional windowed reorthogonalization trades stored shard-local basis vectors and scalar reductions for fewer Lanczos ghosts.",
+    "assumptions": [
+      "The loss is sufficiently differentiable along every perturbed direction and its third/fourth directional derivatives are controlled over the epsilon neighborhood.",
+      "The two gradient evaluations use identical examples, masks, RNG state, preprocessing, reduction order, and mixed-precision state so their difference estimates curvature rather than unrelated stochastic noise.",
+      "FSDP gradient reductions produce the intended dataset-average gradient and each shard's perturbation exactly matches a common global direction.",
+      "A single symmetric Hessian operator remains fixed during a Lanczos or CG run; parameters, data sample, and model state do not drift.",
+      "Theorem 4.1 additionally assumes unbiased independent finite-difference errors and suitable probe delocalization, assumptions not justified for the implemented sequential finite-difference Krylov process.",
+      "Enough probes, Lanczos steps, and orthogonality control are used for the desired spectral resolution; ten unreorthogonalized steps do not automatically yield a density.",
+      "For inverse products, damping and convergence make the linear system sufficiently well conditioned.",
+      "Layer-block masked products are a relevant proxy for the specific curvature approximation being criticized, despite differences between the Hessian, Fisher/GGN, K-FAC, and downstream objectives."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "fsdp-central-gradient-finite-difference-hvp",
+      "role": "Computes a non-block-diagonal approximate Hessian-vector product using two ordinary FSDP gradient evaluations and shard-local parameter/vector updates."
+    },
+    {
+      "id": "stochastic-lanczos-quadrature",
+      "role": "Converts repeated HVPs from random probes into tridiagonal Ritz values and weights for a spectral-measure approximation."
+    },
+    {
+      "id": "windowed-reorthogonalization",
+      "role": "Controls finite-precision Lanczos ghosts at the cost of basis storage, local dot products, and scalar all-reduces."
+    },
+    {
+      "id": "mixed-precision-krylov-basis-storage",
+      "role": "Stores large Lanczos basis vectors in bf16 while retaining scalar recurrence quantities in fp32 to reduce memory."
+    },
+    {
+      "id": "masked-layer-block-hvp-audit",
+      "role": "Compares the within-block component of a full HVP with the same block's response to a block-supported probe to measure omitted cross-layer curvature."
+    },
+    {
+      "id": "conjugate-gradient-ihvp",
+      "role": "Uses the HVP oracle in iterative linear solves for influence-style inverse-Hessian-vector products; no convergence evaluation is reported."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "DeepSeek-R1-Distill-Qwen-7B, batch 1, one Lanczos step, no reorthogonalization, 1/1000 data subsample.",
+      "metric": "HVP wall time versus one enclosing Lanczos iteration.",
+      "result": "23.99 s HVP and 24.30 s Lanczos, reported as approximately 1.3% bookkeeping overhead.",
+      "baseline": "The proposed finite-difference HVP primitive itself, not a first-order training step or full SLQ run."
+    },
+    {
+      "setting": "Qwen-1.5B, batch 2, eight Lanczos steps with reorthogonalization, 1/200 data subsample.",
+      "metric": "HVP wall time versus Lanczos iteration time.",
+      "result": "71.26 s HVP and 72.53 s Lanczos, reported as approximately 1.8% bookkeeping overhead.",
+      "baseline": "The proposed HVP primitive itself."
+    },
+    {
+      "setting": "Qwen-0.6B on WikiText-2, sequence length 1024, fixed batch 160, one node and 1/2/4/8 GPUs.",
+      "metric": "Average HVP time, standard deviation, peak memory, and speedup.",
+      "result": "12.40/7.93/4.06/2.16 s and 1.00/1.56/3.05/5.74x speedup; peak memory is 67.63/68.74/67.22/66.51 GB.",
+      "baseline": "One-GPU FSDP HVP at 12.40 s; eight-GPU efficiency is about 72%, not linear."
+    },
+    {
+      "setting": "Qwen-32B on WikiText-2, sequence length 1024, eight GPUs per node; batch changes from 64 on one node to 72 on two nodes.",
+      "metric": "Average HVP time and nominal speedup.",
+      "result": "9.36 s and 62.70 GB on one node versus 5.20 s and 67.31 GB on two nodes, reported as 1.80x.",
+      "baseline": "One-node run with a different global batch, preventing a strict strong-scaling interpretation."
+    },
+    {
+      "setting": "Qwen-32B on eight GPUs, proposed FSHP versus HessFormer.",
+      "metric": "Average time and peak memory.",
+      "result": "FSHP: batch 80, 22.21 s, 74.71 GB; HessFormer: batch 32, 89.57 s, 71.91 GB.",
+      "baseline": "HessFormer under unequal batch/work and without throughput normalization."
+    },
+    {
+      "setting": "Qwen-0.6B on WikiText-2, parameters divided into 28 transformer-layer blocks and a normalized Gaussian probe.",
+      "metric": "Absolute block response error, relative error, and cosine similarity between full and block-restricted HVP responses.",
+      "result": "0.082+/-0.054 norm error, 0.941+/-0.059 relative error, and 0.311+/-0.120 cosine across blocks.",
+      "baseline": "Layer-block-diagonal Hessian proxy."
+    },
+    {
+      "setting": "DeepSeek-1.3B code-generation fine-tuning with solution-token-only loss, 24 transformer blocks, training mode and optional mixed precision.",
+      "metric": "The same block response errors and cosine alignment.",
+      "result": "0.00442+/-0.00444 norm error, 1.214+/-0.150 relative error, and 0.00443+/-0.127 cosine.",
+      "baseline": "Layer-block-diagonal Hessian proxy; no downstream K-FAC/GPTQ/influence metric is evaluated."
+    },
+    {
+      "setting": "Open 120B model on WikiText-2, sequence length 64, epsilon 1e-4, ten Lanczos iterations, no reorthogonalization, no full Krylov storage.",
+      "metric": "Ritz-value stem plot presented as a Hessian spectral density.",
+      "result": "The plot contains large negative Ritz values; the authors call it indicative because training data/regimen and broader sweeps are unavailable.",
+      "baseline": "No repeated-probe, orthogonalized, higher-iteration, or known-spectrum reference."
+    },
+    {
+      "setting": "Pythia-160M on 1,000 examples from a 100,000-row Pile subset, sequence length 2048, full reorthogonalization, fp32 scalar recurrence, bf16/fp32 basis storage.",
+      "metric": "Qualitative pairwise/stem spectral structure across epsilon 1e-5 to 1e-2 and storage precision.",
+      "result": "No isolated structure at 1e-5 or 1e-2; clearer outliers around 1e-4 to 1e-3; bf16 and fp32 basis-storage plots appear similar.",
+      "baseline": "Other epsilon choices and fp32 basis storage; no quantitative spectral distance or exact autograd HVP reference."
+    },
+    {
+      "setting": "Pythia subset increased from 1% to 30%, plus a Pythia-1.4B epsilon sweep.",
+      "metric": "Qualitative change in the plotted spectral/Ritz structure.",
+      "result": "The authors report little change under the 30x data increase and a stable 1.4B regime around epsilon 1e-4 to 1e-3.",
+      "baseline": "The smaller subset and Pythia-160M; no uncertainty or controlled multi-size scaling law."
+    }
+  ],
+  "limitations": [
+    "Author-stated: the 120B model's training data and regimen are unknown, the spectrum is only indicative, resource limits prevent dataset-size replications, only ten unreorthogonalized iterations are used, and the full Krylov basis is not stored (p.7, Section 7).",
+    "Author-stated: FSDP is slower than data parallelism for small models when both fit; the claimed crossover depends on a simplified communication model and topology/overlap constants (p.13, Appendix B).",
+    "Author-stated: basis offload to CPU or disk and larger-scale runs remain future work (p.7 footnote, Section 7.1).",
+    "Reviewer-inferred: the headline exactness conflates avoidance of a structural block approximation with a biased/noisy finite-difference approximation to a sampled objective.",
+    "Reviewer-inferred: Theorem 4.1 has no matching proof and assumes unbiased independent errors that the implemented deterministic, adaptive Krylov sequence does not provide.",
+    "Reviewer-inferred: no exact autograd HVP benchmark on a small model calibrates epsilon, directional error, or spectral error.",
+    "Reviewer-inferred: the largest experiment is approximately 120B, not the 10^12+ scale claimed in Table 1, and sparse active-versus-total parameter coverage is not reported.",
+    "Reviewer-inferred: runtime evidence isolates bookkeeping overhead and does not report total SLQ time, probe count, amortized cost versus a first-order training step, energy, or cost per reliable spectral statistic.",
+    "Reviewer-inferred: two scaling/comparison tables change batch size, preventing strict equal-work conclusions.",
+    "Reviewer-inferred: the block audit covers only two sub-2B models, a layer partition, and curvature-response metrics; it does not test the actual downstream accuracy of K-FAC, EK-FAC, GPTQ, pruning, or influence pipelines.",
+    "Reviewer-inferred: qualitative Pythia plots have no repeated-probe intervals or spectral distances, limiting claims about bf16, subsampling, and scale.",
+    "Reviewer-inferred: reproducibility details are incomplete: code URL, hardware/topology, data order, probe seeds/counts, microbatching, RNG replay, and many epsilon choices are absent."
+  ],
+  "failure_modes": [
+    "Too-small epsilon amplifies gradient roundoff, reduction noise, stochastic-mask differences, and loss-scaling differences by 1/(2 epsilon), producing random-looking spectra or false Ritz outliers.",
+    "Too-large epsilon returns a broad local average of curvature, suppressing genuine local structure and biasing eigenvalues.",
+    "Different dropout masks or batches at the plus/minus perturbations dominate the central difference; this is especially likely in the stated training-mode code experiment unless RNG and loaders are replayed.",
+    "Parameter restoration drift or optimizer/state mutation between perturbations changes the center point and breaks symmetry.",
+    "Insufficient Lanczos steps give only a coarse moment/Ritz approximation; calling ten stems a density overstates resolution.",
+    "Loss of Lanczos orthogonality creates ghost eigenvalues and repeated outliers; avoiding basis storage at large scale aggravates this.",
+    "Using a single or undisclosed number of probes makes spectral weights probe-dependent and leaves stochastic uncertainty unknown.",
+    "Dataset subsampling estimates the Hessian of a subsample rather than the intended full objective; changing tokenization or sequence length changes the measured operator.",
+    "CG can return a poor or unstable IHVP for indefinite/ill-conditioned Hessians without explicit damping and convergence diagnostics.",
+    "Layer-block relative error can look catastrophic when the reference block response is nearly zero even if absolute error is small.",
+    "Sparse/MoE models may exercise only a subset of experts on the evaluation batch, so a total-parameter scale label can hide much smaller active curvature coverage.",
+    "FSDP communication can dominate small-model runs, and simplified bandwidth/latency formulas can fail under different topology, overlap, sharding, or checkpointing regimes."
+  ],
+  "reusable_insights": [
+    "When double backward is incompatible with a sharding runtime, symmetric gradient finite differences are a simple operator adapter: they reuse the most mature distributed primitive and keep large vectors shard-local.",
+    "Report three distinct costs for Krylov systems: one gradient pass, one HVP, and one complete spectral/IHVP query. Bookkeeping-over-HVP is not an end-to-end overhead metric.",
+    "A numerical HVP paper should calibrate against exact autograd HVPs on a tractable model before extrapolating epsilon rules to large models.",
+    "Pair every central-difference gradient pass with identical data and RNG replay, and log restoration error, otherwise the estimator measures stochastic disagreement.",
+    "Use repeated probes, quantitative distribution distances, residuals, and an orthogonalized reference to separate real spectral outliers from Lanczos ghosts.",
+    "Block-approximation audits should report absolute and relative response error plus the downstream quantity the approximation was designed for; high operator error need not imply poor task performance.",
+    "Low-precision basis storage can be separated from low-precision HVP arithmetic; evidence for one should not be generalized to the other.",
+    "For sparse foundation models, report active parameters/tokens/experts as well as nominal total parameters when making scale claims."
+  ],
+  "open_questions": [
+    "How closely do the finite-difference HVP, Ritz values, and spectral measure match exact autograd HVP/SLQ across epsilon, precision, and stochastic training components on models where both are feasible?",
+    "Can a correct perturbation theorem be proved for deterministic biased finite differences embedded adaptively in finite-precision Lanczos, including non-independent errors and reorthogonalization?",
+    "How many probes and iterations are required for stable Wasserstein or Kolmogorov spectral error at 7B, 32B, and 120B scale?",
+    "What is the true end-to-end wall-clock, FLOP, communication, memory, and dollar cost of a confidence-calibrated density or IHVP relative to training?",
+    "Do the observed layer-block errors degrade actual EK-FAC influence rankings, K-FAC updates, GPTQ perplexity, or pruning decisions after each method's damping and block design?",
+    "Are negative directions on held-out corpora predictive of any independently measured memorization, hallucination, or generalization outcome after controlling for dataset mismatch?",
+    "Can selective/batched perturbations, forward-mode AD, compiler support, or CPU/NVMe basis offload improve accuracy-cost tradeoffs without giving up FSDP compatibility?",
+    "How do expert routing and active-parameter coverage affect Hessian spectra in sparse MoE foundation models?",
+    "Does the apparent epsilon regime transfer across losses, sequence lengths, quantization formats, optimizers, and model families?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2505.11564",
+      "title": "HessFormer: Hessians at Foundation Scale",
+      "url": "https://arxiv.org/abs/2505.11564",
+      "relationship": "Closest distributed foundation-model Hessian/SLQ system and the direct runtime baseline.",
+      "difference": "HessFormer uses layerwise device placement and exact double-backward Pearlmutter HVPs across a single multi-GPU node, reaching a 70B model but suffering idle-device and basis/ghost tradeoffs; this paper replaces double backward with two FSDP-native finite-difference gradient passes and reports a 120B probe, at the cost of epsilon bias/noise.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, submitted 2025-05-16; current revision checked"
+    },
+    {
+      "canonical_id": "pmlr-v267-tang25d",
+      "title": "Investigating the Overlooked Hessian Structure: From CNNs to LLMs",
+      "url": "https://proceedings.mlr.press/v267/tang25d.html",
+      "relationship": "Recent LLM Hessian-spectrum analysis and novelty antecedent for connecting spectra to model behavior.",
+      "difference": "Tang et al. study a power-law Hessian structure and its relation to optimization/generalization across CNNs and LLMs, but do not contribute an FSDP-native 100B-scale operator; the present paper emphasizes distributed operator access and block-error audits rather than validating a power-law statistic against downstream generalization.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2025 proceedings version, PMLR volume 267"
+    },
+    {
+      "canonical_id": "openreview:383i8264it",
+      "title": "Better Hessians Matter: Studying the Impact of Curvature Approximations in Influence Functions",
+      "url": "https://openreview.net/forum?id=383i8264it",
+      "relationship": "Direct empirical audit of how Hessian/GGN/K-FAC/EK-FAC approximation choices affect influence quality.",
+      "difference": "Hong et al. decompose approximation error and evaluate influence attribution in controlled classification, finding eigenvalue correction dominates much of the loss; they do not scale exact full Hessians to LLMs. The present paper measures layer-block HVP discrepancy at LLM scale but never tests whether that discrepancy harms influence rankings.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2025 Mechanistic Interpretability Workshop spotlight; OpenReview revision last modified 2025-11-10"
+    },
+    {
+      "canonical_id": "arxiv:2308.03296",
+      "title": "Studying Large Language Model Generalization with Influence Functions",
+      "url": "https://arxiv.org/abs/2308.03296",
+      "relationship": "Large-scale LLM IHVP/influence antecedent and target downstream use case.",
+      "difference": "Bae et al. use EK-FAC to make influence analysis tractable up to 52B and directly validate influence accuracy/speed; this paper offers a fuller finite-difference Hessian operator but reports neither a converged IHVP nor an influence evaluation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, submitted 2023-08-07; current revision checked"
+    },
+    {
+      "canonical_id": "arxiv:1912.07145",
+      "title": "PyHessian: Neural Networks Through the Lens of the Hessian",
+      "url": "https://arxiv.org/abs/1912.07145",
+      "relationship": "Established exact-autograd HVP toolkit for top eigenvalues, trace, and spectral density.",
+      "difference": "PyHessian uses autograd HVPs and distributed-memory tooling on vision-scale networks, providing the natural small-model accuracy reference; the present paper targets FSDP LLMs with finite differences but omits a direct PyHessian/autograd numerical comparison.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, submitted 2020-03-05; current revision checked"
+    },
+    {
+      "canonical_id": "pmlr-v97-ghorbani19b",
+      "title": "An Investigation into Neural Net Optimization via Hessian Eigenvalue Density",
+      "url": "https://proceedings.mlr.press/v97/ghorbani19b.html",
+      "relationship": "Canonical neural-network SLQ/eigenvalue-density antecedent.",
+      "difference": "Ghorbani et al. adapt scalable numerical linear algebra to accurately estimate full ImageNet-scale Hessian densities and relate outliers to optimization; this paper ports the operator path to FSDP LLMs but uses only ten unreorthogonalized steps for its largest claimed density.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2019 proceedings version, PMLR volume 97"
+    },
+    {
+      "canonical_id": "pmlr-v139-chen21s",
+      "title": "Analysis of Stochastic Lanczos Quadrature for Spectrum Approximation",
+      "url": "https://proceedings.mlr.press/v139/chen21s.html",
+      "relationship": "Primary SLQ error-analysis antecedent for probe/iteration requirements and distributional accuracy.",
+      "difference": "Chen et al. prove Wasserstein and Kolmogorov-style guarantees for an exact symmetric matrix-vector oracle with independent random probes; this paper's Theorem 4.1 instead concerns biased/noisy finite-difference products but does not supply its claimed proof or an empirical distribution-distance calibration.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2021 proceedings version, PMLR volume 139"
+    },
+    {
+      "canonical_id": "pmlr-v37-martens15",
+      "title": "Optimizing Neural Networks with Kronecker-factored Approximate Curvature",
+      "url": "https://proceedings.mlr.press/v37/martens15.html",
+      "relationship": "Foundational structured-curvature approximation directly criticized by the block audit.",
+      "difference": "K-FAC approximates the Fisher/natural-gradient matrix with invertible Kronecker-factored layer blocks and evaluates optimization progress; the present paper tests omitted cross-layer terms of the true Hessian under random probes, which is not the same operator or success criterion.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2015 proceedings version, PMLR volume 37"
+    },
+    {
+      "canonical_id": "arxiv:2210.17323",
+      "title": "GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers",
+      "url": "https://arxiv.org/abs/2210.17323",
+      "relationship": "Foundation-scale blockwise second-order downstream method named as evidence that structural approximations matter.",
+      "difference": "GPTQ uses layer/block-local approximate second-order information to quantize models up to 175B and measures perplexity/accuracy and runtime. This paper shows a random-probe layer-block Hessian mismatch but does not compare quantized-model quality or account for GPTQ's task-specific local reconstruction objective.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, submitted 2023-03-22; current revision checked"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim the first faithful true-Hessian spectral analysis beyond sub-10B causal language models, an FSDP-native shard-local HVP/SLQ pipeline scaling to frontier and nominal trillion-parameter regimes, practical finite-difference/Krylov theory, modest overhead, and evidence that widely used block-diagonal curvature approximations fail catastrophically.",
+    "evidence": "The real differentiator from HessFormer, PyHessian, and EK-FAC is operational: two standard FSDP gradient passes replace double backward while vectors remain sharded, enabling a reported 120B ten-step run. Exact-autograd HVPs, SLQ, finite differences, FSDP, influence functions, K-FAC/GPTQ, and neural-network density analysis are all established. The largest result has only ten unreorthogonalized steps; the trillion-scale row is not executed; Theorem 4.1 lacks its stated proof; end-to-end SLQ overhead is not measured; and block error is evaluated on two much smaller models without downstream method outcomes.",
+    "reviewer_inference": "The FSDP integration is a useful and plausibly novel systems composition, with a meaningful scale increase over the cited exact-double-backward path. The stronger novelty claims should be narrowed to 'FSDP-native non-block-diagonal finite-difference HVP access and an indicative 120B Krylov probe.' The work does not establish exactness, a reliable 120B density, trillion-parameter scaling, a new valid Lanczos error theory, or catastrophic failure of the named downstream approximations."
+  },
+  "confidence": 0.97,
+  "reviewer_notes": "Primary full-text audit of the pinned arXiv target 2602.00816v1, submitted 2026-01-31 16:57:06 UTC. On 2026-08-23, https://export.arxiv.org/pdf/2602.00816v1 was hashed directly and was byte-identical to the indexed PDF (SHA-256 9ce6939f09851aa5cf4e2b7fc3d9fe69b64cc891d8f4b44823c6523870e161e6); the current arXiv revision is v1. All 14 PDF pages were read, including references, both finite-difference derivations, the local-averaging proof, FSDP-vs-DP argument, detailed cost appendix, equations, figures, and tables. Rendered PDF inspection covered the central HVP/theorem pages, all systems/block-error tables, the 120B and Pythia spectral figures, and both appendix proof/cost pages; anchors use physical PDF pages. Contradiction and negative-evidence checks explicitly covered exactness, Theorem 4.1/proof correspondence, stochastic-gradient pairing, runtime denominator, unequal-batch comparisons, block-error denominators and downstream scope, Lanczos resolution/ghosts, unsupported memorization/hallucination extrapolation, bf16-vs-storage precision, 10^12+ scaling, and reproducibility gaps. Competitor research used three independent families: mechanism+task (FSDP/finite-difference HVP and LLM SLQ), evaluation+baseline (HessFormer, PyHessian, EK-FAC, K-FAC, GPTQ), and novelty/cited-predecessor (neural Hessian density and SLQ error theory). Every competitor record was checked on the listed official arXiv, OpenReview, or proceedings page on 2026-08-23, with current revision/proceedings status recorded; no title-only or secondary-source record is included. Confidence is high for textual/equation/table correspondence and calibrated lower for runtime portability and empirical replication because no code, hardware access, or reruns were available."
+}

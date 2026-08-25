@@ -1,0 +1,291 @@
+{
+  "stable_id": "arxiv:2604.06169",
+  "reading_depth": "verified",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2604.06169",
+    "pdf_sha256": "de425cc8f80f25d1e0d428fc99c0b9117dbae4233545de96c6354a590f59fbe3",
+    "text_sha256": "9e95ea69f9eff51eb7a843d2fa19ceceedc244eab4a7e0b017780ea2186714f8",
+    "page_count": 20,
+    "extracted_at": "2026-08-23T09:56:33.148408+00:00",
+    "review_pass": "secondary-verified-v1"
+  },
+  "question": "Can a pretrained autoregressive Transformer acquire scalable test-time memory without replacing attention or adding a standalone recurrent layer, by updating existing MLP output projections with a chunkwise objective that stores information useful for future-token prediction?",
+  "key_findings": [
+    {
+      "claim": "In-Place TTT reuses each selected gated-MLP down-projection as the fast-weight state while keeping the up and gate projections fixed during inner test-time adaptation, so the adaptive state is drawn from parameters already present in the pretrained architecture.",
+      "evidence": "For intermediate activations Z = phi(H W_gate^T) odot (H W_up^T), the method applies O = Z W_down^T and updates only W_down. In the reported pretrained-model configurations, the mechanism is enabled in every sixth MLP layer and adds a learned depthwise causal Conv1D plus a dense target projection; those new components are initialized to make the first update approximately zero.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "3.1, Repurposing MLP Blocks for In-Place Adaptation"},
+        {"page": 19, "section": "C.3, model configuration"},
+        {"page": 20, "section": "C.3, Initialization of In-Place TTT Modules"}
+      ]
+    },
+    {
+      "claim": "The practical update is an additive outer product between a learned future-aware value and the current MLP activation, evaluated once per chunk rather than once per token.",
+      "evidence": "The target is V-hat = Conv1D(X_0) W_target and the loss is the negative Frobenius inner product. One gradient step therefore gives W_down^(i) = W_down^(i-1) + eta V-hat_[i]^T Z_[i]. The paper reports that chunks of 512 or 1,024 perform best in its 1.7B ablation, with 1,024 preferred for efficiency.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "3.1, Efficient Adaptation with Chunk-Wise Updates"},
+        {"page": 5, "section": "3.2, LM-Aligned Objective, Equation 1"},
+        {"page": 10, "section": "4.3, Impact of Chunk Size and Figure 3b"}
+      ]
+    },
+    {
+      "claim": "Theorem 1 proves a narrow induction-style logit effect for an exact next-token target, not a guarantee for the learned convolutional target or for the trained deep model.",
+      "evidence": "Under nearly orthogonal fixed token embeddings, positive expected key-query alignment, and zero expected contribution from all unrelated prior positions, the exact target v_t = e_(x_(t+1)) raises the correct logit by at least lambda_lr c_norm^2 c_align while bounding other expected logit changes by lambda_lr epsilon c_align. A reconstruction target only receives the latter bound on the correct logit. The implementation instead learns a localized combination of future tokens through Conv1D and W_target, for which no analogous theorem is supplied.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "3.3, setup and assumptions"},
+        {"page": 6, "section": "3.3, Theorem 1, Equations 2-3"},
+        {"page": 16, "section": "A, Theorem 1 restatement and proof"},
+        {"page": 17, "section": "A, Equations 14-16"}
+      ]
+    },
+    {
+      "claim": "The context-parallel pseudocode contains an unresolved inclusive-versus-exclusive prefix ambiguity that matters for the claimed strict causality.",
+      "evidence": "Section 3.4 correctly defines the state for chunk i using Delta S_i = sum_(j=1)^(i-1) Delta W_j. Algorithm 1 then writes S = Cumsum(Delta W) and applies W_down^(i-1) = W_down^(0) + eta S_i while annotating that it uses chunks less than i. A conventional inclusive cumsum includes Delta W_i; an exclusive scan or one-position shift is required but not stated in the pseudocode.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "3.4, Efficient Implementation with Context Parallelism"},
+        {"page": 7, "section": "3.4, Causality and Boundary Handling"},
+        {"page": 17, "section": "B, Algorithm 1, lines 9-12"}
+      ]
+    },
+    {
+      "claim": "After a 35B-token two-stage continuation of Qwen3-4B-Base, In-Place TTT helps most at long RULER contexts but is not uniformly better.",
+      "evidence": "Against the identically continued baseline, RULER average accuracy is 96.1 versus 96.6 at 4k, 95.6 versus 94.1 at 8k, 92.7 versus 92.1 at 16k, 89.3 versus 88.7 at 32k, 78.7 versus 74.3 at 64k, 77.0 versus 74.8 at 128k, and 43.9 versus 41.7 at the extrapolated 256k length. Thus the largest reported in-domain gain is 4.4 points at 64k, while 4k regresses by 0.5 point.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "4.1, Table 1"},
+        {"page": 8, "section": "4.1, Training and Evaluation; Results"},
+        {"page": 19, "section": "C.2, Table 6"}
+      ]
+    },
+    {
+      "claim": "The pretrained-model gains repeat on LLaMA-3.1-8B and Qwen3-14B, although those extensions are trained only at 32k and yield modest absolute improvements.",
+      "evidence": "After about 20B continuation tokens, LLaMA-3.1-8B improves from 81.6 to 83.7 at RULER-64k. Qwen3-14B improves from 67.9 to 70.6 at 64k and from 81.3 to 82.5 when 64k is combined with YaRN. Across their shorter lengths, gains range from 0.4 to 0.9 point.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "4.1, Table 2 and Extension to More Models"},
+        {"page": 19, "section": "C.2, Table 7"}
+      ]
+    },
+    {
+      "claim": "From-scratch 4B experiments show large relative gains on weak long-context baselines, alongside small regressions on two commonsense cells.",
+      "evidence": "With 120B training tokens at length 8,192, Full Attention plus In-Place TTT raises RULER-16k from 6.58 to 19.99 and SWA plus In-Place TTT raises RULER-8k from 9.91 to 26.80. However, Full Attention ARC-C falls from 33.19 to 32.34 and SWA PIQA falls from 72.58 to 72.03. Absolute RULER-16k remains 19.99 for Full Attention and 7.57 for SWA.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "4.2, Table 3 and Results"},
+        {"page": 18, "section": "C.2, Table 5"}
+      ]
+    },
+    {
+      "claim": "At 500M and 1.5B, the plotted sliding-window perplexity curves favor In-Place TTT through 32k, but the paper does not tabulate values, confidence intervals, or run-to-run variation.",
+      "evidence": "Figure 2 places the In-Place TTT curve below SWA, GLA, DeltaNet, and LaCT at both scales and shows continued improvement as context grows. The 500M model is trained for 20B tokens and the 1.5B model for 60B, both at 32,768-token sequences. The caption names the Pile, whereas the evaluation prose says the validation set comprises both Pile and Proof-Pile-2, leaving the plotted mixture ambiguous.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 9, "section": "4.2, Figure 2 and Evaluation"},
+        {"page": 18, "section": "C.2, Table 4"}
+      ]
+    },
+    {
+      "claim": "The component ablations support state capacity, intermediate chunk sizes, and both target modules, but the evidence is confined to one 1.7B RULER setup and is reported only as bar charts.",
+      "evidence": "Figure 3 shows RULER scores rising with more TTT-enabled layers; chunks 512 and 1,024 outperform 256 and 2,048; removing Conv1D is most damaging at long context, while removing W_target is damaging at short context. No uncertainty bars, seed count, or exact table accompanies these ablations.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 10, "section": "4.3, Figure 3 and ablation discussion"},
+        {"page": 19, "section": "C.3, model configuration"}
+      ]
+    },
+    {
+      "claim": "The reported systems overhead is small in the authors' H800 prefill plots, but the claim is not sufficient to establish end-to-end training or distributed-scan cost.",
+      "evidence": "Figure 4 compares prefill tokens per second and peak memory for 4B full-attention and 1,024-window SWA at 8k, 32k, and 128k with batch size one; TTT bars are close to their baselines. Exact measurements, communication volume, update-kernel breakdown, and training throughput are not tabulated, so the evidence supports only the shown inference configuration.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 10, "section": "4.3, Figure 4"},
+        {"page": 19, "section": "C.2, efficiency evaluation details"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Turn selected existing Transformer MLP down-projections into document-local fast weights, and update them after large chunks using a learned future-token target while retaining attention as the fine-grained token mixer.",
+    "mechanism": "For each chunk, MLP up/gate projections that are slow weights with respect to the inner update produce Z. The current W_down first produces the chunk output. A target V-hat is formed from token embeddings by a causal depthwise Conv1D and W_target, and the negative inner-product loss yields the additive update eta V-hat^T Z. Per-chunk deltas are intended to be combined with an exclusive prefix scan so context-parallel workers can construct each prior-chunk state. Fast weights reset at document boundaries; selected pretrained checkpoints are continuation-trained so the target modules and base model learn to use this state.",
+    "assumptions": [
+      "The existing MLP output projection has enough spare, trainable state capacity to store transient context without destroying its pretrained feed-forward function.",
+      "Attention continues to handle within-chunk dependencies, so delaying fast-weight updates until chunk boundaries does not remove essential fine-grained interactions.",
+      "A learned Conv1D over token embeddings and W_target reliably produces future-predictive values rather than a degenerate or high-variance update signal.",
+      "The prefix operation is exclusive even though Algorithm 1 writes an unqualified cumsum.",
+      "Document boundaries are known, independent examples should not share state, and resetting to W_down^(0) is the desired memory policy.",
+      "For Theorem 1, distinct token embeddings are approximately orthogonal, their norms have a common positive lower bound, matching key activations have positive expected inner product, and every unrelated update has zero expected contribution.",
+      "The single-block exact-next-token induction calculation is representative of the learned multi-layer, multi-token implementation.",
+      "Outer-loop continuation training can teach the model to exploit test-time updates without invalidating the claim of compatibility with pretrained architectures.",
+      "Clipping accumulated updates at inference preserves the useful memory signal while preventing numerical growth.",
+      "RULER and sliding-window perplexity are useful proxies for continual adaptation rather than only long-context retrieval and language modeling."
+    ]
+  },
+  "techniques": [
+    {"id": "mlp-down-projection-fast-weights", "role": "Repurposes an existing dense MLP parameter matrix as document-local adaptive memory."},
+    {"id": "future-token-value-target", "role": "Uses a learned local convolution and projection to place future-predictive information in the value side of each update."},
+    {"id": "outer-product-memory-update", "role": "Turns the negative inner-product objective into an additive V^T Z association update without an iterative optimizer."},
+    {"id": "apply-then-update-chunking", "role": "Preserves chunk-level causality while amortizing each weight update over hundreds of tokens."},
+    {"id": "exclusive-prefix-state-scan", "role": "Intends to construct every chunk's prior-update state in parallel across context workers."},
+    {"id": "near-zero-warm-start", "role": "Zero-initializes the convolution and sparsely initializes the target projection so a pretrained checkpoint initially behaves like the base model."},
+    {"id": "document-boundary-reset", "role": "Prevents memory leakage across independent sequences by restoring the pretrained down-projection."},
+    {"id": "fast-update-norm-clipping", "role": "Caps each Qwen3-4B inference delta at Frobenius norm 1e-5 to stabilize long contexts."},
+    {"id": "induction-logit-audit", "role": "Contrasts next-token and reconstruction targets through their expected effect on the correct continuation logit."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Qwen3-4B-Base, about 20B continuation tokens at 32k followed by about 15B at 128k with YaRN, In-Place TTT in every sixth MLP layer, evaluated with OpenCompass on RULER from 4k through 256k.",
+      "metric": "RULER average accuracy (%).",
+      "result": "In-Place TTT versus the identically continued baseline: 96.1/96.6 (4k), 95.6/94.1 (8k), 92.7/92.1 (16k), 89.3/88.7 (32k), 78.7/74.3 (64k), 77.0/74.8 (128k), and 43.9/41.7 (256k).",
+      "baseline": "Qwen3-4B-Base given the same two-stage continuation curriculum without In-Place TTT."
+    },
+    {
+      "setting": "LLaMA-3.1-8B and Qwen3-14B-Base, each continued for about 20B tokens at sequence length 32,768.",
+      "metric": "RULER average accuracy (%) at 4k, 8k, 16k, 32k, 64k, plus Qwen3-14B at 64k with YaRN.",
+      "result": "LLaMA improves 93.9->94.4, 92.1->93.0, 92.5->93.3, 91.1->91.7, and 81.6->83.7. Qwen3-14B improves 96.8->97.2, 95.0->95.7, 94.6->95.2, 90.7->91.2, 67.9->70.6, and 81.3->82.5 with YaRN.",
+      "baseline": "The same pretrained model family and continuation protocol without In-Place TTT."
+    },
+    {
+      "setting": "From-scratch 500M and 1.5B decoder models trained at length 32,768 for 20B and 60B tokens, respectively.",
+      "metric": "Sliding-window perplexity on a fixed final block as preceding context grows from 2k to 32k; the prose says Pile plus Proof-Pile-2, while the figure caption names Pile.",
+      "result": "The plotted In-Place TTT curve is lowest at both scales and continues decreasing through 32k; exact values and uncertainty are not tabulated.",
+      "baseline": "Sliding-window attention, GLA, DeltaNet, and LaCT on an SWA backbone."
+    },
+    {
+      "setting": "From-scratch 4B full-attention and SWA models, 120B tokens at sequence length 8,192.",
+      "metric": "HellaSwag, ARC-E, ARC-C, MMLU, PIQA, and RULER accuracy at 4k/8k/16k.",
+      "result": "Full Attention RULER changes 45.77->49.98, 38.09->43.82, 6.58->19.99; SWA changes 14.77->28.33, 9.91->26.80, 5.07->7.57. Full ARC-C changes 33.19->32.34 and SWA PIQA 72.58->72.03, the two reported regressions.",
+      "baseline": "Matched full-attention and sliding-window Transformer architectures without In-Place TTT."
+    },
+    {
+      "setting": "1.7B model on RULER-4k/8k/16k, varying enabled-layer frequency, chunk size 256/512/1,024/2,048, and removal of Conv1D and/or W_target.",
+      "metric": "RULER score in Figure 3.",
+      "result": "More state improves the shown scores; 512 and 1,024 are the best chunk choices; both target modules contribute, with Conv1D particularly important at long context. Values are plotted without a numeric table or uncertainty.",
+      "baseline": "Smaller fast-weight state, alternative chunk sizes, and three component-removal variants."
+    },
+    {
+      "setting": "Qwen3-4B-derived checkpoints on one NVIDIA H800, batch size one, full attention or manually substituted 1,024-token SWA, context 8k/32k/128k.",
+      "metric": "Prefill throughput in thousands of tokens per second and peak memory in GB.",
+      "result": "Figure 4 shows a small throughput reduction and small memory increase in each displayed pair; exact values and distributed communication costs are not reported.",
+      "baseline": "The corresponding full-attention or SWA checkpoint without In-Place TTT."
+    }
+  ],
+  "limitations": [
+    "[Author-stated] The theoretical result depends on approximate token-embedding orthogonality, positive key-query alignment, and zero expected interference from unrelated positions in a single induction-head-style setup.",
+    "[Author-stated] The implementation fixes a simple inner-product loss and additive update; richer losses and test-time optimizers are left for future work.",
+    "[Author-stated] Integration with efficient attention, linear-attention, and state-space backbones is proposed as future work rather than evaluated.",
+    "[Reviewer-inferred] 'Drop-in' means architecture-compatible warm-start, not training-free: the central Qwen result uses about 35B continuation tokens and the LLaMA/Qwen extensions about 20B each.",
+    "[Reviewer-inferred] The exact LM-aligned theorem does not cover the learned Conv1D/W_target target, multi-token mixtures, clipping, multiple adaptive layers, or finite-width optimization.",
+    "[Reviewer-inferred] Algorithm 1 does not state the exclusive scan needed to match the prose and avoid applying a chunk's own update to itself.",
+    "[Reviewer-inferred] The self-collected training mixture is described only by broad categories; mixture weights, deduplication, release status, and possible overlap with RULER-like synthetic tasks are not supplied.",
+    "[Reviewer-inferred] Main tables give no seed count, confidence interval, significance test, or training-run variance, making small 0.4-0.9 point gains hard to calibrate.",
+    "[Reviewer-inferred] The negative inner-product objective is unbounded and produces purely additive state growth; the only explicit stability control is a 1e-5 delta-norm clip for reported Qwen3-4B inference.",
+    "[Reviewer-inferred] Fast weights reset at document boundaries, so the experiments test bounded within-document adaptation rather than persistent learning from an unbounded experience stream.",
+    "[Reviewer-inferred] The efficiency evidence is a batch-one prefill bar chart on H800s and does not isolate scan communication, outer-loop training overhead, decoding latency, or exact numerical measurements.",
+    "[Reviewer-inferred] Long-context gains are evaluated mostly on RULER and perplexity; no downstream continual-domain adaptation, forgetting, robustness, or evidence-selection benchmark is tested.",
+    "[Reviewer-inferred] The paper predates and therefore cannot compare against Self-Guided TTT, which reports that randomly selected irrelevant spans can make test-time updates worse than the base model."
+  ],
+  "failure_modes": [
+    "An inclusive implementation of Algorithm 1's cumsum lets chunk i influence its own output, violating the advertised apply-then-update semantics.",
+    "Additive outer products can grow without bound or overwrite useful MLP behavior when sequences are long, correlated, or adversarial; clipping may then erase useful updates.",
+    "A large chunk delays memory availability, so a key and query inside the same chunk must be handled by attention rather than the new state.",
+    "The learned convolutional target can emphasize common or locally predictable tokens instead of information needed much later.",
+    "Updating on every span can store irrelevant context and degrade task performance when only a small part of a long document is evidence-bearing.",
+    "Repeated associations can dominate the dense state because the update has no explicit forgetting, normalization, orthogonalization, or interference control.",
+    "Incorrect document-boundary metadata either leaks memory between examples or resets useful cross-document knowledge.",
+    "The dense d_model-by-d_ff state and its prefix deltas can create communication or memory pressure at larger model, layer, worker, or chunk counts despite favorable single-node plots.",
+    "Continuation training on retrieval-like synthetic data can improve RULER while failing to transfer to open-ended long-horizon reasoning or continual learning.",
+    "Near-zero initialization protects the starting function but can leave the new target path undertrained or make adaptation sensitive to outer-loop learning-rate schedules."
+  ],
+  "reusable_insights": [
+    "Before adding a memory layer, audit whether an existing parameter block can be given a reversible fast-state interpretation.",
+    "For autoregressive memory, the value side of an association should encode what the key helps predict, not merely reconstruct the key itself.",
+    "Chunked online updates require an explicitly exclusive prefix scan; one indexing sentence is not enough to guarantee causality.",
+    "Separate architectural compatibility from adaptation cost: warm-starting a checkpoint can still require tens of billions of outer-loop tokens.",
+    "Report both absolute and relative long-context scores because large multipliers on a very weak baseline may still leave low usable accuracy.",
+    "Pair every fast-weight method with disabled-update, random-update, irrelevant-span, and update-norm controls to distinguish memory from extra training capacity.",
+    "Bounded additive memory needs an explicit retention, normalization, or stability policy, especially beyond the training context length.",
+    "Benchmark evidence selection and interference, not only retrieval length, when claiming continual adaptation.",
+    "Publish exact system measurements and scan conventions; plots alone cannot establish distributed scalability."
+  ],
+  "open_questions": [
+    "Does an implementation with a rigorously exclusive scan reproduce all reported numbers, and what does the released code actually do at line 11 of Algorithm 1?",
+    "How much of the gain remains when fast updates are disabled at evaluation after the same continuation training?",
+    "Can the learned future-token target be given a theorem that covers finite chunks, multi-token convolution, clipping, and multiple adaptive layers?",
+    "What forgetting or normalization rule prevents destructive state growth without sacrificing long-range recall?",
+    "Can evidence-selective updates outperform indiscriminate chunk updates on LongBench-v2, LongBench-Pro, and adversarial distractor contexts?",
+    "Do gains persist on held-out natural long documents when retrieval-like synthetic data and benchmark families are excluded from training?",
+    "What are the exact training, prefill, decoding, memory, and interconnect costs at 14B and larger scales under tensor and context parallelism?",
+    "Can arbitrary public checkpoints gain at test time with little or no outer-loop continuation, or is meta/continuation training essential?",
+    "How do update frequency, state rank, document length, and model depth jointly determine interference and capacity?",
+    "Does in-place adaptation improve real continual-domain learning without catastrophic forgetting across documents?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2407.04620",
+      "title": "Learning to (Learn at Test Time): RNNs with Expressive Hidden States",
+      "url": "https://arxiv.org/abs/2407.04620v4",
+      "relationship": "foundational-direct-predecessor",
+      "difference": "TTT-Linear and TTT-MLP make a learned model the recurrent hidden state and replace sequence-model layers, reaching 125M-1.3B scale. In-Place TTT retains attention and reuses a pretrained MLP projection, trading the predecessor's standalone expressive state for checkpoint compatibility and much larger chunks.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v4 (2025-08-31)"
+    },
+    {
+      "canonical_id": "arxiv:2505.23884",
+      "title": "Test-Time Training Done Right",
+      "url": "https://arxiv.org/abs/2505.23884v1",
+      "relationship": "direct-large-chunk-baseline",
+      "difference": "LaCT already advocates extremely large 2K-to-1M-token updates, nonlinear state up to 40% of parameters, and sophisticated online optimizers across language, images, and video. In-Place TTT's distinct contribution is to place the state in existing MLP down-projections and use a future-token target with attention still present; large-chunk efficiency alone is not new.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 (2025-05-29)"
+    },
+    {
+      "canonical_id": "arxiv:2512.23675",
+      "title": "End-to-End Test-Time Training for Long Context",
+      "url": "https://arxiv.org/abs/2512.23675v2",
+      "relationship": "closest-standard-transformer-and-ntp-predecessor",
+      "difference": "TTT-E2E already uses a standard sliding-window Transformer, compresses the test context into weights with next-token prediction, and meta-learns an initialization; at 3B/164B tokens it reports constant-length latency and 2.7x speed over full attention at 128K. In-Place TTT updates only existing MLP down-projections with a closed-form learned target and demonstrates warm-start continuation of public full-attention checkpoints.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2 (2025-12-31)"
+    },
+    {
+      "canonical_id": "arxiv:2602.16704",
+      "title": "Reinforced Fast Weights with Next-Sequence Prediction",
+      "url": "https://arxiv.org/abs/2602.16704v1",
+      "relationship": "direct-objective-competitor",
+      "difference": "REFINE predates the target and explicitly replaces token-level NTP with entropy-selected multi-token rollouts, self-supervised sequence rewards, and GRPO for LaCT and DeltaNet fast weights across mid-, post-, and test-time training. In-Place TTT's objective is cheaper and closed form, but the broad idea of training fast weights on future-sequence usefulness is not unique to it.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 (2026-02-18)"
+    },
+    {
+      "canonical_id": "arxiv:2607.09415",
+      "title": "Self-Guided Test-Time Training for Long-Context LLMs",
+      "url": "https://arxiv.org/abs/2607.09415v1",
+      "relationship": "subsequent-direct-long-context-competitor",
+      "difference": "S-TTT adapts pretrained Qwen3-4B-Thinking and Llama-3.1-8B-Instruct only on model-selected evidence spans using the standard LM objective, and reports that random spans hurt while oracle spans help on LongBench-v2. In-Place TTT is a trained architectural memory that updates every chunk efficiently; it does not address relevance selection, the failure highlighted by this later work.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1 (2026-07-10)"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The authors claim a practical first-style integration of TTT into pretrained LLMs by repurposing existing MLP down-projections, combining it with large chunkwise/context-parallel updates and a theoretically grounded objective aligned with next-token prediction rather than reconstruction.",
+    "evidence": "The paper supplies the W_down update, a simple induction-logit theorem, warm-start initialization, 4B-14B continuation experiments, from-scratch comparisons through 4B, and state/chunk/objective/system ablations. The central direct result is the 4.4-point RULER-64k gain for continued Qwen3-4B and large gains over weak from-scratch RULER baselines.",
+    "reviewer_inference": "The defensible novelty is the specific combination of reusing a pretrained MLP down-projection as fast state, learning a localized future-token value path, and scanning large chunk updates alongside unchanged attention. Large-chunk TTT is already established by LaCT; TTT-E2E already combines a standard Transformer with next-token test-time weight learning; and REFINE already trains fast weights for multi-token future usefulness. The paper should therefore avoid broad priority claims about pretrained-Transformer integration or LM-aligned fast-weight objectives. Its strongest remaining contribution is a checkpoint-compatible parameter placement and efficient closed-form implementation, subject to the unresolved exclusive-scan pseudocode and the substantial continuation-training requirement."
+  },
+  "confidence": 0.95,
+  "reviewer_notes": "Read and second-pass checked all 20 cached pages, including the full proof, Algorithm 1, every main table/figure, dataset and optimizer details, stability clipping, architectural frequency, initialization, and the LLM-use statement. The cached PDF is arXiv v1; its local PDF/text hashes and 20-page count were checked against fulltext_index. Figure 2 values, Figure 3 ablations, and Figure 4 systems results are not numerically tabulated, so no exact values were inferred from bar/line positions. The private training mixture and released code were not audited. Five direct competitor records were checked from their current official arXiv abstracts and submission histories on 2026-08-23; TTT-E2E and REFINE materially narrow the priority language, while S-TTT is a later competitor rather than prior art.",
+  "verification": {
+    "reviewer_id": "reviewer-2ad4f7c10e34",
+    "checked_at": "2026-08-23",
+    "passage_check": "A secondary pass rechecked every finding against the cited PDF page and section, including numeric transcription of Tables 1-3, Appendix Tables 4-8, theorem assumptions and proof, the exclusive-prefix prose, and Algorithm 1's cumsum indexing.",
+    "competitor_check": "Titles, canonical IDs, abstracts, current arXiv versions, version dates, and methodological differences were independently checked on official arXiv records for 2407.04620, 2505.23884, 2512.23675, 2602.16704, and 2607.09415; the target itself was excluded."
+  }
+}

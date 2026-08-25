@@ -1,0 +1,202 @@
+{
+  "stable_id": "arxiv:2402.03363",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2402.03363v1",
+    "pdf_sha256": "dea6cbb99132f7027b850df3ad86b9bea2a022d3ff1bfed126e81ded4703a79b",
+    "text_sha256": "be45a15a4f4197d6e39fad03930dd5ecfdc873c223ffc177d215553f3c37c359",
+    "page_count": 8,
+    "extracted_at": "2026-08-23T18:40:01.434845+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a sparse coordinate encoding coupled to a conventional ResNet-Transformer classifier learn to distinguish prime from composite integers across disjoint contiguous ranges, and what arithmetic structure appears in its false positives?",
+  "key_findings": [
+    {
+      "claim": "The reported classifier strongly favors recall of primes at the cost of a large composite-to-prime error rate.",
+      "evidence": "For training on integers 0 to 10^6 and testing on 10^6 to 3x10^6, Table 2 reports prime recall 0.9994 but prime precision 0.2704; composite recall is 0.7904, overall accuracy is 0.806, and AUC is 0.895. Thus the headline prime recall does not imply reliable primality decisions.",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.3, Table 2"
+        }
+      ]
+    },
+    {
+      "claim": "Errors concentrate on composites with few prime factors, especially semiprimes.",
+      "evidence": "The factor-count audit reports that 71.08% of composites with two prime factors are labeled prime, compared with 30.17%, 8.36%, and 1.50% for composites with three, four, and five prime factors. The authors also report that 97.94% of false positives persist across repeated evaluations of the test set.",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "4.3, false-positive analysis; Figure 7; Table 3"
+        }
+      ]
+    },
+    {
+      "claim": "The model reaches its best reported recall after seeing only a small resampled fraction of the training interval, but the experiment does not isolate the sparse encoding from the architecture or the ordered data construction.",
+      "evidence": "With 5% resampling per nominal epoch, Figure 4 places the recall peak around 3,000 to 4,000 iterations, before 5% of the one-million-integer training interval has been presented. Figure 5 reports little performance difference from full-data training over three epochs and describes overfitting in the full-data condition. No dense-encoding, arithmetic-algorithm, or matched-capacity ablation is reported.",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "3.2, resampling training strategy"
+        },
+        {
+          "page": 6,
+          "section": "4.3, Figures 4-5"
+        }
+      ]
+    },
+    {
+      "claim": "Performance is reported across several absolute offsets, but the study does not establish algorithmic extrapolation beyond the encoded finite span.",
+      "evidence": "The authors train and test on disjoint ranges around offsets 0, 10^8, and 10^12 and describe similar recall curves; a smaller 0-to-10^5 training interval converges more slowly and overfits. All encodings are nevertheless constrained to a three-million-element span by the fixed 150x150x150 coordinate capacity, and no evaluation changes the span or tests unbounded integer length.",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "3.1, highly sparse encoding"
+        },
+        {
+          "page": 6,
+          "section": "4.3, variations in training and testing scenarios"
+        },
+        {
+          "page": 7,
+          "section": "4.3, Figure 6"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Represent each integer position as a one-hot location in a large sparse four-dimensional tensor, then use a residual feature extractor and Transformer sequence model to predict prime versus composite labels under weighted binary cross-entropy.",
+    "mechanism": "A contiguous sequence of length L is mapped into an L-by-150-by-150-by-150 tensor with one nonzero coordinate per integer, stored as nonzero indices to reduce transfer cost. A ResNet extracts features and a Transformer models dependencies across sequences of normally 15 integers. Training draws a fresh 5% sample of a one-million-integer interval per nominal epoch, upweights primes in the loss, and evaluates recall on a disjoint two-million-integer interval. Additional runs shift the absolute interval or reverse the train/test direction, and false positives are stratified by number of prime factors.",
+    "assumptions": [
+      "A disjoint contiguous integer interval is an informative out-of-distribution test of learned primality rather than primarily a test of interpolation in a fixed positional code.",
+      "Prime and composite recall are sufficient primary metrics for an imbalanced task even though the intended decision problem also depends on precision, calibration, and computational cost.",
+      "The sparse coordinate uniquely represents the intended integer, including when an absolute offset is used, despite the paper's notation defining coordinates from the sequence index s.",
+      "Performance within a fixed three-million-coordinate span is informative about a method whose stated motivation concerns prime numbers more generally.",
+      "Conventional primality tests are not needed as efficiency or correctness baselines for the exploratory machine-learning claim."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "sparse-coordinate-one-hot-encoding",
+      "role": "Maps each integer or sequence position to one active cell in a 150-by-150-by-150 coordinate grid while storing only nonzero indices."
+    },
+    {
+      "id": "residual-sequence-classifier",
+      "role": "Combines a ResNet feature extractor with a Transformer so individual coordinate features and dependencies among consecutive integers can both influence classification."
+    },
+    {
+      "id": "class-weighted-binary-cross-entropy",
+      "role": "Penalizes missed primes more heavily to counter the decreasing density of primes in sequential integer data."
+    },
+    {
+      "id": "epoch-wise-five-percent-resampling",
+      "role": "Draws a new small subset of the training interval each nominal epoch to reduce computation and limit repeated exposure."
+    },
+    {
+      "id": "factor-count-error-stratification",
+      "role": "Groups false positives by the number of prime factors to reveal which composite structures are hardest for the classifier."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Train on integers 0 to 10^6; test on the disjoint interval 10^6 to 3x10^6; sequence length 15 and prime class weight 20",
+      "metric": "Per-class precision, recall, F1, overall accuracy, and AUC",
+      "result": "Prime precision/recall/F1 are 0.2704/0.9994/0.4257; composite precision/recall/F1 are 0.9999/0.7904/0.8829; overall accuracy is 0.806 and AUC is 0.895",
+      "baseline": "No deterministic primality-test or non-neural baseline is reported; the table is an absolute performance report"
+    },
+    {
+      "setting": "Same interval protocol with sequence length and positive-class weight varied",
+      "metric": "Prime and composite recall",
+      "result": "Weight 3 yields 0% prime recall and 100% composite recall; recall shifts at weight 5 and is described as broadly stable for weights 7 through 25, while sequence length 1 lowers composite recall",
+      "baseline": "Other sequence lengths and class weights within the same architecture"
+    },
+    {
+      "setting": "Five-percent resampling versus a conventional full-pass training strategy over three epochs",
+      "metric": "Testing recall over iterations",
+      "result": "Recall peaks around 3,000 to 4,000 iterations in the resampled condition, with little plotted difference from full-pass training; the full-pass curve later declines",
+      "baseline": "Training on 100% of the interval per epoch"
+    },
+    {
+      "setting": "Composite integers from 10^6 to 3x10^6 stratified by number of prime factors",
+      "metric": "Fraction incorrectly labeled prime",
+      "result": "71.08% for two factors, 30.17% for three, 8.36% for four, and 1.50% for five",
+      "baseline": "Comparison across arithmetic factor-count strata rather than a competing classifier"
+    },
+    {
+      "setting": "Disjoint train/test intervals at offsets 0, 10^8, and 10^12, plus reversed high-to-low and reduced-training-range configurations",
+      "metric": "Prime and composite recall curves",
+      "result": "The authors describe broadly similar behavior at the larger offsets and in the reversed configuration; training only on 0 to 10^5 converges in roughly 10 to 15 epochs and then overfits",
+      "baseline": "The main 0-to-10^6 training and 10^6-to-3x10^6 testing configuration"
+    }
+  ],
+  "limitations": [
+    "Author-stated: the 150-by-150-by-150 sparse coordinate grid limits every experiment to a span of approximately three million integers because of memory capacity.",
+    "Author-stated: prime precision is only 0.2704 and about 20% of composites are falsely labeled prime in the main test, with semiprimes especially difficult.",
+    "Author-stated: an epoch means a random 5% subset rather than a conventional full pass, which makes the headline claim of convergence before one epoch easy to misread.",
+    "Reviewer-identified: the paper supplies no sieve, Miller-Rabin, deterministic primality test, lookup, Fourier-feature, or simple tabular baseline, so it cannot support a computational advantage claim.",
+    "Reviewer-identified: the absolute integer, within-sequence position, and offset semantics of the encoding are underspecified; the equations map s itself to coordinates and leave unclear how offset-shifted integers remain distinguishable.",
+    "Reviewer-identified: train/test data are contiguous ordered integers, and there are no random held-out residues, adversarial pseudoprimes, larger coordinate spans, or length extrapolation tests that would separate algorithm learning from finite-domain regularities.",
+    "Post-publication status: the current arXiv record states that the work was withdrawn after further analysis found the proposed direction did not lead to meaningful or valid conclusions; the cached source reviewed here is the still-available official v1 PDF."
+  ],
+  "failure_modes": [
+    "Class weighting can obtain near-perfect prime recall by shifting the threshold toward predicting prime, while poor prime precision makes the classifier unsuitable as a primality oracle.",
+    "A positional one-hot code can encourage memorization or finite-range interpolation rather than a reusable divisibility algorithm.",
+    "A model may exploit the local density of primes or correlations among neighboring sequence elements and fail on randomly permuted integers or distant scales.",
+    "Semiprimes and other composites with few factors resemble primes under weak learned heuristics, producing the observed concentrated false-positive pattern.",
+    "The fixed coordinate grid grows with the represented integer span, so memory cost can dominate well before the method approaches cryptographically relevant integers.",
+    "Ambiguous offset handling can silently make nominally different absolute ranges share the same encoded positions, invalidating an extrapolation interpretation."
+  ],
+  "reusable_insights": [
+    "For imbalanced algorithmic classification, report precision-recall tradeoffs and false-positive structure rather than highlighting only recall on the rare class.",
+    "Stratifying errors by mathematically meaningful hardness variables, such as factor count or smallest factor, can reveal the heuristic a model has learned.",
+    "A claim that a network learned an algorithm needs tests that expand input length or numeric range without expanding a lookup-like representation.",
+    "Encoding ablations should compare positional one-hot, digit, residue, Fourier, and raw scalar features at matched capacity and compute.",
+    "Withdrawal metadata is substantive evidence: downstream research ideas should treat the empirical direction as a cautionary test case, not a positive result awaiting scale."
+  ],
+  "open_questions": [
+    "Does the reported model beat a constant-threshold classifier at matched prime recall once precision-recall curves are compared over the full test interval?",
+    "What information about the absolute integer survives the sparse encoding when training and test intervals use nonzero offsets?",
+    "Would performance persist on uniformly sampled integers, pseudoprimes, products of two large primes, and spans far larger than the training coordinate grid?",
+    "Which result or analysis motivated the authors' later withdrawal, and can an independently reproduced pipeline identify the exact invalidating mechanism?",
+    "Can a compact minimum-description network discover a genuine primality program from examples without a representation whose size scales linearly with the finite domain?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2304.01333",
+      "title": "Classification of integers based on residue classes via modern deep learning algorithms",
+      "url": "https://arxiv.org/abs/2304.01333",
+      "relationship": "direct prior task and feature-engineering control",
+      "difference": "Wu et al. classify residues modulo small integers and show that feature space, rather than deeper CNN/RNN/Transformer architectures, controls success; their Fourier-basis linear regression reaches exact residue classification, providing the kind of interpretable arithmetic baseline missing from the primality study.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2308.12290",
+      "title": "Integer Factorisation, Fermat & Machine Learning on a Classical Computer",
+      "url": "https://arxiv.org/abs/2308.12290",
+      "relationship": "concurrent arithmetic-learning alternative",
+      "difference": "Blake reduces Fermat-style factorization to a binary classification problem and synthetically generates prime-derived training data, but explicitly frames the experiments as falling short of a practical scalable factorization algorithm; it targets useful factors rather than high recall on bounded primality labels.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2409.12446",
+      "title": "Neural Networks Generalize on Low Complexity Data",
+      "url": "https://arxiv.org/abs/2409.12446",
+      "relationship": "subsequent theoretical competitor",
+      "difference": "Chatterjee and Sudijono prove that a minimum-description-length ReLU interpolator can generalize on primality sampled uniformly from 1 to N because primality has a short program; this is a theoretical existence result tied to description length, not evidence that an ordinary sparsely encoded trained network discovers that program.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v6"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims a novel highly sparse encoding integrated with conventional neural networks for prime/composite classification, rapid convergence, and a factor-structured analysis of persistent false positives.",
+    "evidence": "The v1 experiments provide per-class metrics over several finite contiguous ranges and stratify composite errors by prime-factor count, but do not include encoding ablations, arithmetic baselines, scaling tests, or uncertainty estimates.",
+    "reviewer_inference": "The most defensible novelty is the finite-range error audit showing that semiprimes dominate false positives. The broader suggestion that the system learns a meaningful prime-number model is not supported and is further undermined by the authors' later withdrawal notice stating that the direction did not yield meaningful or valid conclusions."
+  },
+  "confidence": 0.58,
+  "reviewer_notes": "The primary reading used the official versioned v1 PDF because the unversioned arXiv PDF is unavailable after withdrawal. Quantitative statements are author-reported unless labeled reviewer-identified. Competitor titles, abstracts, and versions were checked on their primary arXiv records on 2026-08-23. The withdrawal statement comes from the current primary arXiv metadata, not from the v1 PDF, and materially lowers confidence in causal or scaling interpretations."
+}

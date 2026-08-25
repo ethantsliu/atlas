@@ -1,0 +1,396 @@
+{
+  "stable_id": "arxiv:2604.18002",
+  "reading_depth": "verified",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2604.18002",
+    "pdf_sha256": "d962028f6782d287b96b4f0d790b7d45231c7a73676592f7e961bac947747bd3",
+    "text_sha256": "76514430effd552dda7b868dc4c5dd26c681733b2a2482bfbd110c549591df79",
+    "page_count": 22,
+    "extracted_at": "2026-08-23T09:53:01.439973+00:00",
+    "review_pass": "secondary-verified-v1"
+  },
+  "question": "Can a reasoning language model learn which of its own KV-cache blocks to evict, jointly with token generation and from the same outcome reward, while maintaining accuracy under a fixed periodic memory budget?",
+  "key_findings": [
+    {
+      "claim": "NGC turns per-layer KV-cache retention into a stochastic policy action parameterized by the model's existing attention scores.",
+      "evidence": "At a fixed cadence, the last five queries score prefix keys, scores are averaged across heads/queries and pooled into contiguous 32-token blocks, and Gumbel top-k samples a fixed-size retained subset independently in every transformer layer. No new policy parameters are introduced.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "4.1 Grow-then-evict dynamics"},
+        {"page": 6, "section": "4.2 Attention-parameterized eviction"},
+        {"page": 7, "section": "4.3 Gumbel-top-k"}
+      ]
+    },
+    {
+      "claim": "Token and eviction actions receive the same group-relative binary task advantage, but the amount and timing of memory reduction are manually fixed rather than learned.",
+      "evidence": "The objective sums token and eviction policy-gradient terms with a shared Dr. GRPO advantage. Yet cadence, per-round eviction fraction, block size, and curriculum are external hyperparameters; the resource constraint enters by construction, not through a learned cost tradeoff.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "3 Resource-use objective and 4.1 dynamics"},
+        {"page": 8, "section": "4.4 Token policy gradient"},
+        {"page": 9, "section": "Eviction policy gradient and total objective"},
+        {"page": 10, "section": "4.6 Eviction-rate curriculum"}
+      ]
+    },
+    {
+      "claim": "The described replay construction reproduces the state-shifted context seen during rollout and keeps eviction decisions on the autograd graph.",
+      "evidence": "Because evicted tokens were unavailable to later queries, ordinary causal-mask rescoring would be off-policy. The construction uses per-layer, query-dependent visibility masks and recomputes the relevant Q/K features in the replay forward pass, so the derivation permits gradients from eviction log-probabilities to reach all model parameters. The paper does not release a numerical replay-equivalence test, so this verifies the stated construction rather than an external implementation.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "Figure 2 replay masks"},
+        {"page": 9, "section": "4.5 Computing rollout log-probabilities"},
+        {"page": 19, "section": "Figure 9 autograd routing"},
+        {"page": 21, "section": "A.3 per-layer replay-mask implementation"}
+      ]
+    },
+    {
+      "claim": "The claim that replay masks add negligible overhead is not established by a measured systems comparison.",
+      "evidence": "The implementation constructs dense Boolean B-by-T-by-T masks separately for every layer because visibility is query-dependent. The paper reports no training wall-clock, peak total GPU memory, attention-kernel efficiency, or comparison against standard Dr. GRPO, so 'no additional overhead' is an algorithmic assertion rather than a systems result.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "Replay-step overhead claim"},
+        {"page": 21, "section": "A.3 dense per-layer 2D masks"}
+      ]
+    },
+    {
+      "claim": "On Countdown at 2.4x reported peak-cache reduction, NGC substantially beats the four inference-only heuristics.",
+      "evidence": "Pass@1 is 49.6% for NGC versus 21.2% KeyDiff, 7.8% SnapKV, 0.2% StreamingLLM, and 0.1% KNorm, while the full-cache ceiling is roughly 64%. Error bars are one standard error, but independent training seeds are not reported.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 11, "section": "5.2 Countdown and Figure 3"}
+      ]
+    },
+    {
+      "claim": "Countdown ablations show that correct state replay and an explicit eviction policy gradient both matter in this implementation.",
+      "evidence": "Targeted KV Dropout, which trains with eviction but naively rescored causal context, reaches 2.5% and collapses near step 100; replay masks with token log-probabilities but no eviction loss reach 35.7%; full NGC reaches 49.6%. This isolates two components but not the comparison to prior learned compression training.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 12, "section": "5.2.2 Ablations and Figure 4"},
+        {"page": 13, "section": "Figure 5 training dynamics"}
+      ]
+    },
+    {
+      "claim": "Budget-aware interoception improves accuracy at aggressive caches, but it assumes the deployment budget is known and encoded in the prompt.",
+      "evidence": "Adding an eviction-rate tag during training and testing produces an 8-13 point gain at strict budgets and extrapolates below the minimum training cache. This is useful conditional control, not autonomous budget discovery or adaptation to unknown resource pressure.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 12, "section": "5.3 Budget-aware interoception setup"},
+        {"page": 13, "section": "Figure 6 interoception results"}
+      ]
+    },
+    {
+      "claim": "On held-out math competitions, NGC's pass@32 curves dominate the four heuristic baselines at the tested aggressive settings, but the evidence has no uncertainty and only one 1.5B model.",
+      "evidence": "At 50% eviction per round, approximate Figure 7 values are 70% on AMC23, 61% on AMC25, and 21.5% on AIME25 for NGC, with every heuristic lower. Figure 8 shows a favorable 2-3x tradeoff and nonmonotonic AIME behavior at more aggressive ratios. No seed bars or significance tests accompany these small-benchmark pass@32 estimates.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 14, "section": "5.4 Setup and Figures 7-8"},
+        {"page": 15, "section": "Math results"},
+        {"page": 20, "section": "Table 2 DAPO-17k hyperparameters"}
+      ]
+    },
+    {
+      "claim": "The reported average peak-cache-reduction ratio is confounded by method-dependent completion length.",
+      "evidence": "Its numerator uses prompt plus the no-eviction baseline's completion length, whereas its denominator uses the evaluated method's own completion length. A method that generates shorter or longer reasoning receives a different ratio even under the same cache rule, so models are not matched on generated-token budget.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 10, "section": "5.1 Metrics and peak-cache formula"},
+        {"page": 11, "section": "Countdown 2.4x setting"}
+      ]
+    },
+    {
+      "claim": "The baseline comparison mixes training regimes and omits the closest learned and RL-guided predecessors.",
+      "evidence": "NGC is trained with cache deletion, whereas the four reported heuristics are applied only at inference to a full-cache-trained model. This does not isolate the proposed discrete policy action from generic compression-aware exposure or additional training compute. DMS, Breadcrumbs, DMC, MEMENTO, and especially RLKV are absent: RLKV v1 predates NGC by more than six months and already uses GRPO outcome rewards from generated reasoning to optimize per-head full-versus-local-cache gates, although it freezes the LM, adds an L1 sparsity penalty, and performs offline head selection rather than native per-round token eviction.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 10, "section": "5.1 Baselines"},
+        {"page": 11, "section": "5.2.1 Main results"},
+        {"page": 14, "section": "5.4 Mathematical reasoning setup"},
+        {"page": 16, "section": "References begin; RLKV is absent"}
+      ]
+    },
+    {
+      "claim": "NGC evaluates a KV-memory proxy but not practical inference efficiency.",
+      "evidence": "There are no tokens/s, time-to-first-token, latency, batch-throughput, total GPU-memory, wall-clock, energy, or FLOP measurements. Blockwise selection is said to align with paged caches, but the paper explicitly focuses on algorithmic rather than hardware optimization.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 7, "section": "Block-level eviction and hardware discussion"},
+        {"page": 10, "section": "5.1 Metrics"},
+        {"page": 15, "section": "6 Conclusion"}
+      ]
+    },
+    {
+      "claim": "The meta-token compression extension is conceptual and not empirically validated.",
+      "evidence": "The appendix explains forced emission of a special token and argues that task reward can pressure its KV state to summarize evicted context. No experiment measures accuracy, compression, information retention, or comparison to gist/memento-style summaries, so the claim that this capability comes 'for free' remains a hypothesis.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 21, "section": "A.4 Compression via Meta-Tokens"},
+        {"page": 22, "section": "Figure 10 and implementation"}
+      ]
+    },
+    {
+      "claim": "Despite the title's language, this is not catastrophic-forgetting or continual-learning evidence.",
+      "evidence": "'Forgetting' means irreversible removal of within-generation KV state. The model is trained on one task distribution at a time and evaluated after training; there are no sequential task updates, old-task retention, forward transfer, rehearsal, or model-parameter forgetting metrics.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "3 Resource-use problem and 4 Neural Garbage Collection"},
+        {"page": 11, "section": "Countdown experiment"},
+        {"page": 14, "section": "DAPO-17k experiment"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Make KV retention a native stochastic action of the reasoning policy so outcome reward trains both what the model says and which past internal states it preserves.",
+    "mechanism": "Every delta tokens, recent-query attention produces per-layer scores for alive prefix keys. Scores are averaged into fixed blocks; Gumbel top-k samples the retained blocks during training and greedy top-k is used at test. Dr. GRPO applies one group advantage to token and eviction log-probabilities. Per-layer replay masks reconstruct exactly which keys each rollout query saw and recompute live Q/K features for policy gradients. A staircase curriculum increases eviction, and an optional prompt tag conditions behavior on a known budget.",
+    "assumptions": [
+      "Attention from the five latest queries is a useful initialized parameterization of long-term cache utility.",
+      "Binary outcome reward supplies enough credit to learn both reasoning tokens and many per-layer subset decisions.",
+      "Fixed cadence, block size, and eviction fraction adequately specify the external resource budget.",
+      "Per-layer replay masks exactly reproduce rollout state and can be processed without prohibitive systems overhead.",
+      "Group-relative Dr. GRPO advantages remain stable with interleaved token and eviction actions and no KL penalty.",
+      "A curriculum from mild to aggressive eviction avoids destructive early state shifts.",
+      "The memory budget is known at inference for interoceptive conditioning.",
+      "Performance on arithmetic and competition math with one 1.5B Qwen-derived model reflects broader resource-management capability."
+    ]
+  },
+  "techniques": [
+    {"id": "grow-then-evict-state-dynamics", "role": "Bounds steady-state KV size through fixed periodic deletion."},
+    {"id": "attention-as-eviction-policy", "role": "Repurposes existing Q/K attention weights to score cache survival without new parameters."},
+    {"id": "blockwise-gumbel-top-k", "role": "Samples a tractable fixed-cardinality retained subset with explicit log-probability."},
+    {"id": "joint-token-memory-policy-gradient", "role": "Uses one outcome advantage for generation and per-layer eviction decisions."},
+    {"id": "per-layer-replay-attention-mask", "role": "Reconstructs state-shifted rollout context during batched policy rescoring."},
+    {"id": "eviction-rate-curriculum", "role": "Stages increasingly aggressive cache deletion during RL."},
+    {"id": "budget-interoception-tag", "role": "Conditions reasoning on an explicitly supplied eviction rate."},
+    {"id": "forced-meta-token", "role": "Proposes an untested special-token channel for consolidating soon-to-be-evicted state."}
+  ],
+  "evaluations": [
+    {
+      "setting": "DeepSeek-R1-Distill-Qwen-1.5B trained 250 steps on Countdown; 327,680 training problems, 1,024 held-out tests, cadence 256, 32 prompts by 16 rollouts, maximum completion 1,024",
+      "metric": "Pass@1 and average peak KV-cache reduction",
+      "result": "At reported 2.4x reduction NGC reaches 49.6%, versus KeyDiff 21.2%, SnapKV 7.8%, StreamingLLM 0.2%, and KNorm 0.1%",
+      "baseline": "Four inference-only heuristics on a separately trained full-cache model and a roughly 64% full-cache ceiling"
+    },
+    {
+      "setting": "Countdown training ablations",
+      "metric": "Pass@1, reward trajectory, and gradient norm",
+      "result": "Targeted KV Dropout reaches 2.5% and collapses; replay masks without the eviction policy gradient reach 35.7%; full NGC reaches 49.6%",
+      "baseline": "No-eviction training, incorrect causal replay, and token-only objective"
+    },
+    {
+      "setting": "Budget-aware Countdown evaluation beyond the minimum training cache",
+      "metric": "Pass@1 as a function of peak cache size",
+      "result": "Putting the eviction rate in the prompt improves aggressive-budget accuracy by roughly 8-13 percentage points",
+      "baseline": "Identically trained NGC without a budget tag"
+    },
+    {
+      "setting": "DeepSeek-R1-Distill-Qwen-1.5B trained 469 steps on DAPO-17k; cadence 350, 256 prompts by 8 rollouts, train max 1,050 and evaluation max 3,850 tokens",
+      "metric": "Pass@32 on AMC 2023, AMC 2025, and AIME 2025 across cache reductions",
+      "result": "NGC leads all four heuristics at 50% per-round eviction and remains near the full-cache ceiling for several 2-3x reduction points; no uncertainty is reported",
+      "baseline": "Full-cache ceiling and the four inference-only heuristics"
+    },
+    {
+      "setting": "Steady-state cache analysis",
+      "metric": "Maximum KV entries immediately before eviction",
+      "result": "The per-layer recurrence c_(t+1)=(1-epsilon)c_t+delta converges to delta/epsilon and total cache to L delta/epsilon",
+      "baseline": "Unbounded linear cache growth without eviction"
+    }
+  ],
+  "limitations": [
+    "Only one DeepSeek-R1-Distill-Qwen-1.5B model is evaluated; no larger model, alternative architecture, or independent family is tested.",
+    "Tasks are confined to Countdown and math competitions; no language modeling, retrieval, coding, science QA, dialogue, tool use, or multimodal context is evaluated.",
+    "No independent training seeds, statistical tests, or math-benchmark uncertainty intervals are reported; Countdown only shows one-standard-error bars of unspecified decomposition.",
+    "Direct learned compression and RL-guided competitors are omitted, including DMC, DMS, Breadcrumbs, MEMENTO, and the pre-existing outcome-reward method RLKV; all reported baselines are training-free heuristics applied to a full-cache-trained model.",
+    "The peak-cache ratio depends on method-specific completion length and does not match generated-token budgets.",
+    "No latency, throughput, wall-clock, total-memory, energy, or FLOP measurement validates practical efficiency.",
+    "The system learns which state to evict but not cadence or eviction quantity; the core resource allocation remains hand specified.",
+    "Interoception presumes a known budget and exposes it in the prompt.",
+    "Dense per-layer replay masks may add significant training memory or kernel overhead despite the unmeasured negligible-overhead claim.",
+    "The special compression meta-token is proposed without an experiment.",
+    "The work does not study catastrophic forgetting, sequential parameter learning, forward transfer, or replay across tasks."
+  ],
+  "failure_modes": [
+    "A block containing a low-attention premise can be permanently removed before a later reasoning branch needs it.",
+    "Block averaging can hide one crucial token among unimportant neighbors or protect an entire block for one token.",
+    "Separate layer decisions can create cross-layer state inconsistency that outcome reward is too sparse to diagnose.",
+    "A fixed cadence and fraction can be too aggressive for long dependencies and too conservative for redundant stretches.",
+    "Group rewards can provide no eviction gradient when all sampled completions tie.",
+    "Greedy top-k at evaluation introduces a train/test action-selection shift from stochastic Gumbel sampling.",
+    "A policy trained on one reasoning distribution may retain the wrong features after a task or domain shift.",
+    "Prompted budget tags can be ignored, misparsed, or adversarially manipulated.",
+    "Reported compression can improve merely because eviction changes completion length rather than because the same computation uses less memory.",
+    "Dense replay masks can erase the theoretical cache savings during RL training."
+  ],
+  "reusable_insights": [
+    "When an action changes a model's future internal state, policy rescoring must replay that state transition rather than use a richer default context.",
+    "Reuse pretrained attention as an initialized control policy, but compare it against learned compression under matched training exposure.",
+    "Separate the decision of what to retain from the externally chosen amount and cadence of retention.",
+    "Report capability against peak KV bytes, generated tokens, latency, throughput, and total GPU memory on the same trajectories.",
+    "Conditioning a policy on a deployment budget can improve one model's Pareto frontier and extrapolation, provided the budget is reliably known.",
+    "Use old-domain retention and new-domain adaptation tests before calling a cache policy a general resource-management capability.",
+    "A learned consolidation token should be evaluated as a distinct compression channel, not inferred from its theoretical gradient path."
+  ],
+  "open_questions": [
+    "Does NGC beat RLKV, DMS, DMC, Breadcrumbs, and MEMENTO when every method receives matched compression-aware training, data, model, cache bytes, generated tokens, and wall-clock?",
+    "Can the policy jointly learn eviction amount and cadence under a Lagrangian or constrained-RL cost rather than a fixed environment schedule?",
+    "How much training time and total GPU memory do dense per-layer replay masks add at realistic context lengths?",
+    "Does an eviction policy trained on math transfer to code, retrieval, dialogue, and agent trajectories without catastrophic state-policy forgetting?",
+    "What uncertainty remains after multiple RL seeds and exact-binomial confidence intervals on AIME/AMC?",
+    "Can stochastic training and deterministic top-k inference be aligned or calibrated?",
+    "Does the proposed meta-token actually consolidate information, and how does it compare to gist tokens, Breadcrumbs, and MEMENTO summaries?",
+    "Can compression be evaluated at matched completion content/length so the peak-cache metric cannot be gamed by shorter reasoning?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2404.14469",
+      "title": "SnapKV: LLM Knows What You are Looking for Before Generation",
+      "url": "https://arxiv.org/abs/2404.14469v2",
+      "relationship": "Direct attention-based inference heuristic",
+      "difference": "SnapKV selects prompt KV positions per head from an observation window without fine-tuning and reports hardware speed/memory results; NGC learns recurrent generation-time, per-layer block eviction from task reward but lacks systems measurements.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2"
+    },
+    {
+      "canonical_id": "arxiv:2309.17453",
+      "title": "Efficient Streaming Language Models with Attention Sinks",
+      "url": "https://arxiv.org/abs/2309.17453v4",
+      "relationship": "Direct fixed-state inference baseline",
+      "difference": "StreamingLLM preserves sinks plus a recent window without training and demonstrates million-token streaming and speedup; NGC uses learned irreversible content selection for reasoning at finite horizons.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4, ICLR 2024"
+    },
+    {
+      "canonical_id": "arxiv:2406.11430",
+      "title": "A Simple and Effective L2 Norm-Based Strategy for KV Cache Compression",
+      "url": "https://arxiv.org/abs/2406.11430v4",
+      "relationship": "Direct key-statistic heuristic",
+      "difference": "KNorm is training-free, FlashAttention-compatible, and validated on language/retrieval tasks; NGC trains attention scores through outcome reward and is evaluated on reasoning only.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4, EMNLP 2024 extended version"
+    },
+    {
+      "canonical_id": "arxiv:2504.15364",
+      "title": "KeyDiff: Key Similarity-Based KV Cache Eviction for Long-Context LLM Inference in Resource-Constrained Environments",
+      "url": "https://arxiv.org/abs/2504.15364v4",
+      "relationship": "Direct diversity-based heuristic",
+      "difference": "KeyDiff uses key geometry without training, supports strict long prompts, and reports latency; NGC instead learns an attention-scored policy and wins on its reasoning tests after compression-aware RL.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v4, NeurIPS 2025"
+    },
+    {
+      "canonical_id": "arxiv:2403.09636",
+      "title": "Dynamic Memory Compression: Retrofitting LLMs for Accelerated Inference",
+      "url": "https://arxiv.org/abs/2403.09636v2",
+      "relationship": "Learned dynamic-compression predecessor",
+      "difference": "DMC learns head/layer-specific online compression through continued pretraining, covers 7B-70B models, and reports H100 throughput; NGC uses task-reward RL with discrete block eviction on one 1.5B model.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2, ICML 2024"
+    },
+    {
+      "canonical_id": "arxiv:2506.05345",
+      "title": "Inference-Time Hyper-Scaling with KV Cache Compression",
+      "url": "https://arxiv.org/abs/2506.05345v2",
+      "relationship": "Closest learned adaptive-eviction predecessor",
+      "difference": "Dynamic Memory Sparsification learns per-head delayed eviction in about 1,000 steps across multiple model families and evaluates equal memory reads/latency; NGC uses end-task policy gradients and exact state replay but does not compare against it.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2, NeurIPS 2025"
+    },
+    {
+      "canonical_id": "arxiv:2510.13797",
+      "title": "Breadcrumbs Reasoning: Memory-Efficient Reasoning with Compression Beacons",
+      "url": "https://arxiv.org/abs/2510.13797v3",
+      "relationship": "Learned reasoning-state compression predecessor",
+      "difference": "Breadcrumbs periodically writes learned compression beacons and trains them with joint distillation and RL; NGC directly deletes selected blocks using only outcome reward and relegates consolidation tokens to an untested appendix.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3"
+    },
+    {
+      "canonical_id": "arxiv:2604.09852",
+      "title": "MEMENTO: Teaching LLMs to Manage Their Own Context",
+      "url": "https://arxiv.org/abs/2604.09852v1",
+      "relationship": "Immediate priority threat published ten days earlier",
+      "difference": "MEMENTO teaches explicit block segmentation and dense summaries with two-stage SFT across Qwen, Phi, and Olmo at 8B-32B, plus vLLM throughput; NGC learns selective deletion end-to-end from outcome reward without summary supervision.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1, submitted 2026-04-10"
+    },
+    {
+      "canonical_id": "arxiv:2304.08467",
+      "title": "Learning to Compress Prompts with Gist Tokens",
+      "url": "https://arxiv.org/abs/2304.08467v3",
+      "relationship": "Priority-setting learned summary-token method",
+      "difference": "Gist tokens learn prompt compression through modified attention masks and instruction fine-tuning with measured FLOP/wall-time savings; NGC's main method evicts both prompt and generated state, while its gist-like token is only proposed conceptually.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3, NeurIPS 2023"
+    },
+    {
+      "canonical_id": "arxiv:2510.08525",
+      "title": "Which Heads Matter for Reasoning? RL-Guided KV Cache Compression",
+      "url": "https://arxiv.org/abs/2510.08525v3",
+      "relationship": "closest pre-existing outcome-reward cache method",
+      "difference": "RLKV v1 was submitted on 2025-10-09 and already used GRPO rewards from actual reasoning outcomes to learn which heads require full cache, then reported 20-60% reduction and end-to-end speedup. It freezes the language model, trains L-by-H continuous gates with an auxiliary L1 sparsity penalty, and discretizes them after training; NGC instead jointly updates the LM and samples per-round block survival as native actions using outcome advantage alone.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v3, revised 2026-05-27; priority established by v1"
+    },
+    {
+      "canonical_id": "arxiv:2512.12008",
+      "title": "Hold Onto That Thought: Assessing KV Cache Compression On Reasoning",
+      "url": "https://arxiv.org/abs/2512.12008v1",
+      "relationship": "pre-existing reasoning-cache benchmark and metric warning",
+      "difference": "This multi-model, eight-benchmark study evaluates decoding-time cache compression and shows that low cache budgets can lengthen or derail reasoning traces, so cache bytes alone can trade against extra generation compute. NGC's method-dependent completion-length peak-cache ratio does not neutralize that already documented confound.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2604.17935",
+      "title": "How Much Cache Does Reasoning Need? Depth-Cache Tradeoffs in KV-Compressed Transformers",
+      "url": "https://arxiv.org/abs/2604.17935v1",
+      "relationship": "same-day theoretical cache-reasoning antecedent",
+      "difference": "This paper was submitted 71 minutes before NGC and studies adaptive versus oblivious cache control through pointer-chasing bounds, explicitly labeling its strongest product lower bound conjectural. It does not learn an eviction policy, but it supplies theoretical resource-capability constraints that NGC's empirical fixed-budget analysis does not test.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    },
+    {
+      "canonical_id": "arxiv:2607.01237",
+      "title": "KARA: Efficient Reasoning LLM Serving via Sliding-Window KV Cache Compression",
+      "url": "https://arxiv.org/abs/2607.01237v2",
+      "relationship": "post-publication decoding-time systems competitor",
+      "difference": "KARA uses bidirectional scoring over a recent window, expands selected tokens into flexible chunks, and integrates the policy with PagedAttention in a vLLM-based serving system. It is heuristic rather than outcome-trained, but its explicit throughput implementation is a current systems comparison missing from NGC's cache-proxy-only evaluation.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v2, revised 2026-07-03"
+    },
+    {
+      "canonical_id": "arxiv:2608.14555",
+      "title": "Discovering KV Cache Eviction Policies via LLM-Guided Program Evolution",
+      "url": "https://arxiv.org/abs/2608.14555v1",
+      "relationship": "post-publication automated policy-discovery competitor",
+      "difference": "CacheCraft evolves executable eviction scorers and reports that its learned scoring family, rather than chunk structure, drives large RULER gains. Its resulting policy is a fixed prefill scorer rather than an online reasoning action, but it is a current counterexample to the dichotomy between hand-written heuristics and end-to-end weight training.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "v1"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "NGC is an end-to-end framework in which a model learns to reason and manage its KV cache from outcome reward alone, treating eviction as a native action and using replay masks for correct policy optimization.",
+    "evidence": "Prior work already provides training-free eviction, learned dynamic eviction/compression, learned reasoning summaries, and outcome-driven cache allocation. In particular, RLKV v1 predates NGC by more than six months and uses GRPO reasoning rewards to optimize full-versus-local-cache head gates, although it freezes the LM and adds an L1 resource penalty. MEMENTO predates NGC by ten days and narrows broad 'self-managed context' priority. The distinct checked contribution is therefore the shared outcome-only policy gradient over token generation and stochastic per-layer block survival, together with replay of the cache-induced state shift.",
+    "reviewer_inference": "The native discrete eviction action, LM-wide joint update, and replay-mask formulation appear meaningfully novel. The broad idea of learning cache use from outcome reward is not novel after RLKV, and 'resource use as a learned capability' remains broader than the evidence because eviction amount and cadence are externally fixed. A matched comparison against RLKV, DMS, DMC, Breadcrumbs, and MEMENTO with systems metrics is required before claiming a superior learned resource manager."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Independently re-read all 22 pages of arXiv:2604.18002v1, including every equation, Figures 1-10, Tables 1-2, references, the cache fixed-point proof, dense replay-mask construction, autograd routing, and untested meta-token appendix. Rendered PDF pages 11-14 were inspected directly to verify all plotted Countdown, ablation, interoception, AMC, and AIME values rather than relying on OCR. The cached PDF is byte-identical to https://arxiv.org/pdf/2604.18002v1 and has SHA-256 d962028f6782d287b96b4f0d790b7d45231c7a73676592f7e961bac947747bd3; the source locator and text hash remain exactly those in the generated full-text index. Fourteen version-pinned primary arXiv competitors were checked on 2026-08-23. This second pass materially narrows novelty because RLKV v1 already used reasoning-outcome RL for cache allocation, while preserving NGC's more specific claim to native stochastic token-block eviction with outcome-only joint LM updates and state-faithful replay.",
+  "verification": {
+    "reviewer_id": "reviewer-b3dc75367af9",
+    "checked_at": "2026-08-23",
+    "passage_check": "Checked every one of 22 PDF pages against the pinned v1 bytes; re-verified Equations 1-7, Figures 1-10, Tables 1-2, and Appendix A.1-A.4. Direct PDF rendering confirmed the 49.6/21.2/7.8/0.2/0.1 Countdown bars, the 2.5/35.7/49.6 ablation, the 8-13 point interoception statement, the plotted pass@32 math values, the delta/epsilon cache fixed point, and the B-by-T-by-T dense per-layer replay masks. The replay claim was qualified as a verified construction rather than an independently executed implementation.",
+    "competitor_check": "Checked official current arXiv histories and primary abstracts/full HTML for all 14 listed competitors on 2026-08-23, including versions SnapKV v2, StreamingLLM v4, KNorm v4, KeyDiff v4, DMC v2, DMS v2, Breadcrumbs v3, MEMENTO v1, Gist v3, RLKV v3, Hold Onto That Thought v1, Depth-Cache Tradeoffs v1, KARA v2, and CacheCraft v1. RLKV's v1 submission date and its GRPO-plus-L1 method were checked separately, repairing the prior novelty omission; post-publication entries are labeled rather than used for priority."
+  }
+}

@@ -1,0 +1,796 @@
+{
+  "stable_id": "arxiv:2202.07926",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2202.07926",
+    "pdf_sha256": "2632ee86a85673bae5f257d2b18cfce3425155ca7c08fc8d09e0f5c93ea6ec86",
+    "text_sha256": "acb3535853745cba69d2c0a9d58822029924920a27ec89d38bd7b5fa72b54631",
+    "page_count": 25,
+    "extracted_at": "2026-08-23T21:22:16.760105+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Does replacing automatic input differentiation with finite-difference residuals, and selecting local stencil radii from a signed-distance field near irregular boundaries, make PINNs more accurate, efficient, and reliable on PDEs in complex geometries?",
+  "key_findings": [
+    {
+      "claim": "HFD-PINN replaces automatic derivatives in the interior PDE residual with network evaluations on a finite-difference stencil, while retaining ordinary boundary penalties and optionally automatic derivatives at complicated boundaries.",
+      "evidence": "Equations 11-13 query the same coordinate MLP at neighboring points, multiply those predictions by a finite-difference constraint matrix, and minimize the squared discrete residual plus the boundary-condition loss. Algorithm 1 describes a background-mesh version and leaves the AD-versus-FD boundary choice to the practitioner.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "Section 2.3, Equations 11-13"},
+        {"page": 6, "section": "Algorithm 1 and Figure 3"}
+      ]
+    },
+    {
+      "claim": "The mesh-free-looking HFD-PINN-sdf variant still performs a local finite discretization at every sampled point and sets each stencil radius to a small fraction of the signed distance to the boundary.",
+      "evidence": "The method samples interior points, evaluates a five-point stencil, and defines the local interval by Delta x_i = alpha Phi(x_i) for alpha in [0.01, 0.05]. It avoids a global background mesh but does not avoid discretization, multiple neighbor evaluations, or geometry preprocessing for Phi.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Section 2.4, Equations 14-15 and Figure 4"},
+        {"page": 7, "section": "Equation 16 and Algorithm 2"}
+      ]
+    },
+    {
+      "claim": "The signed-distance convention is internally contradictory.",
+      "evidence": "Equation 14 assigns positive distance inside Omega and negative distance outside, and Figure 5 also labels the interior positive. The immediately following prose instead says Phi is positive on the exterior and negative on the interior. Because Equation 16 uses the signed value as a step, this is an operational, not cosmetic, ambiguity.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "Equation 14, Figure 4, and prose below it"},
+        {"page": 7, "section": "Figure 5 and Equation 16"}
+      ]
+    },
+    {
+      "claim": "The heat-transfer HFD objective printed in Equation 27 is not the squared residual of u_xx + u_yy - u_t = 0 and is unbounded below as written.",
+      "evidence": "The AD loss squares the combined residual, but the FD loss separately sums squared x- and y-second differences and then subtracts the squared forward-time difference. Minimization can therefore lower the objective by increasing the temporal difference, whereas a valid residual loss would square the sum D_xx u + D_yy u - D_t u.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 15, "section": "Section 3.3, Equations 25-27"}
+      ]
+    },
+    {
+      "claim": "The mixed-boundary objective in Equation 28 does not enforce its four boundary conditions separately and disagrees with the derivative stated in Equation 25.",
+      "evidence": "One squared term combines u(-2,y), u(2,y), u_y(x,-2), and u_y(x,2) before subtracting 2T0, so errors can cancel across unrelated boundaries. Equation 25 prints x-derivatives on the horizontal boundaries, while Equation 28 and the physical outward-normal condition use y-derivatives. No code is available to disambiguate the intended implementation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 15, "section": "Equations 25 and 28"}
+      ]
+    },
+    {
+      "claim": "The regular two-dimensional Poisson benchmark's claimed analytic solution has the opposite Laplacian sign from the printed source term.",
+      "evidence": "Equation 29 defines u_xx + u_yy = f with f = positive pi-squared times (i-squared plus j-squared) times each sine basis, while the stated true solution uses the same coefficients and sine basis. Taking its Laplacian produces the negative of that f. The displayed boundary equality also omits an explicit value, although the sine solution implies zero.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 17, "section": "Section 3.5, Equation 29"},
+        {"page": 19, "section": "Analytic-solution paragraph below Table 7"}
+      ]
+    },
+    {
+      "claim": "Tables 5 and 6 report exactly the same 24 numerical entries for two different hole geometries and experimental descriptions.",
+      "evidence": "Every AD loss, FD loss, boundary loss, hole loss, and data loss at 25, 64, and 100 collocation points is identical between the centered-hole table and the corner-hole table. The domains, hole radii, training descriptions, and displayed field solutions differ, making unacknowledged duplication or a reporting error substantially more plausible than independent equality.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 15, "section": "Table 5"},
+        {"page": 17, "section": "Table 6 and Section 3.4"}
+      ]
+    },
+    {
+      "claim": "The primary comparisons do not isolate derivative computation because AD-PINN samples random collocation points while HFD-PINN uses structured mesh points.",
+      "evidence": "The method and the Poisson experiment explicitly contrast random AD points with an m-by-m finite-difference grid. Figures 19 and 24 likewise depict different point constructions. Coverage regularity alone can alter approximation quality, so equal counts do not identify an FD-versus-AD causal effect.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "Algorithm 1 and Figure 4"},
+        {"page": 14, "section": "Figure 19"},
+        {"page": 17, "section": "Figure 24"},
+        {"page": 19, "section": "Section 3.5 comparison protocol"}
+      ]
+    },
+    {
+      "claim": "Equal collocation counts and optimizer iterations are not equal computational budgets, yet the paper makes efficiency claims without measuring compute.",
+      "evidence": "A two-dimensional central stencil requires multiple forward evaluations per residual point, higher-order compact and Crank-Nicolson schemes couple still more values, and AD incurs derivative-graph costs. The paper reports no wall-clock time, memory, forward/backward counts, hardware, preprocessing cost, or signed-distance computation cost.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 5, "section": "Equation 11"},
+        {"page": 8, "section": "Burgers comparison protocol"},
+        {"page": 10, "section": "Equations 19-20"},
+        {"page": 13, "section": "Equations 23-24 and conclusions from scheme comparison"},
+        {"page": 23, "section": "Conclusion efficiency claim"}
+      ]
+    },
+    {
+      "claim": "FD and AD residual losses are on sharply different numerical scales, but the study neither calibrates loss weights nor compares gradients under matched scaling.",
+      "evidence": "For Burgers, FD residuals remain about 1.1 to 1.9 while AD residuals range from 0.002 to 0.089; for Poisson, FD residuals are about 5,800 to 6,300 while AD residuals are 0.36 to 40. The loss formulas use unit or unspecified positive weights, so optimizer dynamics and boundary tradeoffs are confounded with derivative choice.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "Equation 13"},
+        {"page": 8, "section": "Table 1"},
+        {"page": 15, "section": "Table 5"},
+        {"page": 19, "section": "Table 7"}
+      ]
+    },
+    {
+      "claim": "The strongest low-data results are large on the reported examples, but their uncertainty and selection protocol are not recoverable.",
+      "evidence": "At 400 Burgers points, the table gives data errors 4.1e-4 for AD and 2.4e-4 for FD; at 400 Poisson points, 1.1e-2 versus 1.4e-4. Boxplots show only a small number of visible runs, while the text says merely 'several' repetitions and gives no run count, seeds, uncertainty definition, raw values, or statistical test.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "Table 1, Figure 6, and Section 3.1"},
+        {"page": 19, "section": "Table 7, Figure 29, and reported test errors"}
+      ]
+    },
+    {
+      "claim": "The meaning of 'Data loss' changes across experiments and the evaluation split is usually unspecified.",
+      "evidence": "Equation 17 defines relative L2 error at data points, some captions call plotted quantities MSE, Poisson uses 100 additional data points in the training loss and then reports a test error without identifying a disjoint set, and the irregular-domain section explicitly calls Data Loss test error. Only the corner-hole experiment clearly states t=1 training observations and t=0.5 test data.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "Equation 17 and Table 1"},
+        {"page": 12, "section": "Table 3 and validation-MSE prose"},
+        {"page": 17, "section": "Section 3.4 data split"},
+        {"page": 19, "section": "Section 3.5 data and test protocol"},
+        {"page": 22, "section": "Section 3.7 definition of Data Loss"}
+      ]
+    },
+    {
+      "claim": "The higher-order stencil study reports loss curves but does not validate truncation order, stencil step sensitivity, or solution error under a common reference.",
+      "evidence": "Equations 19-20 and 23-24 introduce compact and Crank-Nicolson formulas, followed by tables of data and boundary loss and single-run curves. There is no manufactured-solution refinement study, no observed convergence order, no alpha or h sweep, and no independent numerical residual check.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 9, "section": "Introduction to scheme comparison"},
+        {"page": 10, "section": "Table 2 and Equations 19-20"},
+        {"page": 12, "section": "Equation 23"},
+        {"page": 13, "section": "Table 4, Equation 24, and Figures 17-18"}
+      ]
+    },
+    {
+      "claim": "The SDF rule guarantees an interior stencil only if Phi is an accurate unsigned distance on sampled interior points, but the paper gives no construction error, medial-axis handling, or floating-point analysis.",
+      "evidence": "With an exact positive interior distance and alpha below one, an axis-aligned offset stays inside the maximal interior ball. However, exact distance is nondifferentiable where closest boundary points are nonunique, practical distance approximations can have sign and magnitude error, and h approaching zero near the boundary amplifies cancellation and 1/h-squared scaling. None is analyzed or tested.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 6, "section": "Equations 14-15 and Figures 4-5"},
+        {"page": 7, "section": "Equation 16 and Algorithm 2"},
+        {"page": 23, "section": "Conclusion and stated future questions"}
+      ]
+    },
+    {
+      "claim": "The complex-geometry evidence is limited to two-dimensional manufactured Poisson fields and two simple square-with-circle heat domains.",
+      "evidence": "The butterfly-like and star domains use analytic solutions and displayed point clouds; the hole cases use finite-difference reference simulations. There are no three-dimensional domains, moving boundaries, sharp coefficient jumps, anisotropic grids, noisy geometry, inverse problems, or industrial meshes despite broad claims about complex geometries.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 14, "section": "Figure 19"},
+        {"page": 17, "section": "Figure 24"},
+        {"page": 21, "section": "Section 3.6 and Figures 33-35"},
+        {"page": 22, "section": "Section 3.7 and Figures 36-37"},
+        {"page": 23, "section": "Figures 38-39 and conclusion"}
+      ]
+    },
+    {
+      "claim": "The reported 30-times and 40-times irregular-domain improvements cannot be independently reconstructed from the paper.",
+      "evidence": "The complex-domain section reports an HFD maximum absolute error of 0.054 and says accuracy is about 30 times better, while the star section reports HFD relative L2 error 0.013 and says more than 40 times better. Corresponding numeric AD metrics, evaluation grids, repetitions, and ratios are not tabulated; nearby text also misreferences error panels as loss figures.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 21, "section": "Section 3.6 and Figures 34-35"},
+        {"page": 22, "section": "Section 3.7 and Figures 36-37"},
+        {"page": 23, "section": "Figure 38"}
+      ]
+    },
+    {
+      "claim": "The closest prepublication hybrid derivative baseline, CAN-PINN, is cited but never empirically compared.",
+      "evidence": "The introduction accurately notes that CAN-PINN couples automatic and numerical differentiation and reports robust efficient training, but all primary baselines are the authors' implementation of ordinary AD-PINN. HCP, PhyGeoNet, PFNN, distance-function boundary enforcement, and classical solvers are likewise absent from the quantitative comparison.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Related work and references 34-35"},
+        {"page": 8, "section": "Section 3.1 comparison protocol"},
+        {"page": 23, "section": "Conclusion"},
+        {"page": 25, "section": "References 34-35"}
+      ]
+    },
+    {
+      "claim": "The paper provides no theorem connecting empirical discrete residual minimization to PDE solution error or to a stable finite-difference method.",
+      "evidence": "Equations 1-6 review local Taylor formulas and named schemes, but there is no consistency-stability-convergence argument for the learned global coordinate network, no boundary-error propagation, no optimization guarantee, and no certificate between collocation points. The authors explicitly leave loss behavior and gradient fluctuations as future work.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 3, "section": "Equations 1-4"},
+        {"page": 4, "section": "Equations 5-6"},
+        {"page": 23, "section": "Conclusion and future questions"}
+      ]
+    },
+    {
+      "claim": "The paper's high-dimensional motivation is not evaluated and its finite-difference construction retains the grid scaling that motivates the criticism.",
+      "evidence": "Section 2 says FDM grid parameters grow exponentially with input dimension, yet every experiment has only one spatial dimension plus time or two spatial dimensions plus optional time. Background-mesh HFD retains tensor grids, and mesh-free local stencils scale in neighbor evaluations with dimension; neither regime is benchmarked above three input coordinates.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "Section 2 motivation"},
+        {"page": 5, "section": "Section 2.3"},
+        {"page": 7, "section": "Algorithm 2"},
+        {"page": 23, "section": "Conclusion"}
+      ]
+    },
+    {
+      "claim": "The only discoverable author-named code repository is an empty placeholder and cannot reproduce any claim.",
+      "evidence": "The current public repository xiangzixuebit/HFD-PINN contains only a ten-byte README reading '# HFD-PINN' at sole commit aec45dd7b71158a1348426f63039e24d2e035989. It has no implementation, data, environment, license, tests, checkpoints, figures, raw metrics, or instructions.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Title and author identity"},
+        {"page": 23, "section": "Conclusion; no artifact statement"},
+        {"page": 25, "section": "End of references; no code or data statement"}
+      ]
+    },
+    {
+      "claim": "The cached source is the sole arXiv revision and predates a substantially later journal version.",
+      "evidence": "The official arXiv API identifies only v1, submitted 2022-02-16, matching the cached 25-page/39-figure preprint. Crossref records a 2025 Journal of Thermophysics and Heat Transfer version under DOI 10.2514/1.T7077 with a changed title. That paywalled version was not substituted for or used to silently repair the pinned equations.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "Preprint date and title"},
+        {"page": 25, "section": "End of exact v1 source"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Train one coordinate MLP as a PDE solution while computing interior derivatives from finite differences of neighboring network outputs rather than from automatic input derivatives; near irregular boundaries, choose each local stencil radius from a signed-distance field and use AD only where a boundary derivative is considered too complex for a stencil.",
+    "mechanism": "For a regular domain, generate a structured grid, query the MLP at each stencil point, and penalize the discrete governing-equation residual together with boundary and optional data terms. For random points in an irregular domain, evaluate an axis-aligned local five-point stencil with step alpha times the point's signed distance to the boundary. Instantiate central, compact, or Crank-Nicolson difference formulas, optimize a tanh MLP with Adam, and compare against an AD-PINN with the same stated architecture, collocation count, and iteration count.",
+    "assumptions": [
+      "The printed discrete residual matches the intended PDE and has a lower-bounded objective.",
+      "All boundary conditions are enforced separately without cancellation among unrelated sides.",
+      "The forcing functions and claimed analytic solutions have consistent signs and boundary values.",
+      "A coordinate MLP can represent the target solution at both collocation and stencil-neighbor points.",
+      "The finite-difference step is neither so large that truncation error dominates nor so small that floating-point cancellation and gradient scaling dominate.",
+      "The signed-distance field has the correct sign and sufficiently accurate magnitude everywhere sampled.",
+      "Every local stencil remains within the domain and within the available time interval.",
+      "Structured-grid and random-point baselines have comparable coverage and conditioning.",
+      "Equal collocation counts and training iterations are a meaningful fairness budget despite different forward and backward costs.",
+      "Unweighted or fixed-weight FD, boundary, initial, and data losses have comparable numerical scales.",
+      "The chosen finite-difference schemes remain stable when their discrete values are produced by an incompletely trained neural function rather than by classical time stepping.",
+      "A small finite set of residual and reference points adequately measures error throughout the continuous domain.",
+      "The reference finite-difference simulations are sufficiently resolved to serve as ground truth.",
+      "The unspecified model-selection rule for 'best parameters' does not use test information.",
+      "Results from one- and two-dimensional manufactured examples transfer to general complex geometries and higher dimensions."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "coordinate-mlp",
+      "role": "Uses a tanh coordinate network as a global PDE solution approximator."
+    },
+    {
+      "id": "ad-baseline",
+      "role": "Computes strong-form input derivatives by automatic differentiation for the comparison PINN."
+    },
+    {
+      "id": "fd-residual",
+      "role": "Builds central finite-difference residuals from neighboring network queries."
+    },
+    {
+      "id": "grid-hfd",
+      "role": "Uses a structured background mesh to place finite-difference stencils."
+    },
+    {
+      "id": "local-hfd",
+      "role": "Places self-adaptive stencils around random points without a global background mesh."
+    },
+    {
+      "id": "sdf-radius",
+      "role": "Scales each local stencil radius by signed distance to the boundary."
+    },
+    {
+      "id": "boundary-ad",
+      "role": "Uses automatic derivatives for selected complicated boundary residuals."
+    },
+    {
+      "id": "compact-fd",
+      "role": "Substitutes compact finite-difference spatial formulas for central stencils."
+    },
+    {
+      "id": "cn-scheme",
+      "role": "Substitutes Crank-Nicolson-inspired space-time formulas."
+    },
+    {
+      "id": "mixed-loss",
+      "role": "Combines PDE, boundary, hole, initial, and optional data penalties."
+    },
+    {
+      "id": "adam-fit",
+      "role": "Optimizes the coordinate network with Adam for 2,000 to 20,000 reported iterations."
+    },
+    {
+      "id": "field-eval",
+      "role": "Reports relative L2 error, MSE curves, boxplots, and qualitative field and error maps."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Pages 8-11, Burgers equation with 25, 100, 225, or 400 collocation points, 100 boundary points, an eight-layer width-20 tanh network, and 10,000 Adam iterations.",
+      "metric": "Reported AD/FD residual, boundary loss, relative L2 data error, boxplots, snapshots, absolute-error fields, and training curves",
+      "result": "FD data error falls from 3.6e-2 to 2.4e-4 as points increase, versus AD from 6.0e-2 to 4.1e-4. The FD residual itself remains 1.1-1.9 and scheme variants report data errors around 1.2e-4 to 2.5e-4.",
+      "baseline": "AD-PINN with nominally matched architecture, point count, optimizer, and learning rate, but different derivative work and possibly different point layout"
+    },
+    {
+      "setting": "Pages 10-14, forced one-dimensional heat equation with 25-400 points and central, compact, Crank-Nicolson, adaptive, and SDF variants.",
+      "metric": "Boundary and data loss, field and error maps, and 10,000-iteration curves",
+      "result": "At 400 points the table reports data loss 4.1e-4 for FD and 9.5e-4 for AD. Higher-order variants range from 2.2e-4 to 6.5e-4, without refinement-order or compute measurements.",
+      "baseline": "AD-PINN and internal stencil variants"
+    },
+    {
+      "setting": "Pages 14-16, transient heat transfer on a square [-2,2]^2 with a centered circular hole, mixed outer boundaries, and a four-hidden-layer width-50 tanh network.",
+      "metric": "PDE, boundary, hole, and data losses; boxplots; t=0.5 field and absolute-error maps; 20,000-iteration curves",
+      "result": "At 100 collocation points Table 5 reports HFD data loss 8.1e-4 versus AD 6.0e-2, while HFD FD loss is 190. The printed HFD and boundary objectives are mathematically defective, and the data split is not specified here.",
+      "baseline": "AD-PINN and a finite-difference simulation called exact/reference"
+    },
+    {
+      "setting": "Pages 17-19, transient heat transfer on [0,2]^2 with a quarter-circle corner cutout, t=1 observations for training and t=0.5 for testing.",
+      "metric": "Hole/data boxplots, absolute error, and relative L2 test trajectory",
+      "result": "The text reports 8.8e-4 plus or minus 8.1e-4 after 20,000 epochs, but the protocol paragraph also says training lasts 2,000 epochs. Table 6 exactly duplicates every centered-hole value from Table 5.",
+      "baseline": "AD-PINN and a 20-time-step finite-difference reference simulation"
+    },
+    {
+      "setting": "Pages 17-20, manufactured two-dimensional Poisson equation with 25-400 collocation points, 700 boundary points, 100 data points, and a tanh network.",
+      "metric": "Residual, boundary, and data loss; boxplots; exact/predicted/error fields; reported test error",
+      "result": "At 400 points HFD reports data loss 1.4e-4 versus AD 1.1e-2; aggregate test errors are stated as 2.833e-4 plus or minus 1.463e-4 versus 5.120e-2 plus or minus 2.203e-2. The printed source term has the opposite sign from the stated analytic solution.",
+      "baseline": "AD-PINN under a confounded grid-versus-random sampling comparison"
+    },
+    {
+      "setting": "Pages 20-21, manufactured Poisson equation on a smooth butterfly-like domain with local SDF stencils and a four-hidden-layer width-50 MLP.",
+      "metric": "Qualitative exact/predicted/error fields, maximum displayed error, and loss curves",
+      "result": "The paper reports a maximum error of 0.054 and says accuracy is about 30 times better than AD-PINN, without a tabulated AD metric, repetitions, or evaluation-grid definition.",
+      "baseline": "AD-PINN only"
+    },
+    {
+      "setting": "Pages 21-23, manufactured Poisson equation on an eight-point star domain with local SDF stencils and 10,000 Adam iterations.",
+      "metric": "Relative L2 error, exact/AD/HFD/error fields, boundary/data-loss curves",
+      "result": "HFD-PINN-sdf reports relative L2 error 0.013 and more than 40-times better accuracy than AD-PINN, but the numeric AD denominator and repeated-run uncertainty are absent.",
+      "baseline": "AD-PINN only"
+    },
+    {
+      "setting": "Current official-code audit through 2026-08-24.",
+      "metric": "Repository identity, pinned commit, tree completeness, executability, dependency and result provenance",
+      "result": "The author-named xiangzixuebit/HFD-PINN repository at sole commit aec45dd7b71158a1348426f63039e24d2e035989 contains only a ten-byte README and no executable or evidentiary asset.",
+      "baseline": "Minimum reproducibility requirements: implementation, environment, seeds, raw results, tests, and documented commands"
+    }
+  ],
+  "limitations": [
+    "Equation 27 is not a squared heat-equation residual and is unbounded below as printed.",
+    "Equation 28 aggregates four boundary conditions into one cancellable scalar residual.",
+    "Equation 25 and Equation 28 disagree on the derivative direction at horizontal boundaries.",
+    "Equation 29's source term has the wrong sign for its stated analytic solution and its boundary value is omitted.",
+    "Tables 5 and 6 are numerically identical despite different domains and protocols.",
+    "The SDF sign convention in prose contradicts Equation 14 and Figure 5.",
+    "No code exists to determine whether printed mathematical errors are typographical or implemented.",
+    "The closest cited hybrid baseline, CAN-PINN, is not evaluated.",
+    "Structured HFD grids are compared with random AD points, confounding derivative and sampling effects.",
+    "Equal point counts and iterations do not match compute, memory, or network-evaluation budgets.",
+    "No runtime, memory, hardware, SDF-construction, or preprocessing cost is reported despite efficiency claims.",
+    "Residual components differ by orders of magnitude without reported weighting or gradient calibration.",
+    "Run counts, random seeds, raw measurements, uncertainty estimators, and statistical tests are absent.",
+    "Training, validation, and test point definitions are ambiguous in most experiments.",
+    "No stencil-radius sweep, observed convergence order, truncation-error study, or floating-point analysis is provided.",
+    "No classical finite-difference, finite-element, or geometry-aware solver is compared under matched error and cost.",
+    "Irregular-domain 30-times and 40-times claims omit the numeric AD metrics needed to reproduce the ratios.",
+    "All tests are one- or two-dimensional manufactured problems or simple square-with-circle heat fields.",
+    "No theorem or certificate connects finite sampled residuals to continuous-domain solution error.",
+    "The current official repository is a non-executable placeholder without license, environment, data, or results."
+  ],
+  "failure_modes": [
+    "Minimizing the printed Equation 27 can reward arbitrarily large temporal variation because its time term is subtracted after squaring.",
+    "A network can make Equation 28 zero through cancellation while violating every individual outer boundary condition.",
+    "Training against the Equation 29 sign convention targets the negative of the claimed analytic Poisson solution.",
+    "A reversed SDF sign makes local steps negative and can invalidate implementation assumptions about interior points.",
+    "An approximate SDF that overestimates clearance can send stencil neighbors outside an irregular domain.",
+    "As distance to the boundary approaches zero, second differences divide cancellation-prone network-value differences by a vanishing h squared.",
+    "At medial-axis points the signed distance is not differentiable and the nearest boundary point need not be unique.",
+    "Sparse structured grids can miss sharp localized features even when their nominal count equals random collocation baselines.",
+    "Very large FD residual scales can dominate boundary and data terms or create optimizer dynamics unlike the AD baseline.",
+    "Higher-order coupled schemes can inherit stability assumptions that do not hold when all field values change jointly through an MLP update.",
+    "Unspecified best-parameter selection can leak validation or test information into reported results.",
+    "Reusing training data as evaluation data can turn interpolation loss into a misleading test metric.",
+    "Finite reference simulations can hide shared discretization bias when an FD-informed model is judged against the same scheme family.",
+    "Single manufactured solutions can make method-specific advantages disappear under changed frequency, coefficient, geometry, or dimension.",
+    "Without code or raw data, duplicated tables and inconsistent epoch counts cannot be resolved or reproduced.",
+    "A visually smooth field can still have large unobserved residual or solution error between plotted points."
+  ],
+  "reusable_insights": [
+    "Finite differences through a coordinate network are a forward-only derivative primitive and can support nonsmooth activations or architectures whose per-sample autograd is expensive.",
+    "A distance-to-boundary field gives a simple geometric upper bound for safe local stencil radii when its sign and magnitude are certified.",
+    "Derivative-method comparisons must match point locations as well as point counts; otherwise sampling coverage is the intervention.",
+    "Compare derivative estimators at matched forward/backward calls, memory, wall time, and achieved solution error rather than matched optimizer steps.",
+    "Square the assembled PDE residual, not separately signed squared derivative terms.",
+    "Encode each boundary component as its own residual or hard constraint so physically unrelated errors cannot cancel.",
+    "Manufactured solutions should be symbolically checked against the printed forcing and boundary conditions before any benchmark run.",
+    "Report a stencil-step sweep that exposes truncation, optimization, and floating-point regimes.",
+    "Use continuous-domain residual certification or dense adversarial residual search in addition to a finite test grid.",
+    "Treat SDF computation and geometry queries as measured parts of the solver rather than free preprocessing.",
+    "Retain raw per-seed results and machine-check tables for accidental duplication across benchmarks.",
+    "A strong benchmark should include CAN-PINN, pure FD-PINN, AD-PINN, hard-boundary methods, and a classical solver under a common tolerance."
+  ],
+  "open_questions": [
+    "Does a corrected HFD residual still outperform AD when both methods use exactly the same collocation coordinates and data split?",
+    "What finite-difference radius minimizes total truncation, network approximation, and floating-point error during training?",
+    "Can radius selection be conditioned on local curvature, precision, and network frequency rather than a fixed fraction of SDF?",
+    "How should loss terms be nondimensionalized so AD and FD gradient spectra are comparable?",
+    "Does HFD retain an advantage at matched GPU time, peak memory, and total network evaluations?",
+    "How sensitive are results to SDF approximation error, sign error, medial axes, thin features, and corners?",
+    "Can interval bounds certify that every learned local stencil remains inside the domain?",
+    "What convergence guarantee relates discrete HFD residual, boundary error, network capacity, and continuous solution error?",
+    "Do compact and Crank-Nicolson variants realize their nominal convergence order when field values come from a jointly trained MLP?",
+    "Does the method scale beyond two spatial dimensions without recovering the finite-difference curse it is meant to avoid?",
+    "How does HFD compare with RBF-FD, finite elements, and graph stencils on unstructured industrial meshes?",
+    "Can hard boundary constructions remove the need for AD boundary terms entirely?",
+    "Do benefits survive discontinuous coefficients, shocks, moving boundaries, inverse problems, and noisy observations?",
+    "What caused the exact Table 5/Table 6 duplication and which, if either, reflects the underlying experiments?",
+    "Did the later 2025 journal version correct the printed objectives and release executable code, and can those corrections be independently reproduced?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1708.07469",
+      "title": "DGM: A deep learning algorithm for solving partial differential equations",
+      "url": "https://arxiv.org/abs/1708.07469",
+      "relationship": "foundational collocation neural-PDE predecessor",
+      "difference": "DGM already trains a neural solution by sampling a PDE residual and boundary/initial conditions without a global grid. HFD changes derivative evaluation to finite stencils but supplies no high-dimensional study comparable to DGM's motivating regime.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:1710.00211",
+      "title": "The Deep Ritz method: A deep learning-based numerical algorithm for solving variational problems",
+      "url": "https://arxiv.org/abs/1710.00211",
+      "relationship": "variational neural-solver predecessor",
+      "difference": "Deep Ritz minimizes an energy functional and can avoid strong-form second derivatives. It is a major alternative to both AD and FD strong residuals that HFD does not benchmark.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:1711.10561",
+      "title": "Physics Informed Deep Learning (Part I): Data-driven Solutions of Nonlinear Partial Differential Equations",
+      "url": "https://arxiv.org/abs/1711.10561",
+      "relationship": "foundational PINN predecessor",
+      "difference": "Raissi, Perdikaris, and Karniadakis establish coordinate networks trained with PDE, boundary, initial, and data residuals. HFD's contribution is numerical rather than automatic input differentiation, not the physics-informed optimization framework itself.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:1912.01309",
+      "title": "Deep Nitsche Method: Deep Ritz Method with Essential Boundary Conditions",
+      "url": "https://arxiv.org/abs/1912.01309",
+      "relationship": "boundary-enforcement predecessor",
+      "difference": "Deep Nitsche handles essential boundary conditions consistently through a variational formulation and proves an energy-norm error estimate. HFD uses soft and, in Equation 28, cancellable boundary penalties without an error estimate.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2001.04536",
+      "title": "Understanding and mitigating gradient pathologies in physics-informed neural networks",
+      "url": "https://arxiv.org/abs/2001.04536",
+      "relationship": "PINN optimization diagnosis",
+      "difference": "This work identifies numerical stiffness and unbalanced gradients across composite PINN losses and proposes adaptive weighting. HFD reports residual scales differing by orders of magnitude but neither measures nor controls their gradient imbalance.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2003.05385",
+      "title": "hp-VPINNs: Variational Physics-Informed Neural Networks With Domain Decomposition",
+      "url": "https://arxiv.org/abs/2003.05385",
+      "relationship": "local variational competitor",
+      "difference": "hp-VPINNs localize training through hp-refined test spaces and weak residuals, avoiding some high-order strong derivatives. HFD instead uses point stencils and does not compare localization accuracy, training cost, or refinement behavior.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2004.06490",
+      "title": "PFNN: A Penalty-Free Neural Network Method for Solving a Class of Second-Order Boundary-Value Problems on Complex Geometries",
+      "url": "https://arxiv.org/abs/2004.06490",
+      "relationship": "complex-geometry and boundary competitor",
+      "difference": "PFNN uses a weak form and separate networks to satisfy essential boundaries without penalty on complex domains, with a convergence result. HFD's novelty and validation should have been distinguished from this direct predecessor.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2004.13145",
+      "title": "PhyGeoNet: Physics-Informed Geometry-Adaptive Convolutional Neural Networks for Solving Parameterized Steady-State PDEs on Irregular Domain",
+      "url": "https://arxiv.org/abs/2004.13145",
+      "relationship": "irregular-domain finite-difference predecessor",
+      "difference": "PhyGeoNet maps irregular physical domains to regular reference domains, applies finite-difference convolutional residuals, and hard-encodes boundaries. It predates HFD and directly challenges any broad claim that FD-informed neural solving on irregular geometry is new.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2007.14527",
+      "title": "When and why PINNs fail to train: A neural tangent kernel perspective",
+      "url": "https://arxiv.org/abs/2007.14527",
+      "relationship": "training-dynamics predecessor",
+      "difference": "The NTK analysis attributes failure to unequal convergence rates among PINN loss components and proposes adaptive calibration. HFD's curves alone cannot establish that finite differences fix this mechanism, particularly under unmatched loss scales.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2104.08426",
+      "title": "Exact imposition of boundary conditions with distance functions in physics-informed deep neural networks",
+      "url": "https://arxiv.org/abs/2104.08426",
+      "relationship": "distance-field complex-boundary predecessor",
+      "difference": "Sukumar and Srivastava use approximate distance functions and R-functions to satisfy Dirichlet, Neumann, and Robin conditions exactly on complex geometry. HFD uses distance only to choose a stencil radius and retains soft boundary losses.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2109.01050",
+      "title": "Characterizing possible failure modes in physics-informed neural networks",
+      "url": "https://arxiv.org/abs/2109.01050",
+      "relationship": "direct failure-analysis predecessor",
+      "difference": "Krishnapriyan et al. show that soft PDE regularization can create ill-conditioned landscapes even on modest convection, reaction, and diffusion problems, and propose curriculum and time decomposition. HFD does not test whether its gains survive those controlled failure regimes.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2109.09444",
+      "title": "When Do Extended Physics-Informed Neural Networks (XPINNs) Improve Generalization?",
+      "url": "https://arxiv.org/abs/2109.09444",
+      "relationship": "domain-decomposition and generalization predecessor",
+      "difference": "This work formalizes when local decomposition helps or hurts generalization and demonstrates both outcomes. HFD uses local numerical structure but offers no analogous generalization condition or out-of-sample domain study.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2110.15832",
+      "title": "CAN-PINN: A Fast Physics-Informed Neural Network Based on Coupled-Automatic-Numerical Differentiation Method",
+      "url": "https://arxiv.org/abs/2110.15832",
+      "relationship": "closest prepublication hybrid-derivative predecessor",
+      "difference": "CAN-PINN explicitly couples neighbor numerical differences with automatic derivatives and reports accuracy and speed on challenging flows. HFD cites it but does not compare, so HFD's narrow distinction is switching derivative schemes by region plus SDF-selected local steps.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2111.02801",
+      "title": "Gradient-enhanced physics-informed neural networks for forward and inverse PDE problems",
+      "url": "https://arxiv.org/abs/2111.02801",
+      "relationship": "sparse-collocation accuracy competitor",
+      "difference": "gPINN adds derivatives of the PDE residual and adaptive refinement to improve accuracy with fewer points. It attacks the same sparse-sample problem through more derivative information rather than finite-difference replacement.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2203.07404",
+      "title": "Respecting causality is all you need for training physics-informed neural networks",
+      "url": "https://arxiv.org/abs/2203.07404",
+      "relationship": "near-contemporaneous temporal-training successor",
+      "difference": "Causal weighting addresses failure from optimizing an entire time domain at once and tests difficult chaotic and turbulent systems. HFD's time-dependent examples are short and do not distinguish derivative error from causal training pathologies.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2203.09346",
+      "title": "Error estimates for physics informed neural networks approximating the Navier-Stokes equations",
+      "url": "https://arxiv.org/abs/2203.09346",
+      "relationship": "error-analysis successor",
+      "difference": "De Ryck, Jagtap, and Mishra relate total error to training error, network size, and quadrature points for Navier-Stokes PINNs. HFD reports sampled losses without a bridge from its discrete residual to solution error.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2207.10289",
+      "title": "A comprehensive study of non-adaptive and residual-based adaptive sampling for physics-informed neural networks",
+      "url": "https://arxiv.org/abs/2207.10289",
+      "relationship": "sampling-protocol successor",
+      "difference": "Wu et al. show across more than 6,000 simulations that grid, random, quasi-random, resampling, and residual-adaptive choices materially change PINN accuracy. This makes HFD's grid-versus-random comparison an identified confound, not a minor detail.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2212.02861",
+      "title": "RBF-MGN:Solving spatiotemporal PDEs with Physics-informed Graph Neural Network",
+      "url": "https://arxiv.org/abs/2212.02861",
+      "relationship": "same-author irregular-domain successor",
+      "difference": "The authors later replace axis-aligned SDF stencils with graph learning and radial-basis-function finite differences on unstructured irregular domains. That design directly addresses HFD's geometry and background-grid limitations but remains a different architecture and validation target.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2302.04107",
+      "title": "Can Physics-Informed Neural Networks beat the Finite Element Method?",
+      "url": "https://arxiv.org/abs/2302.04107",
+      "relationship": "classical-solver benchmark successor",
+      "difference": "A systematic matched study finds PINNs did not outperform FEM in solution time or accuracy on its PDE suite. HFD never compares against FEM or FDM under matched tolerance, so its efficiency rhetoric remains unsupported.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2305.10157",
+      "title": "Efficient Error Certification for Physics-Informed Neural Networks",
+      "url": "https://arxiv.org/abs/2305.10157",
+      "relationship": "continuous-domain validation successor",
+      "difference": "The certification work shows finite test samples can miss catastrophic residual peaks and introduces continuous-domain upper bounds. HFD relies entirely on finite plots and point estimates, including its complex-geometry claims.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2409.04143",
+      "title": "An efficient hp-Variational PINNs framework for incompressible Navier-Stokes equations",
+      "url": "https://arxiv.org/abs/2409.04143",
+      "relationship": "efficient complex-geometry variational successor",
+      "difference": "FastVPINNs extends tensorized variational residuals to vector flows, inverse problems, and complex geometries while reporting training-time improvement. It offers a stronger modern efficiency protocol than HFD's iteration-only curves.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2501.00014",
+      "title": "Finite difference physics-informed neural networks enable improved solution accuracy of the Navier-Stokes equations",
+      "url": "https://arxiv.org/abs/2501.00014",
+      "relationship": "direct FD-PINN successor",
+      "difference": "Roy et al. combine FD-PINNs with domain decomposition for high-Reynolds-number cavity flow and explicitly measure corner vortices against references. It extends the concept to harder flow structure but still needs resource-aware comparison.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2601.07017",
+      "title": "The Ill-Posed Foundations of Physics-Informed Neural Networks and Their Finite-Difference Variants",
+      "url": "https://arxiv.org/abs/2601.07017",
+      "relationship": "direct theoretical audit and successor",
+      "difference": "Langer proves nonuniqueness for finite-collocation AD- and FD-PINN minimizers while showing FD minimizers align with discrete solutions on the stencil under conditions. This supplies both a structural explanation and a limitation absent from HFD's empirical argument.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2602.21590",
+      "title": "Physics Informed Neural Network using Finite Difference Method",
+      "url": "https://arxiv.org/abs/2602.21590",
+      "relationship": "direct simplified FD-PINN successor",
+      "difference": "Lim, Dutta, and Rotaru revisit finite-difference PDE losses for Laplace and Burgers problems and report runtime as well as error. Their results suggest FD can match AD, a narrower conclusion than HFD's broad superiority claim.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2603.07151",
+      "title": "Optimize discrete loss with finite-difference physics constraint and time-stepping for PDE solving",
+      "url": "https://arxiv.org/abs/2603.07151",
+      "relationship": "resource-aware discrete-loss successor",
+      "difference": "FDTO combines finite-difference loss optimization with explicit time stepping and curvilinear body-fitted grids, reporting memory and error on flow benchmarks. It directly addresses long-time conditioning and resource metrics omitted by HFD.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2605.30910",
+      "title": "PINNs Failure Modes are Overfitting",
+      "url": "https://arxiv.org/abs/2605.30910",
+      "relationship": "modern generalization audit",
+      "difference": "This work reframes important PINN failures as finite-collocation overfitting, emphasizing evaluation away from residual points. HFD's sparse plots, ambiguous data splits, and no continuous certificate leave exactly that failure unresolved.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2607.24726",
+      "title": "Global Convergence of DGM and PINN Algorithms for Solving Nonlinear PDEs",
+      "url": "https://arxiv.org/abs/2607.24726",
+      "relationship": "nonlinear convergence successor",
+      "difference": "Sirignano, Spiliopoulos, and Cohen give convergence results for a class of semilinear nonlinear PDE residual objectives. HFD provides no conditions under which its finite-difference objective converges to the intended continuous PDE solution.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2608.11020",
+      "title": "Derivative Computation in PINNs: Automatic Differentiation, Finite Differences and Beyond",
+      "url": "https://arxiv.org/abs/2608.11020",
+      "relationship": "closest current derivative-computation audit",
+      "difference": "Mikulski and Uhl systematically calibrate FD step size, compare accuracy, speed, and GPU memory, and expose incorrect standard autograd for inter-sample architectures. They find calibrated FD matches AD on tested PDEs rather than universally beating it, providing the direct controlled study HFD lacks.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:1711.06464",
+      "title": "A unified deep artificial neural network approach to partial differential equations in complex geometries",
+      "url": "https://arxiv.org/abs/1711.06464",
+      "relationship": "complex-geometry neural-solver predecessor",
+      "difference": "Berg and Nystrom already solve PDEs on genuinely complex geometries with a neural trial function and backpropagated derivatives. HFD's narrower contribution is a geometry-aware numerical derivative primitive rather than neural PDE solving on complex domains itself.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2109.12482",
+      "title": "Physics-informed Convolutional Neural Networks for Temperature Field Prediction of Heat Source Layout without Labeled Data",
+      "url": "https://arxiv.org/abs/2109.12482",
+      "relationship": "same-team finite-difference heat-loss predecessor",
+      "difference": "This earlier paper, sharing HFD's last author Wen Yao, trains a convolutional model with a finite-difference heat-equation loss and hard Dirichlet/Neumann padding. HFD moves to a coordinate MLP and SDF-adaptive local stencils, but should have distinguished this same-team numerical-residual lineage.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2112.01696",
+      "title": "A hybrid physics-informed neural network for nonlinear partial differential equation",
+      "url": "https://arxiv.org/abs/2112.01696",
+      "relationship": "closest prepublication spatial-switch predecessor",
+      "difference": "This contemporary hybrid switches between automatic differentiation in smooth regions and WENO numerical differentiation near nonsmooth regions using a discontinuity indicator. HFD switches by geometry and boundary clearance instead, so its defensible novelty is the SDF criterion rather than spatial hybridization by itself.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2201.10967",
+      "title": "Physics-informed ConvNet: Learning Physical Field from a Shallow Neural Network",
+      "url": "https://arxiv.org/abs/2201.10967",
+      "relationship": "independent contemporaneous FD-loss predecessor",
+      "difference": "PICN publicly preceded HFD by weeks and combines a shallow field generator with pretrained convolutional finite-difference filters and interpolation loss for irregular geometries. It is not an SDF-driven coordinate MLP, but it prevents broad priority claims for FD-informed neural solving on irregular domains.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2202.05476",
+      "title": "Physics-informed PointNet: A deep learning solver for steady-state incompressible flows and thermal fields on multiple sets of irregular geometries",
+      "url": "https://arxiv.org/abs/2202.05476",
+      "relationship": "independent contemporaneous irregular-geometry solver",
+      "difference": "PIPN appeared five days before HFD and learns across multiple point-cloud geometries using automatic-differentiation residuals. It does not use local FD stencils, but it is a necessary baseline for HFD's broader claims about irregular-domain flexibility and geometry generalization.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2205.09332",
+      "title": "Accelerated Training of Physics-Informed Neural Networks (PINNs) using Meshless Discretizations",
+      "url": "https://arxiv.org/abs/2205.09332",
+      "relationship": "closest mature RBF-FD successor",
+      "difference": "DT-PINN replaces spatial AD with reusable sparse high-order RBF-FD matrices on irregular point clouds while retaining AD for time and reports matched runtime and precision effects. It supplies the high-order meshless accuracy, resource, and floating-point controls absent from HFD.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2308.12939",
+      "title": "Learning Only On Boundaries: a Physics-Informed Neural operator for Solving Parametric Partial Differential Equations in Complex Geometries",
+      "url": "https://arxiv.org/abs/2308.12939",
+      "relationship": "boundary-only complex-geometry successor",
+      "difference": "The boundary-integral neural operator reduces sampling from a volume to its boundary and supports parametric and unbounded domains. It avoids interior virtual-stencil placement entirely and tests a stronger form of geometry reuse than HFD's one-network-per-instance examples.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2311.15940",
+      "title": "Physics-informed neural networks for transformed geometries and manifolds",
+      "url": "https://arxiv.org/abs/2311.15940",
+      "relationship": "transformed-geometry successor",
+      "difference": "This approach uses a diffeomorphic reference-domain map and correctly transformed differential operators for varying geometries, manifolds, and shape optimization. It contrasts global coordinate consistency with HFD's purely local distance-to-boundary control.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    },
+    {
+      "canonical_id": "arxiv:2411.17095",
+      "title": "Finite Volume Physical Informed Neural Network (FV-PINN) with Reduced Derivative Order for Incompressible Flows",
+      "url": "https://arxiv.org/abs/2411.17095",
+      "relationship": "locally conservative finite-volume successor",
+      "difference": "FV-PINN integrates over control volumes and uses Gauss-theorem boundary quadrature to lower derivative order while preserving local conservation. HFD's pointwise squared stencil residual has no corresponding conservation guarantee.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-24",
+      "source_version": "current arXiv record checked 2026-08-24"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper presents HFD-PINN as a hybrid framework that uses finite differences inside regular domains, automatic differentiation at complex boundaries, and an SDF-controlled random local stencil to eliminate background-mesh generation on irregular geometries; it claims greater accuracy, robustness, convergence speed, and efficiency than AD-PINN across several PDE examples.",
+    "evidence": "The useful design contribution is simple and modular: derivatives of a continuous coordinate network can be estimated by classical stencils, and exact boundary clearance can set a safe pointwise radius without constructing a global tensor grid. The paper explores central, compact, Crank-Nicolson, adaptive, and SDF variants across Burgers, heat, and manufactured Poisson cases, and many of its reported errors are substantially below its in-house AD baseline.",
+    "reviewer_inference": "The broad novelty and efficacy claims do not survive close audit. Neural residual solvers, numerical-derivative coupling, finite-difference physics losses on irregular domains, distance-field boundary constructions, and penalty-free complex-geometry methods all predate the submission. Fang's April 2021 hybrid numerical-derivative PINN is the strongest omitted predecessor; CAN-PINN is the closest acknowledged predecessor but is omitted from experiments; a December 2021 WENO hybrid already switches AD and numerical differentiation by location; and PICN and PIPN are independent public contemporaries. To our search, HFD's defensible distinctive combination is narrower: a coordinate MLP with a geometry-driven AD-versus-FD switch and SDF-scaled virtual stencils for integer-order PDEs. More seriously, several printed objectives and manufactured equations are mathematically inconsistent, two benchmark tables are identical, sampling and compute are unmatched, test splits and repetitions are mostly undefined, and the official repository is empty. A credible successor should correct and machine-check every equation, publish code and raw runs, match collocation coordinates and computational budgets, sweep h and SDF error, compare Fang/CAN-PINN/RBF-FD/hard-boundary/classical solvers, and certify error between sampled points."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Read all 25 pages of the exact cached sole arXiv v1 PDF submitted 2022-02-16. Audited all 33 numbered equations, both algorithms, all seven tables, all 39 figures and captions, every experimental paragraph, conclusion, acknowledgments, and all 38 references. Rendered all 25 pages at 1224x1584 (144 dpi) and inspected every page at original resolution. Every figure, table, equation, algorithm, caption, and reference pixel was available; there are no unavailable PDF visual pixels to disclose. Independently recomputed and matched pdf_sha256 2632ee86a85673bae5f257d2b18cfce3425155ca7c08fc8d09e0f5c93ea6ec86 and text_sha256 acb3535853745cba69d2c0a9d58822029924920a27ec89d38bd7b5fa72b54631. The official arXiv API confirms only v1, title, authors, 25 pages, and 39 figures. Crossref records a later 2025 Journal of Thermophysics and Heat Transfer version, DOI 10.2514/1.T7077, under the changed title 'Hybrid Finite-Difference Physics-Informed Neural Networks Partial Differential Equation Solver for Complex Geometries'; AIAA's automated PDF route returned 403, so that later version was not treated as the pinned source or used to silently correct v1. Searched title, method names, authors, and GitHub. The author-named public repository https://github.com/xiangzixuebit/HFD-PINN was statically audited at current sole commit aec45dd7b71158a1348426f63039e24d2e035989 (2022-06-27); its complete tree is one ten-byte README containing only '# HFD-PINN'. No implementation, package manifest, environment, license, test, data, checkpoint, figure source, seed, raw result, or reproduction command exists, so no untrusted research code was executed. The similarly named s-h-yang/HFD search result was checked and excluded as the unrelated Local Hyper-Flow Diffusion project. Researched and source-checked 38 direct primary predecessors, competitors, theoretical audits, and successors through 2026-08-24. The contract-compatible panel retains 37 primary arXiv records; the additional strongest omitted predecessor is Fang's IEEE TNNLS version of record, 'A High-Efficient Hybrid Physics-Informed Neural Networks Based on Convolutional Neural Network,' DOI 10.1109/TNNLS.2021.3070878, online 2021-04-13. The audit also covers CAN-PINN, the 2021 WENO hybrid, same-team FD heat losses, PhyGeoNet, PICN, PIPN, distance-function and penalty-free boundary methods, RBF-FD/finite-volume successors, sampling and failure audits, continuous error certification, and the latest controlled derivative-computation study. No shared atlas projection, generated index, package installation, make target, or public build was run."
+}

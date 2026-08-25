@@ -1,0 +1,211 @@
+{
+  "stable_id": "arxiv:2411.05052",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2411.05052",
+    "pdf_sha256": "af9ca5e711fbde12d308d198fc481715da92e7089912d2d960e28d0bb7b5fd1d",
+    "text_sha256": "3fbae43779903ad51f3b33f3d547227549166afc69f74bbf9f2db2f42990d62e",
+    "page_count": 7,
+    "extracted_at": "2026-08-23T17:42:04.543266+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a coordinate MLP recover high-frequency signals without a fixed Fourier positional encoding by arranging small blocks in a two-predecessor recurrence and supervising the blocks at progressively higher low-pass cutoffs?",
+  "key_findings": [
+    {
+      "claim": "A shallow ReLU MLP can extrapolate a doubled sinusoidal frequency when it receives both the half- and quarter-frequency, whereas coordinates alone or only the half-frequency fail in the authors' illustrative setup.",
+      "evidence": "For the target sin(512x), the paper trains a width-8, depth-2 network on 100 points from [0, 0.5]. The coordinate-only model underfits and the x-plus-sin(256x) model overfits, but adding sin(128x) produces an almost exact reconstruction that extrapolates visually over the held-out interval [0.5, 1]. This is a controlled mechanism demonstration, not yet an architecture-level benchmark.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "4. Leapfrogging Frequencies"
+        },
+        {
+          "page": 3,
+          "section": "Figures 1-3"
+        }
+      ]
+    },
+    {
+      "claim": "The Fibonacci architecture wires every block to the two preceding block outputs and the original coordinate, but this recurrence works only with explicit intermediate frequency supervision in the reported experiments.",
+      "evidence": "The proposed loss sums blockwise MSE terms against low-pass-filtered targets with exponentially increasing cutoffs. The authors explicitly state that end-to-end training of the recurrence alone is insufficient and describe the intermediate targets as 'spoon-feeding' lower frequencies to earlier blocks.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "5. Fibonacci Network"
+        },
+        {
+          "page": 2,
+          "section": "6.1. Reconstructing a High-Frequency Sine Wave"
+        },
+        {
+          "page": 6,
+          "section": "Figures 6-7"
+        }
+      ]
+    },
+    {
+      "claim": "On noisy random cubic-spline signals, FibonacciNet becomes preferable only at sufficiently high corruption; it is not a uniformly better replacement for positional encoding.",
+      "evidence": "Table 1 reports L2 losses for SimpleNN / SimpleNN+PE / Fibnet. PE is best at noise 0.1, 0.5, and 1 (0.068, 0.129, 0.266 versus Fibnet's 0.359, 0.391, 0.5468). Fibnet becomes best at noise 5, 10, and 20 (1.853, 4.339, 19.836 versus PE's 4.172, 16.562, 66.702). Thus the empirical result supports a noise-robustness niche, not the broad claim that PE is unnecessary.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "6.1, Table 1"
+        }
+      ]
+    },
+    {
+      "claim": "The paper itself falsifies one apparent advantage over spatially adaptive progressive encoding: a simple baseline reaches good Psine extrapolation when trained longer.",
+      "evidence": "Section 6.2 says the Fibonacci network performs well on SAPE's increasing-frequency Psine example, but then reports that the simple network used in SAPE also generalizes very well with more epochs. The authors conclude that both their network and SAPE's full method appear unnecessary for this example and that this casts doubt on gradual frequency revelation.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "6.2. Psine Function and Figure 4"
+        }
+      ]
+    },
+    {
+      "claim": "The stated ability to reconstruct 'arbitrarily high frequencies' is not established by the evaluation presented in the paper.",
+      "evidence": "The only recurrence-depth demonstration shown reconstructs the ten sinusoidal terms sin(2^i x), with blockwise access to their exact supervised targets. There is no sweep beyond this range, no error-versus-frequency curve, no comparison at matched parameter or compute budgets, and no multi-dimensional image, geometry, audio, or radiance-field benchmark.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "6.1. Reconstructing a High-Frequency Sine Wave"
+        },
+        {
+          "page": 6,
+          "section": "Figure 7"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Replace a hand-chosen fixed Fourier input map with a multiblock coordinate MLP whose recurrence mirrors the Fibonacci dependency: each block receives the original coordinate and the outputs of the previous two blocks, so lower-frequency learned features can compose into higher-frequency ones.",
+    "mechanism": "Earlier, wider/deeper blocks fit coarse low-pass targets; later, narrower/shallower blocks consume the last two block outputs. Training applies an auxiliary MSE to every block against the target signal filtered at a cutoff that doubles with block index. At inference, only the final block output is used. A separate toy experiment motivates the recurrence by showing that sin(512x) is easy to infer from sin(256x) and sin(128x).",
+    "assumptions": [
+      "Dyadic low-pass bands are an appropriate decomposition for the target signal and can be computed during training.",
+      "A feature learned at one cutoff remains useful when fed into later blocks rather than becoming an error-amplifying approximation.",
+      "The cost and inductive bias introduced by block-specific intermediate targets are preferable to selecting Fourier-feature bandwidth or periodic activations.",
+      "Results on one-dimensional sinusoids and random cubic splines predict behavior on higher-dimensional implicit neural representations.",
+      "The positional-encoding and plain-MLP baselines are matched sufficiently in parameters, optimization effort, and tuning, although the paper does not document those controls."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "two-predecessor-block-recurrence",
+      "role": "Routes two adjacent learned frequency representations into each later block to encourage frequency multiplication/composition."
+    },
+    {
+      "id": "dyadic-low-pass-deep-supervision",
+      "role": "Supplies each block with an explicit progressively higher-frequency target rather than relying on final-output end-to-end credit assignment."
+    },
+    {
+      "id": "frequency-leapfrogging-probe",
+      "role": "Tests the proposed local mechanism by fitting a doubled sinusoid from its half- and quarter-frequency inputs."
+    },
+    {
+      "id": "noise-sweep-cubic-spline-regression",
+      "role": "Measures whether progressive low-pass supervision suppresses positional-encoding artifacts as label noise increases."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "One-dimensional extrapolation of sin(512x), trained on 100 uniformly sampled coordinates in [0, 0.5] with a width-8, depth-2 MLP",
+      "metric": "Visual reconstruction and held-out extrapolation over [0.5, 1]",
+      "result": "The x-plus-half-plus-quarter-frequency input is nearly exact visually, while coordinates alone underfit and the half-frequency input overfits.",
+      "baseline": "Coordinate-only MLP and coordinate-plus-sin(256x) MLP"
+    },
+    {
+      "setting": "Ten-block supervised reconstruction of sin(2^i x), i in [10]",
+      "metric": "Visual agreement of each block output with its assigned sinusoid",
+      "result": "Figure 7 shows the blocks reproducing the prescribed frequency ladder; no scalar errors or variance are reported.",
+      "baseline": "None"
+    },
+    {
+      "setting": "Random cubic-spline functions with uniform label noise sigma in {0.1, 0.5, 1, 5, 10, 20}",
+      "metric": "L2 reconstruction loss",
+      "result": "FibonacciNet loses to PE at sigma <= 1 but wins at sigma >= 5; at sigma 20 its loss is 19.836 versus 30.887 for SimpleNN and 66.702 for SimpleNN+PE.",
+      "baseline": "Plain fully connected network and the same network with positional encoding"
+    },
+    {
+      "setting": "SAPE's one-dimensional Psine increasing-frequency example",
+      "metric": "Visual reconstruction/extrapolation",
+      "result": "FibonacciNet reconstructs the example, but the paper finds that SAPE's simple network also succeeds merely by training longer.",
+      "baseline": "Simple network architecture taken from SAPE, trained for additional epochs"
+    }
+  ],
+  "limitations": [
+    "The paper evaluates only one-dimensional synthetic functions; it does not test the image, 3D geometry, audio, video, PDE, or NeRF applications invoked in the motivation.",
+    "No parameter counts, training budgets, optimizer details, random-seed replication, uncertainty estimates, or significance tests make the baseline comparisons reproducible or compute-matched.",
+    "The low-pass targets require access to and preprocessing of the full target signal, which may be unavailable for sparse irregular samples or inverse problems.",
+    "Table 1 shows that positional encoding is substantially better at low and moderate noise, limiting the claimed replacement to a particular corruption regime.",
+    "The paper claims arbitrarily high frequency reconstruction after showing only ten supervised dyadic frequencies.",
+    "There is no ablation of the two-predecessor wiring against one predecessor, dense skips, residual connections, or simply applying the same curriculum to a conventional MLP.",
+    "There is no public evaluation of inference cost or whether later narrow blocks actually offset the additional multiblock architecture."
+  ],
+  "failure_modes": [
+    "Errors in early block outputs can compound because every later prediction depends on the previous two learned approximations.",
+    "Signals with important non-dyadic or spatially localized high frequencies may not align with global exponentially increasing cutoffs.",
+    "At low noise, low-pass deep supervision can bias the model toward oversmoothing, consistent with FibonacciNet's worse Table 1 loss.",
+    "If only sparse point samples are available, constructing reliable low-pass versions of the unknown continuous target can introduce interpolation leakage or become impossible.",
+    "A weakly tuned positional-encoding baseline can make progressive supervision appear robust simply because PE bandwidth is mismatched."
+  ],
+  "reusable_insights": [
+    "Intermediate supervision can turn a hard high-frequency end-to-end fit into a sequence of lower-frequency subproblems, but should be compared separately from the architecture that carries those subproblems.",
+    "A noise sweep can reveal a crossover hidden by an average benchmark: a representation that is worse on clean data may still be valuable as a high-noise regularizer.",
+    "Mechanism probes should distinguish representation access from representation learning; supplying exact half- and quarter-frequency inputs proves composability but not that earlier blocks will learn them unaided.",
+    "Negative results against one's own motivating baseline are valuable: longer-training controls can eliminate apparent architectural gains.",
+    "Claims about frequency scalability need prospective evaluation across unseen frequency ranges and matched compute, not only interpolation inside a supervised frequency ladder."
+  ],
+  "open_questions": [
+    "Does the two-predecessor recurrence add anything beyond the same low-pass auxiliary losses applied to a residual or densely connected MLP?",
+    "Can low-pass targets be estimated without ground-truth grid access, for example from irregular noisy coordinates without leaking a chosen interpolation prior?",
+    "Where is the noise crossover against carefully tuned Fourier Features, SIREN, SAPE, multiresolution hash encodings, and wavelet features at matched parameter and optimization budgets?",
+    "Does extrapolation persist for non-harmonic, non-dyadic, localized, and multidimensional signals?",
+    "How do error and compute scale prospectively when the requested maximum frequency exceeds the ten levels used during architecture selection?",
+    "Can the learned block outputs be audited spectrally to verify that they isolate the intended bands rather than merely satisfying auxiliary losses?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2006.10739",
+      "title": "Fourier Features Let Networks Learn High Frequency Functions in Low Dimensional Domains",
+      "url": "https://arxiv.org/abs/2006.10739",
+      "relationship": "Canonical fixed-input encoding baseline for the same coordinate-MLP spectral-bias problem",
+      "difference": "Fourier Features maps coordinates through sampled sinusoids and uses NTK analysis to interpret the mapping as a stationary kernel with tunable bandwidth; FibonacciNet avoids a fixed Fourier input map but replaces bandwidth selection with a dyadic low-pass curriculum and extra supervised blocks, and does not match Fourier Features' multi-domain experiments or theoretical analysis.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2020-06-18"
+    },
+    {
+      "canonical_id": "arxiv:2104.09125",
+      "title": "SAPE: Spatially-Adaptive Progressive Encoding for Neural Optimization",
+      "url": "https://arxiv.org/abs/2104.09125",
+      "relationship": "Closest progressive-frequency curriculum and an explicit comparator discussed by the paper",
+      "difference": "SAPE progressively unmasks encoding frequencies in both time and space using an optimization feedback loop and evaluates signals, images, occupancy networks, and mesh transfer; FibonacciNet instead learns a global frequency ladder through recurrent blocks and low-pass auxiliary targets. FibonacciNet's own longer-training control also shows that SAPE's Psine toy example does not by itself establish either method's necessity.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, 2021-05-28"
+    },
+    {
+      "canonical_id": "arxiv:2006.09661",
+      "title": "Implicit Neural Representations with Periodic Activation Functions",
+      "url": "https://arxiv.org/abs/2006.09661",
+      "relationship": "Architecture-level alternative that learns high-frequency implicit representations without an input positional encoding",
+      "difference": "SIREN puts periodic activations and a principled initialization inside a conventional network and validates images, audio, video, derivatives, and boundary-value problems; FibonacciNet retains ordinary MLP blocks but adds recurrent feature reuse plus ground-truth frequency supervision, with evidence limited to one-dimensional function fitting.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, 2020-06-17"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "A Fibonacci-style block recurrence, trained at successive low-pass cutoffs, can replace positional encoding and reconstruct arbitrarily high frequencies.",
+    "evidence": "The paper demonstrates a two-frequency compositional probe, a supervised ten-frequency ladder, and a noise sweep where the method wins only at high corruption.",
+    "reviewer_inference": "The distinct contribution is the combination of two-predecessor block wiring with dyadic deep supervision. The evidence supports it as a promising high-noise regularizer and mechanism hypothesis, but not as a general positional-encoding replacement or an arbitrarily scalable frequency learner; SAPE already supplies progressive frequency exposure, while SIREN and Fourier Features are substantially broader alternatives."
+  },
+  "confidence": 0.94,
+  "reviewer_notes": "Read all seven extracted pages, including figures and references. Page anchors refer to PDF pages. Competitor metadata and current arXiv versions were checked on 2026-08-23. The unusually high confidence concerns what this short paper does and does not report, not the external validity of its synthetic results."
+}

@@ -1,0 +1,194 @@
+{
+  "stable_id": "arxiv:2207.09455",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2207.09455",
+    "pdf_sha256": "816a94eb39d994ef5f792639b23e31827476a2cb60395cceb733774c36a3ea67",
+    "text_sha256": "202fb8cad5d6ec8e33ab6ea3733384e5b48d0a5d2f70dad171b099a3c0d3c29d",
+    "page_count": 13,
+    "extracted_at": "2026-08-23T20:54:55.020608+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can training computation be reduced online by detecting when each neuron's input-output behavior has stabilized and temporarily omitting that neuron from parameter updates?",
+  "key_findings": [
+    {
+      "claim": "Neuronal equilibrium is operationalized as stability of a neuron's validation-set output geometry across epochs, not as small weights or gradients.",
+      "evidence": "For each neuron, normalized activations over a fixed validation subset are concatenated and compared by cosine similarity between consecutive epochs; a momentum-filtered change in that similarity defines the equilibrium signal.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "3 Neurons at equilibrium"},
+        {"page": 4, "section": "3.1 Neuronal equilibrium and 3.2 Neuron dynamics evaluation"}
+      ]
+    },
+    {
+      "claim": "The update mask is reversible and adapts after learning-dynamics changes.",
+      "evidence": "A neuron is frozen when the absolute velocity of its similarity change is below epsilon, but it is made trainable again if a later epoch violates the threshold, for example after a learning-rate change.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 5, "section": "3.3 Selection of trainable neurons at non-equilibrium"},
+        {"page": 5, "section": "3.4 Overall training scheme"}
+      ]
+    },
+    {
+      "claim": "NEq reduces reported backward-pass FLOPs across CNN, transformer, classification, and segmentation settings with small final-metric changes.",
+      "evidence": "Across five runs, ResNet-32/CIFAR-10 falls from 138.94M to 84.81M backward FLOPs per iteration (-38.96%) while accuracy changes from 92.85% to 92.96%; ResNet-18/ImageNet falls 23.08% with -0.28 points, Swin-B/ImageNet falls 64.39% with -0.36 points, and DeepLabv3/COCO falls 28.77% with -0.49 mIoU.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "4.2 Main experiments, Table 2"},
+        {"page": 9, "section": "4.3 Discussion"}
+      ]
+    },
+    {
+      "claim": "The learned equilibrium mask outperforms random freezing at a matched average FLOP budget in all four reported setups.",
+      "evidence": "The Stochastic* control receives the achieved compute budget after the fact, yet its final metric is lower than NEq in each Table 2 row; this isolates some value in which neurons are updated rather than only how many.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 8, "section": "Table 2"},
+        {"page": 9, "section": "4.3 Discussion"}
+      ]
+    },
+    {
+      "claim": "The paper establishes algorithmic FLOP savings, not end-to-end hardware acceleration or energy savings.",
+      "evidence": "Results report average back-propagation FLOPs and final task metrics. They do not report wall-clock time, memory traffic, total training energy, the cost of epoch-wise validation activation collection, or speedups from kernels that exploit changing neuron masks.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "3.4 Overall training scheme"},
+        {"page": 8, "section": "Table 2"},
+        {"page": 9, "section": "4.3 Discussion"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Temporarily stop updating whole neurons whose validation-response relationship has reached a stable regime, while keeping their forward contribution active.",
+    "mechanism": "After every epoch, run a fixed validation subset, form one normalized response vector per neuron, update consecutive-epoch cosine similarity and its momentum-filtered velocity, and mask backward updates where the absolute velocity is below epsilon; recompute masks so neurons can unfreeze.",
+    "assumptions": [
+      "Stability on a small validation subset reflects stability of the useful learned function",
+      "A cosine-based output statistic distinguishes converged behavior from harmless rescaling",
+      "Skipping a whole neuron's gradient can be implemented without offsetting overhead",
+      "Epoch-level masking reacts quickly enough to optimizer and learning-rate changes",
+      "Freezing individual neurons does not disrupt coupled group dynamics"
+    ]
+  },
+  "techniques": [
+    {
+      "id": "activation-cosine-equilibrium",
+      "role": "Measures whether a neuron's input-output relation has stopped changing across epochs."
+    },
+    {
+      "id": "momentum-filtered-similarity-velocity",
+      "role": "Smooths the epoch-to-epoch equilibrium statistic before thresholding."
+    },
+    {
+      "id": "reversible-structured-gradient-mask",
+      "role": "Skips updates for full neurons while allowing later reactivation and retaining all forward activations."
+    },
+    {
+      "id": "matched-random-freezing-control",
+      "role": "Separates neuron selection quality from the raw fraction of updates omitted."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "ResNet-32 on CIFAR-10, five runs",
+      "metric": "average backward FLOPs per iteration and top-1 accuracy",
+      "result": "84.81M FLOPs (-38.96%) and 92.96% accuracy (+0.11 points)",
+      "baseline": "dense baseline at 138.94M FLOPs and 92.85%, plus compute-matched stochastic freezing at 86.34M and 92.23%"
+    },
+    {
+      "setting": "ResNet-18 on ImageNet-1K, five runs",
+      "metric": "average backward FLOPs per iteration and top-1 accuracy",
+      "result": "2.80G FLOPs (-23.08%) and 69.62% accuracy (-0.28 points)",
+      "baseline": "dense baseline at 3.64G and 69.90%, plus compute-matched stochastic freezing at 2.82G and 69.45%"
+    },
+    {
+      "setting": "ImageNet-21K-pretrained Swin-B fine-tuned on ImageNet-1K, five runs",
+      "metric": "average backward FLOPs per iteration and top-1 accuracy",
+      "result": "10.78G FLOPs (-64.39%) and 84.35% accuracy (-0.36 points)",
+      "baseline": "dense baseline at 30.28G and 84.71%, plus compute-matched stochastic freezing at 11.02G and 84.27%"
+    },
+    {
+      "setting": "DeepLabv3 with ResNet-50 on COCO segmentation, five runs",
+      "metric": "average backward FLOPs per iteration and mean intersection-over-union",
+      "result": "217.29G FLOPs (-28.77%) and 67.22 mIoU (-0.49 points)",
+      "baseline": "dense baseline at 305.06G and 67.71, plus compute-matched stochastic freezing at 229.00G and 67.02"
+    }
+  ],
+  "limitations": [
+    "Author-stated: equilibrium is assessed neuron by neuron even though groups may have collective dynamics not visible in isolated statistics.",
+    "Author-stated: the underlying training schedules were borrowed without tuning for compute savings, so the achievable frontier remains uncertain.",
+    "Only backward FLOPs are measured; wall-clock, memory, monitoring, communication, and energy costs are absent.",
+    "The method consumes a validation subset during training and may indirectly tune to it.",
+    "The epsilon threshold is task-dependent: large values sharply reduce compute but also accuracy in the ablation.",
+    "Validation-size robustness is shown mainly on homogeneous convolutional CIFAR features and may not transfer to heterogeneous data or token models."
+  ],
+  "failure_modes": [
+    "A neuron's cosine direction is stable while its scale changes in a way that matters downstream.",
+    "A small or unrepresentative monitoring set marks a specialized neuron as converged prematurely.",
+    "Coupled neurons look individually unstable even when their subspace is stable, or individually stable while their joint role is not.",
+    "Dynamic fine-grained masks cause irregular kernels and memory traffic that erase theoretical FLOP savings.",
+    "A sudden optimizer, augmentation, or distribution shift occurs between epoch-level checks."
+  ],
+  "reusable_insights": [
+    "Distinguish removing a unit from inference from merely stopping its optimizer updates.",
+    "Use reversible compute allocation when the identity of useful parameters changes during training.",
+    "Compare adaptive update policies with random policies at the same realized compute budget.",
+    "Validate efficiency claims with total wall-clock and monitoring overhead in addition to operation counts.",
+    "Behavior-space convergence can reveal redundancy that weight magnitude or gradient magnitude misses."
+  ],
+  "open_questions": [
+    "Can equilibrium be measured for learned subspaces or attention heads rather than individual neurons?",
+    "What kernels and batching strategies convert changing structured masks into real accelerator speedups?",
+    "Can threshold selection be made budget-aware and calibrated without consuming a held-out set?",
+    "Does activation equilibrium predict safe freezing in language-model pretraining and distribution-shifted training?",
+    "How much of the reported accuracy-compute frontier remains after charging the monitoring forward passes?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1706.04983",
+      "title": "FreezeOut: Accelerate Training by Progressively Freezing Layers",
+      "url": "https://arxiv.org/abs/1706.04983",
+      "relationship": "direct training-freezing predecessor",
+      "difference": "FreezeOut freezes layers permanently according to a predetermined schedule and reports wall-clock results; NEq uses data-dependent neuron-level masks that can reverse when dynamics change, but reports FLOPs rather than realized time.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2 record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:1803.03635",
+      "title": "The Lottery Ticket Hypothesis: Finding Sparse, Trainable Neural Networks",
+      "url": "https://arxiv.org/abs/1803.03635",
+      "relationship": "motivating sparse-training predecessor",
+      "difference": "Lottery tickets identify an unstructured subnetwork through train-prune-rewind cycles and then train it in isolation; NEq does not remove forward connections or rewind and decides online when full neurons need updates.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v5/ICLR 2019 record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "openreview:B1VZqjAcYX",
+      "title": "SNIP: Single-shot Network Pruning Based on Connection Sensitivity",
+      "url": "https://openreview.net/forum?id=B1VZqjAcYX",
+      "relationship": "pruning-at-initialization competitor",
+      "difference": "SNIP uses one initial loss-sensitivity pass to permanently select individual connections before training; NEq monitors activations throughout training and reversibly freezes structured neuron updates.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2019 published record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2202.04736",
+      "title": "Coarsening the Granularity: Towards Structurally Sparse Lottery Tickets",
+      "url": "https://arxiv.org/abs/2202.04736",
+      "relationship": "concurrent structured-sparsity competitor",
+      "difference": "Structured lottery tickets use iterative magnitude pruning plus refill/regroup post-processing to create a permanently sparse inference graph; NEq preserves the dense inference graph and targets backward-update savings during a single run.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2 record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "NEq is an online, structured, reversible way to stop unnecessary neuron updates without a pretrained model, pruning-retraining loop, or fixed schedule.",
+    "evidence": "Activation-dynamics masks adapt across optimizers and learning-rate phases and beat matched random freezing across four training setups.",
+    "reviewer_inference": "The distinctive combination is behavior-based neuron granularity plus unfreezing during the same training run. The evidence supports a better backward-FLOP allocation rule, but not yet practical training acceleration because monitoring overhead and hardware execution are unmeasured."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Read all 13 extracted pages, with a second pass on the equilibrium statistic, mask reversibility, epsilon and validation-size ablations, every Table 2 row, and stated limitations. Primary records for FreezeOut, lottery tickets, SNIP, and structured lottery tickets were checked."
+}

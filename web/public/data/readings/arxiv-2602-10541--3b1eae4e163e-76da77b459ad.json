@@ -1,0 +1,348 @@
+{
+  "stable_id": "arxiv:2602.10541",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2602.10541",
+    "pdf_sha256": "80fffd191076eae5d82136c0acd1ee207299f6e4f0ef344af540e75861fcaf8c",
+    "text_sha256": "154c5b0d73132be48b25663e9bd0e00329487215523516c909eb82b3f9bc8e1c",
+    "page_count": 17,
+    "extracted_at": "2026-08-23T12:57:28.806586+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can frozen sinusoidal random features turn linear PDE collocation into a broadly reusable one-shot least-squares solve, extend to nonlinear PDEs through analytically assembled Newton steps, and provide derivatives accurate enough for inverse problems and equation discovery at much lower runtime than PINNs, ELMs, random-feature optimizers, and selected conventional solvers?",
+  "key_findings": [
+    {
+      "claim": "FastLSQ represents the solution as a normalized linear combination of frozen sine features and exploits the cyclic sine/cosine derivative identity to assemble arbitrary multi-index derivatives without an autodiff graph; linear PDEs then reduce to one boundary-penalized dense least-squares solve.",
+      "evidence": "Equation (1) uses u_N(x)=N^{-1/2} sum_j beta_j sin(W_j^T x+b_j), with Gaussian W and uniform phases. Equation (2) expresses D^alpha phi_j as a monomial in the relevant W coordinates times one of {sin, cos, -sin, -cos}, selected by |alpha| mod 4. Algorithm 1 stacks PDE and boundary rows and solves once by QR/SVD.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 2, "section": "2.1 Random Fourier Feature Approximation"},
+        {"page": 2, "section": "2.2 Exact Analytical Derivatives of Sinusoidal Features"},
+        {"page": 3, "section": "2.3 Linear PDEs: One-Shot Least Squares"}
+      ]
+    },
+    {
+      "claim": "The claimed O(1) derivative cost is defensible for evaluating one fixed multi-index derivative of one feature, but not literally independent of PDE order, dimension, or operator complexity for a general operator.",
+      "evidence": "Equation (2) needs one trigonometric evaluation after forming the phase, but also evaluates a product over coordinates carrying nonzero alpha_k; a general differential operator can contain many multi-indices. Increasing dimension, derivative support, or the number of operator terms therefore increases assembly work even though repeated symbolic differentiation and autodiff tapes are avoided. The comparison also overstates that tanh has no universal formula: its higher derivatives can be generated recursively/programmatically, albeit without sine's four-state cycle.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 1, "section": "1 Introduction"},
+        {"page": 2, "section": "2.2 Exact Analytical Derivatives of Sinusoidal Features"},
+        {"page": 3, "section": "Proposition 2.2 and discussion"}
+      ]
+    },
+    {
+      "claim": "On the five linear solver benchmarks, FastLSQ is consistently faster than the reported iterative PINN/RF baselines and more accurate than PIELM at nearly equal runtime, but it does not uniformly have the best error: PINNacle is substantially more accurate on Heat 5D.",
+      "evidence": "Table 1 reports FastLSQ time/error: Poisson 5D 0.07 s/4.8e-7, Heat 5D 0.09 s/6.9e-4, Wave 1D 0.06 s/1.3e-6, Helmholtz 2D 0.08 s/1.9e-6, and Maxwell 2D 0.05 s/6.7e-7. PIELM errors are 4.7e-6, 3.0e-3, 1.8e-3, 7.4e-5, and 4.5e-5 at 0.06-0.09 s. Yet PINNacle's Heat error is 1.2e-4, about 5.75 times lower than FastLSQ's 6.9e-4, although its cited runtime is about 1,910 s.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 5, "section": "3.2 Linear PDEs"}
+      ]
+    },
+    {
+      "claim": "The abstract's linear headline of 1e-7 accuracy in 0.07 s is a best-case-style summary rather than a result shared by the benchmark suite, and the orders-of-magnitude speedups are not controlled wall-time comparisons.",
+      "evidence": "Only some linear problems reach the 1e-7 scale; Heat 5D is 6.9e-4. Table 1 explicitly takes PINNacle's fastest time and best error across 11 variants, which need not come from the same variant, and imports RF-PDE's closest nonlinear Poisson d=4 timing as a lower-bound proxy for the paper's linear Poisson d=5. These cross-paper values are not matched for hardware, implementation, stopping rule, samples, accuracy, or problem instance. The FastLSQ numbers themselves are measured end-to-end for feature construction, assembly, and solve on one NVIDIA T4 and should be kept separate from these proxy speedup ratios.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 1, "section": "Abstract"},
+        {"page": 5, "section": "3.2 Linear PDEs, Table 1 and footnotes"},
+        {"page": 10, "section": "3.9 Computational Complexity and Reproducibility"}
+      ]
+    },
+    {
+      "claim": "For five nonlinear PDEs, analytically assembled, regularized Newton solves reach 3.9e-9 to 1.5e-7 relative L2 error in 4.2-8.8 s, but this is iterative nonlinear solving rather than the title's literal one-shot regime, and specialized 1-D solvers remain more accurate in two cases.",
+      "evidence": "Table 2 reports: nonlinear Poisson 6.1e-8 in 30 iterations/8.2 s; Bratu 1.5e-7 in 30/7.0 s; Burgers 3.9e-9 in 48 continuation steps/7.4 s; nonlinear Helmholtz 2.4e-9 in 30/8.8 s; Allen-Cahn 6.0e-8 in 30/4.2 s. scipy.solve_bvp attains 1.8e-10 on Burgers (about 22 times lower error) and 1.2e-10 on Allen-Cahn (500 times lower), while the selected 2-D FEM baselines are less accurate.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 4, "section": "2.4 Nonlinear PDEs via Newton-Raphson"},
+        {"page": 6, "section": "3.3 Nonlinear PDEs, Table 2"}
+      ]
+    },
+    {
+      "claim": "Warm starts, Tikhonov regularization, line search, continuation, and feature scaling are consequential in the two-problem ablation, but the paper's causal explanation for uniform N^{-1/2} normalization is algebraically questionable.",
+      "evidence": "Table 3 gives full-model errors 6.1e-8 (nonlinear Poisson) and 3.9e-9 (Burgers); removing N^{-1/2} yields 4.2e-4/divergence, no Tikhonov 3.8e-5/1.1e-6, no warm start 8.3e-7/divergence, no line search 9.4e-7/2.1e-5, and no continuation makes Burgers diverge. However, multiplying every feature column by the same N^{-1/2} does not change an unregularized matrix condition number and requires the equivalent coefficient vector to scale up by sqrt(N), not remain smaller. With fixed Tikhonov mu, it changes the effective regularization. Thus the ablation establishes sensitivity to scale/regularization coupling, not the stated mechanism of preventing 1e6-1e8 coefficients and ill-conditioning.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "2.1 Random Fourier Feature Approximation"},
+        {"page": 4, "section": "2.4 Nonlinear PDEs via Newton-Raphson"},
+        {"page": 6, "section": "3.4 Ablation Study, Table 3"}
+      ]
+    },
+    {
+      "claim": "Seven of the advertised 17 PDE experiments are oracle regression fits to known exact solutions, not PDE solves, and several are null or weak wins against tanh features.",
+      "evidence": "Table 5 labels this subset regression mode. Burgers shock has identical value error 1.3e-3 for sine and tanh, while tanh's gradient error 5.6e-3 is 4.6 times lower than sine's 2.6e-2. Reaction-diffusion value error is slightly lower for tanh (4.3e-7 versus 4.5e-7). KdV errors remain large for both bases (sine value/gradient 0.17/0.60; tanh 0.42/0.72). Sine clearly wins on Sine-Gordon, Klein-Gordon, Gray-Scott, and Navier-Stokes, but those results measure function fitting with target values, not residual-based solution of those PDEs.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "1 Introduction, contribution summary"},
+        {"page": 6, "section": "3.5 Nonlinear PDEs: Regression Mode"},
+        {"page": 7, "section": "Table 5"}
+      ]
+    },
+    {
+      "claim": "Exact feature differentiation generally keeps linear-benchmark gradient errors near the value-error scale, but accuracy still depends sharply on spectral bandwidth and problem smoothness.",
+      "evidence": "Table 4 reports value/gradient relative errors of 4.8e-7/3.7e-6 (Poisson), 6.9e-4/1.7e-3 (Heat), 1.3e-6/5.7e-6 (Wave), 1.9e-6/2.2e-5 (Helmholtz), and 6.7e-7/5.7e-6 (Maxwell). The bandwidth study searches sigma in {0.5,1,2,3,5,8,10,12,15}; Appendix D's curves show distinct optima and degradation away from them rather than one task-independent spectrum.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 6, "section": "3.6 Gradient Accuracy, Table 4"},
+        {"page": 7, "section": "3.7 Spectral Sensitivity"},
+        {"page": 12, "section": "Appendix D: Additional Spectral Sensitivity"},
+        {"page": 15, "section": "Appendix D, Figure 12"}
+      ]
+    },
+    {
+      "claim": "The SINDy demonstration shows a large derivative-denoising benefit, but one recovered coefficient retains a material bias and the study is one synthetic trajectory/noise setting.",
+      "evidence": "At additive noise sigma_epsilon=0.01, finite-difference u_xx has RMSE about 2,461 (described as about 2,500), whereas differentiating the fitted features yields about 0.41, roughly a 6,000-fold reduction. Sparse regression recovers c1=-4.26 versus -4.25 (under 0.2% error), c2=-1.12 versus -1.00 (about 12% error), and removes the spurious u^2 term. There is no sweep over noise, sample count, basis seed, or competing smoothers.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 7, "section": "3.8 Applications: PDE Discovery"},
+        {"page": 8, "section": "Figure 2"},
+        {"page": 15, "section": "Appendix G.1 PDE Discovery"}
+      ]
+    },
+    {
+      "claim": "The heat-source inverse experiment contains mutually inconsistent observation counts, optimizer-step counts, and position-accuracy summaries, so its exact protocol and headline recovery guarantee are not internally reproducible from the paper.",
+      "evidence": "The main text says four sensors times 40 snapshots equals 480 observations and uses 150 L-BFGS-B iterations; 4x40 is 160, not 480. Appendix G/Table 6 instead specifies 4x60=240 observations and 300 iterations, consistent with the conclusion's 240 observations. Figure 3's caption says all positions are recovered within 0.06, yet Table 6 reports source-2 x error 0.067 and source-4 x error 0.12; the main prose itself acknowledges the weakest x-coordinate error is 0.12. These are direct contradictions, not sampling uncertainty.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 8, "section": "3.8 Applications: Inverse Heat-Source Localisation and Figure 3"},
+        {"page": 10, "section": "5 Conclusion"},
+        {"page": 15, "section": "Appendix G.2 Heat-Source Localisation"},
+        {"page": 16, "section": "Appendix G.2, Table 6"}
+      ]
+    },
+    {
+      "claim": "A second inverse demonstration recovers four hidden coil locations from sparse noisy field data, but reports only one synthetic geometry and no uncertainty or identifiability analysis.",
+      "evidence": "With eight sparse sensors and 1% noise in a variable-permeability quadrupole, 40 Adam steps move the inferred coils to within 0.02 in both coordinates of the true locations; the text illustrates one coil initialized at (0.2,0.8) and recovered near its true (0.45,0.45). No repeated noise/initialization trials or competing inverse solver are reported.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 8, "section": "3.8 Applications: Sparse-Sensor Coil Localisation"},
+        {"page": 9, "section": "Figure 4"},
+        {"page": 16, "section": "Appendix G.3 Coil Localisation"}
+      ]
+    },
+    {
+      "claim": "Differentiating through the least-squares solution enables learnable spectral bandwidth, and caching helps repeated right-hand sides, but neither extension remains a one-shot operation and the caching latency is not sub-millisecond.",
+      "evidence": "For Helmholtz 2D with N=500, 80 AdamW outer steps move sigma from 5 toward about 12 and reduce loss from 2.1e-2 to 8.1e-8. For N=1,500 and M=6,000, precomputing the pseudoinverse reduces each later solve from 453 ms to 1.3 ms, reported as 362x. The conclusion calls this sub-millisecond, contradicting the explicit 1.3-ms measurement. The outer optimization and precomputation should be distinguished from the fast cached multiply.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 9, "section": "3.8 Extensions"},
+        {"page": 12, "section": "Appendix E: Learnable Bandwidth via Reparameterisation"},
+        {"page": 15, "section": "Algorithm 2"},
+        {"page": 17, "section": "Appendix G.4-G.5"}
+      ]
+    },
+    {
+      "claim": "The stated Gaussian-kernel limit is missing a factor of one half for the exact feature normalization written in Equation (1).",
+      "evidence": "For b uniform on [0,2pi], E_b[sin(a+b)sin(c+b)]=(1/2)cos(a-c); with W~N(0,sigma^2 I), the expectation is (1/2) exp[-sigma^2||x-x'||^2/2], not the unit-amplitude kernel printed on page 2. A sqrt(2/N) rather than 1/sqrt(N) prefactor would give the stated kernel. The missing global factor does not change the finite feature span, but it does invalidate the exact normalization claim and further weakens the coefficient-scaling rationale.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 2, "section": "2.1 Random Fourier Feature Approximation, Equation 1"}
+      ]
+    },
+    {
+      "claim": "The claim that FastLSQ is the only applicable method for all ten solver-mode problems is true only inside the paper's narrow implementation panel and should not be generalized to conventional numerical analysis.",
+      "evidence": "Table 7 compares only scikit-fem P2 FEM, scipy.solve_bvp, and an RBF Kansa implementation, marking them inapplicable outside their selected dimensional/equation classes. That does not establish that spectral, discontinuous-Galerkin, sparse-grid, tensor/low-rank, domain-decomposition, or specialized high-dimensional solvers have no applicable path. Moreover, the conventional methods are not matched for degrees of freedom or target error: examples use about 4,000 or 16,641 FEM DoF versus 1,500 random features.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 2, "section": "1 Introduction, contribution summary"},
+        {"page": 9, "section": "4 Related Work and Conventional Baselines"},
+        {"page": 16, "section": "Appendix G.3, Table 7"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Freeze a bank of multiscale sinusoidal random features, evaluate every required PDE derivative by a closed-form phase shift and frequency monomial, and solve only for the linear output coefficients; reuse the same analytical matrices inside Newton or differentiable inverse-design loops.",
+    "mechanism": "Sample W_j and phases b_j, evaluate feature matrix H and operator matrices from the multi-index sine derivative identity, sample interior and boundary collocation points, and solve min_beta ||A_pde beta-f||^2 + lambda^2||A_bc beta-g||^2. For nonlinear residual R(beta), compute the exact linear-operator contribution plus feature-based nonlinear Jacobian terms, solve a mu=1e-10 Tikhonov Newton least-squares step, and apply warm starts and Armijo/backtracking; Burgers additionally uses viscosity continuation. Feature frequencies can be reparameterized as W=sigma W_hat so gradients pass through the least-squares solution to sigma or physical parameters. A cached pseudoinverse supports repeated right-hand sides.",
+    "assumptions": [
+      "The solution is sufficiently well approximated by the sampled finite sinusoidal span at a manually selected bandwidth or multiblock bandwidths.",
+      "The PDE and boundary conditions can be enforced accurately by point collocation and a penalty lambda; most demonstrations use rectangular/box domains and simple boundary sampling.",
+      "For the literal one-shot result, the PDE and boundary operators are linear in u and the assembled dense least-squares system is numerically tractable.",
+      "For nonlinear PDEs, Newton linearizations are valid near the iterates and stabilization choices (warm start, regularization, line search, and sometimes continuation) avoid bad basins or singular Jacobians.",
+      "Exact feature derivatives remove differentiation error but do not remove approximation, collocation, conditioning, floating-point, or inverse-identifiability error.",
+      "Dense O(MN^2) solves and O(MN) matrices fit memory; tests stop at roughly N=1,500, M=12,000, and dimension six.",
+      "Synthetic inverse observations and oracle regression targets adequately represent the intended downstream settings; noise-model mismatch and geometry complexity are not tested.",
+      "Imported baseline numbers are treated as informative despite unmatched code, hardware, tuning, samples, and sometimes problem definitions."
+    ]
+  },
+  "techniques": [
+    {"id": "sinusoidal-random-features", "role": "Provide a frozen spectral basis whose derivatives cycle among sine and cosine and whose bandwidth controls represented frequencies."},
+    {"id": "closed-form-multi-index-differentiation", "role": "Assemble PDE and boundary operator matrices graph-free from frequency monomials and phase shifts."},
+    {"id": "penalized-collocation-least-squares", "role": "Stack interior residual and lambda-weighted boundary rows for the linear one-solve estimator."},
+    {"id": "multiblock-bandwidth-basis", "role": "Concatenate several independently sampled frequency bands to cover multiple solution scales."},
+    {"id": "regularized-newton-least-squares", "role": "Extend the linear analytical assembly to nonlinear residuals through exact feature-based Jacobians."},
+    {"id": "warm-start-line-search-continuation", "role": "Stabilize nonlinear solves; viscosity continuation is essential for the tested shock-like Burgers case."},
+    {"id": "implicit-differentiation-through-solve", "role": "Optimize bandwidths or physical/inverse parameters while solving the linear coefficients analytically."},
+    {"id": "pseudoinverse-caching", "role": "Amortize a fixed operator matrix over many changed right-hand sides in parametric sweeps."},
+    {"id": "feature-smoothed-sindy", "role": "Fit noisy fields first, obtain analytical derivatives, then use LASSO plus OLS refitting for PDE discovery."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Linear solver suite: Poisson 5D, Heat 5D, Wave 1D, Helmholtz 2D, Maxwell 2D; normally 1,500 features in three 500-feature blocks, 10,000 interior and 2,000 boundary points, bandwidth grid searched over nine values, three trials, NVIDIA T4.",
+      "metric": "Out-of-sample relative L2 error and end-to-end wall time including feature construction, matrix assembly, and dense solve.",
+      "result": "FastLSQ: 4.8e-7/0.07 s, 6.9e-4/0.09 s, 1.3e-6/0.06 s, 1.9e-6/0.08 s, and 6.7e-7/0.05 s respectively.",
+      "baseline": "PIELM at similar 0.06-0.09 s has 4.7e-6, 3.0e-3, 1.8e-3, 7.4e-5, 4.5e-5. Imported PINNacle values are much slower but Heat is more accurate (1.2e-4 versus 6.9e-4). RF-PDE's 51-s value is a different nonlinear d=4 proxy."
+    },
+    {
+      "setting": "Nonlinear true-solver suite with 5,000 collocation points, mu=1e-10 Tikhonov, warm starts and line search; Burgers uses four viscosity stages.",
+      "metric": "Newton iterations, time per iteration/total runtime, and relative L2 error without fitting the exact solution.",
+      "result": "Nonlinear Poisson: 30, 0.27/8.2 s, 6.1e-8; Bratu: 30, 0.23/7.0 s, 1.5e-7; Burgers: 48, 0.15/7.4 s, 3.9e-9; nonlinear Helmholtz: 30, 0.29/8.8 s, 2.4e-9; Allen-Cahn: 30, 0.14/4.2 s, 6.0e-8.",
+      "baseline": "Selected FEM errors are 2.4-2.6e-6 for applicable 2-D cases; solve_bvp is more accurate on Burgers (1.8e-10) and Allen-Cahn (1.2e-10)."
+    },
+    {
+      "setting": "Ablation on nonlinear Poisson and Burgers with one stabilization component removed at a time.",
+      "metric": "Final relative L2 error or divergence.",
+      "result": "Full: 6.1e-8/3.9e-9. No N^{-1/2}: 4.2e-4/diverge; no Tikhonov: 3.8e-5/1.1e-6; no warm start: 8.3e-7/diverge; no line search: 9.4e-7/2.1e-5; no continuation: Burgers diverges.",
+      "baseline": "The complete Newton-FastLSQ configuration; ablation supports component sensitivity but not the paper's specific conditioning explanation for a uniform feature scale."
+    },
+    {
+      "setting": "Seven nonlinear exact-solution regression tasks, comparing sine and tanh frozen features rather than PDE residual solves.",
+      "metric": "Relative value and gradient L2 errors.",
+      "result": "Sine/tanh value-gradient: Burgers 1.3e-3/2.6e-2 versus 1.3e-3/5.6e-3; KdV 0.17/0.60 versus 0.42/0.72; reaction-diffusion 4.5e-7/3.2e-6 versus 4.3e-7/2.7e-6. Sine has clearer wins on Sine-Gordon, Klein-Gordon, Gray-Scott, and Kovasznay Navier-Stokes.",
+      "baseline": "PIELM-style tanh regression at matched feature count; PINNacle numbers in the table solve the PDE and therefore are not task-equivalent."
+    },
+    {
+      "setting": "Derivative quality on the five linear PDE benchmarks.",
+      "metric": "Relative L2 error of u and its gradient on held-out points.",
+      "result": "Poisson 4.8e-7/3.7e-6; Heat 6.9e-4/1.7e-3; Wave 1.3e-6/5.7e-6; Helmholtz 1.9e-6/2.2e-5; Maxwell 6.7e-7/5.7e-6.",
+      "baseline": "No numerical-derivative baseline in Table 4; the comparison is gradient error relative to the fitted value error."
+    },
+    {
+      "setting": "Bandwidth sensitivity across all benchmark families, sigma in {0.5,1,2,3,5,8,10,12,15}, three trials per setting.",
+      "metric": "Relative L2 error versus random-feature bandwidth.",
+      "result": "Figures 7-12 show problem-specific error minima and substantial degradation at mismatched low/high sigma; no single sigma dominates all tasks.",
+      "baseline": "Same model and feature count at other bandwidths; plots do not supply uncertainty bands or trial-level tables."
+    },
+    {
+      "setting": "PDE discovery from noisy synthetic field data at additive noise standard deviation 0.01.",
+      "metric": "u_xx RMSE and recovered sparse equation coefficients.",
+      "result": "Finite differences give RMSE 2,461 versus about 0.41 from analytical feature derivatives (about 6,000x reduction); recovered coefficients are -4.26 versus -4.25 and -1.12 versus -1.00, with the spurious u^2 term eliminated.",
+      "baseline": "Finite-difference derivatives and the known generating equation; no spline/kernel smoother or neural differentiator baseline."
+    },
+    {
+      "setting": "Inverse localization of four anisotropic heat sources from four irregular sensors and synthetic temperature observations.",
+      "metric": "Recovered source positions/intensities after L-BFGS-B.",
+      "result": "Appendix Table 6 reports most coordinate errors below 0.02 but source-2 x error 0.067 and source-4 x error 0.12. The appendix protocol is 60 snapshots/240 observations and 300 iterations.",
+      "baseline": "Known synthetic parameters; main text instead says 40 snapshots/480 observations and 150 iterations, and the Figure 3 caption incorrectly says every position is within 0.06."
+    },
+    {
+      "setting": "Inverse localization of four coils in a variable-permeability quadrupole with eight sensors and 1% noise.",
+      "metric": "Coordinate error after 40 Adam steps.",
+      "result": "All reported coil positions agree with truth to under 0.02 per coordinate.",
+      "baseline": "Synthetic ground truth only; no alternative inverse method, repeated initialization, or uncertainty interval."
+    },
+    {
+      "setting": "Learned bandwidth on Helmholtz 2D, N=500, initial sigma=5, 80 AdamW outer steps.",
+      "metric": "Training loss and recovered sigma.",
+      "result": "Loss falls from 2.1e-2 to 8.1e-8 and sigma approaches about 12, the grid-search optimum.",
+      "baseline": "Fixed initial sigma and the separately grid-searched optimum; this is iterative bilevel optimization, not a one-shot solve."
+    },
+    {
+      "setting": "Repeated Helmholtz 2D solves with fixed A, N=1,500 and M=6,000.",
+      "metric": "Per-right-hand-side wall time after matrix pseudoinverse caching.",
+      "result": "453 ms full least-squares solve versus 1.3 ms cached multiply, reported as 362x.",
+      "baseline": "Recomputing the dense least-squares solution; the one-time pseudoinverse construction is excluded from cached-query latency and 1.3 ms is not sub-millisecond."
+    }
+  ],
+  "limitations": [
+    "Author-stated: nonlinear PDEs need repeated O(MN^2) Newton least-squares solves and are therefore slower than the genuinely one-shot linear case.",
+    "Author-stated: bandwidth sigma is problem dependent and currently selected by grid search; high derivative order and large sigma amplify powers of W and can worsen conditioning.",
+    "Author-stated: boundary enforcement depends on penalty lambda and simple box geometries; complex domains, vector-valued systems, domain decomposition, preconditioning, and approximation/conditioning theory remain future work.",
+    "Author-stated: accuracy saturates or destabilizes as N grows because dense random-feature matrices become ill-conditioned.",
+    "Reviewer-inferred: all reported scaling remains small enough for dense linear algebra (about N<=1,500, M<=12,000, d<=6); storage O(MN) and solve O(MN^2) are likely limiting well before industrial mesh sizes.",
+    "Reviewer-inferred: stochastic basis seeds, the three bandwidth trials, and selection/statistic are not reported with error bars, so robustness and the effect of best-of-grid selection cannot be assessed.",
+    "Reviewer-inferred: baseline wall times and accuracies are often imported from different papers, machines, variants, dimensions, or problem definitions and are not controlled speed/accuracy frontiers.",
+    "Reviewer-inferred: seven of 17 advertised PDEs are supervised exact-solution regressions, and inverse/discovery tasks are isolated synthetic examples rather than broad solver validation.",
+    "Reviewer-inferred: exact basis derivatives guarantee calculus with respect to the approximation, not correctness of the approximation's derivatives, stability of the collocation system, or identifiability of inverse parameters.",
+    "Reviewer-inferred: the normalization/kernel and heat-source/caching inconsistencies show that some explanatory and protocol claims require correction before strict reproducibility."
+  ],
+  "failure_modes": [
+    "A poorly chosen spectral bandwidth under-resolves high frequencies or fills the basis with frequencies irrelevant to a smooth solution, producing the sharp error degradation in Appendix D.",
+    "High-order derivatives and large frequencies raise products W^alpha, increasing dynamic range and condition number; finite-precision dense QR/SVD can then become unstable.",
+    "Removing Tikhonov regularization, warm starts, or line search degrades both tested nonlinear problems, while Burgers diverges without continuation and without normalized/regularized scaling.",
+    "Uniform random collocation can miss localized layers, shocks, or geometric details; the shock regression already leaves 1.3e-3 value and 2.6e-2 gradient error.",
+    "Penalty boundary conditions can trade interior residual against boundary mismatch as lambda changes and do not enforce constraints exactly.",
+    "Cached solves are only valid while the operator/collocation matrix is unchanged; changing geometry, coefficients, bandwidth, or nonlinear state invalidates the cache.",
+    "Inverse recovery can be weakly identifiable with sparse sensors: appendix results show heat-source shape parameters are weakly constrained and one x-coordinate is off by 0.12.",
+    "The one-shot label fails operationally for nonlinear Newton solves, learnable bandwidth, and inverse optimization, each of which performs many solves/optimizer steps."
+  ],
+  "reusable_insights": [
+    "Choose frozen bases partly by the closure of their derivative algebra, not only approximation quality: a four-state phase cycle makes arbitrary linear differential operators cheap to compile.",
+    "Separate basis/operator assembly from right-hand-side solves; when only forcing or boundary data changes, cache a factorization or pseudoinverse and report both setup and amortized latency.",
+    "Use exact differentiation of a smooth surrogate as a denoising interface before sparse equation discovery, but validate coefficient bias across noise and regularization sweeps.",
+    "For nonlinear collocation, treat regularization, step control, warm starts, and physical continuation as first-class algorithmic components rather than implementation details.",
+    "Report linear one-solve results separately from nonlinear Newton, bilevel bandwidth, and inverse-design results so computational claims do not conflate theoretical solve count and measured wall time.",
+    "Benchmark at matched errors, hardware, collocation budgets, and degrees of freedom; imported fastest-time and best-error entries should never be combined into one pseudo-operating point.",
+    "A uniform feature normalization is inseparable from regularization strength in ridge/Tikhonov solves; ablate the invariant effective regularization rather than attributing changes directly to matrix conditioning.",
+    "A multiband feature bank is a practical hedge against a single length scale, but adaptive/operator-aware sampling may be more efficient than a broad manual sigma grid."
+  ],
+  "open_questions": [
+    "Can operator-aware or residual-Christoffel sampling provide provable sample complexity and conditioning guarantees for the sine-feature matrices while retaining fast analytical assembly?",
+    "How do error and condition number scale jointly with N, M, dimension, derivative order, bandwidth, collocation design, and floating-point precision?",
+    "Can hard boundary parametrizations or equality-constrained least squares replace a manually tuned boundary penalty on complex geometries?",
+    "Does an adaptive multiscale or residual-driven frequency sampler outperform nine-value grid search under a fixed total compute budget?",
+    "How robust are nonlinear solves across basis seeds, initial states, stiffness, shocks, bifurcations, and continuation schedules, including failures rather than only final successful runs?",
+    "Do the reported derivative advantages persist against splines, Gaussian processes, spectral elements, weak-form discovery, and modern neural operators under matched data/noise?",
+    "What is the corrected and executable heat-source protocol, and how do sensor placement, snapshot count, noise, and repeated initializations affect parameter uncertainty?",
+    "At what number of repeated right-hand sides does factorization/pseudoinverse caching amortize its setup and memory cost relative to sparse or iterative solvers?",
+    "Can sine features be combined with sparse/local bases or domain decomposition to avoid dense O(MN^2) scaling and handle irregular domains?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:1907.03507",
+      "title": "Physics Informed Extreme Learning Machine (PIELM) -- A rapid method for the numerical solution of partial differential equations",
+      "url": "https://arxiv.org/abs/1907.03507",
+      "relationship": "Direct one-shot frozen-feature predecessor and principal in-paper baseline: it solves output weights of an extreme learning machine from PDE collocation equations and extends to distributed PIELM for harder domains.",
+      "difference": "PIELM uses tanh random hidden units and derives required PDE derivatives for its selected equations. FastLSQ's real extension is the sine basis's single cyclic multi-index derivative rule, multiband spectral tuning, stabilized Newton treatment, and inverse/discovery applications—not the general observation that a frozen basis makes a linear PDE a linear solve.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, submitted 2019-07-08; later published in Neurocomputing 391 (2020)"
+    },
+    {
+      "canonical_id": "arxiv:2501.00288",
+      "title": "Solving Partial Differential Equations with Random Feature Models",
+      "url": "https://arxiv.org/abs/2501.00288",
+      "relationship": "Direct random-feature PDE method studied before FastLSQ and cited as RF-PDE; it supplies approximation/error analysis and high-dimensional experiments.",
+      "difference": "RF-PDE optimizes its random-feature coefficients iteratively for roughly 600-2,000 epochs in the reported experiments, whereas FastLSQ explicitly assembles linear operators and solves their coefficients directly; FastLSQ contributes sine-specific derivative compilation but substantially less approximation/sampling theory.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v2, revised 2025-09-21 (first submitted 2024-12-31)"
+    },
+    {
+      "canonical_id": "arxiv:2607.13382",
+      "title": "Residual-Christoffel Sampling for Random Feature Collocation of Linear PDEs",
+      "url": "https://arxiv.org/abs/2607.13382",
+      "relationship": "Current post-submission direct competitor for random-feature linear-PDE collocation, verified from its official arXiv record and paper rather than title similarity.",
+      "difference": "It designs residual-Christoffel interior/boundary sampling, inverse-density weighting, whitening, and log-determinant row selection, with spectral-approximation and sample-complexity analysis aimed at stability. FastLSQ instead emphasizes universal sine derivative assembly and empirical runtime, while sampling uniformly and leaving conditioning theory open; the two contributions are complementary and the later paper directly addresses FastLSQ's weakest scaling axis.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, submitted 2026-07-15"
+    },
+    {
+      "canonical_id": "arxiv:2506.17654",
+      "title": "Rank Inspired Neural Network for solving linear partial differential equations",
+      "url": "https://arxiv.org/abs/2506.17654",
+      "relationship": "Current least-squares-output PDE network whose central goal is reducing hidden-basis collinearity and initialization variance.",
+      "difference": "The rank-inspired method adds a nonlinear preconditioning/training stage that penalizes off-diagonal feature covariance before its final linear solve, improving effective rank and reproducibility. FastLSQ avoids hidden-layer training for linear PDEs and offers cheaper exact sine derivatives, but leaves random-basis conditioning and across-seed variability largely unmeasured.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v1, submitted 2025-06-21; later published in SIAM Journal on Scientific Computing"
+    },
+    {
+      "canonical_id": "arxiv:2503.19185",
+      "title": "Least Squares with Equality constraints Extreme Learning Machines for the resolution of PDEs",
+      "url": "https://arxiv.org/abs/2503.19185",
+      "relationship": "Current constrained-ELM PDE framework covering linear and nonlinear equations and explicitly targeting boundary/constraint enforcement.",
+      "difference": "LSE-ELM puts PDE/continuity/boundary conditions into equality-constrained least squares and supports more general domain decompositions, whereas FastLSQ normally uses a tunable soft boundary penalty on simple boxes. FastLSQ's differentiator is the universal sine derivative rule and its downstream differentiable-twin demonstrations; equality constraints are a concrete alternative to one of its stated limitations.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv v3, revised 2025-06-27 (first submitted 2025-03-24); later published in Journal of Computational Physics 547"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims the first universal FastLSQ framework in which one closed-form sine-feature derivative formula assembles any linear differential operator, enabling one-shot linear PDE solutions, analytically assembled nonlinear Newton solves, and a differentiable digital twin for inverse problems and discovery; it further claims broad superiority across 17 PDEs and applicability where selected conventional solvers have no path.",
+    "evidence": "The introduction distinguishes FastLSQ from PIELM's equation-specific tanh calculus and RF-PDE's iterative coefficient optimization; Sections 2-3 implement the general multi-index formula and test five linear solver, five nonlinear solver, and seven supervised regression problems, followed by discovery, localization, bandwidth-learning, and caching demonstrations.",
+    "reviewer_inference": "The clearest novelty is engineering a sine-feature operator compiler around an elementary but unusually useful four-state derivative algebra and reusing it across linear, nonlinear, and differentiable downstream workflows. One-shot frozen-feature PDE solving itself predates the work in PIELM, and newer direct competitors add constraint, conditioning, cascade, and sampling theory absent here. Claims of 17 PDE 'solves,' universal conventional-solver applicability, uniform accuracy superiority, O(1) regardless of order, and one-shot scope are overbroad: seven tasks are regression; Heat favors PINNacle on error; nonlinear/inverse/bandwidth workflows iterate; operator term count still matters; and comparisons cover only selected codes. The internal normalization, inverse-protocol, and caching contradictions further lower confidence in explanatory and headline precision without negating the useful analytical-assembly mechanism."
+  },
+  "confidence": 0.9,
+  "reviewer_notes": "Primary full-text review of all 17 extracted pages, including Appendices A-G; equations, Tables 1-7, algorithms, spectral plots, and inverse/caching captions were cross-checked against the local PDF directly. Source hashes and page count exactly match data/generated/fulltext_index.jsonl. The quantitative audit deliberately separates theoretical one-solve structure, measured FastLSQ wall time, imported cross-paper runtime proxies, and retained accuracy. Competitors were verified on official arXiv, publisher, or proceedings records and enough primary content was read to establish mechanism-level differences; checked 2026-08-23. No code execution or numerical reproduction was attempted. Confidence is high for transcription and algebraic audits, moderate for generalization because trials, seeds, uncertainty, matched hardware, and large-scale tests are missing."
+}

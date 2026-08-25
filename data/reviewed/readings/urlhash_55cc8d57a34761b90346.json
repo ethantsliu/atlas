@@ -1,0 +1,106 @@
+{
+  "stable_id": "urlhash:55cc8d57a34761b90346",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://mathai-iclr.github.io/papers/papers/MATHAI_4_paper.pdf",
+    "pdf_sha256": "d4d738e3b27a8a5c85bd697c5daffc91ee8a8efce4a0ef3928bd754edc78c521",
+    "text_sha256": "e49cd81d9bc5eb9b43dd5c1de8b8f4f975f921fde99602e77ccb0302f7401ff6",
+    "page_count": 19,
+    "extracted_at": "2026-08-23T23:03:08.391065+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can a reinforcement-learning agent learn tactic choice, premise/term arguments, and backtracking jointly in HOL4 without training on human-written proof traces?",
+  "key_findings": [
+    {
+      "claim": "Representing a proof-search state as multiple alternative fringes makes backtracking a learned action rather than a fixed external search rule.",
+      "evidence": "Each fringe is an AND-set of remaining goals sufficient to finish one proof path, while the state retains all prior fringes as OR alternatives. A goal-value network scores and samples a fringe, so the agent can abandon a newly generated dead end and resume an older derivation.",
+      "anchors": [{"page": 2, "section": "2.1, Modeling ITP with MDP"}, {"page": 3, "section": "2.2, Selecting fringes"}, {"page": 10, "section": "Figure 2, learned backtracking example"}]
+    },
+    {
+      "claim": "The factorized policy makes a very large structured action space tractable enough for policy-gradient training.",
+      "evidence": "An action chooses fringe, first goal, one of the allowed tactics, and a sequence of theorem or term arguments. Separate goal and tactic networks plus an LSTM argument policy factorize its probability; the average theorem candidate set is 468 and a length-n argument list has nominal size 468^n.",
+      "anchors": [{"page": 2, "section": "2.1, Actions"}, {"page": 3, "section": "Tactic and argument selection"}, {"page": 13, "section": "A.6, Space of arguments"}]
+    },
+    {
+      "claim": "Without human proof traces, TacticZero substantially outperforms random search on held-out HOL4 theorems and is close to the paper's hammer baseline.",
+      "evidence": "On a random 80/20 split of 1,342 provable core-library theorems and up to eight attempts per test theorem, it proves 62.3%, versus 14.2% for random rollouts and 64.5% for HOL(y)Hammer/Vampire. Theory-specific agents prove 81.7% of held-out set theorems, 61.7% of list theorems, and 75.0% of other theorems.",
+      "anchors": [{"page": 4, "section": "3, Experiments, Table 1"}]
+    },
+    {
+      "claim": "Argument selection is the most consequential learned component in the reported ablation.",
+      "evidence": "Freezing each module at its random initialization reduces training success, but disabling the recurrent argument policy causes the largest degradation; the remaining networks can partly compensate for a random fringe or tactic choice.",
+      "anchors": [{"page": 12, "section": "A.4, Ablation study and Figure 5"}]
+    },
+    {
+      "claim": "All discovered scripts are reconstructed and checked by HOL4, so search reward cannot substitute an invalid proof for a successful one.",
+      "evidence": "When an empty fringe is reached, the environment reconstructs a HOL4 proof script from the state sequence and sends it back to the kernel-backed prover for verification; the paper also prints multiple discovered scripts.",
+      "anchors": [{"page": 13, "section": "A.5, software environment"}, {"page": 14, "section": "Figure 7"}, {"page": 15, "section": "A.7, example proofs"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Cast tactic-level interactive theorem proving as an episodic MDP whose policy controls both local proof steps and global choice among alternative partial derivations.",
+    "mechanism": "Encode HOL4 expressions into 256-dimensional pretrained autoencoder representations; score fringes by summed goal values; sample tactics; recurrently select up to five prior theorems or goal terms as arguments; execute the action in HOL4; train all policies with REINFORCE, shaped progress rewards, and replay of the agent's recent successful proofs.",
+    "assumptions": [
+      "The human-selected tactic vocabulary is expressive enough for every benchmark theorem.",
+      "Library order supplies an acceptable accessibility rule for premise candidates.",
+      "Summing independent goal logits is a useful proxy for the probability of completing an entire fringe.",
+      "Always tackling the first goal within a selected fringe loses little because all fringe goals must eventually be proved.",
+      "Shaped tactic rewards and difficulty-dependent terminal rewards preserve useful search behavior despite not being derived from proof cost.",
+      "A random held-out split within one curated HOL4 library measures the desired generalization."
+    ]
+  },
+  "techniques": [
+    {"id": "fringe-set-mdp", "role": "Maintains an AND/OR proof-search structure inside the RL state."},
+    {"id": "learned-fringe-backtracking", "role": "Selects which partial derivation to extend or revisit."},
+    {"id": "factorized-tactic-argument-policy", "role": "Decomposes an enormous structured action into manageable conditional choices."},
+    {"id": "recurrent-premise-selection", "role": "Models interaction and ordering among multiple tactic arguments."},
+    {"id": "successful-proof-replay", "role": "Counteracts sparse rewards by revisiting self-discovered proofs that the stochastic policy forgets."},
+    {"id": "kernel-verified-environment", "role": "Turns proof completion into an exact, machine-checkable reward signal."}
+  ],
+  "evaluations": [
+    {"setting": "Random 80/20 split of 1,342 HOL4 core-library theorems", "metric": "Percentage proved with at most eight attempts", "result": "TacticZero 62.3%", "baseline": "Random rollout 14.2%; HOL(y)Hammer with Vampire 64.5%"},
+    {"setting": "Separate set, list, and other-theory 80/20 splits", "metric": "Held-out percentage proved", "result": "81.7%, 61.7%, and 75.0% for TacticZero", "baseline": "Random 5.0%, 10.8%, 21.5%; Hammer 69.5%, 62.8%, 64.1%"},
+    {"setting": "Component freezing during 800 training iterations", "metric": "Training theorems proved per iteration", "result": "All learned modules help; the argument-policy freeze causes the largest visual drop", "baseline": "Complete jointly trained agent and separate frozen goal/tactic policies"},
+    {"setting": "Training-resource audit", "metric": "Wall-clock and search budget", "result": "Roughly two weeks for 800 iterations on one Tesla P100 plus one Xeon CPU; 50 HOL4 calls per episode and 0.1-second tactic timeout", "baseline": "Not matched to competitor training cost"}
+  ],
+  "limitations": [
+    "'From scratch' means no human proof traces: the agent still relies on human-written theorem statements, library order, engineered tactics, prior lemmas, a pretrained expression autoencoder, HOL4's simplifier, and hand-designed rewards.",
+    "The benchmark is small, restricted to the subset known to be solvable by eight chosen tactics, and drawn from the same HOL4 core library used to define candidates.",
+    "Random theorem splitting can leak near-duplicate structure and prerequisite patterns; no chronological or novel-premise split stress-tests distribution shift.",
+    "The Hammer comparison is not budget- or premise-matched and the paper itself says direct comparison with TacticToe is impossible.",
+    "Reported pass rates use up to eight stochastic attempts without confidence intervals, multi-seed training statistics, or calibration against total inference compute.",
+    "REINFORCE plus ad hoc off-policy successful-proof replay has no stability analysis and costs about two weeks on the reported small task.",
+    "Fixed candidate lists cannot synthesize arbitrary new terms beyond variables present in the goal, limiting constructive mathematics."
+  ],
+  "failure_modes": [
+    "Sparse terminal success prevents discovery of an initial proof and replay never activates.",
+    "The learned fringe score favors many individually easy subgoals whose conjunction is globally unproductive.",
+    "A needed premise is later in library order, outside the referenced theories, or absent from the candidate set.",
+    "The recurrent argument policy repeats or combines individually plausible lemmas into an ineffective list.",
+    "A stochastic policy reports high multi-attempt success but poor first-attempt reliability or excessive search cost.",
+    "Reward shaping encourages cheap local progress that expands the fringe and lengthens the eventual proof."
+  ],
+  "reusable_insights": [
+    "Expose reversible search decisions to the policy when an environment can cheaply retain alternative partial states.",
+    "Factor tool actions into target, operation, and structured arguments while preserving their conditional dependence.",
+    "Use an exact verifier as the terminal learning signal and keep heuristic rewards auxiliary.",
+    "Evaluate proof agents by pass@k, first-attempt success, verifier calls, wall-clock, and training compute together.",
+    "Distinguish learning without proof demonstrations from learning without human-designed environments or curricula."
+  ],
+  "open_questions": [
+    "Can value-guided AND/OR search or modern actor-critic methods improve sample efficiency over REINFORCE and replay?",
+    "How well does the policy transfer to new HOL4 theories, premises never used in training, longer proofs, or another proof assistant?",
+    "Can theorem generation, curriculum design, or intrinsic rewards supply useful tasks without a fixed human theorem corpus?",
+    "What benefit comes specifically from learned backtracking under matched search budgets against best-first, MCTS, and hypertree search?"
+  ],
+  "competitive_landscape": [
+    {"canonical_id": "arxiv:1804.00596", "title": "TacticToe: Learning to Prove with Tactics", "url": "https://arxiv.org/abs/1804.00596", "relationship": "closest same-prover predecessor", "difference": "TacticToe learns tactic guidance from recorded human HOL4 proofs and uses Monte Carlo tree search; TacticZero removes proof demonstrations and learns fringe selection jointly, but evaluates on a much smaller solvable subset."},
+    {"canonical_id": "arxiv:1904.03241", "title": "HOList: An Environment for Machine Learning of Higher-Order Theorem Proving", "url": "https://arxiv.org/abs/1904.03241", "relationship": "contemporaneous higher-order RL environment and prover", "difference": "DeepHOL couples learned tactic/premise guidance to a fixed search loop and bootstraps from successful proof data in HOL Light; TacticZero explicitly parameterizes backtracking and trains all action levels in HOL4."},
+    {"canonical_id": "arxiv:2009.03393", "title": "Generative Language Modeling for Automated Theorem Proving", "url": "https://arxiv.org/abs/2009.03393", "relationship": "competing generative proof approach", "difference": "GPT-f trains a transformer on Metamath proof sequences and generates proof steps/terms; TacticZero avoids human proof traces but is constrained to a small tactic-and-candidate action space."},
+    {"canonical_id": "arxiv:2205.11491", "title": "HyperTree Proof Search for Neural Theorem Proving", "url": "https://arxiv.org/abs/2205.11491", "relationship": "later learned-search successor", "difference": "HTPS represents proof obligations as a hypertree and uses AlphaZero-style online training with transformer policies across Metamath and Lean; TacticZero's earlier approach samples one fringe through a direct policy-gradient MDP."},
+    {"canonical_id": "arxiv:2306.15626", "title": "LeanDojo: Theorem Proving with Retrieval-Augmented Language Models", "url": "https://arxiv.org/abs/2306.15626", "relationship": "later open benchmark and retrieval competitor", "difference": "LeanDojo scales to nearly 100,000 Lean theorems and evaluates a novel-premise split with explicit retrieval; TacticZero uses a 1,342-theorem HOL4 subset and a library-derived candidate pool."}
+  ],
+  "novelty_assessment": "The main novelty is the explicit fringe-set MDP that learns backtracking together with tactics and arguments while bootstrapping without human proof trajectories. The exact HOL4 verifier gives a strong learning signal, but the 'from scratch' label should be read narrowly and the small, tactic-filtered, randomly split benchmark does not establish broad mathematical autonomy. Later hypertree and retrieval-augmented systems provide stronger scaling and distribution-shift tests.",
+  "confidence": 0.98,
+  "reviewer_notes": "Read all 19 extracted workshop pages, including experimental settings, reward design, software wrapper, ablations, and example verified scripts. Primary arXiv/OpenReview records for TacticToe, HOList/DeepHOL, GPT-f, HTPS, and LeanDojo were checked on 2026-08-23. Numerical claims follow this cached ICLR-2021 workshop version, whose 62.3% score is slightly below its 64.5% Hammer baseline; later paper versions should not be silently substituted."
+}

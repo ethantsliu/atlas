@@ -1,0 +1,126 @@
+{
+  "stable_id": "arxiv:2402.07754",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2402.07754",
+    "pdf_sha256": "d95e7f05ecdac8b667e08a1d9e376bd5ea5319b56ad5263c7dfe8b14cb09ab0f",
+    "text_sha256": "8dc2c2d3913947114c6d96cb3d166b2bc23f8b1e8f78ba43f1de7fd1f319c26c",
+    "page_count": 24,
+    "extracted_at": "2026-08-23T18:32:33.102180+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Can diffusion language models generate and revise an entire chain of thought through parallel denoising, trading more denoising steps for better reasoning without autoregressive token-by-token latency?",
+  "key_findings": [
+    {
+      "claim": "Diffusion-of-Thought trains continuous and discrete diffusion language models to jointly denoise a conditioned question, intermediate rationales, and answer, with a multi-pass variant that restores some causal thought-by-thought bias.",
+      "evidence": "Classifier-free guidance preserves exact query tokens; scheduled sampling exposes single-pass models to corrupted prior/current thoughts, while coupled sampling does so for the multi-pass variant. A conditional ODE solver reduces continuous-diffusion sampling steps.",
+      "anchors": [{"page": 3, "section": "Diffusion-of-Thoughts"}, {"page": 4, "section": "Multi-pass and training-time sampling"}, {"page": 5, "section": "Conditional ODE solver"}]
+    },
+    {
+      "claim": "On tightly structured multiplication and Boolean tasks, DoT reaches 100% exact-match accuracy with much higher batch-one throughput than autoregressive chain-of-thought baselines.",
+      "evidence": "With one denoising step for multiplication and two for Boolean logic, the from-scratch DoT reports 61.8 samples/s on 5-by-5 multiplication and 55.2 on Boolean logic, versus GPT-2-small CoT at 1.5 and 0.8 samples/s; the paper summarizes a maximum 27-fold speedup without accuracy loss.",
+      "anchors": [{"page": 6, "section": "Table 1 and simple-task results"}, {"page": 22, "section": "Sampling-step settings"}]
+    },
+    {
+      "claim": "On augmented GSM8K, pretrained diffusion quality is essential and the best reported DoT model exceeds a similarly sized GPT-2 CoT baseline, but throughput and accuracy are not simultaneously dominant for every backbone.",
+      "evidence": "From-scratch DoT obtains only 4.6%, Plaid DoT 32.6%, SEDD-small 45.3%, and SEDD-medium 53.5%, compared with GPT-2-medium CoT at 43.9%. The corresponding SEDD-medium DoT throughput is 0.5 samples/s versus 1.1 for GPT-2-medium; self-consistency increases accuracy to 59.4% at additional sampling cost.",
+      "anchors": [{"page": 6, "section": "Table 1"}, {"page": 7, "section": "Grade-school math results"}, {"page": 8, "section": "Self-consistency"}]
+    },
+    {
+      "claim": "Increasing denoising steps gives a direct accuracy-compute control and examples show non-left-to-right error repair, but the self-correction evidence is qualitative rather than a controlled causal benchmark.",
+      "evidence": "GSM8K accuracy continues rising with denoising steps and exceeds GPT-2-medium CoT at 32 steps. Case studies show a wrong intermediate multiplication corrected on a later denoising step using both preceding and following content, yet no aggregate correction-versus-corruption rate or matched iterative-refinement baseline is reported.",
+      "attribution": "reviewer-inference",
+      "anchors": [{"page": 8, "section": "Reasonability-efficiency trade-off"}, {"page": 9, "section": "Self-correction cases, Table 3"}]
+    }
+  ],
+  "method": {
+    "core_idea": "Express a complete rationale and answer as a noisy sequence that can be refined globally across diffusion time rather than emitted irrevocably from left to right.",
+    "mechanism": "DoT fine-tunes Plaid or SEDD-style models with query conditioning and rationale supervision. Single-pass denoising updates all thoughts together; DoT-MP denoises successive thought units. Scheduled/coupled sampling trains recovery from corrupted context, and inference can vary the denoising budget or sample multiple paths for self-consistency.",
+    "assumptions": [
+      "Supervised rationales and task-specific diffusion fine-tuning are available.",
+      "A model-forward-call count and batch-one throughput are meaningful efficiency proxies across autoregressive and diffusion architectures.",
+      "Correction visible in denoising traces reflects useful reasoning revision rather than surface-level sequence reconstruction."
+    ]
+  },
+  "techniques": [
+    {"id": "parallel-rationale-denoising", "role": "Updates earlier and later reasoning tokens jointly so later context can repair an intermediate error."},
+    {"id": "error-exposed-diffusion-training", "role": "Scheduled and coupled sampling teach recovery from imperfect prior or current thoughts."},
+    {"id": "conditional-diffusion-solver", "role": "Accelerates continuous conditioned denoising and exposes an inference-time accuracy-compute knob."}
+  ],
+  "evaluations": [
+    {"setting": "4-by-4 and 5-by-5 multiplication plus Boolean logic", "metric": "exact-match accuracy and batch-one samples per second", "result": "DoT reaches 100% with one or two denoising steps and reports up to 27-fold speedup over GPT-2 CoT in these task-specific settings.", "baseline": "Answer-only GPT-2, GPT-2 chain of thought, ChatGPT few-shot, and implicit CoT."},
+    {"setting": "Augmented GSM8K", "metric": "answer exact match, throughput, accuracy versus denoising steps, self-consistency gain", "result": "SEDD-medium DoT reaches 53.5%, or 59.4% with self-consistency, versus 43.9% for GPT-2-medium CoT; the DoT result uses lower samples-per-second throughput at its main configuration.", "baseline": "GPT-2 sizes, ChatGPT, implicit CoT, from-scratch diffusion, Plaid, and SEDD variants."}
+  ],
+  "limitations": [
+    "All tasks are supervised mathematical or symbolic benchmarks; DoT requires task-specific rationale training and does not demonstrate broad zero-shot reasoning.",
+    "The main diffusion backbones differ substantially in parameter count, pretraining, and objective from GPT-2, complicating efficiency and quality attribution.",
+    "Forward-call counts do not equal FLOPs, memory traffic, or energy, and self-consistency multiplies inference cost.",
+    "Self-correction is supported primarily by selected traces rather than a systematic intervention measuring correction and regression rates.",
+    "The paper itself notes that diffusion LMs trail contemporary autoregressive LMs in scale and general capability."
+  ],
+  "failure_modes": [
+    "Without strong pretraining, the model reconstructs fluent-looking but incorrect queries or rationales and collapses on GSM8K.",
+    "More denoising steps preserve or amplify a wrong global solution rather than repairing it.",
+    "Parallel updates break causal dependencies, while multi-pass updates surrender much of the throughput advantage."
+  ],
+  "reusable_insights": [
+    "Reasoning objectives can expose test-time compute through refinement depth rather than output length alone.",
+    "A credible self-correction evaluation should inject known errors and report both repair and correct-to-incorrect regression rates.",
+    "Non-autoregressive reasoning comparisons should normalize latency, accelerator, parameter count, and total model FLOPs, not only forward calls."
+  ],
+  "open_questions": [
+    "Does globally denoised reasoning remain faithful to internal computation and robust on out-of-distribution problems?",
+    "Can adaptive early exit allocate denoising steps by calibrated uncertainty without sacrificing hard-case accuracy?",
+    "How do supervised DoT, outcome-rewarded diffusion trajectories, and autoregressive revision compare under the same model, data, and compute?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2311.01460",
+      "title": "Implicit Chain of Thought Reasoning via Knowledge Distillation",
+      "url": "https://arxiv.org/abs/2311.01460",
+      "relationship": "parallel-reasoning-baseline",
+      "difference": "Implicit CoT distills reasoning into hidden states across autoregressive transformer depth for fewer decoding calls. DoT instead refines an explicit rationale across diffusion time, enabling bidirectional revision but requiring a diffusion model and denoising schedule.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2310.16834",
+      "title": "Discrete Diffusion Modeling by Estimating the Ratios of the Data Distribution",
+      "url": "https://arxiv.org/abs/2310.16834",
+      "relationship": "base-model-prior",
+      "difference": "SEDD introduces the score-entropy objective and supplies the strongest discrete diffusion backbones used here. DoT contributes task-specific rationale conditioning and sampling, while its gains therefore depend materially on SEDD pretraining quality.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2505.10446",
+      "title": "Reinforcing the Diffusion Chain of Lateral Thought with Diffusion Language Models",
+      "url": "https://arxiv.org/abs/2505.10446",
+      "relationship": "subsequent-diffusion-reasoning-competitor",
+      "difference": "DCoLT treats reverse-diffusion states as latent reasoning actions and uses outcome-based reinforcement learning on SEDD and LLaDA, reporting gains on math and code. It avoids requiring grammatical intermediate rationales, whereas DoT uses supervised explicit chains and qualitative self-correction evidence.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2509.21474",
+      "title": "d2: Improved Techniques for Training Reasoning Diffusion Language Models",
+      "url": "https://arxiv.org/abs/2509.21474",
+      "relationship": "subsequent-policy-gradient-competitor",
+      "difference": "d2 derives masking-aware trajectory likelihood estimators for reinforcement learning and evaluates broader logical and mathematical tasks without supervised fine-tuning. It advances optimization of diffusion reasoning beyond DoT's supervised denoising recipe, though both retain multi-step inference cost.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2601.03559",
+      "title": "DiffCoT: Diffusion-styled Chain-of-Thought Reasoning in LLMs",
+      "url": "https://arxiv.org/abs/2601.03559",
+      "relationship": "subsequent-hybrid-competitor",
+      "difference": "DiffCoT brings sliding-window denoising and retrospective correction to token-autoregressive backbones. It directly probes whether diffusion-style revision needs a diffusion LM at all, whereas DoT's architectural comparison cannot isolate that question.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23"
+    }
+  ],
+  "novelty_assessment": "Reviewer inference after current primary-source comparison: DoT is an early concrete demonstration that explicit rationales can be generated and retrospectively edited through diffusion time, with a useful test-time compute knob. Its simple-task speed results are compelling but specialized; later diffusion RL and hybrid autoregressive-denoising systems substantially broaden the competitive field and expose missing matched-compute and systematic correction tests.",
+  "confidence": 0.94,
+  "reviewer_notes": "Reviewed all 24 extracted pages, including algorithms, tables, ablations, denoising traces, throughput definitions, training details, and limitations. Current and subsequent primary arXiv competitors were checked on 2026-08-23."
+}

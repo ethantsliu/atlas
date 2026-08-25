@@ -1,0 +1,396 @@
+{
+  "stable_id": "arxiv:2311.12678",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2311.12678",
+    "pdf_sha256": "d6f06dd5e513e403af7b6e980f72388405d498fdb519487b2f8cf8d92a42f0e9",
+    "text_sha256": "1eb5b5e5de01aa382918d97e5303469a8bb84bfab2046c45fe68e7eb42ecc08e",
+    "page_count": 10,
+    "extracted_at": "2026-08-23T18:51:35.963910+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Do elementary input-output descriptions provide a substantive interpretation of the Transformer, and does scaling each causal prefix sum by the inverse square root of its length make the static-weight Super High-performance Extractor a better attention replacement?",
+  "key_findings": [
+    {
+      "claim": "The concrete architectural contribution is a length-dependent normalization of the prior SHE token mixer, not a newly established interpretation of Transformer computation.",
+      "evidence": "For causal position i, iSHE changes SHE's extraction output to (1/sqrt(i)) times the sum from j=1 to i of x_j W_(i-j+1). The multiplier adds no trainable parameters relative to SHE and is intended to keep activation variance stable across prefix length. The adjustment and output projections otherwise remain the predecessor's architecture.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Section 3, motivation for scaling SHE"
+        },
+        {
+          "page": 6,
+          "section": "Figure 2 and Equation 1"
+        }
+      ]
+    },
+    {
+      "claim": "The claimed variance standardization is conditional, but the paper presents it as automatic and never checks the conditions or the resulting activation statistics.",
+      "evidence": "Dividing a sum by sqrt(i) preserves variance only under assumptions such as comparable term variances and negligible covariance. Here the terms are transformed hidden states from one sequence, so they are generally correlated, non-identically distributed, and can have nonzero means; the exact variance contains all pairwise covariance terms. No derivation includes those terms, and no experiment plots variance against position before and after normalization.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Unqualified variance-standardization motivation"
+        },
+        {
+          "page": 6,
+          "section": "Equation 1"
+        }
+      ]
+    },
+    {
+      "claim": "The main iSHE-versus-attention result is severely capacity-confounded even though the inverse-square-root modification itself is parameter-free.",
+      "evidence": "Equation 1 defines l separate d-by-d extraction matrices. With the reported l=128 and d=128, that is 128*128*128=2,097,152 extraction weights per iSHE layer, at least 32 times the 4*d*d=65,536 weights in conventional query, key, value, and output projections, before counting iSHE's adjustment and output transformations. Yet all nine models are compared only by training loss; no total parameter, FLOP, memory, wall-clock, or matched-capacity table is given. Saving the one l*d=16,384-entry positional table does not offset the per-layer extraction bank.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Figure 2 and Equation 1 matrix bank"
+        },
+        {
+          "page": 8,
+          "section": "Table 2 dimensions and positional-parameter claim"
+        },
+        {
+          "page": 9,
+          "section": "Figure 5 training-loss comparison"
+        }
+      ]
+    },
+    {
+      "claim": "iSHE fits the one training stream better than SHE and the tested attention variants, but the source provides no evidence that the gain generalizes.",
+      "evidence": "Nine 12-layer, width-128 models are trained for 30,000 batches on 8.4 million BPE tokens from 100 Project Gutenberg children's books. Figure 5 visually ends near training cost 2.86 for iSHE, 2.98 for SHE, and roughly 3.30-3.37 for the seven attention-head settings. All models use one shared random seed, and the bands are median and quartiles over non-overlapping blocks of 1,000 training batches, not independent runs. There is no validation or test loss, downstream evaluation, generation assessment, or uncertainty across seeds.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "Section 4.2 corpus and model comparison"
+        },
+        {
+          "page": 8,
+          "section": "Table 2, single-seed protocol, and metric definition"
+        },
+        {
+          "page": 9,
+          "section": "Figure 5"
+        }
+      ]
+    },
+    {
+      "claim": "The paper conflates cross-entropy with perplexity, so Figure 5 should be read only as training loss.",
+      "evidence": "The text says average training loss over a batch equals perplexity. For the usual language-model cross-entropy shown at values around 2.9-3.4, perplexity is its exponential, not the same number. Although the ordering of systems is preserved by exponentiation, the plotted quantity and numerical interpretation are mislabeled, and neither held-out cross-entropy nor held-out perplexity is reported.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "Section 4.2 evaluation-metric statement"
+        },
+        {
+          "page": 9,
+          "section": "Figure 5 y-axis"
+        }
+      ]
+    },
+    {
+      "claim": "The padding argument used to convert variable-length decoding into a fixed-length function is false without additional masking and positional assumptions.",
+      "evidence": "The paper asserts that prepended padding tokens have zero embeddings and therefore no effect. Even with zero value vectors, unmasked padded keys enter the attention softmax denominator and change weights on real tokens. Learned or fixed positional encodings, projection biases, normalization, feed-forward layers, and residual updates can also make padded states nonzero or shift the real tokens' positions. No padding mask or position convention is specified in the proof.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "Figure 1 positional and token embeddings"
+        },
+        {
+          "page": 3,
+          "section": "Section 2 fixed-length padding argument"
+        }
+      ]
+    },
+    {
+      "claim": "Calling causal token mixing a dimensionality reduction or encoder is a local re-description, not a property proved for the Transformer sublayer as a whole.",
+      "evidence": "The paper first proves that the core and every layer map R^(t*d) to R^(t*d), then declares sublayer 1 a reduction because output row i depends on an i*d-dimensional prefix and emits one d-vector. Globally the sublayer still emits t rows, overlapping prefixes carry redundant information, and residual connections can preserve the input. No rank, injectivity, information, bottleneck, compression, or reconstruction criterion is analyzed.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Lemmas 1-2 and Proposition 1"
+        },
+        {
+          "page": 4,
+          "section": "Proposition 2 and encoder interpretation"
+        }
+      ]
+    },
+    {
+      "claim": "The residual-connection explanation is not a proof of faster optimization and omits the mechanism usually needing analysis: gradient and Jacobian propagation.",
+      "evidence": "Proposition 4 argues that small initialization makes sublayer outputs small, that small outputs imply small weight updates, and that residual additions make output elements larger and therefore updates larger. Weight gradients are not determined by output magnitude alone, and the source gives no gradient equation, Jacobian conditioning result, residual ablation, depth sweep, or optimization measurement to support the causal claim.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Proposition 4"
+        }
+      ]
+    },
+    {
+      "claim": "The trajectory figures illustrate intermediate activations but do not validate the claimed interpretation that layers drive inputs toward outputs.",
+      "evidence": "Propositions 5 and 6 rename residual addition as adjustment, while Proposition 7 says a serial composition drives its input toward its eventual output layer by layer. The validation trains one 1-head attention model and one SHE model at d=2 on a synthetic three-token stream, then draws one sequence of sublayer states from input to output. Any serial network has such intermediate states; no monotonic distance, directionality, causal intervention, explanatory prediction, counterexample, or repeat across inputs and seeds is tested.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 5,
+          "section": "Propositions 6-7"
+        },
+        {
+          "page": 6,
+          "section": "Section 4.1 validation design"
+        },
+        {
+          "page": 7,
+          "section": "Table 1 and Figure 3"
+        },
+        {
+          "page": 8,
+          "section": "Figure 4"
+        }
+      ]
+    },
+    {
+      "claim": "The empirical and related-work scope is too narrow to support the recommendation to replace SHE broadly, much less to replace attention.",
+      "evidence": "The only performance evidence is one small custom English corpus, one context length, one model width and depth, less than one reported epoch, and one seed. The paper has six references and its related-work section discusses only one geometric interpretation paper, omitting established static mixers and attention alternatives such as Synthesizer, FNet, gMLP, AFT, structured position mixers, convolutions, and state-space models. No first-party code or checkpoints are linked.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 7,
+          "section": "Section 4.2 corpus"
+        },
+        {
+          "page": 8,
+          "section": "Table 2 and single-seed protocol"
+        },
+        {
+          "page": 9,
+          "section": "Section 5 and conclusion"
+        },
+        {
+          "page": 10,
+          "section": "References"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Interpret each Transformer layer as causal row-vector adjustment, then stabilize the prior SHE static token mixer by scaling its prefix sum with the inverse square root of prefix length.",
+    "mechanism": "For output position i, transform every prior hidden row x_j with a learned relative-position-specific d-by-d matrix W_(i-j+1), sum the transformed rows, divide by sqrt(i), and feed the result through SHE's dynamic element-wise adjustment and output linear map inside a residual Transformer block. The paper argues that attention and the Extractor reduce a prefix to a code, the feed-forward sublayer transforms that code, and residual additions move each row toward its final representation. It evaluates those descriptions with two-dimensional activation trajectories and compares iSHE, SHE, and seven self-attention head counts using binned training loss.",
+    "assumptions": [
+      "The transformed hidden rows in each prefix have sufficiently similar variances and sufficiently small covariances for 1/sqrt(i) to standardize their sum.",
+      "A bank of l full d-by-d relative-position matrices is an acceptable resource tradeoff and can be compared fairly with four self-attention projections at fixed d.",
+      "The learned static matrices generalize from the trained context length and positions to the deployment distribution.",
+      "Content-independent extraction weights plus content-dependent element-wise adjustment retain the interactions required by language modeling.",
+      "Training loss on one short custom corpus predicts held-out language quality, scaling, and downstream utility.",
+      "A shared single seed and within-run batch quartiles are enough to characterize model differences.",
+      "Zero pad embeddings are operationally inert without an explicitly described attention mask or position treatment.",
+      "Per-row causal aggregation constitutes meaningful dimensionality reduction even though the full sublayer maps t-by-d states to t-by-d states.",
+      "Residual additions accelerate optimization through larger activations, without a gradient or Jacobian analysis.",
+      "Plotting intermediate states in two dimensions validates the semantic claim that layers drive representations toward their output.",
+      "Removing learned absolute positional embeddings is a fair saving against all attention baselines despite standard relative, rotary, or bias-based alternatives.",
+      "The top 100 Gutenberg children's books and a 5,000-token BPE vocabulary are representative enough to recommend an architectural replacement."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "prefix-scale",
+      "role": "Multiplies each causal extraction sum by 1/sqrt(i) to reduce position-dependent activation growth."
+    },
+    {
+      "id": "static-mix",
+      "role": "Uses learned relative-position-specific matrices instead of query-key content scores to mix prior token rows."
+    },
+    {
+      "id": "dynamic-gate",
+      "role": "Element-wise combines the extracted prefix representation with a transformation of the current row."
+    },
+    {
+      "id": "residual-track",
+      "role": "Re-describes residual sublayers as sequential adjustments of row vectors."
+    },
+    {
+      "id": "plane-trace",
+      "role": "Sets model width to two so intermediate row vectors can be plotted directly in a Euclidean plane."
+    },
+    {
+      "id": "head-sweep",
+      "role": "Compares fixed-width attention with 1, 2, 4, 8, 16, 32, and 64 heads against SHE and iSHE."
+    },
+    {
+      "id": "loss-bin",
+      "role": "Summarizes every non-overlapping 1,000 training batches with a median and interquartile band."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "Synthetic stream containing all 2^14 binary numbers separated by semicolons; vocabulary 3, context 64, width 2, FFN width 8, four layers, batch 64, and 3,500 batches.",
+      "metric": "Qualitative two-dimensional path of one row vector through all Transformer sublayers.",
+      "result": "Figures 3 and 4 show connected intermediate states between the selected input and final output for one 1-head attention model and one SHE model.",
+      "baseline": "No numerical trajectory property, alternate explanation, residual ablation, input sample, seed replication, or non-Transformer control."
+    },
+    {
+      "setting": "Top 100 English children's books from Project Gutenberg, tokenized to 8.4 million BPE tokens; context 128, width 128, FFN width 512, 12 layers, batch 64, and 30,000 batches on an RTX 4050.",
+      "metric": "Median and first/third quartiles of training cost within each non-overlapping 1,000-batch block.",
+      "result": "The plotted endpoint is approximately 2.86 for iSHE, 2.98 for SHE, and 3.30-3.37 for the attention variants, with iSHE below the alternatives for most of training.",
+      "baseline": "SHE and seven head counts of standard self-attention at fixed width; models are not matched by total parameters or operations, and there is no held-out metric or independent replicate."
+    },
+    {
+      "setting": "Architectural resource comparison implied by Equation 1 and Table 2 at l=128 and d=128.",
+      "metric": "Trainable extraction weights per sublayer before adjustment/output projections.",
+      "result": "iSHE requires l*d*d=2,097,152 extraction weights per layer, versus 4*d*d=65,536 weights for the conventional query, key, value, and output projections of attention, a lower-bound ratio of 32 to 1.",
+      "baseline": "The paper reports only the l*d positional-embedding saving and does not tabulate total parameters, FLOPs, memory, throughput, latency, or matched-budget quality."
+    }
+  ],
+  "limitations": [
+    "Author-stated only indirectly: evaluation is presented on text generation and the interpretation discussion focuses on a decoder, although the conclusion says it should also apply to encoders.",
+    "Reviewer inference: the inverse-square-root variance claim omits unequal variances, nonzero means, and covariance among sequential hidden states.",
+    "Reviewer inference: iSHE is not parameter-matched to attention; its extraction bank alone is at least 32 times larger per layer under the reported configuration.",
+    "Reviewer inference: no compute, activation memory, throughput, latency, or critical-path measurement supports an efficiency advantage.",
+    "Reviewer inference: the sole quality metric is one run's training loss on a custom 8.4-million-token corpus.",
+    "Reviewer inference: there is no held-out perplexity, downstream task, long-context test, generation sample, robustness test, or scaling curve.",
+    "Reviewer inference: batch quartiles measure variation across changing training steps, not experimental uncertainty across seeds.",
+    "Reviewer inference: the claim that padding has no effect is missing masks, positional encodings, biases, normalization, and softmax-denominator effects.",
+    "Reviewer inference: the dimensionality-reduction and layer-trajectory interpretations are largely rephrasings of causal aggregation, residual addition, and serial composition.",
+    "Reviewer inference: the residual optimization argument does not analyze gradients or compare training with and without residuals.",
+    "Reviewer inference: learned position-indexed matrices tie the model to a maximum context and no length extrapolation is tested.",
+    "Reviewer inference: only six references are included, leaving the central static-mixer and efficient-sequence-model literature unaddressed.",
+    "Reviewer inference: no official implementation, environment, data manifest, seed, checkpoint, or numeric result table is released."
+  ],
+  "failure_modes": [
+    "Correlated prefix states make the normalized extraction variance still grow, shrink, or oscillate with position.",
+    "A learned matrix bank memorizes relative positions in the training length and fails on unseen lengths or shifted position distributions.",
+    "Static mixing cannot select a distant value based on query content, hurting associative recall and in-context retrieval.",
+    "The dynamic element-wise adjustment cannot recover interactions discarded or entangled by the static prefix sum.",
+    "Larger parameter count improves training fit while validation loss or downstream performance remains unchanged or worsens.",
+    "The O(l*d*d) parameter bank and repeated matrix-vector products dominate memory and arithmetic despite a short theoretical parallel path.",
+    "An implementation materializes all position-specific transformations and becomes slower than optimized FlashAttention kernels.",
+    "Unmasked zero padding changes attention normalization, so fixed-length and variable-length formulations make different predictions.",
+    "Prepending pads shifts absolute positions and changes outputs even when the token embedding assigned to padding is zero.",
+    "Training cost continues downward because of memorization on overlapping book windows while held-out perplexity degrades.",
+    "One favorable seed or data order creates the apparent iSHE margin, which disappears under replicated matched-budget training.",
+    "A two-dimensional activation path looks intuitively directed even when distance to the final state is nonmonotonic and causally uninformative."
+  ],
+  "reusable_insights": [
+    "Treat 1/sqrt(prefix length) as a hypothesis to test, not a variance guarantee; measure per-position means, variances, covariances, and gradient norms.",
+    "Compare sequence mixers at matched total parameters, training FLOPs, token budgets, wall-clock time, and inference memory, then show the full Pareto frontier.",
+    "Separate a parameter-free modification relative to its parent architecture from a parameter-matched advantage over a different baseline.",
+    "Use held-out cross-entropy and report perplexity as exp(cross-entropy), with numeric tables and independent seeds.",
+    "Benchmark content-independent mixers on associative recall, induction, copying, retrieval, and length extrapolation before claiming they replace attention.",
+    "A useful interpretation must make a falsifiable prediction or support an intervention; merely connecting intermediate states is insufficient.",
+    "Define dimensionality reduction globally through rank, information, compression, or reconstructability rather than counting one output row's receptive field.",
+    "State padding equivalence only with an exact masking, position, bias, normalization, and residual convention, and unit-test it numerically.",
+    "For residual optimization claims, measure Jacobian spectra, gradient flow, convergence, and depth dependence under an ablation.",
+    "Replace a full per-position matrix bank with structured Toeplitz, low-rank, diagonal-plus-low-rank, convolutional, or generated kernels when scalability is part of the claim.",
+    "Distinguish arithmetic complexity from parallel depth and benchmark both against optimized hardware kernels.",
+    "Release a deterministic small-corpus reproduction before making broad architectural recommendations."
+  ],
+  "open_questions": [
+    "Does 1/sqrt(i) actually flatten iSHE activation and gradient statistics across positions, layers, corpora, and training time?",
+    "Would a learned or covariance-aware prefix normalization outperform the fixed square-root rule without destabilizing long contexts?",
+    "Does iSHE retain its loss advantage when total parameters and training FLOPs are matched to attention?",
+    "How does iSHE perform on held-out standard language-modeling datasets and downstream tasks across at least five seeds?",
+    "Can iSHE solve multi-query associative recall, induction heads, copying, retrieval, and variable-distance dependencies?",
+    "What is the longest context iSHE can extrapolate to when its matrix bank is trained only through length 128?",
+    "Can the l full matrices be generated by a small relative-position network or compressed into a structured kernel without losing quality?",
+    "What are the true training and autoregressive-inference throughput, memory, and energy costs against FlashAttention, Toeplitz mixers, Hyena, RWKV, and Mamba?",
+    "Does the element-wise adjustment supply meaningful content selectivity, and which interactions can or cannot be represented after static summation?",
+    "Can the proposed Transformer interpretation predict a failure or guide an intervention that standard residual-stream language does not?",
+    "Under what exact masks and positional schemes is prepended zero-padding functionally equivalent to the variable-length computation?",
+    "Does any trajectory statistic correlate with learning progress, layer function, or generalization after controlling for the arbitrary coordinate basis?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2308.07661",
+      "title": "Attention Is Not All You Need Anymore",
+      "url": "https://arxiv.org/abs/2308.07661",
+      "relationship": "direct-predecessor",
+      "difference": "The same author introduces SHE, HE, WE, and ME as static-weight Extractor replacements for attention. The present paper adds only the 1/sqrt(i) prefix multiplier to SHE and a new interpretation narrative; its empirical comparison therefore establishes an ablation over SHE, not an independently reproduced architecture family."
+    },
+    {
+      "canonical_id": "arxiv:2005.00743",
+      "title": "Synthesizer: Rethinking Self-Attention in Transformer Models",
+      "url": "https://arxiv.org/abs/2005.00743",
+      "relationship": "static-mixer-predecessor",
+      "difference": "Synthesizer removes token-token query-key interactions using learned, random, and factorized synthetic alignment matrices and evaluates translation, language modeling, generation, and GLUE/SuperGLUE. It directly predates the Extractor's static-mixing premise and supplies far broader matched Transformer evidence."
+    },
+    {
+      "canonical_id": "arxiv:2105.03824",
+      "title": "FNet: Mixing Tokens with Fourier Transforms",
+      "url": "https://arxiv.org/abs/2105.03824",
+      "relationship": "parameter-free-mixer-predecessor",
+      "difference": "FNet replaces encoder attention with an unparameterized Fourier transform and reports speed, memory, GLUE, and Long Range Arena tradeoffs. iSHE learns a much larger position-specific matrix bank and reports lower training loss only, so its parameter-free claim applies to the normalization change rather than the mixer."
+    },
+    {
+      "canonical_id": "arxiv:2105.08050",
+      "title": "Pay Attention to MLPs",
+      "url": "https://arxiv.org/abs/2105.08050",
+      "relationship": "gated-mixer-predecessor",
+      "difference": "gMLP combines static spatial mixing with multiplicative gating and tests scaling across language and vision, making it a close conceptual predecessor to static extraction plus dynamic element-wise adjustment. iSHE uses relative-position-specific full matrices and lacks scaling or held-out evidence."
+    },
+    {
+      "canonical_id": "arxiv:2105.14103",
+      "title": "An Attention Free Transformer",
+      "url": "https://arxiv.org/abs/2105.14103",
+      "relationship": "position-gated-competitor",
+      "difference": "AFT combines learned positional biases over keys and values with an element-wise query interaction, closely matching iSHE's static position weighting plus dynamic adjustment design pattern. AFT provides autoregressive and vision benchmarks and explicit linear-memory variants, comparisons absent here."
+    },
+    {
+      "canonical_id": "arxiv:2305.04749",
+      "title": "Toeplitz Neural Network for Sequence Modeling",
+      "url": "https://arxiv.org/abs/2305.04749",
+      "relationship": "structured-static-mixer-competitor",
+      "difference": "TNN generates relative-position Toeplitz coefficients with a fixed parameter budget, computes mixing in log-linear time, and tests extrapolation from length 512 to 14K across language, images, and Long Range Arena. It directly addresses the unstructured l*d*d parameter growth and fixed-length limitation of iSHE."
+    },
+    {
+      "canonical_id": "arxiv:2302.10866",
+      "title": "Hyena Hierarchy: Towards Larger Convolutional Language Models",
+      "url": "https://arxiv.org/abs/2302.10866",
+      "relationship": "long-convolution-competitor",
+      "difference": "Hyena uses implicitly parameterized long convolutions and data-controlled gating, matches attention on standard language modeling, and reports recall, scaling, throughput, and compute. iSHE's static matrix bank and element-wise adjustment share the broad mixer-plus-gate pattern but are tested only at length 128 and width 128."
+    },
+    {
+      "canonical_id": "arxiv:2312.00752",
+      "title": "Mamba: Linear-Time Sequence Modeling with Selective State Spaces",
+      "url": "https://arxiv.org/abs/2312.00752",
+      "relationship": "current-selective-state-competitor",
+      "difference": "Mamba makes state-space parameters input-dependent to restore content selectivity, supplies a hardware-aware parallel algorithm, and scales attention-free models to 3B parameters and million-length sequences. Its evidence highlights precisely the content-recall and systems tests missing from iSHE."
+    },
+    {
+      "canonical_id": "arxiv:2312.04927",
+      "title": "Zoology: Measuring and Improving Recall in Efficient Language Models",
+      "url": "https://arxiv.org/abs/2312.04927",
+      "relationship": "diagnostic-benchmark",
+      "difference": "Zoology finds that associative recall explains most of the quality gap between attention and gated convolutions and shows a small attention model beating much larger attention-free models on recall. iSHE reports aggregate training loss without the MQAR-style test needed to determine whether static extraction preserves content-addressed memory."
+    },
+    {
+      "canonical_id": "arxiv:2402.18668",
+      "title": "Simple linear attention language models balance the recall-throughput tradeoff",
+      "url": "https://arxiv.org/abs/2402.18668",
+      "relationship": "current-recall-efficiency-competitor",
+      "difference": "BASED combines linear and sliding-window attention, maps a recall-versus-state-size Pareto frontier, trains to 1.3B parameters, and supplies IO-aware kernels. It demonstrates the multi-axis quality, recall, memory, and throughput evaluation required before iSHE's lower training loss can support a replacement claim."
+    },
+    {
+      "canonical_id": "arxiv:2405.21060",
+      "title": "Transformers are SSMs: Generalized Models and Efficient Algorithms Through Structured State Space Duality",
+      "url": "https://arxiv.org/abs/2405.21060",
+      "relationship": "current-structured-sequence-competitor",
+      "difference": "Mamba-2 derives a structured matrix duality between attention and state-space layers and reports a 2-8x faster core while remaining competitive on language modeling. It offers both a more substantive mathematical interpretation and a scalable structured mixer benchmark against which iSHE's dense position-specific bank remains untested."
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims the first comprehensive plain-language interpretation of the Transformer and proposes a parameter-free improvement to SHE that outperforms self-attention, motivating replacement of SHE with iSHE.",
+    "evidence": "The new equation is a clear, minimal ablation: divide SHE's causal extraction sum by sqrt(i). On one 8.4-million-token training stream, iSHE's plotted training loss is consistently below SHE and seven attention-head configurations while adding no parameters relative to SHE.",
+    "reviewer_inference": "The durable novelty is limited to applying fan-in-style square-root scaling to a specific causal static mixer. Its variance rationale is unproved for correlated hidden states, and the paper never measures the statistic it claims to standardize. The attention comparison is not capacity-matched: the extraction bank alone has at least 32 times the per-layer weights of conventional attention at the reported dimensions. The interpretive propositions are mostly dimensional typing, residual-addition restatements, or tautological serial trajectories, with a padding argument and perplexity statement that are technically incorrect. Because static and gated token mixers were already well established and the evidence has one seed, training loss only, no standard benchmark, no systems measurements, and no code, the work supports a follow-up normalization hypothesis rather than a general attention-replacement claim."
+  },
+  "confidence": 0.99,
+  "reviewer_notes": "Read all 10 pages of the hashed arXiv source, including every proposition, equation, experiment, and all six references. Rendered and visually inspected every page; closely audited Figures 1-5 and Tables 1-2, including the iSHE matrix bank in Figure 2, both two-dimensional trajectory plots, and approximate Figure 5 endpoints and band semantics. The source is arXiv v1 submitted 2023-11-21, with no later revision listed as of 2026-08-23. Current primary related work was checked through 2026-08-23, including the direct Extractor predecessor and subsequent recall, structured-mixer, and state-space benchmarks. No first-party code, checkpoint, or data manifest is cited in the paper or arXiv metadata, and GitHub repository searches by arXiv ID, exact title, distinctive title phrase, author, and architecture returned no repository; consequently no executable code audit was possible. The 32-to-1 parameter lower bound is recomputed directly from Equation 1 and Table 2 and compares only iSHE's l full extraction matrices with standard attention's four d-by-d projections, making it conservative because iSHE's adjustment and output transformations are excluded."
+}

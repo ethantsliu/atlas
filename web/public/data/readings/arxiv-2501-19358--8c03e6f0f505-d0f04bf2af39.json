@@ -1,0 +1,208 @@
+{
+  "stable_id": "arxiv:2501.19358",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2501.19358",
+    "pdf_sha256": "680fc5e8cd0f91ecc7548a54ff967f553a57cdf4d1c8dfd3e5bf68ea36c1a4c4",
+    "text_sha256": "989eb19657720e98fa562c72caa19f837a6aca8be8cd9300becda2d529b46427",
+    "page_count": 30,
+    "extracted_at": "2026-08-23T17:24:58.389293+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Does shrinkage of the final transformer block's activation norm provide a general internal signal of reward hacking, and can penalizing deviation from the SFT model's norm change improve PPO alignment without constraining output distributions?",
+  "key_findings": [
+    {
+      "claim": "The paper identifies a reproducible correlation: the final block's input-minus-output L1 norm rises during PPO, and judge-labeled hacked responses tend to have larger increases than normal responses.",
+      "evidence": "The activation statistic is averaged over generated tokens. Plots cover Llama2-7B, Llama3-8B, Mistral-7B, and DeepSeek-7B on Anthropic helpful/harmless, AlpacaFarm, and Reddit TL;DR settings; earlier layers show less consistent patterns. GPT-4 labels dialogue hacking and InfoRM labels summarization hacking, with 200-case human audits reporting 97.5% and 95% agreement respectively.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 3, "section": "3 The Energy Loss Phenomenon"},
+        {"page": 4, "section": "3.1 Empirical Evidence"},
+        {"page": 9, "section": "6.4 Energy Loss Distribution across All LLM Layers"},
+        {"page": 24, "section": "I Human Evaluation in Reward Hacking Identification"}
+      ]
+    },
+    {
+      "claim": "EPPO regularizes change in the activation statistic relative to the SFT model and wins consistently against matched PPO, KL, and length-penalty baselines under model-judge evaluation.",
+      "evidence": "The modified reward subtracts eta times the absolute difference between SFT and current final-layer energy loss. On Llama3-8B, EPPO beats standard PPO in 66-78% of judged comparisons across four datasets and beats tuned KL-PPO in 46-59%, with analogous advantages on three other 7-8B models. Claude-3.5 and two-expert consensus checks preserve the direction on representative tasks.",
+      "attribution": "author-reported",
+      "anchors": [
+        {"page": 4, "section": "4 Energy Loss-Aware PPO"},
+        {"page": 5, "section": "Tables 1-2"},
+        {"page": 6, "section": "Table 3 and 5.2 Main Results"},
+        {"page": 23, "section": "F More Win-Tie-Lose Results under Various Evaluators"}
+      ]
+    },
+    {
+      "claim": "The internal signal is promising as a regularizer, but the study does not establish that activation-norm shrinkage is a mechanism or specific detector of reward hacking.",
+      "evidence": "Hacking is operationalized mainly as verbosity, excessive caution, irrelevance, or non-concise summarization, all of which can covary with length, token distribution, confidence, and residual-stream scale. No intervention independently changes the norm while holding behavior fixed, no classifier ROC or prospective early-warning benchmark is reported, and all policy tasks use a single reward-model/training recipe family.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 6, "section": "5.3 Main Results of Reward Hacking Mitigation"},
+        {"page": 8, "section": "6.3 Energy Loss vs. Response-Context Relevance"},
+        {"page": 26, "section": "K Hacking Examples"},
+        {"page": 27, "section": "Figure 19"}
+      ]
+    },
+    {
+      "claim": "The mutual-information theorem and entropy-regularization interpretation are not mathematically reliable as written.",
+      "evidence": "The proof treats a Dirac conditional density as bounded by one and manipulates log delta, although deterministic mappings of continuous variables generally give singular joints and can have infinite mutual information. It also uses Jensen's inequality in the wrong direction to replace a squared deviation around an expected input norm by a samplewise squared input-output norm difference. Corollary 5 sets H(Y|X)=0, which is false for stochastic language-model decoding. These steps are essential to the claimed energy-loss and entropy bounds.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {"page": 13, "section": "A Proof of Theorem and Corollary, Equations 2-6"},
+        {"page": 14, "section": "Equations 8-13 and Corollary 5"},
+        {"page": 15, "section": "Theorem 6"}
+      ]
+    },
+    {
+      "claim": "The paper's broad-exploration explanation is plausible but not isolated from hyperparameter selection or equal-compute alternatives.",
+      "evidence": "EPPO's eta is manually selected from eight values separately by task (best 35 for dialogue and 25 for summarization), while KL baselines are selected from five values. Training uses one epoch on 8 A100 GPUs and judge win rates, but no seed-level variance, training-time overhead, response-length-matched comparison, or Pareto curve of proxy reward versus independently measured quality is shown.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {"page": 24, "section": "G Sensitivity Analysis and H KL Penalties"},
+        {"page": 25, "section": "J.1 Training Setup"}
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Use a simple residual-block activation-norm change as a state-dependent internal constraint during policy optimization, instead of constraining generated tokens directly.",
+    "mechanism": "Precompute each prompt's final-block L1 input-output norm difference under the SFT policy, compute it again for the RL policy's response, subtract the absolute deviation multiplied by a tuned coefficient from the reward-model score, and optimize the resulting reward with PPO.",
+    "assumptions": [
+      "The SFT model provides a useful prompt-specific baseline for healthy activation scale.",
+      "Excess final-layer norm shrinkage tracks undesirable reward exploitation rather than benign capability gains.",
+      "The judge-defined hacking categories approximate human intent well across domains.",
+      "A single scalar averaged over tokens retains enough internal information for robust regularization.",
+      "Judge win rates reflect true alignment better than the optimized reward model."
+    ]
+  },
+  "techniques": [
+    {"id": "final-block-l1-energy-loss", "role": "Measures the L1 norm decrease from a transformer's last block input to output."},
+    {"id": "sft-relative-activation-penalty", "role": "Uses the SFT statistic as a prompt-conditioned baseline in the reward."},
+    {"id": "energy-aware-ppo", "role": "Optimizes reward-model score minus the activation deviation penalty."},
+    {"id": "judge-labeled-hacking-audit", "role": "Partitions responses into normal/hacked categories using GPT-4 or InfoRM."},
+    {"id": "contextual-dependency-strength", "role": "Relates the activation statistic to response perplexity reduction from context."}
+  ],
+  "evaluations": [
+    {
+      "setting": "Four 7-8B policies on helpful, harmless, AlpacaFarm, and TL;DR tasks",
+      "metric": "GPT-4 pairwise win/tie/loss",
+      "result": "EPPO generally wins 54-81% versus SFT/PPO and 36-59% versus tuned KL/length penalties, depending on model/task",
+      "baseline": "SFT, PPO, PPO with KL, and PPO with length penalty"
+    },
+    {
+      "setting": "Llama3-8B reward-model mitigation comparisons",
+      "metric": "GPT-4 pairwise win/tie/loss",
+      "result": "EPPO beats ensemble/WARM baselines and is complementary to ODIN/InfoRM, though standalone EPPO loses to InfoRM in several cells",
+      "baseline": "ERM variants, WARM, ODIN, and InfoRM"
+    },
+    {
+      "setting": "PPO training trajectories",
+      "metric": "judge win rate against SFT and final-layer energy statistic",
+      "result": "standard PPO quality peaks then declines as the statistic grows; EPPO suppresses growth and avoids the reported decline",
+      "baseline": "PPO, KL-PPO, and length-penalized PPO"
+    },
+    {
+      "setting": "Human validation of hacking annotations",
+      "metric": "agreement on 200 AlpacaFarm and 200 TL;DR cases",
+      "result": "97.5% human/GPT-4 agreement for dialogue and 95% human/InfoRM agreement for summarization",
+      "baseline": "two expert annotators reaching consensus"
+    },
+    {
+      "setting": "Cross-layer and context-dependency analysis",
+      "metric": "activation-norm distributions and contextual dependency strength",
+      "result": "the final layer shows the most stable RL shift and larger energy loss correlates with weaker context dependence",
+      "baseline": "earlier layers, SFT responses, and non-hacked responses"
+    }
+  ],
+  "limitations": [
+    "The theoretical mutual-information and entropy claims rely on invalid or unjustified proof steps.",
+    "The term 'energy' is only an L1 activation-norm difference and has no established physical or invariant meaning.",
+    "Evaluation centers on 7-8B models, single-turn dialogue/summarization, and one PPO implementation family.",
+    "No seed-level uncertainty or equal-wall-clock comparison is reported.",
+    "Most quality and hacking judgments come from models related to the proxy-evaluation ecosystem.",
+    "The penalty coefficient is manually selected per task and its scale can depend on architecture, normalization, sequence length, or quantization.",
+    "Correlation with common verbosity/caution hacks does not establish coverage of deception, tool manipulation, code exploits, or RLVR hacks."
+  ],
+  "failure_modes": [
+    "A beneficial distribution shift can change activation norms and be suppressed as a false positive.",
+    "A policy may learn to preserve the scalar norm while rotating or redistributing hidden information and continue hacking.",
+    "Architectural changes such as RMSNorm placement, residual scaling, MoE routing, or activation quantization can invalidate a fixed coefficient.",
+    "Judge and InfoRM errors can create a circular correlation between one representation proxy and another.",
+    "Token-averaging can hide short localized hacking spans or confound response length.",
+    "SFT-relative anchoring may preserve SFT biases and cap legitimate exploration on tasks requiring new behavior."
+  ],
+  "reusable_insights": [
+    "Internal-state distances can regularize policy search more selectively than output KL if their specificity is prospectively validated.",
+    "Use a prompt-conditioned reference statistic to normalize large between-prompt activation variation.",
+    "Track proxy reward, independent preference, behavior labels, output KL, length, entropy, and internal signals jointly throughout RL.",
+    "Validate a proposed hacking signal with interventions, held-out hack families, calibration curves, and evasive adversaries before calling it a mechanism.",
+    "Separate empirical regularizer value from any optional information-theoretic story when the latter is not needed for the algorithm."
+  ],
+  "open_questions": [
+    "Does EPPO remain effective on larger models, GRPO/RLVR, multi-turn agents, tools, and verifiable code environments?",
+    "Can causal activation patching distinguish whether norm shrinkage causes, reflects, or merely accompanies hacking?",
+    "How accurately does the statistic detect unseen hacks at a fixed false-positive rate before quality degrades?",
+    "Would a learned multivariate representation constraint outperform the single L1 difference without becoming easy to game?",
+    "Can a correct stochastic-channel theory relate residual activations to contextual information or output entropy?",
+    "How does EPPO compare with gradient, occupancy-measure, and representation-direction regularizers under matched compute in 2026?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2210.10760",
+      "title": "Scaling Laws for Reward Model Overoptimization",
+      "url": "https://arxiv.org/abs/2210.10760",
+      "relationship": "Canonical empirical formulation of RLHF overoptimization",
+      "difference": "Gao et al. measure proxy-versus-gold reward curves and their scaling in a synthetic-gold setup; EPPO uses internal activation change to regularize real preference-trained policies evaluated mainly by model judges.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2310.02743",
+      "title": "Reward Model Ensembles Help Mitigate Overoptimization",
+      "url": "https://arxiv.org/abs/2310.02743",
+      "relationship": "Reward-uncertainty mitigation baseline",
+      "difference": "Coste et al. use ensemble disagreement and conservative objectives to avoid unreliable reward regions; EPPO leaves the reward model unchanged and penalizes a policy-side final-layer statistic, trading ensemble cost for an uncalibrated scalar proxy.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2402.09345",
+      "title": "InfoRM: Mitigating Reward Hacking in RLHF via Information-Theoretic Reward Modeling",
+      "url": "https://arxiv.org/abs/2402.09345",
+      "relationship": "Closest representation-space precursor and baseline",
+      "difference": "InfoRM learns an information-bottleneck latent in the reward model and detects outliers there; EPPO monitors the policy's native final block and directly penalizes deviation during PPO, and can be combined with InfoRM.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2602.18037",
+      "title": "Gradient Regularization Prevents Reward Hacking in Reinforcement Learning from Human Feedback and Verifiable Rewards",
+      "url": "https://arxiv.org/abs/2602.18037",
+      "relationship": "Post-publication policy-side regularization competitor",
+      "difference": "Gradient regularization biases optimization toward flatter regions where reward accuracy is empirically higher and spans RLHF, rule rewards, and judge hacking; EPPO anchors one final-layer norm statistic and is evaluated only in preference-model PPO.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2604.01476",
+      "title": "When Reward Hacking Rebounds: Understanding and Mitigating It with Representation-Level Signals",
+      "url": "https://arxiv.org/abs/2604.01476",
+      "relationship": "Post-publication direct representation-level competitor",
+      "difference": "Wu and Tang derive semantic shortcut/deception/evaluation-awareness directions and modify GRPO advantages in a controlled code-evaluator exploit setting; EPPO uses an unlabeled norm difference in general dialogue and summarization, making it simpler but less behavior-specific.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv record checked 2026-08-23"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "Final-layer energy loss is an underlying reward-hacking mechanism, its mutual-information effect explains reduced contextual relevance, and EPPO provides a broad-exploration alternative to output constraints.",
+    "evidence": "The activation correlation and EPPO gains repeat across four model families and four datasets, with judge, representation, and small human audits plus baseline and coefficient studies.",
+    "reviewer_inference": "The empirical activation statistic and SFT-relative penalty are original, cheap, and worth further testing. The evidence supports a useful correlational regularizer for a narrow family of hacks, not a general mechanism, and the central mutual-information proof and derived entropy interpretation fail under deterministic continuous representations and stochastic decoding."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Read all 30 pages, including proofs, cross-model/dataset appendices, human audits, hyperparameters, and examples. The proof audit was cross-checked against the paper's official OpenReview discussion; current competitors were verified via primary arXiv/OpenReview records on 2026-08-23."
+}

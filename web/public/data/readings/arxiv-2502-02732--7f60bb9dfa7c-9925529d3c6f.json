@@ -1,0 +1,582 @@
+{
+  "stable_id": "arxiv:2502.02732",
+  "reading_depth": "full_text",
+  "source_provenance": {
+    "source_locator": "https://export.arxiv.org/pdf/2502.02732",
+    "pdf_sha256": "a4a665a3882043b60a185da58469bbe3fa880574aeef469993a8f08fc22988e1",
+    "text_sha256": "b3e5071b732b3eabaef9ac6dc72a8e8a813957d86d69d35642140d7ded0db81a",
+    "page_count": 37,
+    "extracted_at": "2026-08-23T17:20:57.200340+00:00",
+    "review_pass": "primary-full-text-v1"
+  },
+  "question": "Does normalizing both the input and output of every Transformer sublayer provide a better stability-performance compromise than Pre-LN or Post-LN, and can activation variance and gradient analysis explain the advantage?",
+  "key_findings": [
+    {
+      "claim": "Peri-LN adds an output normalization to a Pre-LN residual branch and empirically delivers lower loss, fewer failures, and more uniform gradients across 400M-3.2B decoder-only language models.",
+      "evidence": "The block is x_{l+1}=x_l+Norm(Module(Norm(x_l))), with optional input-embedding and final normalization. Each model size is trained for 30B tokens under five seeds and learning-rate sweeps. Compared with Pre-LN, Peri-LN's reported C4 evaluation loss is 3.34 versus 3.43 at 400M, 3.18 versus 3.29 at 1.5B, and 3.11 versus 3.20 at 3.2B; its five-task average is higher by 1.88, 2.84, and 1.87 percentage points respectively. Peri-LN has no listed divergent pretraining seeds, while Pre-LN loses two of five runs at 400M and three of five at 3.2B under the chosen recipe.",
+      "attribution": "author-reported",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "3.3 Peri-Normalization and Equation 3"
+        },
+        {
+          "page": 5,
+          "section": "4.1-4.2 experimental setting and learning-rate exploration"
+        },
+        {
+          "page": 6,
+          "section": "Table 1 pretraining and downstream results"
+        },
+        {
+          "page": 33,
+          "section": "Tables 10-11 seed-level Peri-LN and Pre-LN results"
+        }
+      ]
+    },
+    {
+      "claim": "The architecture is a renamed and expanded study of established Sandwich-LN rather than a newly discovered third placement strategy.",
+      "evidence": "Peri-LN's defining input-plus-branch-output normalization is the Sandwich-LN structure introduced for the 4B CogView Transformer in 2021. NormFormer also added post-attention and internal feed-forward normalizations and evaluated models up to 2.7B. The paper acknowledges Sandwich-LN only as a vision-domain precedent and acknowledges Gemma and OLMo implementations, but frames the placement as having quietly emerged and coins a new name. The contribution is the controlled LLM-scale analysis, terminology, and ablation panel, not the normalization topology itself.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 2,
+          "section": "Introduction, claim of a quietly emerged third placement"
+        },
+        {
+          "page": 4,
+          "section": "Peri-LN definition and open-model precedents"
+        },
+        {
+          "page": 16,
+          "section": "Related work, Sandwich-LN acknowledgment"
+        },
+        {
+          "page": 30,
+          "section": "OLMo 2 reordered-norm comparison"
+        }
+      ]
+    },
+    {
+      "claim": "Equation 4 does not analytically establish linear variance growth, especially for the RMSNorm used in the main experiments.",
+      "evidence": "For r_l=Norm(Module(Norm(x_l))), the exact identity is Var(x_l+r_l)=Var(x_l)+Var(r_l)+2Cov(x_l,r_l). The paper drops the covariance even though r_l is a learned function of x_l. It also assumes the normalized branch has constant variance beta_0. RMSNorm fixes a per-token uncentered second moment before an elementwise learned scale; unlike LayerNorm, it does not force centered variance to a constant. Therefore output normalization plausibly limits scale and the empirical plots support that effect, but linear or sub-exponential residual variance does not follow from the stated premise alone.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 3,
+          "section": "Pre-LN variance-growth motivation"
+        },
+        {
+          "page": 4,
+          "section": "Equation 4 controlling-variance argument"
+        },
+        {
+          "page": 7,
+          "section": "Figure 6 empirical hidden-state growth"
+        },
+        {
+          "page": 20,
+          "section": "Main configuration uses RMSNorm and SwiGLU"
+        }
+      ]
+    },
+    {
+      "claim": "The gradient propositions analyze a toy classifier whose residual hidden vector is itself a softmax logit vector, not the Transformer language models that are evaluated.",
+      "evidence": "Proposition C.1 sets o=x+a and then asserts dL/do=softmax(o)-y for a D-dimensional one-hot label. In the actual models, o is a hidden state of width 1024, 2048, or 2560, whereas next-token logits live in the cl100k vocabulary and are produced only after later blocks, final normalization, and an untied output matrix. Consequently the upstream gradient includes the entire remaining network and vocabulary projection and need not have norm at most two. Even for the final MLP block, the final norm and language-model head remain. The displayed bound therefore does not prove a gradient property of the trained Transformer.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 17,
+          "section": "Proposition C.1 and Equations 11-17"
+        },
+        {
+          "page": 18,
+          "section": "Equations 18-24 softmax-gradient assumption"
+        },
+        {
+          "page": 20,
+          "section": "Tables 3-4 vocabulary-head and hidden-width configuration"
+        }
+      ]
+    },
+    {
+      "claim": "The Peri-LN bound is not a uniform bounded-gradient result and does not show that a massive hidden activation causes Pre-LN explosion or that output normalization prevents it.",
+      "evidence": "The derived elementwise upper bound is proportional to gamma sqrt(D) times ||h||/||a||, where a=hW2+b. No lower bound on ||a|| or smallest singular value of W2 is assumed. A large h can lie near a null direction or cancel with the bias, making ||a|| arbitrarily small and the ratio arbitrarily large; with RMSNorm epsilon, the exact Jacobian near a=0 is finite but scales as gamma/sqrt(epsilon), so its product with h can still grow without bound. Conversely, the exact Pre-LN gradient h_i(p_j-y_j) can be small despite a large h_i because the upstream error can vanish. These are upper bounds without matching lower bounds or probabilistic assumptions, so the paper's causal 'exploding' and 'self-regularizing bounded' labels exceed the theorem.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Informal Proposition 3.1 and Equations 5-8"
+        },
+        {
+          "page": 17,
+          "section": "Proposition C.1 exact Pre-LN element gradient"
+        },
+        {
+          "page": 18,
+          "section": "Proposition C.2 Peri-LN bound"
+        },
+        {
+          "page": 19,
+          "section": "Equations 29-36 RMSNorm Jacobian and final ratio"
+        }
+      ]
+    },
+    {
+      "claim": "The formal analysis also mismatches the implementation in activation, scale parameterization, and measured gradient object.",
+      "evidence": "The propositions use a two-layer ReLU MLP and one positive scalar gamma, while the experiments use SwiGLU and standard learned RMSNorm feature scales. The proof bounds one derivative element with respect to W2_ij, whereas Figures 3, 5, and 7 discuss whole-model or layer-wise gradient norms and variances. Extending the result requires the actual gated MLP Jacobian, a diagonal gamma operator, aggregation over the weight matrix, and the downstream Transformer Jacobian. None is supplied, so calling the paper a comprehensive analytical foundation is too strong even if the scalar RMSNorm Jacobian calculation itself is a useful local intuition.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Proposition 3.1 scalar-gamma ReLU setup"
+        },
+        {
+          "page": 7,
+          "section": "Figure 7 layer-wise gradient statistics"
+        },
+        {
+          "page": 17,
+          "section": "Appendix C simplifying assumptions"
+        },
+        {
+          "page": 20,
+          "section": "Experimental architecture uses SwiGLU"
+        }
+      ]
+    },
+    {
+      "claim": "The stability evidence is meaningful, but Table 1's quality means and standard deviations are survivor-conditioned rather than averages over five comparable outcomes.",
+      "evidence": "The table caption says results are across five seeds and then says divergent checkpoints are excluded. Appendix J shows Peri-LN has five scores at every size, but Pre-LN has only three survivors at 400M and two at 3.2B; Post-LN has four at 1.5B. Thus the absence of Peri-LN failures is strong direct stability evidence, but its claim of more than halving benchmark standard deviation and its mean-quality comparisons mix different sample sizes and condition the unstable baselines on successful runs. A failure-aware expected score, divergence rate with uncertainty, and equal-n survivor analysis would separate reliability from conditional capability.",
+      "attribution": "contradiction-audit",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "Table 1 caption and benchmark-variance claim"
+        },
+        {
+          "page": 33,
+          "section": "Evaluation protocol and Tables 10-11"
+        },
+        {
+          "page": 34,
+          "section": "Table 12 Post-LN and Table 13 Peri-LN SFT"
+        },
+        {
+          "page": 35,
+          "section": "Tables 14-15 survivor-only SFT results"
+        }
+      ]
+    },
+    {
+      "claim": "Better initialization materially narrows the Peri-LN performance advantage, so the headline gap is partly recipe-dependent even though the variance-control trend persists.",
+      "evidence": "The main recipe initializes weights with standard deviation 0.02. In the controlled 400M Xavier ablation, Pre-LN training loss improves from 3.03 to 2.95 and its average benchmark score from 49.01 to 51.25; Peri-LN improves from 2.93 to 2.91 and 50.68 to 52.04. The loss gap therefore shrinks from 0.10 to 0.04 and the benchmark gap from 1.67 to 0.79 points. Peri-LN still leads and remains less sensitive across the tested scales, but comparisons against each architecture's best initialization and depth scaling are needed before attributing the entire gain to placement.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 20,
+          "section": "Table 2 baseline initialization"
+        },
+        {
+          "page": 27,
+          "section": "G.8 controlled weight-decay and initialization setup"
+        },
+        {
+          "page": 28,
+          "section": "Tables 8-9 initialization ablation"
+        },
+        {
+          "page": 29,
+          "section": "Figures 27-30 initialization curves"
+        }
+      ]
+    },
+    {
+      "claim": "The weight-decay and initialization interventions correlate activation scale with stability but do not isolate activation variance as the principal causal driver.",
+      "evidence": "Tenfold weight decay prevents one selected Pre-LN run from diverging, and smaller initialization reduces its hidden-state variance; both interventions also directly change parameter trajectories, effective capacity, logits, and optimizer dynamics. Adding output normalization likewise changes the network function and Jacobian, not only variance. The experiments use a controlled seed for these ablations and do not employ scale-only interventions, mediation analysis, or matched activation clipping. They support a mechanism hypothesis but not the conclusion that variance growth is the principal cause of divergence.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.3 variance identified as principal driver"
+        },
+        {
+          "page": 8,
+          "section": "6.1-6.2 weight-decay and initialization claims"
+        },
+        {
+          "page": 9,
+          "section": "7.1 causal-role interpretation"
+        },
+        {
+          "page": 27,
+          "section": "G.8 single-seed ablation protocol"
+        }
+      ]
+    },
+    {
+      "claim": "The closest deployed alternative, OLMo 2 reordered norm, is not the same input-plus-output architecture and becomes essentially tied with Peri-LN at the largest tested scale.",
+      "evidence": "OLMo 2 moves normalization from sublayer inputs to outputs and adds QK normalization, whereas Peri-LN retains input normalization and adds output normalization. Appendix H correctly separates these variants after the main text groups both under a peri-normalization umbrella. The final-5B-token plots show only a slight Peri-LN advantage at 400M and 1.5B and comparable behavior at 3.2B. No numeric uncertainty, training throughput, memory traffic, or end-to-end compute comparison is reported, even though Peri-LN executes more normalization operations than output-only reordered norm.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 4,
+          "section": "Grouping of OLMo and Gemma with Peri-LN"
+        },
+        {
+          "page": 26,
+          "section": "QK-Norm and placement ablations"
+        },
+        {
+          "page": 30,
+          "section": "Appendix H OLMo 2 architecture distinction"
+        },
+        {
+          "page": 31,
+          "section": "Figures 33-34 scale comparison"
+        }
+      ]
+    },
+    {
+      "claim": "The representation and precision implications are suggestive diagnostics, not validated downstream mechanisms.",
+      "evidence": "Representation redundancy is inferred from angular distances on 256 RedPajama samples in one 400M model, without CKA, probing, causal layer ablation, or correlation with task performance. The precision study tracks the global top 100 activations in 3.2B models and observes Pre-LN values above the FP16 finite range, but it does not train Peri-LN and Pre-LN side by side in FP16, measure actual overflow sites, quantization error, throughput, or hardware behavior. The claim that OPT instability or V100 disadvantage is caused by these values is therefore an extrapolation across recipes and numerical implementations.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 8,
+          "section": "5.4 angular-distance representation analysis"
+        },
+        {
+          "page": 9,
+          "section": "Figure 11 and precision implications"
+        },
+        {
+          "page": 36,
+          "section": "Appendix K FP16, V100, OPT, and quantization extrapolations"
+        },
+        {
+          "page": 37,
+          "section": "Appendix L one-model angular-distance analysis"
+        }
+      ]
+    },
+    {
+      "claim": "The supervised fine-tuning study measures multiple-choice capability after LIMA training, not instruction-following quality itself.",
+      "evidence": "Models are fine-tuned for 15 epochs on 1,000 LIMA examples, checkpoints are selected on OpenBookQA, CommonSenseQA, and GLUE NLI, and the reported SFT average reuses ARC-Easy, HellaSwag, PIQA, SIQA, and Winogrande. This shows that the architecture's pretraining advantage survives a small SFT stage, but there is no instruction-following, dialogue, preference, safety, or human evaluation. Describing it as instruction-following capability is broader than the measured outcome.",
+      "attribution": "reviewer-inference",
+      "anchors": [
+        {
+          "page": 6,
+          "section": "4.5 Benchmark Evaluations and Instruction Tuning"
+        },
+        {
+          "page": 20,
+          "section": "D.2 supervised fine-tuning configuration"
+        },
+        {
+          "page": 33,
+          "section": "J.1 evaluation tasks"
+        },
+        {
+          "page": 34,
+          "section": "SFT multiple-choice results"
+        }
+      ]
+    }
+  ],
+  "method": {
+    "core_idea": "Place normalization on both sides of every attention and feed-forward residual branch so the identity path stays clean while each branch receives normalized input and contributes a scale-controlled output.",
+    "mechanism": "Peri-LN computes x+Norm(Module(Norm(x))) for each sublayer and optionally normalizes input embeddings and the final residual state. The paper contrasts this with Post-LN and Pre-LN using a local RMSNorm Jacobian bound, a residual-variance heuristic, and measurements of activation magnitude, variance, gradient norms, and angular distances. Decoder-only Llama-3-like models of 400M, 1.5B, and 3.2B non-embedding parameters are pretrained on DCLM for 30B tokens under learning-rate sweeps and five seeds, then evaluated and lightly instruction-tuned. Ablations vary output scale, normalization type and placement, warmup, sequence length, weight decay, initialization, QK-Norm, and optimizer.",
+    "assumptions": [
+      "The output-normalized residual branch has approximately constant variance across layers and training steps.",
+      "Covariance between the residual stream and its learned branch output is negligible in the variance recurrence.",
+      "LayerNorm and RMSNorm can be treated interchangeably for centered activation-variance arguments.",
+      "A scalar positive RMSNorm gain adequately models the feature-wise learned gains used in the implementation.",
+      "A two-layer ReLU MLP captures the Jacobian behavior of the SwiGLU attention-and-MLP Transformer blocks.",
+      "The residual hidden vector may be analyzed as if it directly parameterized a D-class softmax cross-entropy loss.",
+      "The norm of the downstream loss gradient is uniformly bounded independently of the remaining network and untied vocabulary head.",
+      "The ratio ||h||/||hW2+b|| remains controlled even without a lower singular-value or anti-cancellation assumption.",
+      "An upper bound on one W2 entry explains aggregate layer-wise gradient explosions and vanishing observed in training.",
+      "Weight decay and initialization affect divergence mainly through hidden-state variance rather than other optimization pathways.",
+      "Thirty billion tokens and one Llama-like decoder recipe expose the relevant behavior at all three parameter scales.",
+      "Surviving checkpoints are an appropriate sample for comparing mean quality and standard deviation across architectures with different failure rates.",
+      "Five commonsense multiple-choice tasks represent general downstream and post-SFT capability.",
+      "Extra normalization cost is small enough that loss-per-token comparisons stand in for loss-per-compute comparisons."
+    ]
+  },
+  "techniques": [
+    {
+      "id": "peri-layer-normalization",
+      "role": "Applies normalization before and after each attention or MLP branch while preserving an unnormalized identity residual path."
+    },
+    {
+      "id": "output-rmsnorm",
+      "role": "Controls the root-mean-square scale of each sublayer contribution before residual addition."
+    },
+    {
+      "id": "rmsnorm-jacobian-bound",
+      "role": "Provides local intuition that output normalization divides weight gradients by branch-output scale."
+    },
+    {
+      "id": "residual-variance-tracking",
+      "role": "Measures absolute magnitude and variance across depth and training time."
+    },
+    {
+      "id": "layerwise-gradient-profiling",
+      "role": "Compares gradient norms and variances at initialization and the end of training."
+    },
+    {
+      "id": "multi-seed-learning-rate-sweep",
+      "role": "Tests convergence regions and seed sensitivity for Post-LN, Pre-LN, and Peri-LN."
+    },
+    {
+      "id": "normalization-placement-ablation",
+      "role": "Compares input, output, residual-path, embedding, and QK normalization combinations."
+    },
+    {
+      "id": "weight-scale-intervention",
+      "role": "Varies weight decay and initialization to correlate activation growth with stability."
+    },
+    {
+      "id": "hidden-state-angular-distance",
+      "role": "Uses angles between layer representations as a proxy for residual-stream redundancy."
+    },
+    {
+      "id": "extreme-activation-tracking",
+      "role": "Tracks top absolute hidden values against the FP16 finite range."
+    }
+  ],
+  "evaluations": [
+    {
+      "setting": "400M, 1.5B, and 3.2B Llama-3-like decoder models pretrained on DCLM-baseline for 30B tokens, five seeds per chosen setting",
+      "metric": "Training loss, C4 evaluation loss, gradient-norm curves, divergence, and learning-rate sensitivity",
+      "result": "Peri-LN has the lowest loss at each scale, no listed divergence, and fewer gradient spikes over the explored rates; Pre-LN diverges in multiple selected-recipe seeds and Post-LN needs a smaller rate and converges more slowly.",
+      "baseline": "Post-LN and Pre-LN with architecture-specific learning-rate exploration"
+    },
+    {
+      "setting": "Zero-shot evaluation after pretraining on ARC-Easy, HellaSwag, PIQA, SIQA, and Winogrande",
+      "metric": "Per-task accuracy, five-task average, and standard deviation across surviving seeds",
+      "result": "Peri-LN leads the five-task average at every scale and has lower reported dispersion, although Pre-LN averages use only three survivors at 400M and two at 3.2B.",
+      "baseline": "Post-LN and survivor-conditioned Pre-LN checkpoints"
+    },
+    {
+      "setting": "Fifteen-epoch supervised fine-tuning on 1,000 LIMA samples",
+      "metric": "The same five multiple-choice benchmark accuracies after validation-based checkpoint selection",
+      "result": "Peri-LN retains a higher aggregate score at all sizes.",
+      "baseline": "Fine-tuned Post-LN and surviving Pre-LN pretrained checkpoints"
+    },
+    {
+      "setting": "Layerwise forward statistics on 1,000 WikiText samples at initialization and across pretraining",
+      "metric": "Absolute hidden-state magnitude and variance across depth",
+      "result": "Post-LN stays nearly constant, trained Pre-LN grows sharply or approximately exponentially with depth, and Peri-LN remains intermediate and controlled across the three sizes.",
+      "baseline": "Post-LN and Pre-LN trajectories"
+    },
+    {
+      "setting": "Layerwise backpropagation profiles in 1.5B models",
+      "metric": "Gradient norm and variance at initialization and final training",
+      "result": "Post-LN gradients decrease toward earlier layers late in training, Pre-LN is nonuniform and can spike, and Peri-LN appears comparatively uniform at both checkpoints.",
+      "baseline": "Post-LN and Pre-LN gradient profiles"
+    },
+    {
+      "setting": "Output-RMSNorm gain frozen at one versus learned, without embedding normalization",
+      "metric": "Training loss and gradient norm across scales and seeds",
+      "result": "A fixed output normalization still reduces spikes and loss relative to Pre-LN, while a learned gain performs slightly better.",
+      "baseline": "Pre-LN and learnable-gain Peri-LN"
+    },
+    {
+      "setting": "400M controlled-seed ablations over weight decay and initialization variance",
+      "metric": "Final training loss, five-task average, activation variance, and divergence",
+      "result": "Stronger decay and better-scaled initialization stabilize and substantially improve Pre-LN, while Peri-LN remains less sensitive and usually better; Xavier narrows the gap considerably.",
+      "baseline": "Standard-deviation-0.02 initialization and weight decay 0.033"
+    },
+    {
+      "setting": "Alternative placements, LayerNorm versus RMSNorm, sequence length, warmup, QK-Norm, OLMo-2-style reordered norm, and SGD",
+      "metric": "Final or trajectory training loss and gradient norm",
+      "result": "The Peri pattern is robust to several recipe changes; QK-Norm slightly helps, output-only OLMo 2 style is close at 3.2B, and all SGD variants underperform Adam while retaining Peri's relative advantage.",
+      "baseline": "Matched Pre-LN or alternative normalization placements, generally in one controlled run"
+    },
+    {
+      "setting": "3.2B Pre-LN and Peri-LN models during training",
+      "metric": "Range of the global top 100 absolute hidden-state values relative to 65,504",
+      "result": "Pre-LN crosses the FP16 maximum by 0.5B tokens in the plotted run; Peri-LN stays below it.",
+      "baseline": "FP16 maximum finite value, without an actual FP16 outcome experiment"
+    }
+  ],
+  "limitations": [
+    "The defining topology is equivalent to prior Sandwich-LN, and the paper omits a direct controlled comparison with CogView's scheme or NormFormer.",
+    "The variance recurrence omits residual-branch covariance and conflates RMS normalization of second moment with fixed centered variance.",
+    "The main propositions model a hidden vector as direct class logits, omitting later blocks, final normalization, and the vocabulary projection.",
+    "The ratio ||h||/||a|| has no uniform bound, so the theorem does not establish self-regularization or preclude gradient explosion.",
+    "The analysis uses ReLU and a scalar gain, while experiments use SwiGLU and feature-wise learned normalization gains.",
+    "Elementwise final-MLP derivative bounds are not connected to the whole-layer gradient norms and variances used as empirical evidence.",
+    "No theory covers attention, sequence dependence, optimizer adaptivity, depth scaling, or the full training trajectory.",
+    "The claimed causal role of variance is based on interventions that also change parameter and optimization dynamics.",
+    "Diverged checkpoints are omitted from mean and standard-deviation calculations, producing unequal and survivor-conditioned comparison groups.",
+    "The best initialization found in the appendix substantially narrows the headline performance gap.",
+    "Several ablations use one controlled 400M run, so their seed robustness is unknown.",
+    "All primary experiments use one decoder-only Llama-like family, one pretraining corpus, one tokenizer, and at most 32 Transformer layers.",
+    "Thirty billion tokens is the same token budget at every scale and does not establish behavior under full compute-optimal or trillion-token training.",
+    "Peri-LN's extra normalization operations are not evaluated for wall-clock time, FLOPs, memory bandwidth, optimizer state, or inference latency.",
+    "The OLMo 2 output-only alternative is close at the largest scale, without numerical uncertainty for that comparison.",
+    "The downstream suite is five mostly commonsense multiple-choice tasks; no broad language, code, math, long-context, multilingual, or generative evaluation is included.",
+    "LIMA fine-tuning is not followed by an instruction-following or human-preference evaluation.",
+    "The angular-distance result uses 256 samples and one 400M model and is not tied causally to capability.",
+    "The FP16, V100, OPT, and quantization conclusions are not tested in matched numerical-format or compression experiments.",
+    "Code and kernel-level reproducibility costs are not part of the archived full-text evidence."
+  ],
+  "failure_modes": [
+    "If the normalized branch output nearly cancels or lies in a low-singular-value direction, ||h||/||a|| can become large despite output normalization.",
+    "RMSNorm epsilon and learned feature gains can amplify gradients when a branch output has very small RMS.",
+    "Correlated residual and branch outputs can make variance grow faster or slower than the additive heuristic predicts.",
+    "An output norm can cap overall RMS while leaving individual feature outliers or token-specific extremes problematic.",
+    "Feature-wise gains can relearn large branch scales and erode the nominal bounded-output intuition.",
+    "Extra normalization kernels can become memory-bandwidth bottlenecks or reduce throughput enough to offset token-efficiency gains.",
+    "Architecture-specific optimal initialization or residual scaling can erase much of the apparent advantage over a default Pre-LN recipe.",
+    "A learning-rate region selected on one seed can create high failure rates on other seeds, as the Pre-LN tables demonstrate.",
+    "Survivor-only reporting can hide the expected cost of retries and make variance comparisons unstable at n=2 or n=3.",
+    "Placement that helps 24-32-layer language decoders may behave differently in very deep, encoder-decoder, vision, speech, recurrent, or mixture-of-experts Transformers.",
+    "Normalizing every branch output can discard useful amplitude information or interact adversely with gating and residual scaling.",
+    "Reduced angular update between layers can reflect a benign identity path, a redundant representation, or a stable feature basis; the metric alone cannot distinguish them.",
+    "Values above FP16 range do not necessarily overflow if critical operations use BF16 or FP32, while values below the bound can still cause quantization error or unstable softmax."
+  ],
+  "reusable_insights": [
+    "Normalize residual-branch contributions without normalizing the identity path when scale control and direct gradient flow are both priorities.",
+    "Report architecture stability as both conditional quality and failure-aware expected cost; do not silently discard failed seeds.",
+    "Compare normalization placements under each architecture's best initialization, depth scaling, warmup, and learning rate.",
+    "A variance recurrence for residual networks must retain the covariance term or empirically show it is negligible.",
+    "RMSNorm controls per-token second moment, not automatically centered population variance or coordinatewise outliers.",
+    "A local Jacobian bound is useful mechanism evidence only if its upstream gradient, parameterization, and activation match the trained network.",
+    "Bounds containing ||input||/||output|| need an anti-cancellation or minimum-gain assumption before being called bounded."
+    ,
+    "Extra normalization methods should be evaluated in loss per token, loss per FLOP, and loss per wall-clock time.",
+    "Separate the effect of output normalization from embedding normalization, QK normalization, learned gains, and initialization through factorial ablations.",
+    "Use activation rescaling with controlled backward behavior, clipping, or mediation tests to distinguish activation magnitude from correlated optimizer effects.",
+    "Representation redundancy claims benefit from CKA, probes, layer removal, and capability correlations in addition to adjacent-layer angles.",
+    "Numerical-format claims require matched FP16/BF16/FP32 runs and instrumentation at actual cast, reduction, and accumulation sites."
+  ],
+  "open_questions": [
+    "Can Peri-LN's full Transformer Jacobian be bounded with the actual vocabulary head, attention, SwiGLU, feature-wise gains, and downstream layers?",
+    "Under what anti-cancellation or random-matrix assumptions is ||h||/||hW+b|| controlled during training?",
+    "What are the residual-branch covariance terms across depth and training, and do they predict the measured variance curves?",
+    "Does LayerNorm behave materially differently from RMSNorm once means, feature gains, and outliers are tracked rather than aggregate loss?",
+    "How much of the gain remains after architecture-specific tuning of initialization, residual scaling, weight decay, optimizer epsilon, warmup, and learning rate?",
+    "Is input normalization still useful once output reordered norm and QK-Norm are used at 7B, 70B, and trillion-token scale?",
+    "How does exact Sandwich-LN compare with Peri-LN under identical code, and which differences beyond terminology remain?",
+    "How does Peri-LN compare compute-for-compute with NormFormer, DeepNorm, Magneto, Mix-LN, OLMo 2 reordered norm, and activation-scaling methods?",
+    "What is the divergence probability over dozens of seeds and recipes, and what is expected quality after accounting for failed-run compute?",
+    "Does Peri-LN retain advantages in encoder-only, encoder-decoder, vision, audio, multimodal, long-context, and mixture-of-experts models?",
+    "Does the method improve actual instruction following, factuality, reasoning, calibration, and human preference rather than only five multiple-choice tasks?",
+    "Are lower adjacent-layer angles causally related to unused depth, and does Peri-LN make deeper layers more ablatable or less?",
+    "Do Peri-LN models improve FP16 training, post-training quantization, and inference throughput in matched hardware experiments?",
+    "Can a single placement policy be learned or scheduled by depth instead of applying two normalizations uniformly to every sublayer?"
+  ],
+  "competitive_landscape": [
+    {
+      "canonical_id": "arxiv:2105.13290",
+      "title": "CogView: Mastering Text-to-Image Generation via Transformers",
+      "url": "https://arxiv.org/abs/2105.13290",
+      "relationship": "Exact architectural predecessor under the name Sandwich-LN",
+      "difference": "CogView introduced normalization before and after each residual sublayer to prevent numerical overflow in a 4B Transformer, matching the core Peri-LN topology. Peri-LN contributes a much more systematic decoder-LM comparison, multi-seed scaling study, and activation diagnostics, but it should be framed as analysis and renaming of Sandwich-LN rather than invention of the placement.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2408.00118",
+      "title": "Gemma 2: Improving Open Language Models at a Practical Size",
+      "url": "https://arxiv.org/abs/2408.00118",
+      "relationship": "Exact deployed predecessor for the Peri-LN core block",
+      "difference": "Gemma 2 applies RMSNorm to both the input and output of every attention and feed-forward sublayer, so its residual block has the same core x + Norm(Module(Norm(x))) topology at 2B, 9B, and 27B scale. It predates Peri-LN but does not isolate normalization placement experimentally; Peri-LN's contribution is therefore the controlled placement study and mechanism analysis, not first deployment of the architecture.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2110.09456",
+      "title": "NormFormer: Improved Transformer Pretraining with Extra Normalization",
+      "url": "https://arxiv.org/abs/2110.09456",
+      "relationship": "Direct predecessor for extra normalization that balances Pre-LN gradients",
+      "difference": "NormFormer's attention branch matches Peri-LN's input/output placement but adds head-wise scaling; its feed-forward branch places the second LayerNorm before the output projection rather than after the complete MLP. It evaluates causal and masked models up to 2.7B and reports compute-matched wall-time gains and ablations. Peri-LN uses the simpler uniform full-branch output norm and more seeds at up to 3.2B, but does not compare compute-for-compute or cite this especially close design; NormFormer also reports that CogView-style final-FFN output normalization did not help in its setting.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "pmlr:v119:xiong20b",
+      "title": "On Layer Normalization in the Transformer Architecture",
+      "url": "https://proceedings.mlr.press/v119/xiong20b.html",
+      "relationship": "Foundational Pre-LN versus Post-LN theory and experimental baseline",
+      "difference": "Xiong et al. use mean-field analysis of the full initialized Transformer to explain large output-side Post-LN gradients and warmup sensitivity, then validate several tasks. Peri-LN's valuable extension is tracking trained large-LM activations beyond initialization, but its local softmax-block proposition does not match the end-to-end model as closely as this predecessor's formal setup.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2020, PMLR 119"
+    },
+    {
+      "canonical_id": "arxiv:2403.09635",
+      "title": "Transformers Get Stable: An End-to-End Signal Propagation Theory for Language Models",
+      "url": "https://arxiv.org/abs/2403.09635",
+      "relationship": "Closest comprehensive signal-propagation theory comparator",
+      "difference": "Kedia et al. derive forward and backward moment recurrences covering vanishing and exploding gradients, rank collapse, and attention instability, then propose DeepScaleLM and train up to 1,000 layers across language, speech, and vision. Peri-LN supplies richer observations over the course of billion-parameter LM training and a simple placement intervention, but its claimed analytical foundation omits covariance and most end-to-end Transformer structure.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "pmlr:v202:wang23u",
+      "title": "Magneto: A Foundation Transformer",
+      "url": "https://proceedings.mlr.press/v202/wang23u.html",
+      "relationship": "Competing dual-normalization and initialization architecture",
+      "difference": "Magneto places two Sub-LayerNorm operations inside attention and feed-forward sublayers and combines them with a theoretically scaled initialization, with experiments spanning language, translation, vision, speech, and multimodal pretraining. Peri-LN preserves the clean residual path with a branch-output norm and offers strong decoder-LM seed studies, but lacks Magneto's modality breadth and direct best-recipe comparison.",
+      "source_kind": "official-proceedings",
+      "checked_at": "2026-08-23",
+      "source_version": "ICML 2023, PMLR 202"
+    },
+    {
+      "canonical_id": "arxiv:2203.00555",
+      "title": "DeepNet: Scaling Transformers to 1,000 Layers",
+      "url": "https://arxiv.org/abs/2203.00555",
+      "relationship": "Alternative normalization-residual scaling solution for stable depth",
+      "difference": "DeepNorm retains a Post-LN-like architecture but derives depth-dependent residual and initialization scaling to bound model updates and trains Transformers with up to 1,000 layers. Peri-LN instead caps every branch output and is tested at up to 32 layers; a head-to-head test would reveal whether extra normalization or principled depth scaling is the better stability-compute tradeoff.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "current arXiv record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "arxiv:2501.00656",
+      "title": "2 OLMo 2 Furious",
+      "url": "https://arxiv.org/abs/2501.00656",
+      "relationship": "Contemporaneous deployed output-normalization architecture",
+      "difference": "OLMo 2 reorders RMSNorm from sublayer input to output and combines it with QK-Norm, reporting improved gradient stability in a fully open 7B/13B recipe. Peri-LN retains both input and output normalization and better isolates placement across controlled 400M-3.2B runs, but its own appendix finds the output-only OLMo 2 style comparable at 3.2B and does not measure the cost of the extra input norms.",
+      "source_kind": "arxiv",
+      "checked_at": "2026-08-23",
+      "source_version": "arXiv / COLM 2025 record checked 2026-08-23"
+    },
+    {
+      "canonical_id": "openreview:BChpQU64RG",
+      "title": "Mix-LN: Unleashing the Power of Deeper Layers by Combining Pre-LN and Post-LN",
+      "url": "https://openreview.net/forum?id=BChpQU64RG",
+      "relationship": "Contemporaneous competing placement policy",
+      "difference": "Mix-LN applies Post-LN in earlier layers and Pre-LN in deeper layers to balance gradients without adding both norms everywhere, and evaluates 70M-7B models plus SFT and RLHF. Peri-LN offers cleaner branch-scale control and stronger massive-activation diagnostics, but does not compare against this accepted ICLR 2025 alternative or test whether placement should vary with depth.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "ICLR 2025 poster, OpenReview record modified 2025-02-27"
+    },
+    {
+      "canonical_id": "openreview:miCXNqXyVS",
+      "title": "Normalization in Attention Dynamics",
+      "url": "https://openreview.net/forum?id=miCXNqXyVS",
+      "relationship": "Subsequent unified theory comparing Peri-LN with other placements",
+      "difference": "Karagodin et al. model token representations as interacting particles on the sphere and compare Post-LN, Pre-LN, Mix-LN, Peri-LN, and nGPT through a unified normalization-as-speed-regulation analysis, identifying Peri-LN as effective against clustering. This postdates the reviewed work and supports its direction, while providing a more principled representation-dynamics framework than the paper's 256-sample angular-distance interpretation.",
+      "source_kind": "openreview",
+      "checked_at": "2026-08-23",
+      "source_version": "NeurIPS 2025 poster, OpenReview record modified 2026-04-21"
+    }
+  ],
+  "novelty_assessment": {
+    "author_claim": "The paper claims to identify and name a third Transformer normalization strategy, provide a comprehensive analytical explanation of how placement controls activation variance and gradients, and demonstrate that Peri-LN consistently improves stability and performance at large scale.",
+    "evidence": "The five-seed 400M-3.2B experiments, trained-state diagnostics, survivor counts, and broad appendix form a useful systematic study and show a real robustness advantage under the tested recipe. However, the topology is prior Sandwich-LN, NormFormer and several foundation models already use closely related extra/output norms, Equation 4 omits covariance, and the main gradient theorem is a toy softmax block with an unbounded ||h||/||a|| factor rather than an end-to-end Transformer result.",
+    "reviewer_inference": "The defensible contribution is the Peri-LN unifying label plus a relatively careful large-decoder empirical characterization of why Sandwich-style output normalization is attractive. It is not a new placement, and the analytical claims should be narrowed to local intuition. Future comparisons should be failure-aware, compute-matched, tuned per architecture, and include exact Sandwich-LN, NormFormer, DeepNorm, Magneto, Mix-LN, and OLMo 2."
+  },
+  "confidence": 0.98,
+  "reviewer_notes": "Reviewed the complete indexed 37-page ICML 2025 camera-ready paper, including all proofs, seed-level tables, ablations, precision discussion, and representation appendix. The core proof audit checked the actual language-model computation against Propositions C.1-C.3: the hidden state is not a vocabulary-logit vector, and the claimed Peri-LN bound has no finite uniform guarantee without controlling ||hW2+b|| from below. Ten current primary arXiv, PMLR, and OpenReview sources were checked on 2026-08-23; the closest omitted predecessor is NormFormer, while CogView's acknowledged Sandwich-LN and Gemma 2 are architecturally equivalent to the named method."
+}
