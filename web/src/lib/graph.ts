@@ -3,7 +3,7 @@ import type { AtlasRead } from "./payload";
 import { portfolioAtScore } from "./portfolio";
 
 export const NODE_COLORS: Record<GraphNodeKind, string> = {
-  topic: "#55748c",
+  topic: "#765b91",
   trick: "#65836d",
   paper: "#6c8e95",
   idea: "#a34f59",
