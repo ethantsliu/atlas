@@ -1,13 +1,22 @@
 PYTHON ?= python3
 NPM ?= npm
 
-.PHONY: enrich feed promote data layout refresh-data generated-freshness db-migrate db-sync db-dry python-check test web-build web-budget web-e2e format-check validate check
+.PHONY: enrich feed rescore promote archive archive-check data layout refresh-data generated-freshness db-migrate db-sync db-dry python-check test web-build web-budget web-e2e format-check validate check
 
 enrich:
 	$(PYTHON) pipeline/arxiv.py --resume --max-batches 0
 
 feed:
 	$(PYTHON) pipeline/feed.py --days 4
+
+rescore:
+	$(PYTHON) pipeline/rescore.py
+
+archive:
+	$(PYTHON) pipeline/backfill.py
+
+archive-check:
+	$(PYTHON) pipeline/archivecheck.py
 
 promote:
 	$(PYTHON) pipeline/promote.py

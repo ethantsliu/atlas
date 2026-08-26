@@ -1,0 +1,111 @@
+name: archive
+
+on:
+  schedule:
+    - cron: "47 07 * * *"
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "First submission date"
+        required: false
+        default: "2020-01-01"
+        type: string
+      end:
+        description: "Last submission date; blank uses yesterday"
+        required: false
+        type: string
+      days:
+        description: "Missing days to checkpoint this run"
+        required: false
+        default: "31"
+        type: string
+
+concurrency:
+  group: arxiv-archive
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    if: github.event_name == 'workflow_dispatch' || vars.ATLAS_FEED == 'true'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ARCHIVE_ROOT: data/cache/archive
+      ARCHIVE_TAG: corpus-v1
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Open corpus release
+        run: |
+          gh release view "$ARCHIVE_TAG" >/dev/null 2>&1 || \
+            gh release create "$ARCHIVE_TAG" \
+              --title "Atlas corpus" \
+              --notes "Versioned arXiv metadata shards used by Atlas."
+
+      - name: Read archive index
+        run: |
+          mkdir -p "$ARCHIVE_ROOT"
+          gh release download "$ARCHIVE_TAG" \
+            --pattern index.json \
+            --dir "$ARCHIVE_ROOT" || true
+
+      - name: Plan bounded intake
+        env:
+          START: ${{ inputs.start || '2020-01-01' }}
+          END: ${{ inputs.end }}
+          DAYS: ${{ inputs.days || '31' }}
+        run: |
+          args=(--start "$START" --max-days "$DAYS" --root "$ARCHIVE_ROOT")
+          if [ -n "$END" ]; then args+=(--end "$END"); fi
+          python pipeline/backfill.py "${args[@]}" --plan "$ARCHIVE_ROOT/plan.json"
+
+      - name: Read changed months
+        run: |
+          jq -r '.months[]' "$ARCHIVE_ROOT/plan.json" | while read -r month; do
+            gh release download "$ARCHIVE_TAG" \
+              --pattern "$month.json.gz" \
+              --dir "$ARCHIVE_ROOT" || true
+          done
+
+      - name: Harvest missing dates
+        env:
+          START: ${{ inputs.start || '2020-01-01' }}
+          END: ${{ inputs.end }}
+          DAYS: ${{ inputs.days || '31' }}
+        run: |
+          args=(--start "$START" --max-days "$DAYS" --root "$ARCHIVE_ROOT")
+          if [ -n "$END" ]; then args+=(--end "$END"); fi
+          python pipeline/backfill.py "${args[@]}"
+
+      - name: Verify archive contracts
+        run: |
+          python -m pip install -r dev.txt
+          python pipeline/archivecheck.py
+          python -m unittest tests.test_archive tests.test_architecture -v
+          ruff check pipeline tests
+          ruff format --check pipeline tests
+
+      - name: Publish changed months
+        run: |
+          jq -r '.months[]' "$ARCHIVE_ROOT/plan.json" | while read -r month; do
+            gh release upload "$ARCHIVE_TAG" \
+              "$ARCHIVE_ROOT/$month.json.gz" \
+              --clobber
+          done
+          gh release upload "$ARCHIVE_TAG" "$ARCHIVE_ROOT/index.json" --clobber
+
+      - name: Publish browser index
+        run: |
+          cp "$ARCHIVE_ROOT/index.json" web/public/data/archive.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/public/data/archive.json
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Update arXiv archive index"
+          git push

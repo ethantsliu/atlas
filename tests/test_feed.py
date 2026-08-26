@@ -21,6 +21,7 @@ from feed import (
     raw_payload,
 )
 from rank import load_rules
+from rescore import rescore_day
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -133,6 +134,25 @@ class FeedTests(unittest.TestCase):
             [item["date"] for item in index["days"]],
             ["2026-08-21", "2026-08-20"],
         )
+
+    def test_rescore_raw(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            public = root / "public"
+            public.mkdir()
+            day_path = root / f"{DAY.isoformat()}.json"
+            raw_path = root / f"{DAY.isoformat()}.json.gz"
+            payload = make_day(DAY, make_intake(), {**RULES, "version": "old"}, 1)
+            day_path.write_text(json.dumps(payload), encoding="utf-8")
+            raw_path.write_bytes(raw_payload(DAY, make_intake()))
+
+            rescored = rescore_day(day_path, raw_path, public, RULES)
+
+            self.assertEqual(rescored["policy_version"], RULES["version"])
+            self.assertEqual(rescored["generated_at"], payload["generated_at"])
+            self.assertEqual(
+                (public / day_path.name).read_bytes(), day_path.read_bytes()
+            )
 
 
 if __name__ == "__main__":

@@ -1,7 +1,6 @@
 # Atlas
 
-An interactive map of 2,200+ machine-learning papers, research ideas, topics, and
-techniques.
+An interactive map of machine-learning papers, research ideas, topics, and techniques.
 
 [Open Atlas](https://xn--rss.to/atlas/)
 

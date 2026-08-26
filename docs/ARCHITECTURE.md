@@ -13,10 +13,10 @@ collection ─► canonical IDs ─► abstracts ─► source inventory ─► 
                                                         compact atlas + progress + static reading details
                                                                   └─► compact hosted corpus search
 
-all daily arXiv submissions ─► complete raw archive ─► ML relevance gate ─► all relevant
-                                      │                       policy ─► interest rank ─► shortlist
-                                      └─► static days ────────────────► durable fallback
-                                                  └─► hosted metadata ─► indexed public search
+arXiv metadata stream ─► monthly remote shards ─► likely / possible / outside scope
+          │                    │                         └─► no destructive filtering
+          │                    └─► resumable 2020-present backfill
+          └─► newest day first ─► daily discovery ─► interest rank ─► shortlist
 ```
 
 ## Module boundaries
@@ -49,6 +49,9 @@ all daily arXiv submissions ─► complete raw archive ─► ML relevance gate
   publication; it does not modify the reviewed corpus or compact atlas.
 - `rank.py` owns the configurable relevance boundary and the separate interest
   ordering. `data/source/feed.json` keeps category and phrase policy inspectable.
+- `archive.py` owns deterministic monthly shards and reversible scope lanes;
+  `backfill.py` keeps the newest date current before filling historical gaps. The
+  release index is sufficient to resume without downloading completed months.
 - `feedcheck.py` verifies source totals, raw lineage, ranking order, and byte-identical
   public/build copies. `web/src/lib/feed.ts` independently revalidates the served
   contracts before the `Daily` view renders them.
@@ -155,6 +158,10 @@ all daily arXiv submissions ─► complete raw archive ─► ML relevance gate
     insert, update, or delete grant or policy. The server connection string never
     crosses the Actions/environment boundary, and the public publishable key is not
     treated as a secret or authorization boundary.
+25. Historical scope is non-destructive. Every harvested arXiv record remains in
+    exactly one of `likely`, `possible`, or `outside`; policy changes may reclassify
+    records but never erase their metadata. Monthly shard hashes and completed date
+    lists make interrupted workers resumable and independently auditable.
 
 ## Engineering principles
 

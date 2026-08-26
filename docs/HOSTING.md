@@ -7,8 +7,8 @@ and recent daily-paper metadata and abstracts. Neither layer publishes or stores
 paper PDFs.
 
 The default hosted window is 180 UTC days. `pipeline/sync.py --keep-days N` changes
-that window. Pruning affects PostgreSQL only: the dated static JSON and compressed
-raw audit remain the durable archive.
+that window. Pruning affects PostgreSQL only: daily JSON and versioned monthly arXiv
+release shards remain the durable archive.
 
 ## Supabase setup
 
@@ -46,6 +46,12 @@ relevance-positive row, reuses unchanged semantic vectors, rebuilds the projecti
 and synchronizes both daily and corpus PostgreSQL rows. The resulting push invokes
 the normal checked deployment. Without `ATLAS_DATABASE_URL`, synchronization is a
 dry run and the static archive still publishes.
+
+The scheduled `archive` workflow keeps the newest UTC date current and fills the
+earliest missing dates from 2020 onward in bounded batches. It downloads only the
+months it will change, verifies deterministic hashes and completeness counts, and
+replaces those GitHub Release assets. Visitors do not download the archive unless a
+search or map action requests it.
 
 Corpus synchronization hashes the exact atlas and enriched bibliography artifacts.
 An unchanged digest skips corpus replacement; a changed corpus is replaced in
