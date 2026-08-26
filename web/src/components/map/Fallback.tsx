@@ -1,13 +1,7 @@
 import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import type { Theme } from "../../hooks/theme";
-import {
-  applyLayout,
-  freeNodes,
-  layoutTicks,
-  pinNodes,
-  type LayoutMode,
-} from "../../hooks/layout";
+import { applyLayout, layoutTicks, type LayoutMode } from "../../hooks/layout";
 import { useQuality } from "../../hooks/quality";
 import { graphEndpointId } from "../../lib/graph";
 import { showLink } from "../../lib/quality";
@@ -77,10 +71,7 @@ export function FallbackGraph({
 
   useEffect(() => {
     if (!graphRef.current) return;
-    const dense = layout === "semantic" && simple;
-    if (dense) pinNodes(graph.nodes);
-    else freeNodes(graph.nodes);
-    applyLayout(graphRef.current, layout, true, dense);
+    applyLayout(graphRef.current, layout);
   }, [graph.nodes, graphRef, layout, simple]);
 
   useEffect(() => {
@@ -110,7 +101,7 @@ export function FallbackGraph({
         return showLink(quality, { selected: active });
       }}
       linkWidth={layout === "connections" ? 0.8 : 1}
-      cooldownTicks={layoutTicks(layout, quality.cooldownTicks, simple)}
+      cooldownTicks={layoutTicks(quality.cooldownTicks, simple)}
       d3VelocityDecay={0.28}
       nodeLabel={(node) => `${labelOf(node.kind)} · ${node.label}`}
       nodeCanvasObject={(node, context, scale) => {

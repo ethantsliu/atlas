@@ -42,8 +42,7 @@ function nodeMat(node: GraphNode, emphasized: boolean, simple = false): Material
   const cached = materials.get(key);
   if (cached) return cached;
 
-  const MaterialType = simple && !emphasized ? MeshBasicMaterial : MeshPhongMaterial;
-  const material = new MaterialType({
+  const material = new MeshPhongMaterial({
     color: node.color,
     emissive: emphasized ? node.color : "#000000",
     emissiveIntensity: emphasized ? 0.42 : 0,

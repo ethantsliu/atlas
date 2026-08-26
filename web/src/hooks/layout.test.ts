@@ -1,13 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { LayoutGraph } from "./layout";
-import {
-  applyLayout,
-  freeNodes,
-  layoutSpec,
-  layoutTicks,
-  layoutTime,
-  pinNodes,
-} from "./layout";
+import { applyLayout, layoutSpec, layoutTicks, layoutTime } from "./layout";
 
 type ForceStub = {
   distance: ReturnType<typeof vi.fn>;
@@ -49,37 +42,11 @@ describe("layoutSpec", () => {
     expect(layoutTime(false, 600)).toBe(600);
   });
 
-  it("keeps overview motion but freezes dense semantic layouts", () => {
-    expect(layoutTicks("semantic", 150)).toBe(150);
-    expect(layoutTicks("semantic", 150, true)).toBe(0);
-    expect(layoutTicks("connections", 80)).toBe(80);
-    expect(layoutTicks("connections", 80, true)).toBe(30);
-  });
-
-  it("pins semantic coordinates and releases them for connections", () => {
-    const nodes = [
-      {
-        id: "paper:one",
-        kind: "paper" as const,
-        label: "One",
-        val: 1,
-        color: "#000",
-        payload: {} as never,
-        x: 9,
-        y: 8,
-        z: 7,
-        sx: 1,
-        sy: 2,
-        sz: 3,
-      },
-    ];
-
-    pinNodes(nodes);
-    expect(nodes[0]).toMatchObject({ x: 1, y: 2, z: 3, fx: 1, fy: 2, fz: 3 });
-    freeNodes(nodes);
-    expect(nodes[0]).not.toHaveProperty("fx");
-    expect(nodes[0]).not.toHaveProperty("fy");
-    expect(nodes[0]).not.toHaveProperty("fz");
+  it("bounds dense layout motion", () => {
+    expect(layoutTicks(150)).toBe(150);
+    expect(layoutTicks(150, true)).toBe(30);
+    expect(layoutTicks(80)).toBe(80);
+    expect(layoutTicks(80, true)).toBe(30);
   });
 });
 
@@ -113,17 +80,6 @@ describe("applyLayout", () => {
 
     expect(writes.get("atlas-center")).toEqual(expect.any(Function));
     expect(writes.get("atlas-semantic")).toEqual(expect.any(Function));
-    expect(graph.d3ReheatSimulation).not.toHaveBeenCalled();
-  });
-
-  it("disables semantic physics for dense scenes", () => {
-    const { graph, link, writes } = makeGraph();
-
-    applyLayout(graph, "semantic", true, true);
-
-    expect(writes.get("atlas-center")).toBeNull();
-    expect(writes.get("atlas-semantic")).toBeNull();
-    expect(link.strength).toHaveBeenCalledWith(0);
     expect(graph.d3ReheatSimulation).not.toHaveBeenCalled();
   });
 });

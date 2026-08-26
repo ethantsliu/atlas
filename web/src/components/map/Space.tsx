@@ -9,17 +9,15 @@ import {
 import ForceGraph3D, { type ForceGraphMethods } from "react-force-graph-3d";
 import {
   applyLayout,
-  freeNodes,
   layoutTicks,
   layoutTime,
-  pinNodes,
   type LayoutMode,
 } from "../../hooks/layout";
 import { useQuality } from "../../hooks/quality";
 import { usePixel } from "../../hooks/pixel";
 import { useMarks } from "../../hooks/marks";
 import type { Theme } from "../../hooks/theme";
-import { graphEndpointId } from "../../lib/graph";
+import { graphEndpointId, largestGroup } from "../../lib/graph";
 import { showLink } from "../../lib/quality";
 import { formatCamera, show3d, type CameraView } from "../../lib/camera";
 import { buildNode } from "../../lib/scene";
@@ -59,8 +57,8 @@ export function GraphSpace({
   const engineReadyRef = useRef(false);
   const fitRef = useRef(true);
   const fitKeyRef = useRef<string>();
-  const fitFrameRef = useRef<number>();
   const restoredRef = useRef<string | null>(null);
+  const coreIds = useMemo(() => largestGroup(graph), [graph]);
   const topology = useMemo(
     () =>
       graph.nodes
@@ -86,7 +84,7 @@ export function GraphSpace({
   });
 
   useEffect(() => {
-    if (selected || camera) {
+    if (camera) {
       fitRef.current = false;
       return;
     }
@@ -97,10 +95,7 @@ export function GraphSpace({
 
   useEffect(() => {
     if (graphRef.current) {
-      const dense = layout === "semantic" && simple;
-      if (dense) pinNodes(graph.nodes);
-      else freeNodes(graph.nodes);
-      applyLayout(graphRef.current, layout, engineReadyRef.current, dense);
+      applyLayout(graphRef.current, layout, engineReadyRef.current);
       graphRef.current.refresh();
     }
   }, [graph.nodes, graphRef, layout, simple]);
@@ -112,19 +107,6 @@ export function GraphSpace({
     fitRef.current = false;
     show3d(graphRef.current, camera);
   }, [camera, graphRef]);
-
-  useEffect(() => {
-    if (camera || selected || layout !== "semantic" || !graphRef.current) return;
-    const api = graphRef.current;
-    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const duration = layoutTime(Boolean(reduced), 700);
-    window.cancelAnimationFrame(fitFrameRef.current ?? 0);
-    fitFrameRef.current = window.requestAnimationFrame(() => {
-      fitRef.current = false;
-      api.zoomToFit(duration, 72);
-    });
-    return () => window.cancelAnimationFrame(fitFrameRef.current ?? 0);
-  }, [camera, graphRef, layout, selected, topology]);
 
   const activeIds = useMemo(
     () => new Set([selected?.id, hovered?.id].filter(Boolean)),
@@ -156,7 +138,7 @@ export function GraphSpace({
           ? Math.max(0.12, quality.linkOpacity)
           : quality.linkOpacity
       }
-      cooldownTicks={layoutTicks(layout, quality.cooldownTicks, simple)}
+      cooldownTicks={layoutTicks(quality.cooldownTicks, simple)}
       d3VelocityDecay={0.24}
       enableNodeDrag={false}
       onEngineTick={() => {
@@ -167,7 +149,7 @@ export function GraphSpace({
         fitRef.current = false;
         const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
         const duration = layoutTime(Boolean(reduced), 700);
-        graphRef.current?.zoomToFit(duration, 72, () => true);
+        graphRef.current?.zoomToFit(duration, 72, (node) => coreIds.has(node.id));
       }}
       onNodeClick={onChoose}
       onNodeHover={(node) => setHovered(node ?? null)}

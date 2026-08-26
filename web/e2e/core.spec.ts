@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const shard = /\/data\/papers\/[a-f0-9]{64}\.json(?:\?.*)?$/;
 
@@ -31,6 +31,28 @@ async function scanAxe(page: Page) {
     .withTags(["wcag2a", "wcag2aa"])
     .analyze();
   expect(report.violations).toEqual([]);
+}
+
+async function hoverNode(
+  page: Page,
+  box: { x: number; y: number; width: number; height: number },
+  label: string,
+): Promise<Locator> {
+  const tooltip = page.locator(".float-tooltip-kap");
+  const offsets = [0, -16, 16, -32, 32, -48, 48];
+  const seen = new Set<string>();
+  for (const y of offsets) {
+    for (const x of offsets) {
+      await page.mouse.move(box.x + box.width / 2 + x, box.y + box.height / 2 + y);
+      await page.waitForTimeout(60);
+      const text = await tooltip.textContent();
+      if (text) seen.add(text);
+      if (text?.includes(label)) return tooltip;
+    }
+  }
+  throw new Error(
+    `Could not hover ${label}; bounds ${JSON.stringify(box)}; saw ${[...seen].join(", ")}`,
+  );
 }
 
 test("the initial map stays on the core shard", async ({ page }) => {
@@ -100,15 +122,15 @@ test("hover labels a node and click keeps details in the inspector", async ({
   const picker = page.getByLabel("Choose a visible graph node");
   await picker.fill("In-Context Language Learning");
   await page.getByRole("option", { name: /In-Context Language Learning/ }).click();
+  await page.getByRole("button", { name: "Isolate connections" }).click();
+  await expect(mapStatus(page)).not.toContainText("2,316 visible graph nodes");
+  await page.waitForTimeout(2_500);
   await page.getByRole("button", { name: "Center selected" }).click();
-  await picker.fill("Massive Spikes in LLMs are Bias Vectors");
-  await page.getByRole("option", { name: /Massive Spikes in LLMs/ }).click();
 
   const graph = page.getByLabel(/Interactive (3D )?research graph/);
   const box = await graph.boundingBox();
   if (!box) throw new Error("Research graph has no bounds");
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  const tooltip = page.locator(".float-tooltip-kap");
+  const tooltip = await hoverNode(page, box, "Paper · In-Context Language Learning");
   await expect(tooltip).toContainText("Paper · In-Context Language Learning");
   await expect(tooltip).toHaveCSS("font-family", /Baskerville/);
   await expect(tooltip).toHaveCSS("font-size", "14px");
@@ -150,23 +172,22 @@ test("2D hover and click use the same inline inspector", async ({ page }, testIn
   const picker = page.getByLabel("Choose a visible graph node");
   await picker.fill("In-Context Language Learning");
   await page.getByRole("option", { name: /In-Context Language Learning/ }).click();
+  await page.getByRole("button", { name: "Isolate connections" }).click();
+  await expect(mapStatus(page)).not.toContainText("2,316 visible graph nodes");
+  await page.waitForTimeout(2_500);
   await page.getByRole("button", { name: "Center selected" }).click();
-  await picker.fill("Massive Spikes in LLMs are Bias Vectors");
-  await page.getByRole("option", { name: /Massive Spikes in LLMs/ }).click();
 
   const graph = page.getByLabel("Interactive research graph");
   const box = await graph.boundingBox();
   if (!box) throw new Error("2D research graph has no bounds");
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  const tooltip = page.locator(".float-tooltip-kap");
-  await expect(tooltip).toBeVisible();
-  const hoveredLabel = (await tooltip.textContent()) ?? "";
-  expect(hoveredLabel).toMatch(/^Paper · .+/);
-  const hoveredTitle = hoveredLabel.replace(/^Paper · /, "");
+  const tooltip = await hoverNode(page, box, "Paper · In-Context Language Learning");
+  await expect(tooltip).toContainText("Paper · In-Context Language Learning");
   await expect(tooltip).toHaveCSS("font-family", /Baskerville/);
   await page.mouse.down();
   await page.mouse.up();
-  await expect(page.getByRole("heading", { name: hoveredTitle })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "In-Context Language Learning" }),
+  ).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
@@ -206,23 +227,18 @@ test("copied view links include a camera snapshot", async ({ page, context }) =>
     new URL(page.url()).hash.replace(/^#\?/, ""),
   ).get("s");
   if (!selectedId) throw new Error("Selected paper is missing from the atlas URL");
-  const point = await page.evaluate(async (nodeId) => {
-    const base = new URL(".", window.location.href);
-    const coreResponse = await fetch(new URL("data/atlas.json", base));
-    const core = (await coreResponse.json()) as {
-      paper_asset: { path: string };
-    };
-    const paperPath = core.paper_asset.path.replace(/^\/+/, "");
-    const paperResponse = await fetch(new URL(paperPath, base));
-    const papers = (await paperResponse.json()) as {
-      layout: { positions: Record<string, [number, number, number]> };
-    };
-    return papers.layout.positions[nodeId];
-  }, selectedId);
-  const expected = point.map((value) => Math.round(value * 10) / 10);
-  const uses3d = await page.getByLabel("Interactive 3D research graph").count();
-  expect(camera?.slice(0, 2)).toEqual(expected.slice(0, 2));
-  expect(camera?.[2]).toBe(uses3d ? expected[2] : 0);
+  expect(camera).toHaveLength(6);
+  expect(camera?.every(Number.isFinite)).toBe(true);
+  const shared = await context.newPage();
+  await shared.goto(copied);
+  await expect(shared.getByLabel("Choose a visible graph node")).toHaveValue(
+    /Massive Spikes in LLMs/,
+  );
+  expect(
+    new URLSearchParams(new URL(shared.url()).hash.replace(/^#\?/, "")).get("s"),
+  ).toBe(selectedId);
+  await expect(shared.getByLabel(/Interactive (3D )?research graph/)).toBeVisible();
+  await shared.close();
 });
 
 test("a failed paper shard retries once", async ({ page }) => {
