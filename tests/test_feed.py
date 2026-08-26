@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from urllib.error import HTTPError
 from unittest.mock import patch
 
 import sys
@@ -15,6 +16,7 @@ from feed import (
     day_query,
     day_range,
     fetch_day,
+    fetch_page,
     make_day,
     page_url,
     parse_page,
@@ -62,6 +64,29 @@ def make_intake() -> dict:
 
 
 class FeedTests(unittest.TestCase):
+    @patch("feed.time.sleep")
+    @patch("feed.fetch_once")
+    def test_transient_retry(self, fetch_once, sleep) -> None:
+        error = HTTPError("https://export.arxiv.org", 503, "busy", {}, None)
+        fetch_once.side_effect = [error, (1, [{"id": "2608.00001"}])]
+
+        total, papers = fetch_page(date(2026, 8, 21), 0, 500)
+
+        self.assertEqual(total, 1)
+        self.assertEqual(papers[0]["id"], "2608.00001")
+        sleep.assert_called_once_with(3.1)
+
+    @patch("feed.time.sleep")
+    @patch("feed.fetch_once")
+    def test_final_retry(self, fetch_once, sleep) -> None:
+        error = HTTPError("https://export.arxiv.org", 404, "missing", {}, None)
+        fetch_once.side_effect = error
+
+        with self.assertRaises(HTTPError):
+            fetch_page(date(2026, 8, 21), 0, 500)
+
+        sleep.assert_not_called()
+
     def test_parse_page(self) -> None:
         total, papers = parse_page(atom_page())
 

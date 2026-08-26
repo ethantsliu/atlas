@@ -76,6 +76,8 @@ jobs:
           done
 
       - name: Harvest missing dates
+        id: harvest
+        continue-on-error: true
         env:
           START: ${{ inputs.start || '2020-01-01' }}
           END: ${{ inputs.end }}
@@ -96,6 +98,7 @@ jobs:
       - name: Publish changed months
         run: |
           jq -r '.months[]' "$ARCHIVE_ROOT/plan.json" | while read -r month; do
+            if [ ! -f "$ARCHIVE_ROOT/$month.json.gz" ]; then continue; fi
             gh release upload "$ARCHIVE_TAG" \
               "$ARCHIVE_ROOT/$month.json.gz" \
               --clobber
@@ -111,3 +114,7 @@ jobs:
           if git diff --cached --quiet; then exit 0; fi
           git commit -m "Update arXiv archive index"
           git push
+
+      - name: Enforce complete run
+        if: steps.harvest.outcome == 'failure'
+        run: exit 1

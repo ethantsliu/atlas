@@ -9,6 +9,7 @@ import json
 import time
 import urllib.parse
 import urllib.request
+from urllib.error import HTTPError, URLError
 import xml.etree.ElementTree as ET
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -28,6 +29,8 @@ ARXIV = "{http://arxiv.org/schemas/atom}"
 OPEN = "{http://a9.com/-/spec/opensearch/1.1/}"
 USER_AGENT = "atlas/0.2 (daily research discovery)"
 PAGE_LIMIT = 12_000_000
+RETRY_CODES = {429, 500, 502, 503, 504}
+RETRY_LIMIT = 6
 
 
 def clean(value: str | None) -> str:
@@ -105,13 +108,40 @@ def page_url(day: date, start: int, size: int) -> str:
     return f"{API_URL}?{query}"
 
 
-def fetch_page(day: date, start: int, size: int) -> tuple[int, list[dict]]:
-    """Fetch one safe, bounded arXiv page."""
+def fetch_once(day: date, start: int, size: int) -> tuple[int, list[dict]]:
+    """Make one safe, bounded arXiv page request."""
     request = urllib.request.Request(
         page_url(day, start, size), headers={"User-Agent": USER_AGENT}
     )
     with open_public(request, timeout=90) as response:
         return parse_page(read_limited(response, PAGE_LIMIT))
+
+
+def retry_delay(error: Exception, attempt: int) -> float:
+    """Respect Retry-After while bounding exponential transient backoff."""
+    if isinstance(error, HTTPError) and error.headers:
+        value = error.headers.get("Retry-After", "")
+        if value.isdigit():
+            return min(120.0, max(3.1, float(value)))
+    return min(120.0, 3.1 * (2**attempt))
+
+
+def fetch_page(day: date, start: int, size: int) -> tuple[int, list[dict]]:
+    """Retry one arXiv page only for temporary service failures."""
+    for attempt in range(RETRY_LIMIT):
+        failure: Exception
+        try:
+            return fetch_once(day, start, size)
+        except HTTPError as error:
+            if error.code not in RETRY_CODES or attempt + 1 == RETRY_LIMIT:
+                raise
+            failure = error
+        except (TimeoutError, URLError) as error:
+            if attempt + 1 == RETRY_LIMIT:
+                raise
+            failure = error
+        time.sleep(retry_delay(failure, attempt))
+    raise RuntimeError("arXiv retry loop ended unexpectedly")
 
 
 def fetch_day(day: date, size: int = 500, delay: float = 3.1) -> dict:
