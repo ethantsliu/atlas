@@ -22,10 +22,8 @@ function mapStatus(page: Page) {
 
 async function fullNodes(page: Page) {
   const counts = await Promise.all(
-    ["Topic", "Trick", "Paper", "Idea"].map(async (kind) => {
-      const text = await page
-        .getByRole("button", { name: new RegExp(`^${kind}\\s+`) })
-        .textContent();
+    [0, 1, 2, 3].map(async (index) => {
+      const text = await page.locator(".filters .kind-toggle").nth(index).textContent();
       return Number((text?.match(/[\d,]+$/)?.[0] ?? "0").replaceAll(",", ""));
     }),
   );

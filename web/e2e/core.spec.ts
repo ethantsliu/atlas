@@ -22,10 +22,8 @@ async function showFilters(page: Page) {
 
 async function fullNodes(page: Page): Promise<string> {
   const counts = await Promise.all(
-    ["Topic", "Trick", "Paper", "Idea"].map(async (kind) => {
-      const text = await page
-        .getByRole("button", { name: new RegExp(`^${kind}\\s+`) })
-        .textContent();
+    [0, 1, 2, 3].map(async (index) => {
+      const text = await page.locator(".filters .kind-toggle").nth(index).textContent();
       return Number((text?.match(/[\d,]+$/)?.[0] ?? "0").replaceAll(",", ""));
     }),
   );
@@ -355,6 +353,7 @@ test("clipboard failure is announced", async ({ page }) => {
 
 test("nearby nodes support keyboard entry", async ({ page }) => {
   await loadMap(page, "/#?s=topic%3Aalignment");
+  await fullNodes(page);
   const nearby = page.locator(".nearby").getByRole("button").first();
   const initial = await page.getByLabel("Choose a visible graph node").inputValue();
   await nearby.focus();
