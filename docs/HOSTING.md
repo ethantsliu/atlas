@@ -28,10 +28,10 @@ PostgreSQL; only `db/policy.sql` names Supabase's `anon` and `authenticated` rol
 5. In repository Pages settings, choose **GitHub Actions** as the source. Run the
    `deploy` workflow. Project Pages uses `/<repository>/` automatically; set the
    optional `ATLAS_BASE_PATH` repository variable for a custom path.
-6. After the first manual deployment succeeds, set the repository variable
-   `ATLAS_DEPLOY` to `true` to deploy pushes to `main`. Set `ATLAS_FEED` to `true`
-   only when the daily scheduled refresh should begin. Until then, both jobs remain
-   inert on automatic triggers and can still be run manually.
+6. After the first manual deployment succeeds, set the repository variables
+   `ATLAS_DEPLOY` and `ATLAS_FEED` to `true`. The first deploy publishes the site;
+   the second runs complete daily arXiv intake and promotes validated ML-relevant
+   records into both hosted search and the 3D corpus.
 
 The deploy workflow runs the complete project check in the same checkout and build
 environment as the Pages artifact, so it never relies on a racing check from another
@@ -41,13 +41,14 @@ when present. The separate `probe` workflow repeats that check daily and can be 
 manually. Set the optional `ATLAS_SITE_URL` repository variable when the public root
 uses a custom domain; otherwise the workflow derives the project Pages URL.
 
-The scheduled `feed` workflow syncs only daily PostgreSQL rows after validating the
-complete intake. The `deploy` workflow synchronizes the complete corpus index before
-publishing the matching site. Without `ATLAS_DATABASE_URL`, either workflow performs
-a dry run and continues publishing the static archive.
+The scheduled `feed` workflow validates complete intake, promotes every
+relevance-positive row, reuses unchanged semantic vectors, rebuilds the projection,
+and synchronizes both daily and corpus PostgreSQL rows. The resulting push invokes
+the normal checked deployment. Without `ATLAS_DATABASE_URL`, synchronization is a
+dry run and the static archive still publishes.
 
 Corpus synchronization hashes the exact atlas and enriched bibliography artifacts.
-An unchanged digest skips the 2,205-row replacement; a changed corpus is replaced in
+An unchanged digest skips corpus replacement; a changed corpus is replaced in
 one transaction, so public readers see either the prior complete index or the new one.
 
 ## Security model
@@ -76,8 +77,8 @@ database. Run `make db-migrate` or `make db-sync` only with
 
 ## Capacity
 
-The hosted tables contain a compact search projection of the 2,205 public collection
-entries plus relevance-positive daily metadata, abstracts, scores, and routes. They
+The hosted tables contain a compact search projection of the base collection and all
+promoted relevance-positive arXiv metadata, abstracts, scores, and routes. They
 contain no structured full readings. The rolling daily window keeps this comfortably
 below the free-tier database limit under current volume. Monitor Supabase's database-size dashboard;
 the free project becomes read-only at its size limit. Reduce `--keep-days` before

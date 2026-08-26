@@ -27,6 +27,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.24.7"
+          cache: false
       - name: Install checks
         run: python -m pip install -r dev.txt
       - name: Fetch complete daily intake
@@ -41,23 +45,89 @@ jobs:
       - name: Verify feed contracts
         run: |
           python -m unittest tests.test_feed tests.test_rank tests.test_feedcheck tests.test_db -v
+          PYTHONPATH=pipeline python -c 'from feedcheck import validate_feed; validate_feed(False)'
+      - name: Promote daily corpus
+        id: promote
+        run: |
+          python pipeline/promote.py
+          if git diff --quiet -- data/generated/papers_enriched.json data/generated/promotion.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Cache embedding runtime
+        if: steps.promote.outputs.changed == 'true'
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.local/bin/ollama
+            ~/.ollama/models
+          key: ollama-${{ runner.os }}-0.13.1-all-minilm
+      - name: Install embedding runtime
+        if: steps.promote.outputs.changed == 'true'
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          if [ ! -x "$HOME/.local/bin/ollama" ]; then
+            git clone --branch v0.13.1 --depth 1 https://github.com/ollama/ollama.git "$RUNNER_TEMP/ollama"
+            cd "$RUNNER_TEMP/ollama"
+            go build -ldflags='-X=github.com/ollama/ollama/version.Version=0.13.1' -o "$HOME/.local/bin/ollama" .
+          fi
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Cache semantic vectors
+        if: steps.promote.outputs.changed == 'true'
+        uses: actions/cache@v5
+        with:
+          path: data/cache/vectors.npz
+          key: vectors-${{ runner.os }}-${{ hashFiles('data/generated/papers_enriched.json') }}
+          restore-keys: vectors-${{ runner.os }}-
+      - name: Build promoted atlas
+        if: steps.promote.outputs.changed == 'true'
+        env:
+          OLLAMA_HOST: 127.0.0.1:11434
+        run: |
+          ollama serve > "$RUNNER_TEMP/ollama.log" 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:11434/api/version; then break; fi
+            sleep 1
+          done
+          ollama pull all-minilm
+          python pipeline/assign.py
+          python pipeline/verify.py
+          python pipeline/related.py
+          python pipeline/atlas.py --base
+          python pipeline/embed.py
+          python pipeline/atlas.py
           python pipeline/validate.py --skip-dist
+          python -m unittest tests.test_promote tests.test_embed tests.test_atlas -v
       - name: Sync hosted search
         env:
           ATLAS_DATABASE_URL: ${{ secrets.ATLAS_DATABASE_URL }}
         run: |
           if [ -n "$ATLAS_DATABASE_URL" ]; then
-            python pipeline/sync.py --feed-only
+            python pipeline/sync.py
           else
-            python pipeline/sync.py --feed-only --dry-run
+            python pipeline/sync.py --dry-run
           fi
       - name: Publish changed days
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/generated/feed web/public/data/feed
+          git add \
+            data/generated/atlas.json \
+            data/generated/feed \
+            data/generated/layout.json \
+            data/generated/papers_enriched.json \
+            data/generated/progress.json \
+            data/generated/promotion.json \
+            data/generated/reading_queue.json \
+            data/generated/related_work_candidates.jsonl \
+            data/generated/source_inventory.json \
+            data/generated/verification_queue.json \
+            web/public/data/atlas.json \
+            web/public/data/feed \
+            web/public/data/papers
           if git diff --cached --quiet; then
             exit 0
           fi
-          git commit -m "Update daily arXiv feed"
+          git commit -m "Update daily arXiv corpus"
           git push

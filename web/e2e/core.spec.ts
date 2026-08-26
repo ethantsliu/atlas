@@ -20,6 +20,21 @@ async function showFilters(page: Page) {
   if (await toggle.isVisible()) await toggle.click();
 }
 
+async function fullNodes(page: Page): Promise<string> {
+  const counts = await Promise.all(
+    ["Topic", "Trick", "Paper", "Idea"].map(async (kind) => {
+      const text = await page
+        .getByRole("button", { name: new RegExp(`^${kind}\\s+`) })
+        .textContent();
+      return Number((text?.match(/[\d,]+$/)?.[0] ?? "0").replaceAll(",", ""));
+    }),
+  );
+  const total = counts.reduce((sum, count) => sum + count, 0).toLocaleString();
+  const expected = `${total} visible graph nodes available.`;
+  await expect(mapStatus(page)).toHaveText(expected, { timeout: 20_000 });
+  return expected;
+}
+
 async function loadMap(page: Page, path = "/#?k=tri") {
   await page.goto(path);
   await expect(page.getByLabel(/Interactive (3D )?research graph/)).toBeVisible();
@@ -58,11 +73,9 @@ async function hoverNode(
 test("the initial map enables every lens", async ({ page }) => {
   const hits = trackShard(page);
   await loadMap(page, "/");
-  await expect(mapStatus(page)).toContainText("2,316 visible graph nodes available", {
-    timeout: 20_000,
-  });
   await showFilters(page);
-  await expect(page.getByRole("button", { name: /Paper\s+2205/ })).toHaveAttribute(
+  await fullNodes(page);
+  await expect(page.getByRole("button", { name: /Paper\s+[,\d]+/ })).toHaveAttribute(
     "aria-pressed",
     "true",
   );
@@ -74,18 +87,14 @@ test("the paper lens fetches its shard once", async ({ page }) => {
   const hits = trackShard(page);
   await loadMap(page);
   await showFilters(page);
-  const lens = page.getByRole("button", { name: /Paper\s+2205/ });
+  const lens = page.getByRole("button", { name: /Paper\s+[,\d]+/ });
   await lens.click();
-  await expect(mapStatus(page)).toContainText("2,316 visible graph nodes available", {
-    timeout: 20_000,
-  });
+  await fullNodes(page);
   expect(hits).toHaveLength(1);
 
   await lens.click();
   await lens.click();
-  await expect(mapStatus(page)).toContainText("2,316 visible graph nodes available", {
-    timeout: 20_000,
-  });
+  await fullNodes(page);
   expect(hits).toHaveLength(1);
 });
 
@@ -123,15 +132,13 @@ test("hover labels a node and click keeps details in the inspector", async ({
   await page.setViewportSize({ width: 1_440, height: 900 });
   await loadMap(page);
   await showFilters(page);
-  await page.getByRole("button", { name: /Paper\s+2205/ }).click();
-  await expect(mapStatus(page)).toContainText("2,316 visible graph nodes available", {
-    timeout: 20_000,
-  });
+  await page.getByRole("button", { name: /Paper\s+[,\d]+/ }).click();
+  const fullState = await fullNodes(page);
   const picker = page.getByLabel("Choose a visible graph node");
   await picker.fill("In-Context Language Learning");
   await page.getByRole("option", { name: /In-Context Language Learning/ }).click();
   await page.getByRole("button", { name: "Isolate connections" }).click();
-  await expect(mapStatus(page)).not.toContainText("2,316 visible graph nodes");
+  await expect(mapStatus(page)).not.toHaveText(fullState!);
   await page.waitForTimeout(2_500);
   await page.getByRole("button", { name: "Center selected" }).click();
 
@@ -173,15 +180,13 @@ test("2D hover and click use the same inline inspector", async ({ page }, testIn
   });
   await loadMap(page);
   await showFilters(page);
-  await page.getByRole("button", { name: /Paper\s+2205/ }).click();
-  await expect(mapStatus(page)).toContainText("2,316 visible graph nodes available", {
-    timeout: 20_000,
-  });
+  await page.getByRole("button", { name: /Paper\s+[,\d]+/ }).click();
+  const fullState = await fullNodes(page);
   const picker = page.getByLabel("Choose a visible graph node");
   await picker.fill("In-Context Language Learning");
   await page.getByRole("option", { name: /In-Context Language Learning/ }).click();
   await page.getByRole("button", { name: "Isolate connections" }).click();
-  await expect(mapStatus(page)).not.toContainText("2,316 visible graph nodes");
+  await expect(mapStatus(page)).not.toHaveText(fullState!);
   await page.waitForTimeout(2_500);
   await page.getByRole("button", { name: "Center selected" }).click();
 
@@ -214,14 +219,15 @@ test("copied view links include a camera snapshot", async ({ page, context }) =>
   });
   await loadMap(page);
   await showFilters(page);
-  await page.getByRole("button", { name: /Paper\s+2205/ }).click();
+  await page.getByRole("button", { name: /Paper\s+[,\d]+/ }).click();
+  await fullNodes(page);
   const header = page.locator(".graph-header > div");
-  await expect(header).toContainText("2,316 nodes", { timeout: 20_000 });
+  await expect(header).toContainText(/[,\d]+ nodes/, { timeout: 20_000 });
   await expect(header).not.toContainText("drawn");
   const picker = page.getByLabel("Choose a visible graph node");
   await picker.fill("Massive Spikes in LLMs are Bias Vectors");
   await page.getByRole("option", { name: /Massive Spikes in LLMs/ }).click();
-  await expect(header).toContainText("2,316 nodes");
+  await expect(header).toContainText(/[,\d]+ nodes/);
   await page.getByRole("button", { name: "Center selected" }).click();
   await page.getByRole("button", { name: "Copy a link to this atlas view" }).click();
   const copied = await page.evaluate(

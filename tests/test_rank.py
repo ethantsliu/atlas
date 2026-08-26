@@ -61,6 +61,31 @@ class RankTests(unittest.TestCase):
         self.assertFalse(ranked["relevance"]["relevant"])
         self.assertEqual(ranked["relevance"]["lane"], "math-stat")
 
+    def test_math_optimization(self) -> None:
+        ranked = rank_paper(
+            make_paper(
+                title="Implicit bias of mirror descent",
+                abstract="We prove a convergence rate in high dimensions.",
+            ),
+            RULES,
+        )
+
+        self.assertTrue(ranked["relevance"]["relevant"])
+        self.assertIn("mirror descent", ranked["relevance"]["strong_hits"])
+
+    def test_math_theory(self) -> None:
+        ranked = rank_paper(
+            make_paper(
+                categories=["math.PR"],
+                title="A PAC learning bound",
+                abstract="We establish an excess risk theorem.",
+            ),
+            RULES,
+        )
+
+        self.assertTrue(ranked["relevance"]["relevant"])
+        self.assertEqual(ranked["relevance"]["lane"], "math-stat")
+
     def test_adjacent_signal(self) -> None:
         ranked = rank_paper(
             make_paper(

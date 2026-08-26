@@ -21,6 +21,7 @@ from atlas import (
 from competitors import load_flagships
 from ledger import build_coverage_snapshot, load_json_lines
 from paths import REVIEWED_READINGS_DIR
+from promote import base_records, build_corpus, load_days
 from related import build_work_rows
 from rules import check
 from sources import build_source_inventory
@@ -31,8 +32,8 @@ ROOT = Path(__file__).resolve().parents[1]
 READINGS_DIR = REVIEWED_READINGS_DIR
 MAX_CORE_BYTES = 1024 * 1024
 MAX_CORE_GZIP = 250 * 1024
-MAX_PAPER_BYTES = 9 * 1024 * 1024 // 2
-MAX_PAPER_GZIP = 1024 * 1024
+MAX_PAPER_BYTES = 7 * 1024 * 1024
+MAX_PAPER_GZIP = 3 * 1024 * 1024 // 2
 
 
 def same_bytes(left: Path, right: Path) -> bool:
@@ -74,7 +75,7 @@ def validate_progress(progress: dict, expected: dict) -> None:
 
 
 def validate_corpus(manifest: dict, enriched: list[dict]) -> set[str]:
-    """Validate collection preservation and canonical paper identity."""
+    """Validate base preservation and automatic daily corpus promotion."""
     source_path = ROOT / "data/source/papers.json"
     source = json.loads(source_path.read_text(encoding="utf-8"))
     check(
@@ -91,25 +92,33 @@ def validate_corpus(manifest: dict, enriched: list[dict]) -> set[str]:
         and manifest.get("excluded_private_context") == 3,
         "Private context exclusion ledger is stale",
     )
-    check(
-        len(enriched) == len(source),
-        "Enriched corpus must preserve every public collection entry",
-    )
     overrides = json.loads(
         (ROOT / "data/source/overrides.json").read_text(encoding="utf-8")
     )
-    expected = [
+    base = base_records(source, enriched)
+    expected_base = [
         merge_record(paper, overrides.get(str(paper["id"]), {}), record)
-        for paper, record in zip(source, enriched, strict=True)
+        for paper, record in zip(source, base, strict=True)
     ]
     check(
-        enriched == expected,
+        base == expected_base,
         "Enriched corpus is stale against current source or override decisions",
     )
-    canonical_ids = {item["stable_id"] for item in enriched}
+    expected, report = build_corpus(expected_base, load_days())
+    check(enriched == expected, "Enriched corpus is stale against daily promotion")
+    stored_report = json.loads(
+        (ROOT / "data/generated/promotion.json").read_text(encoding="utf-8")
+    )
+    check(stored_report == report, "Daily promotion report is stale")
     check(
-        len(canonical_ids) == manifest["unique_canonical_records"],
-        "Canonical identifier count drifted",
+        report["corpus_count"] == len(enriched) and report["base_count"] == len(source),
+        "Daily promotion counts are inconsistent",
+    )
+    canonical_ids = {item["stable_id"] for item in enriched}
+    base_ids = {item["stable_id"] for item in base}
+    check(
+        len(base_ids) == manifest["unique_canonical_records"],
+        "Base canonical identifier count drifted",
     )
     check(
         sum(bool(item.get("abstract")) for item in enriched) >= 1990,

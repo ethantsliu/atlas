@@ -227,8 +227,8 @@ function reducerError(value: unknown): string | null {
   if (!exactKeys(value, REDUCER_KEYS)) return "invalid semantic reducer";
   return value.name === "umap" &&
     value.dimensions === 3 &&
-    value.neighbors === 24 &&
-    value.min_dist === 0.12 &&
+    value.neighbors === 32 &&
+    value.min_dist === 0.08 &&
     value.metric === "cosine" &&
     value.random_seed === 42 &&
     value.repulsion_strength === 2 &&

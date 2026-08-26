@@ -20,6 +20,21 @@ function mapStatus(page: Page) {
   return page.locator(".map-layout > [role=status]").first();
 }
 
+async function fullNodes(page: Page) {
+  const counts = await Promise.all(
+    ["Topic", "Trick", "Paper", "Idea"].map(async (kind) => {
+      const text = await page
+        .getByRole("button", { name: new RegExp(`^${kind}\\s+`) })
+        .textContent();
+      return Number((text?.match(/[\d,]+$/)?.[0] ?? "0").replaceAll(",", ""));
+    }),
+  );
+  const total = counts.reduce((sum, count) => sum + count, 0).toLocaleString();
+  await expect(mapStatus(page)).toHaveText(`${total} visible graph nodes available.`, {
+    timeout: 20_000,
+  });
+}
+
 for (const viewport of viewports) {
   test(`${viewport.width}px layout has no horizontal page overflow`, async ({
     page,
@@ -169,28 +184,38 @@ test("paper lens and arrow-key graph navigation stay concise", async ({ page }) 
   }
   await expect(filters.getByText("Paper", { exact: true })).toBeVisible();
   await expect(filters).not.toContainText("Paper / context");
-  const paperLens = filters.getByRole("button", { name: /Paper\s+2205/ });
+  const paperLens = filters.getByRole("button", { name: /Paper\s+[,\d]+/ });
   await paperLens.click();
   await expect(paperLens).toHaveAttribute("aria-pressed", "true");
-  await expect(mapStatus(page)).toContainText("2,316 visible graph nodes available", {
-    timeout: 20_000,
-  });
+  await fullNodes(page);
 
   const graph = page.getByLabel(/Interactive (3D )?research graph/);
   const picker = page.getByLabel("Choose a visible graph node");
   await expect(graph.locator("canvas")).toBeVisible();
   await expect(page.getByRole("button", { name: /Reset (3D )?view/ })).toBeVisible();
   await expect(graph).toContainText(/drag (rotates|pans)/);
-  await picker.fill("AI4AI-Bench");
-  await page.getByRole("option", { name: /AI4AI-Bench/ }).click();
-  await expect(picker).toHaveValue(/AI4AI-Bench/);
+  let selected: string;
+  if ((await picker.evaluate((element) => element.tagName)) === "SELECT") {
+    const option = picker
+      .locator("option")
+      .filter({ hasText: /^Paper · / })
+      .first();
+    await expect(option).toBeAttached({ timeout: 20_000 });
+    selected = (await option.getAttribute("value"))!;
+    await picker.selectOption(selected);
+  } else {
+    await picker.fill("AI4AI-Bench");
+    await page.getByRole("option", { name: /AI4AI-Bench/ }).click();
+    selected = await picker.inputValue();
+  }
+  await expect(picker).toHaveValue(selected);
   await page.getByRole("button", { name: "Open paper", exact: true }).click();
   const closePaper = page.getByRole("button", { name: "Close paper details" });
   await expect(closePaper).toBeVisible();
   await expect(page.getByRole("heading", { name: "Related work" })).toBeVisible();
   await expect(page.getByText("Competitive landscape", { exact: true })).toHaveCount(0);
   await closePaper.click();
-  await expect(picker).toHaveValue(/AI4AI-Bench/);
+  await expect(picker).toHaveValue(selected);
   await graph.focus();
   await page.keyboard.press("ArrowRight");
   await expect(picker).not.toHaveValue("");
@@ -214,7 +239,7 @@ test("daily discovery proves intake coverage and preserves all relevant papers",
   await expect(page.locator(".daily-card")).toHaveCount(10);
   await page.getByRole("button", { name: "All relevant", exact: true }).click();
   await expect(page.locator(".daily-card")).toHaveCount(30);
-  await expect(page.getByRole("status")).toContainText("276 daily papers available");
+  await expect(page.getByRole("status")).toContainText(/[,\d]+ daily papers available/);
   await expect(page.getByLabel("Paper result pages")).toContainText("Page 1 of 10");
   await scan(page);
 });

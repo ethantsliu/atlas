@@ -21,9 +21,9 @@ from embed import (  # noqa: E402
     alias_exclusions,
     embed_batch,
     input_hash,
+    load_cache,
     load_parts,
     node_records,
-    paper_text,
     row_hash,
     save_parts,
     valid_vectors,
@@ -31,6 +31,7 @@ from embed import (  # noqa: E402
     vector_sha,
     verify_model,
 )
+from node import paper_text  # noqa: E402
 
 
 def sample_atlas() -> dict:
@@ -139,6 +140,15 @@ class EmbedTests(unittest.TestCase):
         )
         digest = vector_sha(np.ones((len(records), 3), dtype=np.float32))
         self.assertEqual(input_hash(records, digest), input_hash(records, digest))
+
+    def test_taxon_phrases(self) -> None:
+        atlas = sample_atlas()
+        atlas["topics"][0] = {"id": "world-models", "label": "world models"}
+
+        records = node_records(atlas)
+
+        self.assertIn("dynamics model", records[0][1])
+        self.assertIn("video prediction", records[0][1])
 
     def test_reviewed_text(self) -> None:
         paper = sample_atlas()["papers"][0]
@@ -279,6 +289,28 @@ class EmbedTests(unittest.TestCase):
         self.assertFalse(changed_done.any())
         self.assertEqual(float(changed.sum()), 0)
 
+    def test_cache_reuse(self) -> None:
+        saved = [("node-1", "one"), ("node-2", "two")]
+        current = [("node-2", "two"), ("node-3", "three")]
+        vectors = np.vstack(
+            [np.ones(384, dtype=np.float32), np.full(384, 2, dtype=np.float32)]
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            cache_path = Path(directory) / "vectors.npz"
+            np.savez_compressed(
+                cache_path,
+                ids=np.asarray([record[0] for record in saved]),
+                row_hashes=np.asarray([row_hash(record) for record in saved]),
+                vectors=vectors,
+                vector_sha256=vector_sha(vectors),
+            )
+            with patch("embed.CACHE_PATH", cache_path):
+                restored, done = load_cache(current)
+
+        self.assertEqual(done.tolist(), [True, False])
+        self.assertTrue(np.array_equal(restored[0], vectors[1]))
+        self.assertEqual(float(restored[1].sum()), 0)
+
     def test_bad_checkpoint(self) -> None:
         records = [("node-1", "one"), ("node-2", "two")]
         vectors = np.ones((2, 384), dtype=np.float32)
@@ -293,7 +325,7 @@ class EmbedTests(unittest.TestCase):
                 np.savez_compressed(part_path, **values)
                 _, restored_done = load_parts(records, "digest")
 
-        self.assertFalse(restored_done.any())
+        self.assertEqual(restored_done.tolist(), [False, True])
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # Related-work review protocol
 
-`related_work_candidates.jsonl` is a recall-oriented queue, not a novelty result. Its lexical candidates come only from the 2,205-entry public collection. A paper becomes `reviewed` only when a structured reading contains external primary-source related work.
+`related_work_candidates.jsonl` is a recall-oriented queue, not a novelty result. Its lexical candidates cover the complete promoted corpus. A paper becomes `reviewed` only when a structured reading contains external primary-source related work.
 
 For each full-paper review:
 

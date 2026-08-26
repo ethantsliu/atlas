@@ -20,12 +20,16 @@ class GeneratedDataContractTests(unittest.TestCase):
             (ROOT / "data/generated/corpus_manifest.json").read_text()
         )
         cls.source_papers = json.loads((ROOT / "data/source/papers.json").read_text())
+        cls.promotion = json.loads((ROOT / "data/generated/promotion.json").read_text())
         cls.overrides = json.loads((ROOT / "data/source/overrides.json").read_text())
 
     def test_collection_counts(self) -> None:
         self.assertEqual(self.manifest["paper_count"], 2205)
-        self.assertEqual(len(self.atlas["papers"]), 2205)
-        self.assertEqual(self.atlas["meta"]["paper_count"], 2205)
+        self.assertEqual(
+            len(self.atlas["papers"]),
+            self.manifest["paper_count"] + self.promotion["promoted_count"],
+        )
+        self.assertEqual(self.atlas["meta"]["paper_count"], len(self.atlas["papers"]))
         self.assertEqual(self.manifest["excluded_private_context"], 3)
 
     def test_manifest_count(self) -> None:

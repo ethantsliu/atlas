@@ -127,7 +127,7 @@ class DatabaseTests(unittest.TestCase):
         atlas, enriched, _digest = load_corpus()
         rows = corpus_rows(atlas, enriched)
 
-        self.assertEqual(len(rows), 2205)
+        self.assertEqual(len(rows), atlas["meta"]["paper_count"])
         self.assertEqual(rows[0][0], atlas["papers"][0]["id"])
         self.assertEqual(rows[0][2], atlas["papers"][0]["collection_id"])
         self.assertIn("continual", rows[0][-1].lower())
@@ -148,9 +148,11 @@ class DatabaseTests(unittest.TestCase):
 
         count = sync_corpus(connection, atlas, enriched, digest)
 
-        self.assertEqual(count, 2205)
+        self.assertEqual(count, atlas["meta"]["paper_count"])
         self.assertIn("delete from public.corpus_papers", connection.value.calls[1][0])
-        self.assertEqual(len(connection.value.batches[0][1]), 2205)
+        self.assertEqual(
+            len(connection.value.batches[0][1]), atlas["meta"]["paper_count"]
+        )
 
     def test_corpus_rejects(self) -> None:
         atlas, enriched, _digest = load_corpus()

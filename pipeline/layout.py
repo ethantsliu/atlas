@@ -9,8 +9,8 @@ LAYOUT_METHOD = "embedding-umap-3d-v1"
 REDUCER = {
     "name": "umap",
     "dimensions": 3,
-    "neighbors": 24,
-    "min_dist": 0.12,
+    "neighbors": 32,
+    "min_dist": 0.08,
     "metric": "cosine",
     "random_seed": 42,
     "repulsion_strength": 2.0,

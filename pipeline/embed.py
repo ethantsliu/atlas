@@ -25,6 +25,7 @@ from layout import (
     REDUCER,
 )
 from mix import ensure_mix, mix_report
+from node import load_details, node_records
 from semantic import (
     NEIGHBOR_COUNT,
     ensure_quality,
@@ -37,7 +38,6 @@ ATLAS_PATH = ROOT / "data/generated/atlas.json"
 LAYOUT_PATH = ROOT / "data/generated/layout.json"
 CACHE_PATH = ROOT / "data/cache/vectors.npz"
 PART_PATH = ROOT / "data/cache/parts.npz"
-DETAILS_PATH = ROOT / "data/reviewed/readings"
 MODEL = os.environ.get("ATLAS_EMBED_MODEL", MODEL_NAME)
 MODEL_DIGEST = os.environ.get("ATLAS_EMBED_DIGEST", DEFAULT_DIGEST)
 EMBED_DIM = int(os.environ.get("ATLAS_EMBED_DIM", str(DEFAULT_DIM)))
@@ -47,126 +47,6 @@ API_ROOT = ENDPOINT.rsplit("/api/", 1)[0]
 TAGS_ENDPOINT = os.environ.get("ATLAS_TAGS_URL", f"{API_ROOT}/api/tags")
 SHOW_ENDPOINT = os.environ.get("ATLAS_SHOW_URL", f"{API_ROOT}/api/show")
 VERSION_ENDPOINT = os.environ.get("ATLAS_VERSION_URL", f"{API_ROOT}/api/version")
-
-
-def route_names(item: dict) -> str:
-    routes = [*item.get("topics", []), *item.get("tricks", [])]
-    return ", ".join(route.get("id", "") for route in routes)
-
-
-PLACEHOLDERS = (
-    "full reading has not yet been completed",
-    "collection currently provides only title-level evidence",
-    "no abstract or result passage is available locally",
-)
-
-
-def clip_words(value: object, limit: int) -> str:
-    """Clip normalized prose at a word boundary within a field budget."""
-    text = " ".join(str(value or "").split())
-    if len(text) <= limit:
-        return text
-    clipped = text[: limit + 1].rsplit(" ", 1)[0].rstrip(" ,.;:-")
-    return clipped or text[:limit]
-
-
-def detail_text(detail: dict) -> str:
-    """Budget every reviewed field so later semantic signals survive."""
-    method = detail.get("method", {})
-    techniques = ", ".join(
-        str(item.get("id", "")) for item in detail.get("techniques", [])[:6]
-    )
-    return " ".join(
-        part
-        for part in (
-            f"question: {clip_words(detail.get('question'), 100)}",
-            f"core idea: {clip_words(method.get('core_idea'), 170)}",
-            f"mechanism: {clip_words(method.get('mechanism'), 170)}",
-            f"techniques: {clip_words(techniques, 70)}",
-        )
-        if part.split(": ", 1)[-1]
-    )
-
-
-def paper_text(paper: dict, detail: dict | None = None) -> str:
-    reading = paper.get("reading", {})
-    reviewed = detail_text(detail) if detail else ""
-    compact = " ".join(str(reading.get(key, "")) for key in ("problem", "approach"))
-    if any(phrase in compact.casefold() for phrase in PLACEHOLDERS):
-        compact = ""
-    prefix = (
-        "collection entry"
-        if paper.get("record_kind") == "non_paper_context"
-        else "research paper"
-    )
-    return " ".join(
-        part
-        for part in (
-            f"{prefix}: {clip_words(paper['title'], 160)}",
-            reviewed or compact,
-            f"areas: {clip_words(route_names(paper), 70)}",
-        )
-        if part.split(": ", 1)[-1]
-    )
-
-
-def idea_text(idea: dict) -> str:
-    brief = idea.get("brief", {})
-    methods = " ".join(str(item) for item in brief.get("method", [])[:2])
-    routes = ", ".join([*idea.get("topic_ids", []), *idea.get("trick_ids", [])])
-    return " ".join(
-        part
-        for part in (
-            f"research idea: {clip_words(brief.get('title'), 180)}",
-            f"thesis: {clip_words(brief.get('thesis'), 250)}",
-            f"proposed method: {clip_words(methods, 250)}",
-            f"areas: {clip_words(routes, 80)}",
-        )
-        if part.split(": ", 1)[-1]
-    )
-
-
-def taxon_text(item: dict) -> str:
-    """Describe a curated taxonomy marker without encoding its node kind."""
-    return item["label"]
-
-
-def node_records(
-    atlas: dict,
-    details: dict[str, dict] | None = None,
-) -> list[tuple[str, str]]:
-    topics = [
-        (
-            f"topic:{item['id']}",
-            taxon_text(item),
-        )
-        for item in atlas["topics"]
-    ]
-    tricks = [
-        (
-            f"trick:{item['id']}",
-            taxon_text(item),
-        )
-        for item in atlas["tricks"]
-    ]
-    details = details or {}
-    papers = [
-        (item["id"], paper_text(item, details.get(item.get("stable_id", ""))))
-        for item in atlas["papers"]
-    ]
-    ideas = [(item["id"], idea_text(item)) for item in atlas["ideas"]]
-    return [*topics, *tricks, *papers, *ideas]
-
-
-def load_details() -> dict[str, dict]:
-    """Load authoritative reviewed semantic inputs keyed by canonical paper ID."""
-    details: dict[str, dict] = {}
-    for path in sorted(DETAILS_PATH.glob("*.json")):
-        detail = json.loads(path.read_text(encoding="utf-8"))
-        stable_id = detail.get("stable_id")
-        if stable_id:
-            details[stable_id] = detail
-    return details
 
 
 def embed_batch(texts: list[str]) -> list[list[float]]:
@@ -241,9 +121,8 @@ def load_parts(
     records: list[tuple[str, str]],
     digest: str,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Resume only an exact, structurally valid embedding checkpoint."""
-    vectors = np.zeros((len(records), EMBED_DIM), dtype=np.float32)
-    done = np.zeros(len(records), dtype=bool)
+    """Reuse valid complete rows, then overlay a resumable checkpoint."""
+    vectors, done = load_cache(records)
     if not PART_PATH.exists():
         return vectors, done
     with np.load(PART_PATH) as partial:
@@ -266,13 +145,47 @@ def load_parts(
                 and bool(saved_done[saved_index])
                 and str(saved_hashes[saved_index]) == row_hash(record)
             ):
-                vectors[index] = saved_vectors[saved_index]
-                done[index] = True
-    completed = vectors[done]
-    if completed.size and (
-        not np.isfinite(completed).all()
-        or np.any(np.linalg.norm(completed, axis=1) == 0)
-    ):
+                candidate = saved_vectors[saved_index]
+                if np.isfinite(candidate).all() and np.linalg.norm(candidate) > 0:
+                    vectors[index] = candidate
+                    done[index] = True
+    return vectors, done
+
+
+def load_cache(
+    records: list[tuple[str, str]],
+) -> tuple[np.ndarray, np.ndarray]:
+    """Reuse unchanged rows from a self-verifying complete vector cache."""
+    vectors = np.zeros((len(records), EMBED_DIM), dtype=np.float32)
+    done = np.zeros(len(records), dtype=bool)
+    if not CACHE_PATH.exists():
+        return vectors, done
+    try:
+        with np.load(CACHE_PATH) as cached:
+            required = {"ids", "row_hashes", "vectors", "vector_sha256"}
+            if not required <= set(cached.files):
+                return vectors, done
+            saved_ids = cached["ids"]
+            saved_hashes = cached["row_hashes"]
+            saved_vectors = cached["vectors"]
+            if (
+                len(saved_ids) != len(saved_hashes)
+                or saved_vectors.shape != (len(saved_ids), EMBED_DIM)
+                or len({str(node_id) for node_id in saved_ids}) != len(saved_ids)
+                or not valid_vectors(saved_vectors, str(cached["vector_sha256"]))
+            ):
+                return vectors, done
+            saved_indexes = {
+                str(node_id): index for index, node_id in enumerate(saved_ids)
+            }
+            for index, record in enumerate(records):
+                saved_index = saved_indexes.get(record[0])
+                if saved_index is not None and str(
+                    saved_hashes[saved_index]
+                ) == row_hash(record):
+                    vectors[index] = saved_vectors[saved_index]
+                    done[index] = True
+    except (OSError, ValueError, KeyError):
         return np.zeros_like(vectors), np.zeros_like(done)
     return vectors, done
 
