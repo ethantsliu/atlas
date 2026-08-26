@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from urllib.error import HTTPError
 
 import sys
 
@@ -18,7 +19,7 @@ from archive import (
     shard_bytes,
 )
 from archivecheck import validate_archive
-from backfill import completed_days, pending_days
+from backfill import completed_days, harvest_days, pending_days
 from rank import load_rules
 
 
@@ -186,6 +187,31 @@ class ArchiveTests(unittest.TestCase):
         )
 
         self.assertEqual(pending, [date(2020, 1, 5), date(2020, 1, 2)])
+
+    def test_transient_checkpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            calls = 0
+
+            def fetcher(day, size, delay):
+                nonlocal calls
+                calls += 1
+                if calls == 2:
+                    raise HTTPError("https://export.arxiv.org", 429, "busy", {}, None)
+                return intake([paper("2001.00001")])
+
+            completed, deferred = harvest_days(
+                [date(2020, 1, 2), date(2020, 1, 3)],
+                root,
+                RULES,
+                500,
+                0,
+                fetcher,
+            )
+
+            self.assertEqual(completed, 1)
+            self.assertEqual(deferred, "HTTP 429")
+            self.assertEqual(read_manifest(root)["counts"]["all"], 1)
 
 
 if __name__ == "__main__":

@@ -21,6 +21,12 @@ function mapStatus(page: Page) {
 }
 
 async function fullNodes(page: Page) {
+  const paperLens = page.locator(".filters .kind-toggle").nth(2);
+  if ((await paperLens.getAttribute("aria-pressed")) === "true") {
+    await expect(page.locator(".filters")).toContainText("historical arXiv records", {
+      timeout: 20_000,
+    });
+  }
   const counts = await Promise.all(
     [0, 1, 2, 3].map(async (index) => {
       const text = await page.locator(".filters .kind-toggle").nth(index).textContent();
@@ -449,4 +455,10 @@ test("coverage reports partial extraction state honestly", async ({ page }) => {
       page.getByText(/no partial extracts remain in the current ledger/i),
     ).toBeVisible();
   }
+  await expect(
+    page.getByRole("heading", {
+      name: "Historical intake stays complete without loading it all at once",
+    }),
+  ).toBeVisible();
+  await expect(page.getByText("records retained")).toBeVisible();
 });

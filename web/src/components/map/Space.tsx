@@ -16,17 +16,21 @@ import {
 import { useQuality } from "../../hooks/quality";
 import { usePixel } from "../../hooks/pixel";
 import { useMarks } from "../../hooks/marks";
+import { useSwarm } from "../../hooks/swarm";
 import type { Theme } from "../../hooks/theme";
-import { graphEndpointId, largestGroup } from "../../lib/graph";
+import { graphEndpointId, largestGroup, splitPapers } from "../../lib/graph";
 import { showLink } from "../../lib/quality";
 import { formatCamera, show3d, type CameraView } from "../../lib/camera";
 import { buildNode } from "../../lib/scene";
 import { labelOf } from "../../lib/text";
 import type { GraphData, GraphLink, GraphNode } from "../../types";
+import type { CloudData } from "../../lib/cloud";
+import { usePoints } from "../../hooks/points";
 import type { GraphRef } from "./Driver";
 
 type SpaceProps = {
   graph: GraphData;
+  cloud: CloudData | null;
   graphRef: GraphRef;
   width: number;
   height: number;
@@ -41,6 +45,7 @@ type SpaceProps = {
 
 export function GraphSpace({
   graph,
+  cloud,
   graphRef,
   width,
   height,
@@ -52,20 +57,30 @@ export function GraphSpace({
   onFocus,
   onClear,
 }: SpaceProps) {
-  const [hovered, setHovered] = useState<GraphNode | null>(null);
-  const quality = useQuality(graph.nodes.length, width, height);
+  const [coreHovered, setCoreHovered] = useState<GraphNode | null>(null);
+  const [swarmHovered, setSwarmHovered] = useState<GraphNode | null>(null);
+  const hovered = swarmHovered ?? coreHovered;
+  const quality = useQuality(
+    graph.nodes.length + (cloud?.scopes.length ?? 0),
+    width,
+    height,
+  );
   const engineReadyRef = useRef(false);
   const fitRef = useRef(true);
   const fitKeyRef = useRef<string>();
   const restoredRef = useRef<string | null>(null);
-  const coreIds = useMemo(() => largestGroup(graph), [graph]);
+  const split = useMemo(() => splitPapers(graph), [graph]);
+  const showSwarm = layout === "semantic" && split.papers.length >= 1_000;
+  const sceneGraph = showSwarm ? split.core : graph;
+  const swarmNodes = showSwarm ? split.papers : [];
+  const coreIds = useMemo(() => largestGroup(sceneGraph), [sceneGraph]);
   const topology = useMemo(
     () =>
-      graph.nodes
+      sceneGraph.nodes
         .map((node) => node.id)
         .sort()
         .join("\u0000"),
-    [graph.nodes],
+    [sceneGraph.nodes],
   );
   const simple = graph.nodes.length >= 1_000;
   const makeNode = useCallback(
@@ -73,14 +88,24 @@ export function GraphSpace({
     [quality.geometryDetail, simple, theme],
   );
   usePixel(graphRef, quality.pixelRatioCap);
+  usePoints(graphRef, layout === "semantic" ? cloud : null, theme);
   useMarks({
     graphRef,
-    nodes: graph.nodes,
+    nodes: sceneGraph.nodes,
     selected,
     hovered,
     theme,
     detail: quality.geometryDetail,
     simple,
+  });
+  const tip = useSwarm({
+    graphRef,
+    nodes: swarmNodes,
+    selected,
+    theme,
+    onChoose,
+    onFocus,
+    onHover: setSwarmHovered,
   });
 
   useEffect(() => {
@@ -114,47 +139,60 @@ export function GraphSpace({
   );
 
   return (
-    <ForceGraph3D
-      ref={graphRef as MutableRefObject<ForceGraphMethods<GraphNode, GraphLink>>}
-      width={width}
-      height={height}
-      graphData={graph}
-      backgroundColor={theme === "dark" ? "#0f1511" : "#f0eadf"}
-      showNavInfo={false}
-      numDimensions={3}
-      nodeLabel={(node) => `${labelOf(node.kind)} · ${node.label}`}
-      nodeThreeObject={makeNode}
-      linkColor={() => (theme === "dark" ? "#617065" : "#9d9285")}
-      linkWidth={0}
-      linkVisibility={(link) => {
-        if (layout === "connections") return true;
-        const active =
-          activeIds.has(graphEndpointId(link.source)) ||
-          activeIds.has(graphEndpointId(link.target));
-        return showLink(quality, { selected: active });
-      }}
-      linkOpacity={
-        layout === "connections"
-          ? Math.max(0.12, quality.linkOpacity)
-          : quality.linkOpacity
-      }
-      cooldownTicks={layoutTicks(quality.cooldownTicks, simple)}
-      d3VelocityDecay={0.24}
-      enableNodeDrag={false}
-      onEngineTick={() => {
-        engineReadyRef.current = true;
-      }}
-      onEngineStop={() => {
-        if (!fitRef.current) return;
-        fitRef.current = false;
-        const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-        const duration = layoutTime(Boolean(reduced), 700);
-        graphRef.current?.zoomToFit(duration, 72, (node) => coreIds.has(node.id));
-      }}
-      onNodeClick={onChoose}
-      onNodeHover={(node) => setHovered(node ?? null)}
-      onNodeRightClick={(node) => onFocus(node.id)}
-      onBackgroundClick={onClear}
-    />
+    <>
+      <ForceGraph3D
+        ref={graphRef as MutableRefObject<ForceGraphMethods<GraphNode, GraphLink>>}
+        width={width}
+        height={height}
+        graphData={sceneGraph}
+        backgroundColor={theme === "dark" ? "#0f1511" : "#f0eadf"}
+        showNavInfo={false}
+        numDimensions={3}
+        nodeLabel={(node) => `${labelOf(node.kind)} · ${node.label}`}
+        nodeThreeObject={makeNode}
+        linkColor={() => (theme === "dark" ? "#617065" : "#9d9285")}
+        linkWidth={0}
+        linkVisibility={(link) => {
+          if (layout === "connections") return true;
+          const active =
+            activeIds.has(graphEndpointId(link.source)) ||
+            activeIds.has(graphEndpointId(link.target));
+          return showLink(quality, { selected: active });
+        }}
+        linkOpacity={
+          layout === "connections"
+            ? Math.max(0.12, quality.linkOpacity)
+            : quality.linkOpacity
+        }
+        cooldownTicks={layoutTicks(quality.cooldownTicks, simple)}
+        d3VelocityDecay={0.24}
+        enableNodeDrag={false}
+        onEngineTick={() => {
+          engineReadyRef.current = true;
+        }}
+        onEngineStop={() => {
+          if (!fitRef.current) return;
+          fitRef.current = false;
+          const reduced = window.matchMedia?.(
+            "(prefers-reduced-motion: reduce)",
+          ).matches;
+          const duration = layoutTime(Boolean(reduced), 700);
+          graphRef.current?.zoomToFit(duration, 72, (node) => coreIds.has(node.id));
+        }}
+        onNodeClick={onChoose}
+        onNodeHover={(node) => setCoreHovered(node ?? null)}
+        onNodeRightClick={(node) => onFocus(node.id)}
+        onBackgroundClick={onClear}
+      />
+      {tip && (
+        <div
+          className="swarm-tip"
+          role="tooltip"
+          style={{ left: tip.x + 14, top: tip.y + 14 }}
+        >
+          Paper · {tip.label}
+        </div>
+      )}
+    </>
   );
 }

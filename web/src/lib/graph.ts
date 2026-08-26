@@ -28,6 +28,26 @@ export function graphEndpointId(endpoint: string | GraphNode): string {
   return typeof endpoint === "string" ? endpoint : endpoint.id;
 }
 
+export function splitPapers(graph: GraphData): {
+  core: GraphData;
+  papers: GraphNode[];
+} {
+  const papers = graph.nodes.filter((node) => node.kind === "paper");
+  const core = graph.nodes.filter((node) => node.kind !== "paper");
+  const ids = new Set(core.map((node) => node.id));
+  return {
+    papers,
+    core: {
+      nodes: core,
+      links: graph.links.filter(
+        (link) =>
+          ids.has(graphEndpointId(link.source)) &&
+          ids.has(graphEndpointId(link.target)),
+      ),
+    },
+  };
+}
+
 export function largestGroup(graph: GraphData): Set<string> {
   const edges = new Map<string, Set<string>>(
     graph.nodes.map((node) => [node.id, new Set<string>()]),

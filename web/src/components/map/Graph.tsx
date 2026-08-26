@@ -3,11 +3,10 @@ import { layoutTime, type LayoutMode } from "../../hooks/layout";
 import { useElementSize } from "../../hooks/size";
 import type { Theme } from "../../hooks/theme";
 import { useWebgl } from "../../hooks/webgl";
-import { ALL_NODE_KINDS, NODE_COLORS } from "../../lib/graph";
 import { findNextNode, type ArrowKey } from "../../lib/nav";
-import { labelOf } from "../../lib/text";
 import type { CameraView } from "../../lib/camera";
 import type { GraphData, GraphNode } from "../../types";
+import type { CloudData } from "../../lib/cloud";
 import { GraphControls } from "./Controls";
 import type { GraphRef } from "./Driver";
 import type { FallbackRef } from "./Fallback";
@@ -15,6 +14,7 @@ import { WebglStatus } from "./Status";
 import { EmptyState } from "../shared/Empty";
 import { GraphTools } from "./Tools";
 import { GraphHelp } from "./Help";
+import { GraphLegend } from "./Legend";
 
 const GraphFallback = lazy(() =>
   import("./Fallback").then((module) => ({ default: module.FallbackGraph })),
@@ -26,6 +26,7 @@ const GraphSpace = lazy(() =>
 
 type GraphCanvasProps = {
   graph: GraphData;
+  cloud: CloudData | null;
   selected: GraphNode | null;
   onChoose: (node: GraphNode) => void;
   onFocus: (nodeId: string) => void;
@@ -41,6 +42,7 @@ type GraphCanvasProps = {
 
 export function GraphCanvas({
   graph,
+  cloud,
   selected,
   onChoose,
   onFocus,
@@ -100,7 +102,7 @@ export function GraphCanvas({
     >
       <GraphHelp mode={mode} selected={selected} />
       <GraphControls
-        count={graph.nodes.length}
+        count={graph.nodes.length + (mode === "3d" ? (cloud?.scopes.length ?? 0) : 0)}
         mode={mode}
         layout={layout}
         onReset={resetView}
@@ -149,6 +151,7 @@ export function GraphCanvas({
         >
           <GraphSpace
             graph={graph}
+            cloud={cloud}
             graphRef={graphRef}
             width={width}
             height={height}
@@ -199,14 +202,7 @@ export function GraphCanvas({
       )}
 
       {graph.nodes.length > 0 && (
-        <div className="legend">
-          {ALL_NODE_KINDS.map((kind) => (
-            <span key={kind}>
-              <i className={kind} style={{ background: NODE_COLORS[kind] }} />
-              {labelOf(kind)}
-            </span>
-          ))}
-        </div>
+        <GraphLegend history={Boolean(cloud && mode === "3d")} />
       )}
     </section>
   );

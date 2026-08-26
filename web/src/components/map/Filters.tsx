@@ -9,6 +9,7 @@ import { CoverageMini } from "../shared/Coverage";
 
 type MapFiltersProps = {
   atlas: AtlasRead;
+  archiveCount?: number;
   kinds: ReadonlySet<GraphNodeKind>;
   focus: string | null;
   minFeasibility: number;
@@ -17,14 +18,18 @@ type MapFiltersProps = {
   onClearFocus: () => void;
 };
 
-function countForKind(atlas: AtlasRead, kind: GraphNodeKind): number {
+function countForKind(
+  atlas: AtlasRead,
+  kind: GraphNodeKind,
+  archiveCount?: number,
+): number {
   switch (kind) {
     case "topic":
       return atlas.topics.length;
     case "trick":
       return atlas.tricks.length;
     case "paper":
-      return atlas.meta.paper_count;
+      return atlas.meta.paper_count + (archiveCount ?? 0);
     case "idea":
       return atlas.ideas.length;
   }
@@ -32,6 +37,7 @@ function countForKind(atlas: AtlasRead, kind: GraphNodeKind): number {
 
 export function MapFilters({
   atlas,
+  archiveCount,
   kinds,
   focus,
   minFeasibility,
@@ -65,7 +71,9 @@ export function MapFilters({
         className={`filter-content ${mobileExpanded ? "mobile-open" : ""}`}
       >
         <p className="aside-copy">
-          {`Mix research areas with reusable techniques and paper-grounded ideas. The ${atlas.meta.paper_count.toLocaleString()}-entry collection layer starts off to keep the overview legible.`}
+          {archiveCount
+            ? `The paper lens batches ${archiveCount.toLocaleString()} historical arXiv records into one semantic swarm; reviewed collection papers remain interactive foreground nodes.`
+            : `Mix research areas with reusable techniques, paper-grounded ideas, and the ${atlas.meta.paper_count.toLocaleString()}-entry reviewed collection.`}
         </p>
 
         {ALL_NODE_KINDS.map((kind) => (
@@ -77,7 +85,7 @@ export function MapFilters({
           >
             <span style={{ background: NODE_COLORS[kind] }} />
             <span>{labelOf(kind)}</span>
-            <small>{countForKind(atlas, kind)}</small>
+            <small>{countForKind(atlas, kind, archiveCount).toLocaleString()}</small>
           </button>
         ))}
 

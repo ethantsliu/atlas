@@ -4,6 +4,7 @@ import {
   buildGraph,
   graphEndpointId,
   largestGroup,
+  splitPapers,
   stableGraph,
 } from "./graph";
 import { makeAtlas, makeIdea, makeLayout, makePaper } from "../test/fixtures";
@@ -248,6 +249,29 @@ describe("largestGroup", () => {
     const group = largestGroup(graph);
     expect(group.size).toBeGreaterThan(1);
     expect(group.has("isolated")).toBe(false);
+  });
+});
+
+describe("splitPapers", () => {
+  it("batches every paper without leaving paper links in the core graph", () => {
+    const graph = buildGraph(makeAtlas(), {
+      kinds: allKinds(),
+      focus: null,
+      query: "",
+      minFeasibility: 1,
+    });
+    const split = splitPapers(graph);
+    const paperIds = new Set(split.papers.map((node) => node.id));
+
+    expect(split.papers.every((node) => node.kind === "paper")).toBe(true);
+    expect(split.core.nodes.every((node) => node.kind !== "paper")).toBe(true);
+    expect(
+      split.core.links.every(
+        (link) =>
+          !paperIds.has(graphEndpointId(link.source)) &&
+          !paperIds.has(graphEndpointId(link.target)),
+      ),
+    ).toBe(true);
   });
 });
 

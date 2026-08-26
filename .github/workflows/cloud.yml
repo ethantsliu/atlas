@@ -1,0 +1,88 @@
+name: cloud
+
+on:
+  workflow_run:
+    workflows: [archive]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: arxiv-cloud
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  points:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ARCHIVE_ROOT: data/cache/archive
+      ARCHIVE_TAG: corpus-v1
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            dev.txt
+            cloud.txt
+
+      - name: Install semantic runtime
+        run: python -m pip install -r dev.txt -r cloud.txt
+
+      - name: Read archive index
+        run: |
+          mkdir -p "$ARCHIVE_ROOT"
+          gh release download "$ARCHIVE_TAG" \
+            --pattern index.json \
+            --dir "$ARCHIVE_ROOT" \
+            --clobber
+
+      - name: Read changed months
+        run: |
+          jq -r '.shards[] | [.month, .sha256] | @tsv' \
+            "$ARCHIVE_ROOT/index.json" | while IFS=$'\t' read -r month digest; do
+            saved=""
+            if [ -f web/public/data/cloud/index.json ]; then
+              saved=$(jq -r --arg month "$month" \
+                '.shards[] | select(.month == $month) | .source_sha256' \
+                web/public/data/cloud/index.json)
+            fi
+            if [ "$saved" = "$digest" ] && \
+              [ -f "web/public/data/cloud/$month.bin" ] && \
+              [ -f "web/public/data/cloud/$month.json" ]; then
+              continue
+            fi
+            gh release download "$ARCHIVE_TAG" \
+              --pattern "$month.json.gz" \
+              --dir "$ARCHIVE_ROOT" \
+              --clobber
+          done
+
+      - name: Build semantic points
+        run: python pipeline/cloud.py --provider native
+
+      - name: Verify point contracts
+        run: |
+          python -m unittest tests.test_cloud tests.test_architecture -v
+          ruff check pipeline tests
+          ruff format --check pipeline tests
+          npm --prefix web ci
+          npm --prefix web test -- --run src/lib/cloud.test.ts src/lib/swarm.test.ts
+          npm --prefix web run build
+
+      - name: Publish point shards
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/public/data/cloud
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Update arXiv semantic cloud"
+          git push

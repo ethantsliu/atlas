@@ -8,9 +8,10 @@ import json
 import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 
 from archive import ARCHIVE_ROOT, MANIFEST_NAME, add_day, read_manifest
-from feed import RULES_PATH, fetch_day
+from feed import RETRY_CODES, RULES_PATH, fetch_day
 from rank import load_rules
 
 
@@ -73,6 +74,37 @@ def validate_args(args: argparse.Namespace) -> None:
         raise SystemExit("--delay must be at least 3 seconds")
 
 
+def harvest_days(
+    days: list[date],
+    root: Path,
+    rules: dict,
+    size: int,
+    delay: float,
+    fetcher=fetch_day,
+) -> tuple[int, str | None]:
+    """Checkpoint complete dates and defer only exhausted transient failures."""
+    completed = 0
+    for index, day in enumerate(days):
+        print(f"archiving {day.isoformat()} from arXiv", flush=True)
+        try:
+            intake = fetcher(day, size=size, delay=delay)
+        except HTTPError as error:
+            if error.code not in RETRY_CODES:
+                raise
+            return completed, f"HTTP {error.code}"
+        except (TimeoutError, URLError) as error:
+            return completed, type(error).__name__
+        manifest = add_day(root, day, intake, rules)
+        completed += 1
+        print(
+            f"archived {manifest['counts']['all']:,} total metadata records",
+            flush=True,
+        )
+        if index + 1 < len(days):
+            time.sleep(delay)
+    return completed, None
+
+
 def main() -> None:
     """Harvest the next bounded slice and checkpoint every complete day."""
     args = parse_args()
@@ -99,16 +131,18 @@ def main() -> None:
     if not days:
         print("Historical arXiv archive is current")
         return
-    for index, day in enumerate(days):
-        print(f"archiving {day.isoformat()} from arXiv", flush=True)
-        intake = fetch_day(day, size=args.page_size, delay=args.delay)
-        manifest = add_day(args.root, day, intake, rules)
+    completed, deferred = harvest_days(
+        days,
+        args.root,
+        rules,
+        args.page_size,
+        args.delay,
+    )
+    if deferred:
         print(
-            f"archived {manifest['counts']['all']:,} total metadata records",
+            f"checkpointed {completed:,} dates; deferred the next date after {deferred}",
             flush=True,
         )
-        if index + 1 < len(days):
-            time.sleep(args.delay)
 
 
 if __name__ == "__main__":

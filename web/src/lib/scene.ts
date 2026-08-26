@@ -32,9 +32,10 @@ function nodeShape(kind: GraphNodeKind, detail: number): BufferGeometry {
   return shape;
 }
 
-function nodeSize(node: GraphNode): number {
+function nodeSize(node: GraphNode, simple = false): number {
   const base = 1.15 + Math.sqrt(node.val) * 0.72;
-  return node.kind === "paper" ? base * 0.72 : base;
+  if (node.kind === "paper") return base * 0.72;
+  return simple ? base * 1.9 : base;
 }
 
 function nodeMat(node: GraphNode, emphasized: boolean, simple = false): Material {
@@ -81,7 +82,7 @@ export function buildNode(
   if (cached?.key === key && cached.group.getObjectByName("shape")) {
     return cached.group;
   }
-  const size = nodeSize(node);
+  const size = nodeSize(node, simple);
   const group = new Group();
   const geometry = nodeShape(node.kind, detail);
   const shape = new Mesh(geometry, nodeMat(node, false, simple));
@@ -113,7 +114,7 @@ export function markNode(
   if (emphasized && !halo) {
     halo = new Mesh(shape.geometry, haloMat(theme));
     halo.name = "halo";
-    halo.scale.setScalar(nodeSize(node) * 1.34);
+    halo.scale.setScalar(nodeSize(node, simple) * 1.34);
     group.add(halo);
   }
   shape.material = nodeMat(node, emphasized, simple);

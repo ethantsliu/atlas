@@ -13,6 +13,7 @@ import { ResultStatus } from "../components/shared/Empty";
 import type { Theme } from "../hooks/theme";
 import type { CameraView } from "../lib/camera";
 import { resolvePaper } from "../lib/filters";
+import { useCloud } from "../hooks/cloud";
 
 type MapViewProps = {
   atlas: AtlasRead;
@@ -41,6 +42,7 @@ export function MapView({
 }: MapViewProps) {
   const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
   const kinds = useMemo(() => new Set(url.kinds), [url.kinds]);
+  const history = useCloud(kinds.has("paper") && url.layout === "semantic");
   const nextGraph = useMemo(
     () =>
       buildGraph(atlas, {
@@ -126,7 +128,7 @@ export function MapView({
   return (
     <main className="map-layout">
       <ResultStatus
-        count={graph.nodes.length}
+        count={graph.nodes.length + (history.data?.scopes.length ?? 0)}
         label="visible graph node"
         query={url.query}
       />
@@ -152,6 +154,7 @@ export function MapView({
       )}
       <MapFilters
         atlas={atlas}
+        archiveCount={history.manifest?.count}
         kinds={kinds}
         focus={url.focus}
         minFeasibility={url.minFeasibility}
@@ -161,6 +164,7 @@ export function MapView({
       />
       <GraphCanvas
         graph={graph}
+        cloud={history.data}
         selected={selected}
         onChoose={chooseNode}
         onFocus={toggleFocus}

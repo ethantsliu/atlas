@@ -21,6 +21,12 @@ async function showFilters(page: Page) {
 }
 
 async function fullNodes(page: Page): Promise<string> {
+  const paperLens = page.locator(".filters .kind-toggle").nth(2);
+  if ((await paperLens.getAttribute("aria-pressed")) === "true") {
+    await expect(page.locator(".filters")).toContainText("historical arXiv records", {
+      timeout: 20_000,
+    });
+  }
   const counts = await Promise.all(
     [0, 1, 2, 3].map(async (index) => {
       const text = await page.locator(".filters .kind-toggle").nth(index).textContent();
@@ -35,7 +41,9 @@ async function fullNodes(page: Page): Promise<string> {
 
 async function loadMap(page: Page, path = "/#?k=tri") {
   await page.goto(path);
-  await expect(page.getByLabel(/Interactive (3D )?research graph/)).toBeVisible();
+  await expect(page.getByLabel(/Interactive (3D )?research graph/)).toBeVisible({
+    timeout: 20_000,
+  });
   await expect(page.getByLabel("Choose a visible graph node")).toBeAttached();
 }
 
@@ -78,6 +86,25 @@ test("the initial map enables every lens", async ({ page }) => {
     "true",
   );
   expect(hits).toHaveLength(1);
+});
+
+test("history streams points without eager paper metadata", async ({ page }) => {
+  await loadMap(page, "/");
+  await showFilters(page);
+  await fullNodes(page);
+  const resources = await page.evaluate(() =>
+    performance.getEntriesByType("resource").map((entry) => entry.name),
+  );
+  const points = resources.filter((url) =>
+    /\/data\/cloud\/\d{4}-\d{2}\.bin$/.test(url),
+  );
+  const metadata = resources.filter((url) =>
+    /\/data\/cloud\/\d{4}-\d{2}\.json$/.test(url),
+  );
+
+  expect(points.length).toBeGreaterThan(0);
+  expect(metadata).toEqual([]);
+  await expect(page.getByText("likely ML", { exact: true })).toBeVisible();
 });
 
 test("the paper lens fetches its shard once", async ({ page }) => {

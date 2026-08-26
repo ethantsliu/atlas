@@ -1,6 +1,7 @@
 import { CircleDot, FileText } from "lucide-react";
 import { CoverageMini } from "../components/shared/Coverage";
 import { PageHead } from "../components/shared/Head";
+import { useArchive } from "../hooks/archive";
 import { getCoverageSnapshot, percentageOfTotal } from "../lib/coverage";
 import { labelOf } from "../lib/text";
 import type { Atlas } from "../types";
@@ -26,6 +27,7 @@ function AccessCopy({ partial }: { partial: number }) {
 }
 
 export function CoverageView({ atlas }: CoverageViewProps) {
+  const archive = useArchive();
   const coverage = getCoverageSnapshot(atlas);
   const sourceAccess = coverage.sourceAccess;
   const partialTextCount = sourceAccess?.extractionStatuses.partial_text ?? 0;
@@ -61,6 +63,42 @@ export function CoverageView({ atlas }: CoverageViewProps) {
           total={coverage.collectionEntries}
         />
       </section>
+
+      {archive && (
+        <section className="access-board">
+          <header>
+            <span>Discovery archive</span>
+            <h2>Historical intake stays complete without loading it all at once</h2>
+            <p>
+              Every harvested arXiv record is retained. Scope controls default
+              visibility; it never deletes metadata. Month bodies load only when a
+              search or map action requests them.
+            </p>
+          </header>
+          <div className="access-metrics">
+            <div>
+              <b>{archive.counts.all.toLocaleString()}</b>
+              <span>records retained</span>
+            </div>
+            <div>
+              <b>{archive.counts.likely.toLocaleString()}</b>
+              <span>likely ML</span>
+            </div>
+            <div>
+              <b>{archive.counts.possible.toLocaleString()}</b>
+              <span>possible ML</span>
+            </div>
+            <div>
+              <b>
+                {archive.shards
+                  .reduce((total, shard) => total + shard.days, 0)
+                  .toLocaleString()}
+              </b>
+              <span>complete UTC dates</span>
+            </div>
+          </div>
+        </section>
+      )}
 
       {sourceAccess && (
         <section className="access-board">
