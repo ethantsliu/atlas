@@ -134,10 +134,7 @@ export function buildCloud(data: CloudData, theme: Theme): CloudSwarm {
   const geometry = new BufferGeometry();
   geometry.setAttribute("position", new Float32BufferAttribute(data.positions, 3));
   geometry.setAttribute("color", new Float32BufferAttribute(colors, 3));
-  geometry.setAttribute(
-    "scale",
-    new Float32BufferAttribute(scales, 1),
-  );
+  geometry.setAttribute("scale", new Float32BufferAttribute(scales, 1));
   geometry.setAttribute("opacity", new Float32BufferAttribute(opacity, 1));
   geometry.computeBoundingSphere();
   const size = count >= 1_000_000 ? 2.2 : count >= 250_000 ? 2.8 : 4.4;

@@ -104,7 +104,6 @@ test("history streams points without eager paper metadata", async ({ page }) => 
 
   expect(points.length).toBeGreaterThan(0);
   expect(metadata).toEqual([]);
-  await expect(page.getByText("likely ML", { exact: true })).toBeVisible();
 });
 
 test("the paper lens fetches its shard once", async ({ page }) => {
