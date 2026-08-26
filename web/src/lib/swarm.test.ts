@@ -41,10 +41,11 @@ describe("paper swarm", () => {
     );
 
     expect(cloud.geometry.getAttribute("position").count).toBe(2);
-    expect(cloud.geometry.getAttribute("opacity").getX(0)).toBeCloseTo(0.96);
-    expect(cloud.geometry.getAttribute("opacity").getX(1)).toBeCloseTo(0.28);
-    expect(cloud.geometry.getAttribute("scale").getX(0)).toBeCloseTo(1.35);
-    expect(cloud.geometry.getAttribute("scale").getX(1)).toBeCloseTo(0.62);
+    expect(cloud.geometry.getAttribute("scope").getX(0)).toBe(0);
+    expect(cloud.geometry.getAttribute("scope").getX(1)).toBe(2);
+    expect(cloud.geometry.getAttribute("color")).toBeUndefined();
+    expect(cloud.geometry.getAttribute("opacity")).toBeUndefined();
+    expect(cloud.geometry.getAttribute("scale")).toBeUndefined();
     expect(cloud.material.uniforms.pointSize.value).toBe(4.8);
 
     cloud.geometry.dispose();
