@@ -7,6 +7,8 @@ const viewports = [
   { width: 1000, height: 900 },
 ];
 
+const corePath = "/#?k=tri";
+
 async function scan(page: Page) {
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa"])
@@ -23,7 +25,7 @@ for (const viewport of viewports) {
     page,
   }) => {
     await page.setViewportSize(viewport);
-    await page.goto("/");
+    await page.goto(corePath);
     await expect(page.getByText("Atlas", { exact: true })).toBeVisible();
     await expect(page.getByLabel("Choose a visible graph node")).toBeAttached();
     const titleBox = await page.locator(".brand-copy strong").boundingBox();
@@ -56,7 +58,7 @@ for (const viewport of viewports) {
 
 test("tablet header keeps the atlas search usable", async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 1024 });
-  await page.goto("/");
+  await page.goto(corePath);
 
   const searchBox = await page.locator(".search").boundingBox();
   const inputBox = await page.getByLabel("Search the atlas").boundingBox();
@@ -69,7 +71,7 @@ test("map and semantic fallbacks pass an automated accessibility scan", async ({
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("/");
+  await page.goto(corePath);
   await expect(page.getByLabel(/Interactive (3D )?research graph/)).toBeVisible();
   await page.evaluate(() => document.fonts.load('16px "Libre Baskerville Variable"'));
   const family = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
@@ -97,7 +99,7 @@ test("map remains usable without WebGL2", async ({ page }) => {
       return Reflect.apply(original, this, [type, ...args]);
     } as typeof original;
   });
-  await page.goto("/");
+  await page.goto(corePath);
 
   const graph = page.getByLabel("Interactive research graph");
   await expect(graph).toContainText("2D compatibility · semantic");
@@ -109,7 +111,7 @@ test("map remains usable without WebGL2", async ({ page }) => {
 
 test("dark mode follows the system and remembers a choice", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
-  await page.goto("/");
+  await page.goto(corePath);
 
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   const lightMode = page.getByRole("button", { name: "Use light mode" });
@@ -131,7 +133,7 @@ test("dark mode follows the system and remembers a choice", async ({ page }) => 
 });
 
 test("connection isolation toggles back to the full map", async ({ page }) => {
-  await page.goto("/");
+  await page.goto(corePath);
   const status = mapStatus(page);
   await expect(status).toHaveText(/\d+ visible graph nodes available\./);
   const fullState = await status.textContent();
@@ -157,7 +159,7 @@ test("connection isolation toggles back to the full map", async ({ page }) => {
 
 test("paper lens and arrow-key graph navigation stay concise", async ({ page }) => {
   test.setTimeout(90_000);
-  await page.goto("/");
+  await page.goto(corePath);
   const filters = page.locator(".filters");
   const showFilters = filters.locator(".mobile-filter-toggle");
   if ((page.viewportSize()?.width ?? 1000) <= 720) {
@@ -198,7 +200,7 @@ test("paper lens and arrow-key graph navigation stay concise", async ({ page }) 
 test("daily discovery proves intake coverage and preserves all relevant papers", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto(corePath);
   await page.getByRole("button", { name: "Daily", exact: true }).click();
 
   await expect(page.getByText("submissions scanned", { exact: true })).toBeVisible();
@@ -228,7 +230,7 @@ test("root loading is announced and a failed request can retry", async ({ page }
     await route.continue();
   });
 
-  await page.goto("/");
+  await page.goto(corePath);
   await expect(page.getByRole("alert")).toContainText("Atlas request failed (503)");
   unavailable = false;
   await page.getByRole("button", { name: "Try again" }).click();
@@ -239,7 +241,7 @@ test("root loading is announced and a failed request can retry", async ({ page }
 test("search views announce empty results and offer working resets", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto(corePath);
   const search = page.getByLabel("Search the atlas");
   await search.fill("zzzz-no-results-zzzz");
 
@@ -273,7 +275,7 @@ test("search views announce empty results and offer working resets", async ({
 test("brief dialog exposes provenance, traps focus, and restores focus", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto(corePath);
   await page.getByRole("button", { name: "Briefs" }).click();
   const trigger = page.getByRole("button", { name: "Open brief" }).first();
   await trigger.click();
@@ -292,7 +294,7 @@ test("brief dialog exposes provenance, traps focus, and restores focus", async (
 });
 
 test("alternate-source paper dialog passes an accessibility scan", async ({ page }) => {
-  await page.goto("/");
+  await page.goto(corePath);
   await page.getByRole("button", { name: "Library" }).click();
   await page.getByLabel("Search the atlas").fill("GENERALIZATION MECHANICS");
   await page.getByRole("button", { name: /Open GENERALIZATION MECHANICS/i }).click();
@@ -304,7 +306,7 @@ test("alternate-source paper dialog passes an accessibility scan", async ({ page
 });
 
 test("researched briefs are ranked by one-decimal feasibility", async ({ page }) => {
-  await page.goto("/");
+  await page.goto(corePath);
   await page.getByRole("button", { name: "Briefs" }).click();
 
   const scoreCards = page.locator(".featured-briefs .card-score");
@@ -319,7 +321,7 @@ test("researched briefs are ranked by one-decimal feasibility", async ({ page })
 test("cross-scale calibration exposes its complete validation protocol", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto(corePath);
   await page.getByRole("button", { name: "Briefs" }).click();
 
   const card = page
@@ -343,7 +345,7 @@ test("cross-scale calibration exposes its complete validation protocol", async (
 });
 
 test("insight visualizations provide inspectable data tables", async ({ page }) => {
-  await page.goto("/");
+  await page.goto(corePath);
   await page.getByRole("button", { name: "Insights" }).click();
   await expect(
     page.getByRole("heading", { name: "Topic × technique density" }),
@@ -354,6 +356,45 @@ test("insight visualizations provide inspectable data tables", async ({ page }) 
   await expect(
     page.getByRole("heading", { name: "Idea feasibility factors" }),
   ).toBeVisible();
+  const techniqueLabel = page.locator(".heatmap .col-label").first();
+  await expect(techniqueLabel).toHaveCSS("writing-mode", "horizontal-tb");
+  await expect(techniqueLabel).toHaveCSS("transform", "none");
+
+  const ideaLabel = page.locator(".factor-map > span").first();
+  await expect(ideaLabel).toHaveCSS("white-space", "normal");
+  await expect(ideaLabel).toHaveCSS("text-overflow", "clip");
+  expect(
+    await page
+      .locator(".factor-map > span")
+      .evaluateAll((labels) =>
+        labels.every((label) => label.scrollWidth <= label.clientWidth + 1),
+      ),
+  ).toBe(true);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+
+  const point = page.locator(".frontier-point").first();
+  const pointLabel = await point.locator("title").textContent();
+  const ideaTitle = pointLabel?.replace(/: \d+\.\d feasibility,.*$/, "");
+  if (!ideaTitle) throw new Error("Frontier point has no idea title");
+  await point.focus();
+  await expect(point).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Map", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(
+    page.getByRole("heading", { name: ideaTitle, exact: true }),
+  ).toBeVisible();
+  await page.goBack();
+  await expect(
+    page.getByRole("heading", { name: "Idea feasibility frontier" }),
+  ).toBeVisible();
+
   const tableToggles = page.getByText("View data table");
   await expect(tableToggles).toHaveCount(10);
   for (const toggle of await tableToggles.all()) await toggle.click();
@@ -362,7 +403,7 @@ test("insight visualizations provide inspectable data tables", async ({ page }) 
 });
 
 test("coverage reports partial extraction state honestly", async ({ page }) => {
-  await page.goto("/");
+  await page.goto(corePath);
   await page.getByRole("button", { name: "Coverage" }).click();
 
   const partialStatus = page.getByText(/^Partial Text\s+[\d,]+$/);

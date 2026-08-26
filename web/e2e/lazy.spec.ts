@@ -61,7 +61,7 @@ test("compatibility mode skips the 3D runtime", async ({ page }) => {
     } as typeof original;
   });
 
-  await page.goto("/");
+  await page.goto("/#?k=tri");
   await expect(
     page.getByLabel("Interactive research graph").locator("canvas"),
   ).toBeVisible();

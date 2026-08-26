@@ -39,6 +39,18 @@ function fullState(): AtlasUrlState {
 }
 
 describe("atlas URLs", () => {
+  it("enables papers by default and preserves an explicit papers-off lens", () => {
+    expect(DEFAULT_URL_STATE.kinds).toEqual(["topic", "trick", "paper", "idea"]);
+    expect(decodeUrl("https://example.com/atlas/").kinds).toEqual(
+      DEFAULT_URL_STATE.kinds,
+    );
+    expect(decodeUrl("https://example.com/atlas/#?k=tri").kinds).toEqual([
+      "topic",
+      "trick",
+      "idea",
+    ]);
+  });
+
   it("round trips every shareable state field with compact parameters", () => {
     const url = encodeUrl(fullState(), "https://example.com/atlas/?old=value#map");
     expect(url.search).toBe("");

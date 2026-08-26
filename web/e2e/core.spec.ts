@@ -20,7 +20,7 @@ async function showFilters(page: Page) {
   if (await toggle.isVisible()) await toggle.click();
 }
 
-async function loadMap(page: Page, path = "/") {
+async function loadMap(page: Page, path = "/#?k=tri") {
   await page.goto(path);
   await expect(page.getByLabel(/Interactive (3D )?research graph/)).toBeVisible();
   await expect(page.getByLabel("Choose a visible graph node")).toBeAttached();
@@ -55,12 +55,18 @@ async function hoverNode(
   );
 }
 
-test("the initial map stays on the core shard", async ({ page }) => {
+test("the initial map enables every lens", async ({ page }) => {
   const hits = trackShard(page);
-  await loadMap(page);
-  await page.waitForTimeout(500);
-  expect(hits).toEqual([]);
-  await expect(mapStatus(page)).toContainText("111 visible graph nodes available");
+  await loadMap(page, "/");
+  await expect(mapStatus(page)).toContainText("2,316 visible graph nodes available", {
+    timeout: 20_000,
+  });
+  await showFilters(page);
+  await expect(page.getByRole("button", { name: /Paper\s+2205/ })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  expect(hits).toHaveLength(1);
 });
 
 test("the paper lens fetches its shard once", async ({ page }) => {
@@ -97,7 +103,9 @@ test("a bare paper deep link selects it and opens evidence explicitly", async ({
 }) => {
   const hits = trackShard(page);
   await loadMap(page, "/#?s=paper-1");
-  await expect(page.getByLabel("Choose a visible graph node")).toHaveValue("paper-1");
+  await expect(page.getByLabel("Choose a visible graph node")).toHaveValue(
+    /In Two Minds|paper-1/,
+  );
   await expect(page.getByRole("heading", { name: "In Two Minds" })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("button", { name: "Open paper", exact: true }).click();
@@ -316,7 +324,7 @@ test("invalid IDs are discarded safely", async ({ page }) => {
   await expect(page.getByLabel("Choose a visible graph node")).toHaveValue("");
   await expect(page.getByLabel("Minimum feasibility")).toHaveValue("1");
   await page.waitForTimeout(250);
-  expect(hits).toEqual([]);
+  expect(hits).toHaveLength(1);
 
   await page.goto("/#?s=missing-node");
   await expect(page.getByLabel("Choose a visible graph node")).toHaveValue("");

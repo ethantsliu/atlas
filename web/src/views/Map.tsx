@@ -114,7 +114,7 @@ export function MapView({
 
   function resetMap() {
     onReplace({
-      kinds: ALL_NODE_KINDS.filter((kind) => kind !== "paper"),
+      kinds: [...ALL_NODE_KINDS],
       focus: null,
       minFeasibility: 1,
       selected: null,

@@ -5,6 +5,7 @@ import { ViewLoader } from "./components/Loader";
 import { useAtlas } from "./hooks/atlas";
 import { useTheme } from "./hooks/theme";
 import { useAtlasUrl } from "./hooks/url";
+import { ALL_NODE_KINDS } from "./lib/graph";
 import {
   BriefsView,
   CoverageView,
@@ -112,7 +113,23 @@ export default function App() {
           />
         )}
         {state.view === "insights" &&
-          (load.atlas ? <InsightsView atlas={load.atlas} /> : paperFallback)}
+          (load.atlas ? (
+            <InsightsView
+              atlas={load.atlas}
+              onOpenIdea={(selected) =>
+                push({
+                  view: "map",
+                  selected,
+                  kinds: [...ALL_NODE_KINDS],
+                  query: "",
+                  focus: null,
+                  minFeasibility: 1,
+                })
+              }
+            />
+          ) : (
+            paperFallback
+          ))}
         {state.view === "library" &&
           (load.atlas ? (
             <LibraryView

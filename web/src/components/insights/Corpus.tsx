@@ -29,13 +29,14 @@ export function TopicTrickHeatmap({
         copy="Which mechanisms recur across research areas?"
       />
       <span className="heatmap-hint" aria-hidden="true">
-        Swipe to explore all techniques →
+        Scroll horizontally to explore all techniques →
       </span>
       <div className="heatmap-scroll" aria-hidden="true">
         <div
           className="heatmap"
           style={{
-            gridTemplateColumns: `145px repeat(${trickColumns.length}, minmax(48px,1fr))`,
+            gridTemplateColumns: `145px repeat(${trickColumns.length}, minmax(112px,1fr))`,
+            minWidth: `${145 + trickColumns.length * 112}px`,
           }}
         >
           <span />

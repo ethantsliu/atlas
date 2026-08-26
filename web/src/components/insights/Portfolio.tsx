@@ -83,7 +83,7 @@ export function FactorHeatmap({ atlas }: { atlas: Atlas }) {
         <div
           className="factor-map"
           style={{
-            gridTemplateColumns: `minmax(220px, 1fr) 54px repeat(${factors.length}, minmax(78px, 1fr))`,
+            gridTemplateColumns: `minmax(340px, 2fr) 60px repeat(${factors.length}, minmax(110px, 1fr))`,
           }}
         >
           <b>Research idea</b>

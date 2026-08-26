@@ -5,7 +5,13 @@ import { independentlyRankedIdeas } from "../../lib/portfolio";
 import type { Atlas, Taxon } from "../../types";
 import { ChartDataTable, VizHead } from "./Primitives";
 
-export function FeasibilityFrontier({ atlas }: { atlas: Atlas }) {
+export function FeasibilityFrontier({
+  atlas,
+  onOpen,
+}: {
+  atlas: Atlas;
+  onOpen: (id: string) => void;
+}) {
   const rankedIdeas = useMemo(
     () => independentlyRankedIdeas(atlas.ideas),
     [atlas.ideas],
@@ -18,14 +24,15 @@ export function FeasibilityFrontier({ atlas }: { atlas: Atlas }) {
       <VizHead
         icon={<Target />}
         title="Idea feasibility frontier"
-        copy="Which ideas combine evidence confidence with practical testability?"
+        copy="Each point is an idea: higher is easier to test; farther right has stronger evidence support. Select one to inspect it."
       />
       <svg
         viewBox="0 0 620 260"
-        role="img"
+        role="group"
         aria-label="Idea feasibility versus confidence scatter plot"
+        aria-describedby="frontier-description"
       >
-        <desc>
+        <desc id="frontier-description">
           Exact overlaps are separated deterministically around their shared data
           coordinate; positions stay close to the original values.
         </desc>
@@ -48,22 +55,33 @@ export function FeasibilityFrontier({ atlas }: { atlas: Atlas }) {
               ? ", one of " + overlapCount + " ideas at this coordinate"
               : "");
           return (
-            <circle
+            <a
               key={idea.id}
-              cx={x}
-              cy={y}
-              r={researchedDraft ? 7 : 3.3}
-              className={researchedDraft ? "flagship-dot" : "idea-dot"}
+              className="frontier-point"
+              href={`#?s=${encodeURIComponent(idea.id)}`}
+              aria-label={`Open ${label}`}
+              onClick={(event) => {
+                event.preventDefault();
+                onOpen(idea.id);
+              }}
             >
+              <circle className="frontier-hit" cx={x} cy={y} r="9" />
+              <circle
+                cx={x}
+                cy={y}
+                r={researchedDraft ? 7 : 3.3}
+                className={researchedDraft ? "flagship-dot" : "idea-dot"}
+              />
               <title>{label}</title>
-            </circle>
+            </a>
           );
         })}
       </svg>
       <small className="chart-note">
-        Upper-right ideas are easiest to test with stronger current support. Exact
-        overlaps are separated slightly for visibility. Small points are screening
-        estimates; gold points are researched drafts. Scientific importance is separate.
+        Horizontal position is evidence confidence; vertical position is the 1–10
+        feasibility score. Upper-right combines both. Exact overlaps are separated
+        slightly for visibility. Small blue points are screening estimates; larger gold
+        points are researched drafts. Scientific importance is separate.
         {workPackageCount > 0 &&
           ` ${workPackageCount} subordinate work ${workPackageCount === 1 ? "package is" : "packages are"} scored inside the program view, not ranked here as independent programs.`}
       </small>

@@ -23,9 +23,10 @@ import type { Atlas } from "./types";
 
 type InsightsProps = {
   atlas: Atlas;
+  onOpenIdea: (id: string) => void;
 };
 
-export default function Insights({ atlas }: InsightsProps) {
+export default function Insights({ atlas, onOpenIdea }: InsightsProps) {
   const researchPapers = useMemo(
     () => atlas.papers.filter((paper) => paper.record_kind === "paper"),
     [atlas.papers],
@@ -82,7 +83,7 @@ export default function Insights({ atlas }: InsightsProps) {
         <TopicEvidenceCoverage rows={topicEvidenceRows} />
         <ReadingBalance rows={readingBalance} />
         <PublicationTimeline years={years} />
-        <FeasibilityFrontier atlas={atlas} />
+        <FeasibilityFrontier atlas={atlas} onOpen={onOpenIdea} />
         <FeasibilityDistribution atlas={atlas} />
         <FactorHeatmap atlas={atlas} />
         <TechniqueFootprint techniques={trickColumns} />

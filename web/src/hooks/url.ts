@@ -46,7 +46,7 @@ const KIND_CODES: Record<GraphNodeKind, string> = {
   idea: "i",
 };
 
-const DEFAULT_KINDS = ALL_NODE_KINDS.filter((kind) => kind !== "paper");
+const DEFAULT_KINDS = [...ALL_NODE_KINDS];
 
 export const DEFAULT_URL_STATE: AtlasUrlState = {
   view: "map",
