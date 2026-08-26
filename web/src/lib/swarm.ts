@@ -30,7 +30,7 @@ const FRAGMENT = `
   void main() {
     vec2 center = gl_PointCoord - vec2(0.5);
     float radius = length(center);
-    float alpha = 1.0 - smoothstep(0.34, 0.5, radius);
+    float alpha = 1.0 - smoothstep(0.38, 0.5, radius);
     if (alpha < 0.02) discard;
     gl_FragColor = vec4(pointColor, alpha * pointAlpha);
   }
@@ -119,8 +119,8 @@ export function buildCloud(data: CloudData, theme: Theme): CloudSwarm {
     new Color(theme === "dark" ? "#d8ba78" : "#967129"),
     new Color(theme === "dark" ? "#64736d" : "#9b968c"),
   ];
-  const alpha = [0.9, 0.72, 0.24];
-  const sizes = [1.15, 1, 0.55];
+  const alpha = [0.96, 0.78, 0.28];
+  const sizes = [1.35, 1.12, 0.62];
   const colors = new Float32Array(count * 3);
   const opacity = new Float32Array(count);
   const scales = new Float32Array(count);
@@ -137,7 +137,7 @@ export function buildCloud(data: CloudData, theme: Theme): CloudSwarm {
   geometry.setAttribute("scale", new Float32BufferAttribute(scales, 1));
   geometry.setAttribute("opacity", new Float32BufferAttribute(opacity, 1));
   geometry.computeBoundingSphere();
-  const size = count >= 1_000_000 ? 2.2 : count >= 250_000 ? 2.8 : 4.4;
+  const size = count >= 1_000_000 ? 2.4 : count >= 250_000 ? 3.2 : 4.8;
   const points = new Points(geometry, swarmMaterial(size));
   points.name = "archive-cloud";
   points.renderOrder = 1;

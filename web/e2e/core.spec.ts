@@ -58,18 +58,28 @@ async function hoverNode(
   page: Page,
   box: { x: number; y: number; width: number; height: number },
   label: string,
+  orbit = false,
 ): Promise<Locator> {
   const tooltip = page.locator(".float-tooltip-kap");
   const offsets = [0, -16, 16, -32, 32, -48, 48];
   const seen = new Set<string>();
-  for (const y of offsets) {
-    for (const x of offsets) {
-      await page.mouse.move(box.x + box.width / 2 + x, box.y + box.height / 2 + y);
-      await page.waitForTimeout(60);
-      const text = await tooltip.textContent();
-      if (text) seen.add(text);
-      if (text?.includes(label)) return tooltip;
+  for (let view = 0; view < (orbit ? 3 : 1); view += 1) {
+    for (const y of offsets) {
+      for (const x of offsets) {
+        await page.mouse.move(box.x + box.width / 2 + x, box.y + box.height / 2 + y);
+        await page.waitForTimeout(60);
+        const text = await tooltip.textContent();
+        if (text) seen.add(text);
+        if (text?.includes(label)) return tooltip;
+      }
     }
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + 110, y + 28, { steps: 8 });
+    await page.mouse.up();
+    await page.waitForTimeout(180);
   }
   throw new Error(
     `Could not hover ${label}; bounds ${JSON.stringify(box)}; saw ${[...seen].join(", ")}`,
@@ -169,7 +179,12 @@ test("hover labels a node and click keeps details in the inspector", async ({
   const graph = page.getByLabel(/Interactive (3D )?research graph/);
   const box = await graph.boundingBox();
   if (!box) throw new Error("Research graph has no bounds");
-  const tooltip = await hoverNode(page, box, "Paper · In-Context Language Learning");
+  const tooltip = await hoverNode(
+    page,
+    box,
+    "Paper · In-Context Language Learning",
+    true,
+  );
   await expect(tooltip).toContainText("Paper · In-Context Language Learning");
   await expect(tooltip).toHaveCSS("font-family", /Baskerville/);
   await expect(tooltip).toHaveCSS("font-size", "14px");
