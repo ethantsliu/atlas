@@ -239,8 +239,19 @@ test("daily discovery proves intake coverage and preserves all relevant papers",
   await expect(page.locator(".daily-card")).toHaveCount(10);
   await page.getByRole("button", { name: "All relevant", exact: true }).click();
   await expect(page.locator(".daily-card")).toHaveCount(30);
-  await expect(page.getByRole("status")).toContainText(/[,\d]+ daily papers available/);
-  await expect(page.getByLabel("Paper result pages")).toContainText("Page 1 of 10");
+  const dailyStatus = page
+    .getByRole("status")
+    .filter({ hasText: /[,\d]+ daily papers available/ });
+  await expect(dailyStatus).toBeVisible();
+  const available = Number(
+    ((await dailyStatus.textContent())?.match(/[\d,]+/)?.[0] ?? "0").replaceAll(
+      ",",
+      "",
+    ),
+  );
+  await expect(page.getByLabel("Paper result pages")).toContainText(
+    `Page 1 of ${Math.ceil(available / 30)}`,
+  );
   await scan(page);
 });
 

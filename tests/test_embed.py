@@ -206,6 +206,19 @@ class EmbedTests(unittest.TestCase):
             self.assertIn(marker, text)
         self.assertLessEqual(len(text), 800)
 
+    def test_abstract_budget(self) -> None:
+        paper = sample_atlas()["papers"][0]
+        paper["reading"] = {
+            "problem": "problem " * 200,
+            "approach": "approach " * 200,
+        }
+
+        text = paper_text(paper)
+
+        self.assertIn("problem:", text)
+        self.assertIn("approach:", text)
+        self.assertLessEqual(len(text), 850)
+
     def test_alias_exclusions(self) -> None:
         atlas = sample_atlas()
         atlas["papers"][0]["stable_id"] = "arxiv:1"

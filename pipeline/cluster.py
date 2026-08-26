@@ -354,7 +354,8 @@ def _row(
         "id": _cluster_id(ids[medoid_index]),
         "label": terms[0],
         "label_source": "one-to-one taxonomy match",
-        "label_similarity": round(label_score, 5),
+        # BLAS kernels can differ below 1e-5 even with fixed KMeans seeds.
+        "label_similarity": round(label_score, 4),
         "centroid": _round(centroid),
         "count": int(len(indexes)),
         "radius": round(float(np.percentile(point_distances, 90)), 3),

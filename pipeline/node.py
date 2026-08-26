@@ -52,7 +52,14 @@ def detail_text(detail: dict) -> str:
 def paper_text(paper: dict, detail: dict | None = None) -> str:
     reading = paper.get("reading", {})
     reviewed = detail_text(detail) if detail else ""
-    compact = " ".join(str(reading.get(key, "")) for key in ("problem", "approach"))
+    compact = " ".join(
+        part
+        for part in (
+            f"problem: {clip_words(reading.get('problem'), 220)}",
+            f"approach: {clip_words(reading.get('approach'), 360)}",
+        )
+        if part.split(": ", 1)[-1]
+    )
     if any(phrase in compact.casefold() for phrase in PLACEHOLDERS):
         compact = ""
     prefix = (

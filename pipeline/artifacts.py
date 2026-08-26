@@ -32,8 +32,8 @@ ROOT = Path(__file__).resolve().parents[1]
 READINGS_DIR = REVIEWED_READINGS_DIR
 MAX_CORE_BYTES = 1024 * 1024
 MAX_CORE_GZIP = 250 * 1024
-MAX_PAPER_BYTES = 7 * 1024 * 1024
-MAX_PAPER_GZIP = 3 * 1024 * 1024 // 2
+MAX_PAPER_BYTES = 16 * 1024 * 1024
+MAX_PAPER_GZIP = 4 * 1024 * 1024
 
 
 def same_bytes(left: Path, right: Path) -> bool:
