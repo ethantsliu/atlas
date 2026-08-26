@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import json
 import sys
 import tempfile
 import unittest
@@ -17,9 +16,11 @@ from embed import (  # noqa: E402
     alias_exclusions,
     cohort_ids,
     node_records,
+    row_hash,
     vector_hash,
     vector_sha,
 )
+from mix import mix_report  # noqa: E402
 from semantic import NEIGHBOR_COUNT, quality_report, semantic_neighbors  # noqa: E402
 
 
@@ -93,6 +94,7 @@ def sample_layout(atlas: dict) -> tuple[dict, np.ndarray]:
         node_id: [float(value) for value in point]
         for (node_id, _), point in zip(records, points, strict=True)
     }
+    neighbors = semantic_neighbors(records, vectors, exclusions=exclusions)
     layout = {
         "embedding": {
             "model": "fixture-model",
@@ -103,7 +105,7 @@ def sample_layout(atlas: dict) -> tuple[dict, np.ndarray]:
         },
         "reducer": {"name": "fixture"},
         "neighbor_count": NEIGHBOR_COUNT,
-        "neighbors": semantic_neighbors(records, vectors, exclusions=exclusions),
+        "neighbors": neighbors,
         "quality": quality_report(
             records,
             vectors,
@@ -112,19 +114,22 @@ def sample_layout(atlas: dict) -> tuple[dict, np.ndarray]:
             exclusions=exclusions,
         ),
         "positions": positions,
+        "mix_quality": mix_report(atlas, neighbors, positions),
         **build_clusters(records, vectors, points),
     }
     return layout, vectors
 
 
 def write_cache(path: Path, atlas: dict, layout: dict, vectors: np.ndarray) -> None:
+    records = node_records(atlas)
     np.savez_compressed(
         path,
-        digest=vector_hash(node_records(atlas)),
+        digest=vector_hash(records),
         model=layout["embedding"]["model"],
         model_digest=layout["embedding"]["artifact_sha256"],
         dimensions=vectors.shape[1],
-        reducer=json.dumps(layout["reducer"], sort_keys=True),
+        ids=np.asarray([node_id for node_id, _ in records]),
+        row_hashes=np.asarray([row_hash(record) for record in records]),
         vector_sha256=vector_sha(vectors),
         vectors=vectors,
     )
@@ -169,6 +174,35 @@ class AuditTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Layout vector SHA"):
                 audit_layout(atlas, {}, path, layout)
 
+    def test_cache_order(self) -> None:
+        atlas = sample_atlas()
+        layout, vectors = sample_layout(atlas)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "vectors.npz"
+            write_cache(path, atlas, layout, vectors)
+            with np.load(path) as saved:
+                values = {field: saved[field] for field in saved.files}
+            values["ids"] = values["ids"][::-1]
+            np.savez_compressed(path, **values)
+
+            with self.assertRaisesRegex(RuntimeError, "row IDs"):
+                audit_layout(atlas, {}, path, layout)
+
+    def test_cache_row(self) -> None:
+        atlas = sample_atlas()
+        layout, vectors = sample_layout(atlas)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "vectors.npz"
+            write_cache(path, atlas, layout, vectors)
+            with np.load(path) as saved:
+                values = {field: saved[field] for field in saved.files}
+            values["row_hashes"] = values["row_hashes"].copy()
+            values["row_hashes"][0] = "0" * 64
+            np.savez_compressed(path, **values)
+
+            with self.assertRaisesRegex(RuntimeError, "row hashes"):
+                audit_layout(atlas, {}, path, layout)
+
     def test_score_quantum(self) -> None:
         atlas = sample_atlas()
         layout, vectors = sample_layout(atlas)
@@ -194,6 +228,10 @@ class AuditTests(unittest.TestCase):
                 lambda value: value["cohorts"]["paper"].update({"knn_recall": 0.0}),
             ),
             ("clusters", lambda value: value[0].update({"radius": 999.0})),
+            (
+                "mix_quality",
+                lambda value: value.update({"position_eta_squared": 0.0}),
+            ),
         )
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "vectors.npz"
@@ -202,7 +240,8 @@ class AuditTests(unittest.TestCase):
                 changed = copy.deepcopy(layout)
                 change(changed[field])
                 with self.subTest(field=field):
-                    with self.assertRaisesRegex(RuntimeError, field.rstrip("s")):
+                    message = "mixing" if field == "mix_quality" else field.rstrip("s")
+                    with self.assertRaisesRegex(RuntimeError, message):
                         audit_layout(atlas, {}, path, changed)
 
 

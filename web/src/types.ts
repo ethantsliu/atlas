@@ -1,3 +1,5 @@
+import type { MixQuality } from "./layout";
+
 export type Route = {
   id: string;
   score: number;
@@ -355,6 +357,13 @@ export type Atlas = {
   layout?: SemanticLayout;
 };
 
+type QualityCohort<Trust extends number, Recall extends number> = {
+  node_count: number;
+  trustworthiness: number;
+  knn_recall: number;
+  thresholds: { trustworthiness: Trust; knn_recall: Recall };
+};
+
 export type SemanticLayout = {
   schema_version: 3;
   model: "all-minilm";
@@ -367,7 +376,7 @@ export type SemanticLayout = {
     context_length: 256;
     metric: "cosine";
     runtime: "ollama-0.13.1";
-    text_schema: "field-budget-v1";
+    text_schema: "field-budget-v2";
     truncate: false;
     input_sha256: string;
     vector_sha256: string;
@@ -380,9 +389,11 @@ export type SemanticLayout = {
     min_dist: 0.12;
     metric: "cosine";
     random_seed: 42;
+    repulsion_strength: 2;
+    negative_sample_rate: 20;
     scale_percentile: 98;
     clip: 1.25;
-    extent: 260;
+    extent: 360;
   };
   input_sha256: string;
   node_count: number;
@@ -394,40 +405,16 @@ export type SemanticLayout = {
     alias_policy: "exclude canonical and identical-text aliases";
     cohort_policy: "research cohorts gated; context reported descriptively";
     cohorts: {
-      all: {
-        node_count: number;
-        trustworthiness: number;
-        knn_recall: number;
-        thresholds: { trustworthiness: 0.9; knn_recall: 0.25 };
-      };
-      paper: {
-        node_count: number;
-        trustworthiness: number;
-        knn_recall: number;
-        thresholds: { trustworthiness: 0.9; knn_recall: 0.25 };
-      };
-      context: {
-        node_count: number;
-        trustworthiness: number;
-        knn_recall: number;
-        thresholds: { trustworthiness: 0; knn_recall: 0 };
-      };
-      idea: {
-        node_count: number;
-        trustworthiness: number;
-        knn_recall: number;
-        thresholds: { trustworthiness: 0.95; knn_recall: 0.4 };
-      };
-      taxonomy: {
-        node_count: number;
-        trustworthiness: number;
-        knn_recall: number;
-        thresholds: { trustworthiness: 0.95; knn_recall: 0.4 };
-      };
+      all: QualityCohort<0.9, 0.25>;
+      paper: QualityCohort<0.9, 0.25>;
+      context: QualityCohort<0, 0>;
+      idea: QualityCohort<0.95, 0.4>;
+      taxonomy: QualityCohort<0.88, 0.33>;
     };
   };
   neighbor_count: number;
   neighbors: Record<string, Array<{ id: string; score: number }>>;
+  mix_quality: MixQuality;
   cluster_method: "embedding-normalized-kmeans-v1";
   cluster_kind: "coarse embedding neighborhoods";
   cluster_quality: {

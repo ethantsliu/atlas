@@ -2,11 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { ALL_NODE_KINDS, buildGraph, createGraphNodes } from "../lib/graph";
 import type { GraphNode, GraphNodeKind, Paper } from "../types";
 import type { AtlasRead } from "../lib/payload";
-import { readClusters } from "../lib/clusters";
 import { useGraph } from "../hooks/graph";
 import type { AtlasUrlState } from "../hooks/url";
 import { GraphCanvas } from "../components/map/Graph";
 import { Inspector } from "../components/map/Inspector";
+import { PanelResize } from "../components/map/Panel";
 import { MapFilters } from "../components/map/Filters";
 import { PaperDetailModal } from "../components/papers/Paper";
 import { ResultStatus } from "../components/shared/Empty";
@@ -54,7 +54,6 @@ export function MapView({
   );
   const graph = useGraph(nextGraph);
   const allNodes = useMemo(() => createGraphNodes(atlas, 1), [atlas]);
-  const clusters = useMemo(() => readClusters(atlas.layout), [atlas.layout]);
   const selected =
     graph.nodes.find((candidate) => candidate.id === url.selected) ?? null;
 
@@ -173,9 +172,8 @@ export function MapView({
         camera={url.camera}
         shareUrl={shareUrl}
         onLayout={(layout) => onReplace({ layout })}
-        clusters={clusters}
-        focus={url.focus}
       />
+      <PanelResize />
       <Inspector
         node={selected}
         hasNodes={graph.nodes.length > 0}

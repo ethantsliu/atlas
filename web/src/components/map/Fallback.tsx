@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useEffect, useRef, useState, type MutableRefObject } from "react";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import type { Theme } from "../../hooks/theme";
 import {
@@ -9,14 +9,12 @@ import {
   type LayoutMode,
 } from "../../hooks/layout";
 import { useQuality } from "../../hooks/quality";
-import { useRegions2d } from "../../hooks/regions2d";
 import { useScene } from "../../hooks/scene";
-import { graphChrome, type ClusterSet } from "../../lib/clusters";
 import { graphEndpointId } from "../../lib/graph";
-import { showCluster, showLink } from "../../lib/quality";
+import { showLink } from "../../lib/quality";
 import { formatCamera, show2d, type CameraView } from "../../lib/camera";
+import { labelOf } from "../../lib/text";
 import type { GraphData, GraphLink, GraphNode } from "../../types";
-import { RegionOverlay } from "./Regions";
 
 export type FallbackRef = MutableRefObject<
   ForceGraphMethods<GraphNode, GraphLink> | undefined
@@ -31,8 +29,6 @@ type FallbackProps = {
   theme: Theme;
   layout: LayoutMode;
   camera: CameraView | null;
-  clusters: ClusterSet;
-  regionsEnabled: boolean;
   onChoose: (node: GraphNode) => void;
   onFocus: (nodeId: string) => void;
   onClear: () => void;
@@ -59,21 +55,6 @@ function drawNode(node: GraphNode, context: CanvasRenderingContext2D, size: numb
   }
 }
 
-function drawLabel(
-  node: GraphNode,
-  context: CanvasRenderingContext2D,
-  scale: number,
-  size: number,
-  theme: Theme,
-) {
-  const fontSize = 12 / scale;
-  const label = node.label.length > 34 ? `${node.label.slice(0, 32)}…` : node.label;
-  context.font = `600 ${fontSize}px "Libre Baskerville Variable", Baskerville, serif`;
-  context.fillStyle = theme === "dark" ? "#f4f0e7" : "#2d2722";
-  context.textAlign = "center";
-  context.fillText(label, node.x!, node.y! + size + fontSize + 2 / scale);
-}
-
 export function FallbackGraph({
   graph,
   graphRef,
@@ -83,8 +64,6 @@ export function FallbackGraph({
   theme,
   layout,
   camera,
-  clusters,
-  regionsEnabled,
   onChoose,
   onFocus,
   onClear,
@@ -96,20 +75,6 @@ export function FallbackGraph({
   const activeIds = new Set(
     [selected?.id, hovered?.id].filter((id): id is string => Boolean(id)),
   );
-  const regionNodes = useMemo(() => [selected, hovered], [hovered, selected]);
-  const activeRegion = selected?.id
-    ? clusters.nodeClusters[selected.id]
-    : hovered?.id
-      ? clusters.nodeClusters[hovered.id]
-      : null;
-  const regions = useRegions2d({
-    graph,
-    graphRef,
-    clusters,
-    active: regionNodes,
-    quality,
-    enabled: regionsEnabled,
-  });
 
   useEffect(() => {
     if (!graphRef.current) return;
@@ -124,80 +89,63 @@ export function FallbackGraph({
     if (!camera || !key || restoredRef.current === key) return;
     restoredRef.current = key;
     show2d(graphRef.current, camera, height);
-    regions.project(height / (2 * camera.radius));
-  }, [camera, graphRef, height, regions]);
+  }, [camera, graphRef, height]);
 
   return (
-    <>
-      <ForceGraph2D
-        ref={graphRef}
-        width={width}
-        height={height}
-        graphData={scene.graph}
-        backgroundColor={theme === "dark" ? "#0f1511" : "#f0eadf"}
-        linkColor={() =>
-          theme === "dark"
-            ? `rgba(183,203,187,${quality.linkOpacity})`
-            : `rgba(69,58,48,${quality.linkOpacity})`
+    <ForceGraph2D
+      ref={graphRef}
+      width={width}
+      height={height}
+      graphData={scene.graph}
+      backgroundColor={theme === "dark" ? "#0f1511" : "#f0eadf"}
+      linkColor={() =>
+        theme === "dark"
+          ? `rgba(183,203,187,${quality.linkOpacity})`
+          : `rgba(69,58,48,${quality.linkOpacity})`
+      }
+      linkVisibility={(link) => {
+        if (layout === "connections") return true;
+        const active =
+          activeIds.has(graphEndpointId(link.source)) ||
+          activeIds.has(graphEndpointId(link.target));
+        return showLink(quality, { selected: active });
+      }}
+      linkWidth={layout === "connections" ? 0.8 : 1}
+      cooldownTicks={layoutTicks(layout, quality.cooldownTicks, scene.simple)}
+      d3VelocityDecay={0.28}
+      nodeLabel={(node) => `${labelOf(node.kind)} · ${node.label}`}
+      nodeCanvasObject={(node, context, scale) => {
+        const size = nodeSize(node);
+        drawNode(node, context, size);
+        context.fillStyle = node.color;
+        const emphasized = selected?.id === node.id || hovered?.id === node.id;
+        context.shadowColor = node.color;
+        context.shadowBlur = emphasized ? 14 : 3;
+        context.fill();
+        context.shadowBlur = 0;
+        if (emphasized) {
+          drawNode(node, context, size + 2 / scale);
+          context.strokeStyle = theme === "dark" ? "#f4f0e7" : "#2d2722";
+          context.lineWidth = 1.4 / scale;
+          context.stroke();
         }
-        linkVisibility={(link) => {
-          if (layout === "connections") return true;
-          const active =
-            activeIds.has(graphEndpointId(link.source)) ||
-            activeIds.has(graphEndpointId(link.target));
-          return showLink(quality, { selected: active });
-        }}
-        linkWidth={layout === "connections" ? 0.8 : 1}
-        cooldownTicks={layoutTicks(layout, quality.cooldownTicks, scene.simple)}
-        d3VelocityDecay={0.28}
-        nodeCanvasObject={(node, context, scale) => {
-          const size = nodeSize(node);
-          drawNode(node, context, size);
-          context.fillStyle = node.color;
-          const emphasized = selected?.id === node.id || hovered?.id === node.id;
-          context.shadowColor = node.color;
-          context.shadowBlur = emphasized ? 14 : 3;
-          context.fill();
-          context.shadowBlur = 0;
-          if (emphasized) {
-            drawNode(node, context, size + 2 / scale);
-            context.strokeStyle = theme === "dark" ? "#f4f0e7" : "#2d2722";
-            context.lineWidth = 1.4 / scale;
-            context.stroke();
-            drawLabel(node, context, scale, size, theme);
-          }
-        }}
-        nodePointerAreaPaint={(node, color, context) => {
-          context.fillStyle = color;
-          context.beginPath();
-          context.arc(
-            node.x!,
-            node.y!,
-            Math.max(8, Math.sqrt(node.val) * 3),
-            0,
-            2 * Math.PI,
-          );
-          context.fill();
-        }}
-        onNodeClick={onChoose}
-        onNodeHover={(node) => setHovered(node ?? null)}
-        onNodeRightClick={(node) => onFocus(node.id)}
-        onBackgroundClick={onClear}
-        onZoom={({ k }) => regions.project(k)}
-        onEngineStop={() => regions.project(1)}
-      />
-      <RegionOverlay
-        points={regions.points}
-        view={{
-          width,
-          height,
-          scale: regions.scale,
-          enabled:
-            regionsEnabled && showCluster(quality, regions.scale, graph.nodes.length),
-          activeId: activeRegion,
-          reserved: [...regions.reserved, ...graphChrome(width)],
-        }}
-      />
-    </>
+      }}
+      nodePointerAreaPaint={(node, color, context) => {
+        context.fillStyle = color;
+        context.beginPath();
+        context.arc(
+          node.x!,
+          node.y!,
+          Math.max(8, Math.sqrt(node.val) * 3),
+          0,
+          2 * Math.PI,
+        );
+        context.fill();
+      }}
+      onNodeClick={onChoose}
+      onNodeHover={(node) => setHovered(node ?? null)}
+      onNodeRightClick={(node) => onFocus(node.id)}
+      onBackgroundClick={onClear}
+    />
   );
 }

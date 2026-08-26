@@ -10,6 +10,7 @@ from typing import Any
 
 import numpy as np
 
+from cache import valid_hashes, valid_ids
 from cluster import build_clusters
 from embed import (
     CACHE_PATH,
@@ -17,9 +18,11 @@ from embed import (
     cohort_ids,
     load_details,
     node_records,
+    row_hash,
     vector_hash,
     vector_sha,
 )
+from mix import mix_report
 from rules import check
 from semantic import NEIGHBOR_COUNT, quality_report, semantic_neighbors
 
@@ -32,7 +35,8 @@ CACHE_FIELDS = {
     "model",
     "model_digest",
     "dimensions",
-    "reducer",
+    "ids",
+    "row_hashes",
     "vector_sha256",
     "vectors",
 }
@@ -53,15 +57,20 @@ def cache_scalar(cache: Any, field: str) -> object:
     return value.item()
 
 
-def load_cache(path: Path) -> tuple[dict[str, object], np.ndarray]:
+def load_cache(
+    path: Path,
+) -> tuple[dict[str, object], np.ndarray, np.ndarray, np.ndarray]:
     """Load and structurally check the local cache without changing it."""
     with np.load(path, allow_pickle=False) as cache:
         check(CACHE_FIELDS <= set(cache.files), "Vector cache fields are incomplete")
         metadata = {
-            field: cache_scalar(cache, field) for field in CACHE_FIELDS - {"vectors"}
+            field: cache_scalar(cache, field)
+            for field in CACHE_FIELDS - {"vectors", "ids", "row_hashes"}
         }
+        ids = cache["ids"]
+        row_hashes = cache["row_hashes"]
         vectors = cache["vectors"]
-    return metadata, vectors
+    return metadata, ids, row_hashes, vectors
 
 
 def audit_vectors(
@@ -70,7 +79,7 @@ def audit_vectors(
     path: Path,
 ) -> np.ndarray:
     """Verify cache alignment, metadata, and canonical vector bytes."""
-    metadata, vectors = load_cache(path)
+    metadata, ids, row_hashes, vectors = load_cache(path)
     embedding = layout.get("embedding", {})
     expected_input = vector_hash(records)
     checks = (
@@ -88,13 +97,16 @@ def audit_vectors(
             metadata["dimensions"] == embedding.get("dimensions"),
             "Vector cache dimensions are stale",
         ),
-        (
-            metadata["reducer"] == json.dumps(layout.get("reducer"), sort_keys=True),
-            "Vector cache reducer is stale",
-        ),
     )
     for condition, message in checks:
         check(condition, message)
+    expected_ids = np.asarray([node_id for node_id, _ in records])
+    expected_hashes = np.asarray([row_hash(record) for record in records])
+    check(valid_ids(ids, expected_ids), "Vector cache row IDs are stale")
+    check(
+        valid_hashes(row_hashes, expected_hashes),
+        "Vector cache row hashes are stale",
+    )
     check(
         vectors.dtype == np.float32
         and vectors.shape == (len(records), embedding.get("dimensions"))
@@ -180,6 +192,11 @@ def audit_layout(
     check(
         published.get("quality") == expected_quality,
         "Layout quality or cohort metrics disagree with cached vectors",
+    )
+    expected_mix = mix_report(atlas, expected_neighbors, positions)
+    check(
+        published.get("mix_quality") == expected_mix,
+        "Layout mixing metrics disagree with cached vectors",
     )
     expected_clusters = build_clusters(records, vectors, points)
     check(

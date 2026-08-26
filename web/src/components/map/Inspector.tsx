@@ -34,7 +34,12 @@ export function Inspector({
   );
   if (!node) {
     return (
-      <aside className="inspector panel empty">
+      <aside
+        id="map-inspector"
+        className="inspector panel empty"
+        aria-label="Node inspector"
+        tabIndex={-1}
+      >
         <Sparkles size={28} />
         <h2>{hasNodes ? "Follow a promising edge" : "No node to inspect"}</h2>
         {hasNodes ? (
@@ -58,17 +63,30 @@ export function Inspector({
     .slice(0, 6);
 
   return (
-    <aside className="inspector panel">
+    <aside
+      id="map-inspector"
+      className="inspector panel"
+      aria-label="Node inspector"
+      tabIndex={-1}
+    >
       <button className="icon-close" onClick={onClose} aria-label="Close inspector">
         <X size={16} />
       </button>
-      <span className={`type-pill ${node.kind}`}>{node.kind}</span>
+      <span className={`type-pill ${node.kind}`}>{labelOf(node.kind)}</span>
       <h2>{node.label}</h2>
       {node.count != null && (
         <div className="big-stat">
           {node.count.toLocaleString()} <span>routed papers</span>
         </div>
       )}
+      <button
+        className="focus-button"
+        aria-pressed={focused}
+        onClick={() => onFocus(node.id)}
+      >
+        <CircleDot size={15} />
+        {focused ? "Unisolate connections" : "Isolate connections"}
+      </button>
       {idea && <IdeaDetails idea={idea} atlas={atlas} onSelectNode={onSelectNode} />}
       {paper && (
         <>
@@ -96,14 +114,6 @@ export function Inspector({
           </button>
         </>
       )}
-      <button
-        className="focus-button"
-        aria-pressed={focused}
-        onClick={() => onFocus(node.id)}
-      >
-        <CircleDot size={15} />
-        {focused ? "Unisolate connections" : "Isolate connections"}
-      </button>
       {neighbors.length > 0 && (
         <section className="nearby" aria-labelledby="nearby-heading">
           <h3 id="nearby-heading">Semantically nearby</h3>

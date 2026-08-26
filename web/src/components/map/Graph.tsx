@@ -7,7 +7,6 @@ import { useDrawn } from "../../hooks/drawn";
 import { ALL_NODE_KINDS, NODE_COLORS } from "../../lib/graph";
 import { findNextNode, type ArrowKey } from "../../lib/nav";
 import { labelOf } from "../../lib/text";
-import type { ClusterSet } from "../../lib/clusters";
 import type { CameraView } from "../../lib/camera";
 import type { GraphData, GraphNode } from "../../types";
 import { GraphControls } from "./Controls";
@@ -38,8 +37,6 @@ type GraphCanvasProps = {
   layout: LayoutMode;
   shareUrl: (camera?: CameraView | null) => string;
   onLayout: (mode: LayoutMode) => void;
-  clusters: ClusterSet;
-  focus: string | null;
   camera: CameraView | null;
 };
 
@@ -55,8 +52,6 @@ export function GraphCanvas({
   layout,
   shareUrl,
   onLayout,
-  clusters,
-  focus,
   camera,
 }: GraphCanvasProps) {
   const { ref: containerRef, width, height } = useElementSize<HTMLElement>();
@@ -164,8 +159,6 @@ export function GraphCanvas({
             theme={theme}
             layout={layout}
             camera={camera}
-            clusters={clusters}
-            regionsEnabled={!query.trim() && !focus && layout === "semantic"}
             onChoose={(node) => {
               onChoose(node);
               containerRef.current?.focus({ preventScroll: true });
@@ -198,8 +191,6 @@ export function GraphCanvas({
             theme={theme}
             layout={layout}
             camera={camera}
-            clusters={clusters}
-            regionsEnabled={!query.trim() && !focus && layout === "semantic"}
             onChoose={(node) => {
               onChoose(node);
               containerRef.current?.focus({ preventScroll: true });

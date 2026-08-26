@@ -12,6 +12,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
 
+from cache import valid_hashes, valid_ids  # noqa: E402
 from embed import (  # noqa: E402
     MODEL,
     MODEL_CONTEXT,
@@ -23,6 +24,7 @@ from embed import (  # noqa: E402
     load_parts,
     node_records,
     paper_text,
+    row_hash,
     save_parts,
     valid_vectors,
     vector_hash,
@@ -133,7 +135,7 @@ class EmbedTests(unittest.TestCase):
         self.assertEqual(len(records), 5)
         self.assertEqual(
             records[0][1],
-            "machine learning research area: world models",
+            "world models",
         )
         digest = vector_sha(np.ones((len(records), 3), dtype=np.float32))
         self.assertEqual(input_hash(records, digest), input_hash(records, digest))
@@ -217,6 +219,18 @@ class EmbedTests(unittest.TestCase):
         vectors[0] = 1
         vectors[0, 0] = np.nan
         self.assertFalse(valid_vectors(vectors, vector_sha(vectors)))
+
+    def test_cache_rows(self) -> None:
+        records = [("node-1", "one"), ("node-2", "two")]
+        ids = np.asarray([record[0] for record in records])
+        hashes = np.asarray([row_hash(record) for record in records])
+
+        self.assertTrue(valid_ids(ids, ids))
+        self.assertTrue(valid_hashes(hashes, hashes))
+        self.assertFalse(valid_ids(ids[::-1], ids))
+        stale = hashes.copy()
+        stale[0] = "0" * 64
+        self.assertFalse(valid_hashes(stale, hashes))
 
     def test_input_hash(self) -> None:
         records = node_records(sample_atlas())

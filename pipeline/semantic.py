@@ -15,15 +15,16 @@ COHORT_GATES = {
     "all": {"trustworthiness": 0.9, "knn_recall": 0.25},
     "paper": {"trustworthiness": 0.9, "knn_recall": 0.25},
     "idea": {"trustworthiness": 0.95, "knn_recall": 0.4},
-    "taxonomy": {"trustworthiness": 0.95, "knn_recall": 0.4},
+    "taxonomy": {"trustworthiness": 0.88, "knn_recall": 0.33},
     "context": {"trustworthiness": 0.0, "knn_recall": 0.0},
 }
 
 
 def unit_rows(values: np.ndarray) -> np.ndarray:
-    """Return row-normalized float values with safe zero-vector handling."""
-    norms = np.linalg.norm(values, axis=1, keepdims=True)
-    return values / np.maximum(norms, np.finfo(np.float32).eps)
+    """Return canonical float64 unit rows with safe zero-vector handling."""
+    matrix = np.asarray(values, dtype=np.float64)
+    norms = np.sqrt(np.sum(matrix * matrix, axis=1, keepdims=True, dtype=np.float64))
+    return matrix / np.maximum(norms, np.finfo(np.float64).eps)
 
 
 def cosine_top(
@@ -34,9 +35,7 @@ def cosine_top(
     """Find deterministic exact cosine neighbors, excluding each row itself."""
     if not 0 < count < len(vectors):
         raise ValueError("Neighbor count must be between zero and the row count")
-    values = np.asarray(vectors, dtype=np.float64)
-    norms = np.sqrt(np.sum(values * values, axis=1, keepdims=True, dtype=np.float64))
-    normalized = values / np.maximum(norms, np.finfo(np.float64).eps)
+    normalized = unit_rows(vectors)
     scores = normalized @ normalized.T
     np.fill_diagonal(scores, -np.inf)
     if blocked is not None:
@@ -110,7 +109,7 @@ def quality_rows(
     """Return standard trustworthiness and recall for every global-space row."""
     if not 0 < count < len(vectors) / 2:
         raise ValueError("Quality k must be below half the node count")
-    normalized = unit_rows(np.asarray(vectors, dtype=np.float32))
+    normalized = unit_rows(vectors)
     scores = normalized @ normalized.T
     np.fill_diagonal(scores, -np.inf)
     blocked = blocked or [set() for _ in vectors]

@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { BarChart3, Sparkles, Target } from "lucide-react";
 import { buildFeasibilityBins, layoutFeasibilityFrontier } from "../../lib/insights";
 import { independentlyRankedIdeas } from "../../lib/portfolio";
-import { labelOf } from "../../lib/text";
 import type { Atlas, Taxon } from "../../types";
 import { ChartDataTable, VizHead } from "./Primitives";
 

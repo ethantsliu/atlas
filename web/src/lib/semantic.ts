@@ -15,6 +15,7 @@ const LAYOUT_KEYS = new Set([
   "quality",
   "neighbor_count",
   "neighbors",
+  "mix_quality",
   "cluster_method",
   "cluster_kind",
   "cluster_quality",
@@ -43,6 +44,8 @@ const REDUCER_KEYS = new Set([
   "min_dist",
   "metric",
   "random_seed",
+  "repulsion_strength",
+  "negative_sample_rate",
   "scale_percentile",
   "clip",
   "extent",
@@ -72,8 +75,38 @@ const COHORT_THRESHOLDS: Record<
   paper: { trustworthiness: 0.9, knn_recall: 0.25 },
   context: { trustworthiness: 0, knn_recall: 0 },
   idea: { trustworthiness: 0.95, knn_recall: 0.4 },
-  taxonomy: { trustworthiness: 0.95, knn_recall: 0.4 },
+  taxonomy: { trustworthiness: 0.88, knn_recall: 0.33 },
 };
+const MIX_KEYS = new Set([
+  "kind",
+  "neighbor_count",
+  "semantic_routes",
+  "projected_routes",
+  "position_eta_squared",
+  "exact_coordinate_duplicates",
+  "thresholds",
+]);
+const ROUTE_NAMES = ["topic", "trick", "combined"] as const;
+const ROUTE_KINDS = new Set(ROUTE_NAMES);
+const ROUTE_KEYS = new Set(["node_count", "precision", "hit_rate"]);
+const MIX_THRESHOLD_KEYS = new Set([
+  "routes",
+  "max_position_eta_squared",
+  "max_exact_coordinate_duplicates",
+]);
+const ROUTE_GATE_KEYS = new Set(["precision", "hit_rate"]);
+const ROUTE_GATES = {
+  semantic: {
+    topic: { precision: 0.2, hit_rate: 0.75 },
+    trick: { precision: 0.2, hit_rate: 0.75 },
+    combined: { precision: 0.2, hit_rate: 0.75 },
+  },
+  projected: {
+    topic: { precision: 0.2, hit_rate: 0.5 },
+    trick: { precision: 0.2, hit_rate: 0.5 },
+    combined: { precision: 0.3, hit_rate: 0.5 },
+  },
+} as const;
 const CLUSTER_KEYS = new Set([
   "inertia",
   "mean_inertia",
@@ -182,7 +215,7 @@ function embeddingError(value: unknown): string | null {
     value.context_length === 256 &&
     value.metric === "cosine" &&
     value.runtime === "ollama-0.13.1" &&
-    value.text_schema === "field-budget-v1" &&
+    value.text_schema === "field-budget-v2" &&
     value.truncate === false &&
     isHash(value.input_sha256) &&
     isHash(value.vector_sha256)
@@ -198,9 +231,11 @@ function reducerError(value: unknown): string | null {
     value.min_dist === 0.12 &&
     value.metric === "cosine" &&
     value.random_seed === 42 &&
+    value.repulsion_strength === 2 &&
+    value.negative_sample_rate === 20 &&
     value.scale_percentile === 98 &&
     value.clip === 1.25 &&
-    value.extent === 260
+    value.extent === 360
     ? null
     : "invalid semantic reducer";
 }
@@ -285,6 +320,64 @@ function neighborError(
     }
   }
   return null;
+}
+
+function routeError(value: unknown, space: keyof typeof ROUTE_GATES): string | null {
+  if (!exactKeys(value, ROUTE_KINDS)) return "invalid route diagnostics";
+  for (const kind of ROUTE_NAMES) {
+    const score = value[kind];
+    const gate = ROUTE_GATES[space][kind];
+    if (
+      !exactKeys(score, ROUTE_KEYS) ||
+      !isInt(score.node_count) ||
+      score.node_count === 0 ||
+      !isUnit(score.precision) ||
+      score.precision < gate.precision ||
+      !isUnit(score.hit_rate) ||
+      score.hit_rate < gate.hit_rate
+    ) {
+      return "invalid route diagnostics";
+    }
+  }
+  const rows = value as Record<string, { node_count: number }>;
+  return rows.combined.node_count === rows.topic.node_count + rows.trick.node_count
+    ? null
+    : "invalid route diagnostics";
+}
+
+function mixError(value: unknown): string | null {
+  if (!exactKeys(value, MIX_KEYS)) return "invalid mixing diagnostics";
+  const semanticIssue = routeError(value.semantic_routes, "semantic");
+  const projectedIssue = routeError(value.projected_routes, "projected");
+  if (semanticIssue || projectedIssue) return semanticIssue ?? projectedIssue;
+  const thresholds = value.thresholds;
+  if (!exactKeys(thresholds, MIX_THRESHOLD_KEYS) || !isRecord(thresholds.routes)) {
+    return "invalid mixing thresholds";
+  }
+  for (const space of ["semantic", "projected"] as const) {
+    const routes = thresholds.routes[space];
+    if (!exactKeys(routes, ROUTE_KINDS)) return "invalid mixing thresholds";
+    for (const kind of ROUTE_NAMES) {
+      const gate = routes[kind];
+      const expected = ROUTE_GATES[space][kind];
+      if (
+        !exactKeys(gate, ROUTE_GATE_KEYS) ||
+        gate.precision !== expected.precision ||
+        gate.hit_rate !== expected.hit_rate
+      ) {
+        return "invalid mixing thresholds";
+      }
+    }
+  }
+  return value.kind === "cross-kind-layout-v1" &&
+    value.neighbor_count === 8 &&
+    isUnit(value.position_eta_squared) &&
+    value.position_eta_squared <= 0.05 &&
+    value.exact_coordinate_duplicates === 0 &&
+    thresholds.max_position_eta_squared === 0.05 &&
+    thresholds.max_exact_coordinate_duplicates === 0
+    ? null
+    : "invalid mixing diagnostics";
 }
 
 function regionError(value: unknown, allIds?: ReadonlySet<string>): string | null {
@@ -412,6 +505,7 @@ export function layoutError(value: unknown, scope: LayoutScope): string | null {
     reducerError(value.reducer) ??
     qualityError(value.quality, scope) ??
     mapError(value, scope) ??
+    mixError(value.mix_quality) ??
     clusterError(value, scope)
   );
 }

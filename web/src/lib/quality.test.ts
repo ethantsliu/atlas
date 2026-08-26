@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { qualityFor, showCluster, showLabel, showLink } from "./quality";
+import { qualityFor, showLink } from "./quality";
 
 describe("adaptive quality", () => {
   it("uses full detail for a modest desktop constellation", () => {
@@ -19,9 +19,6 @@ describe("adaptive quality", () => {
       geometryDetail: 16,
       cooldownTicks: 150,
       pixelRatioCap: 2,
-      labelMaxChars: 48,
-      clusterMinNodes: 6,
-      clusterMaxScale: 1.2,
     });
   });
 
@@ -88,28 +85,8 @@ describe("adaptive quality", () => {
     });
 
     expect(quality.cooldownTicks).toBe(30);
-    expect(showLabel()).toBe(false);
-    expect(showLabel({ hovered: true })).toBe(true);
-    expect(showLabel({ selected: true })).toBe(true);
-    expect(showLabel({ keyboard: true })).toBe(true);
     expect(showLink(quality)).toBe(false);
     expect(showLink(quality, { selected: true })).toBe(true);
     expect(showLink(quality, { keyboard: true })).toBe(true);
-  });
-
-  it("keeps node labels interactive and cluster labels sparse", () => {
-    const quality = qualityFor({
-      nodeCount: 2_319,
-      width: 1600,
-      height: 1000,
-      deviceMemory: 16,
-      cores: 12,
-    });
-
-    expect(showLabel()).toBe(false);
-    expect(showLabel({ hovered: true })).toBe(true);
-    expect(showCluster(quality, quality.clusterMaxScale, 8)).toBe(false);
-    expect(showCluster(quality, quality.clusterMaxScale, 9)).toBe(true);
-    expect(showCluster(quality, quality.clusterMaxScale + 0.01, 20)).toBe(false);
   });
 });

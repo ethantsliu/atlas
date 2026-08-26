@@ -24,6 +24,7 @@ from layout import (
     OLLAMA_VERSION,
     REDUCER,
 )
+from mix import ensure_mix, mix_report
 from rules import check
 from semantic import (
     COHORT_GATES,
@@ -288,7 +289,7 @@ def validate_layout(atlas: dict, details: dict[str, dict]) -> None:
                 "context_length": MODEL_CONTEXT,
                 "metric": "cosine",
                 "runtime": f"ollama-{OLLAMA_VERSION}",
-                "text_schema": "field-budget-v1",
+                "text_schema": "field-budget-v2",
                 "truncate": False,
             }.items()
         ),
@@ -339,4 +340,7 @@ def validate_layout(atlas: dict, details: dict[str, dict]) -> None:
     }
     validate_quality(layout, cohort_sizes)
     validate_neighbors(layout, graph_ids)
+    expected_mix = mix_report(atlas, layout["neighbors"], positions)
+    check(layout.get("mix_quality") == expected_mix, "Layout mixing metrics are stale")
+    ensure_mix(expected_mix)
     validate_clusters(layout, graph_ids, cohort_sizes["paper"] + cohort_sizes["idea"])

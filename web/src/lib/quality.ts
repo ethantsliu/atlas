@@ -18,9 +18,6 @@ export type QualityProfile = {
   geometryDetail: 6 | 10 | 16;
   cooldownTicks: number;
   pixelRatioCap: number;
-  labelMaxChars: number;
-  clusterMinNodes: number;
-  clusterMaxScale: number;
 };
 
 export type FocusState = {
@@ -36,9 +33,6 @@ const PROFILES: Record<QualityTier, Omit<QualityProfile, "tier">> = {
     geometryDetail: 16,
     cooldownTicks: 150,
     pixelRatioCap: 2,
-    labelMaxChars: 48,
-    clusterMinNodes: 6,
-    clusterMaxScale: 1.2,
   },
   balanced: {
     linkMode: "all",
@@ -46,9 +40,6 @@ const PROFILES: Record<QualityTier, Omit<QualityProfile, "tier">> = {
     geometryDetail: 10,
     cooldownTicks: 80,
     pixelRatioCap: 1.5,
-    labelMaxChars: 42,
-    clusterMinNodes: 9,
-    clusterMaxScale: 1.15,
   },
   low: {
     linkMode: "active",
@@ -56,9 +47,6 @@ const PROFILES: Record<QualityTier, Omit<QualityProfile, "tier">> = {
     geometryDetail: 6,
     cooldownTicks: 45,
     pixelRatioCap: 1,
-    labelMaxChars: 34,
-    clusterMinNodes: 12,
-    clusterMaxScale: 1.1,
   },
 };
 
@@ -104,18 +92,6 @@ export function qualityFor(input: QualityInput): QualityProfile {
       ? Math.min(base.cooldownTicks, 30)
       : base.cooldownTicks,
   };
-}
-
-export function showLabel(state: FocusState = {}): boolean {
-  return Boolean(state.selected || state.keyboard || state.hovered);
-}
-
-export function showCluster(
-  profile: QualityProfile,
-  scale: number,
-  nodeCount: number,
-): boolean {
-  return scale <= profile.clusterMaxScale && nodeCount >= profile.clusterMinNodes;
 }
 
 export function showLink(

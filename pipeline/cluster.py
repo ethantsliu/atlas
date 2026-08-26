@@ -22,6 +22,7 @@ KIND = "coarse embedding neighborhoods"
 MIN_LABEL_SCORE = 0.3
 MIN_SILHOUETTE = 0.0
 MIN_STABILITY = 0.2
+REJECT_COST = 2.0
 BLOCKED_LABELS = frozenset(
     {"adam", "collection", "differential", "does", "neural", "systems"}
 )
@@ -113,13 +114,16 @@ def _model(cluster_count: int, seed: int) -> KMeans:
 
 
 def _groups(
-    vectors: np.ndarray, texts: Sequence[str], cluster_count: int
+    ids: Sequence[str],
+    vectors: np.ndarray,
+    texts: Sequence[str],
+    cluster_count: int,
 ) -> tuple[np.ndarray, float, np.ndarray, np.ndarray]:
     fit_indexes = np.asarray(
         [
             index
-            for index, text in enumerate(texts)
-            if not _taxon(text) and not _context(text)
+            for index, (node_id, text) in enumerate(zip(ids, texts, strict=True))
+            if not _taxon(node_id, text) and not _context(text)
         ],
         dtype=np.int32,
     )
@@ -190,17 +194,25 @@ def _quality(
     }
 
 
-def _taxon(text: str) -> str:
+def _taxon(node_id: str, text: str) -> str:
+    if not node_id.startswith(("topic:", "trick:")):
+        return ""
     match = TAXON.match(text)
-    return SPACE.sub(" ", match.group(1)).strip().lower() if match else ""
+    label = match.group(1) if match else text
+    return SPACE.sub(" ", label).strip(" .").lower()
 
 
 def _context(text: str) -> bool:
     return text.casefold().startswith("collection entry:")
 
 
-def _features(texts: Sequence[str]) -> tuple[np.ndarray, np.ndarray]:
-    corpus = ["" if _taxon(text) or _context(text) else text for text in texts]
+def _features(
+    ids: Sequence[str], texts: Sequence[str]
+) -> tuple[np.ndarray, np.ndarray]:
+    corpus = [
+        "" if _taxon(node_id, text) or _context(text) else text
+        for node_id, text in zip(ids, texts, strict=True)
+    ]
     if not any(corpus):
         return np.empty((len(texts), 0)), np.asarray([], dtype=str)
     vectorizer = TfidfVectorizer(
@@ -271,25 +283,44 @@ def _terms(
 
 
 def _markers(
-    texts: Sequence[str], vectors: np.ndarray, centers: np.ndarray
+    ids: Sequence[str],
+    texts: Sequence[str],
+    vectors: np.ndarray,
+    centers: np.ndarray,
 ) -> dict[int, tuple[str, float]]:
-    taxon_indexes = [index for index, text in enumerate(texts) if _taxon(text)]
+    taxon_indexes = [
+        index
+        for index, (node_id, text) in enumerate(zip(ids, texts, strict=True))
+        if _taxon(node_id, text)
+    ]
     if len(taxon_indexes) < len(centers):
         raise RuntimeError("Semantic regions require one taxonomy marker per center")
+    taxon_indexes = [
+        index
+        for index in taxon_indexes
+        if _taxon(ids[index], texts[index]) not in BLOCKED_LABELS
+    ]
+    if len(taxon_indexes) < len(centers):
+        raise RuntimeError("Semantic region labels are weak or generic")
     center_norms = np.linalg.norm(centers, axis=1, keepdims=True)
     center_data = centers / np.maximum(center_norms, np.finfo(np.float32).eps)
     similarities = center_data @ vectors[taxon_indexes].T
-    center_rows, taxon_cols = linear_sum_assignment(-similarities)
+    eligible = similarities >= MIN_LABEL_SCORE
+    costs = np.where(eligible, -similarities, REJECT_COST)
+    center_rows, taxon_cols = linear_sum_assignment(costs)
     markers = {
         int(center): (
-            _taxon(texts[taxon_indexes[int(taxon)]]),
+            _taxon(
+                ids[taxon_indexes[int(taxon)]],
+                texts[taxon_indexes[int(taxon)]],
+            ),
             float(similarities[int(center), int(taxon)]),
         )
         for center, taxon in zip(center_rows, taxon_cols, strict=True)
     }
     if any(
-        label in BLOCKED_LABELS or score < MIN_LABEL_SCORE
-        for label, score in markers.values()
+        not eligible[int(center), int(taxon)]
+        for center, taxon in zip(center_rows, taxon_cols, strict=True)
     ):
         raise RuntimeError("Semantic region labels are weak or generic")
     return markers
@@ -367,11 +398,11 @@ def build_clusters(
     total = _total(len(ids)) if cluster_count is None else cluster_count
     if not isinstance(total, int) or not 1 <= total <= len(ids):
         raise ValueError("Cluster count must be between one and the node count")
-    labels, inertia, centers, fit_indexes = _groups(vector_data, texts, total)
+    labels, inertia, centers, fit_indexes = _groups(ids, vector_data, texts, total)
     min_count, max_share = _balance(labels, total)
-    matrix, features = _features(texts)
+    matrix, features = _features(ids, texts)
     markers = (
-        _markers(texts, vector_data, centers) if total > 1 else {0: ("atlas", 1.0)}
+        _markers(ids, texts, vector_data, centers) if total > 1 else {0: ("atlas", 1.0)}
     )
     rows = [
         _row(

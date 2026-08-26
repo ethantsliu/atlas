@@ -4,7 +4,7 @@ import "./layout.css";
 const OPTIONS: Array<{ mode: LayoutMode; title: string }> = [
   {
     mode: "semantic",
-    title: "position nodes by similarity in embedding space",
+    title: "position all node kinds in one shared embedding space",
   },
   {
     mode: "connections",

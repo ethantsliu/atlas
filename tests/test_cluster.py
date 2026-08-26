@@ -9,7 +9,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
 
-from cluster import build_clusters  # noqa: E402
+from cluster import _markers, build_clusters  # noqa: E402
 
 
 def sample_data() -> tuple[list[tuple[str, str]], np.ndarray, np.ndarray]:
@@ -108,6 +108,19 @@ class ClusterTests(unittest.TestCase):
         self.assertEqual(labels, {"world models", "preference optimization"})
         self.assertFalse(labels & {"neural", "does", "collection", "systems"})
 
+    def test_bare_labels(self) -> None:
+        records, vectors, points = sample_data()
+        records[0] = ("topic:worlds", "world models")
+        records[3] = ("trick:preference", "preference optimization")
+
+        result = build_clusters(records, vectors, points, cluster_count=2)
+
+        self.assertEqual(
+            {row["label"] for row in result["clusters"]},
+            {"world models", "preference optimization"},
+        )
+        self.assertEqual(result["cluster_quality"]["fit_count"], 4)
+
     def test_repeatable_output(self) -> None:
         records, vectors, points = sample_data()
 
@@ -162,6 +175,55 @@ class ClusterTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "weak or generic"):
             build_clusters(records, vectors, points, cluster_count=2)
+
+    def test_gate_assignment(self) -> None:
+        records = [("topic:worlds", "world models"), ("topic:align", "alignment")]
+        vectors = np.asarray([[1, 0, 0], [0, 1, 0]], dtype=np.float32)
+        centers = np.asarray(
+            [
+                [0.31, 0.9, np.sqrt(1 - 0.31**2 - 0.9**2)],
+                [0.29, 0.31, np.sqrt(1 - 0.29**2 - 0.31**2)],
+            ],
+            dtype=np.float32,
+        )
+
+        markers = _markers(
+            [record[0] for record in records],
+            [record[1] for record in records],
+            vectors,
+            centers,
+        )
+
+        self.assertEqual(markers[0][0], "world models")
+        self.assertEqual(markers[1][0], "alignment")
+        self.assertTrue(all(score >= 0.3 for _, score in markers.values()))
+
+    def test_generic_excluded(self) -> None:
+        records = [
+            ("trick:adam", "adam"),
+            ("topic:worlds", "world models"),
+            ("topic:align", "alignment"),
+        ]
+        vectors = np.eye(3, dtype=np.float32)
+        centers = np.asarray(
+            [
+                [0.8, 0.5, 0.1],
+                [0.7, 0.1, 0.5],
+            ],
+            dtype=np.float32,
+        )
+
+        markers = _markers(
+            [record[0] for record in records],
+            [record[1] for record in records],
+            vectors,
+            centers,
+        )
+
+        self.assertEqual(
+            {label for label, _ in markers.values()},
+            {"alignment", "world models"},
+        )
 
     def test_quality_gate(self) -> None:
         records, vectors, points = sample_data()

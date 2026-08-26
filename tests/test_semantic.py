@@ -62,6 +62,16 @@ class SemanticTests(unittest.TestCase):
         )
         self.assertAlmostEqual(float(np.mean(row_trust)), expected, places=12)
 
+    def test_quality_precision(self) -> None:
+        vectors = sample_vectors()
+        points = vectors[:, :2]
+
+        rows32 = quality_rows(vectors, points, count=1)
+        rows64 = quality_rows(vectors.astype(np.float64), points, count=1)
+
+        for left, right in zip(rows32, rows64, strict=True):
+            np.testing.assert_array_equal(left, right)
+
     def test_perfect_recall(self) -> None:
         vectors = sample_vectors()
 

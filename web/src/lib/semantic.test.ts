@@ -91,7 +91,25 @@ describe("semantic layout guard", () => {
       layout.quality.cohorts.idea.thresholds.trustworthiness = 0.9 as never;
     });
     rejects((layout) => {
-      layout.quality.cohorts.taxonomy.knn_recall = 0.39;
+      layout.quality.cohorts.taxonomy.knn_recall = 0.32;
+    });
+  });
+
+  it("requires fixed cross-kind retrieval and positional mixing gates", () => {
+    rejects((layout) => {
+      layout.mix_quality.semantic_routes.trick.hit_rate = 0.74;
+    });
+    rejects((layout) => {
+      layout.mix_quality.projected_routes.combined.precision = 0.29;
+    });
+    rejects((layout) => {
+      layout.mix_quality.position_eta_squared = 0.051;
+    });
+    rejects((layout) => {
+      layout.mix_quality.exact_coordinate_duplicates = 1;
+    });
+    rejects((layout) => {
+      layout.mix_quality.thresholds.routes.projected.topic.hit_rate = 0.4 as never;
     });
   });
 

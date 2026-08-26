@@ -77,11 +77,96 @@ test("a bare paper deep link selects it and opens evidence explicitly", async ({
   await loadMap(page, "/#?s=paper-1");
   await expect(page.getByLabel("Choose a visible graph node")).toHaveValue("paper-1");
   await expect(page.getByRole("heading", { name: "In Two Minds" })).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("button", { name: "Open paper", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("In Two Minds", {
     timeout: 20_000,
   });
   expect(hits).toHaveLength(1);
+});
+
+test("hover labels a node and click keeps details in the inspector", async ({
+  page,
+}, testInfo) => {
+  test.skip(["android", "iphone"].includes(testInfo.project.name));
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1_440, height: 900 });
+  await loadMap(page);
+  await showFilters(page);
+  await page.getByRole("button", { name: /Paper\s+2205/ }).click();
+  await expect(mapStatus(page)).toContainText("2,316 visible graph nodes available", {
+    timeout: 20_000,
+  });
+  const picker = page.getByLabel("Choose a visible graph node");
+  await picker.fill("In-Context Language Learning");
+  await page.getByRole("option", { name: /In-Context Language Learning/ }).click();
+  await page.getByRole("button", { name: "Center selected" }).click();
+  await picker.fill("Massive Spikes in LLMs are Bias Vectors");
+  await page.getByRole("option", { name: /Massive Spikes in LLMs/ }).click();
+
+  const graph = page.getByLabel(/Interactive (3D )?research graph/);
+  const box = await graph.boundingBox();
+  if (!box) throw new Error("Research graph has no bounds");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const tooltip = page.locator(".float-tooltip-kap");
+  await expect(tooltip).toContainText("Paper · In-Context Language Learning");
+  await expect(tooltip).toHaveCSS("font-family", /Baskerville/);
+  await expect(tooltip).toHaveCSS("font-size", "14px");
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(
+    page.getByRole("heading", { name: "In-Context Language Learning" }),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const inspector = await page.getByLabel("Node inspector").boundingBox();
+  if (!inspector) throw new Error("Node inspector has no bounds");
+  expect(inspector.x).toBeGreaterThanOrEqual(box.x + box.width - 2);
+  expect(inspector.width).toBeGreaterThanOrEqual(280);
+  expect(inspector.width).toBeLessThanOrEqual(520);
+  await page.mouse.move(box.x + 12, box.y + 12);
+  await expect(tooltip).toBeHidden();
+});
+
+test("2D hover and click use the same inline inspector", async ({ page }, testInfo) => {
+  test.skip(["android", "iphone"].includes(testInfo.project.name));
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1_440, height: 900 });
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      type: string,
+      ...args: unknown[]
+    ) {
+      if (type === "webgl2") return null;
+      return Reflect.apply(original, this, [type, ...args]);
+    } as typeof original;
+  });
+  await loadMap(page);
+  await showFilters(page);
+  await page.getByRole("button", { name: /Paper\s+2205/ }).click();
+  await expect(mapStatus(page)).toContainText("2,316 visible graph nodes available", {
+    timeout: 20_000,
+  });
+  const picker = page.getByLabel("Choose a visible graph node");
+  await picker.fill("In-Context Language Learning");
+  await page.getByRole("option", { name: /In-Context Language Learning/ }).click();
+  await page.getByRole("button", { name: "Center selected" }).click();
+  await picker.fill("Massive Spikes in LLMs are Bias Vectors");
+  await page.getByRole("option", { name: /Massive Spikes in LLMs/ }).click();
+
+  const graph = page.getByLabel("Interactive research graph");
+  const box = await graph.boundingBox();
+  if (!box) throw new Error("2D research graph has no bounds");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const tooltip = page.locator(".float-tooltip-kap");
+  await expect(tooltip).toContainText("Paper · In-Context Language Learning");
+  await expect(tooltip).toHaveCSS("font-family", /Baskerville/);
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(
+    page.getByRole("heading", { name: "In-Context Language Learning" }),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
 test("copied view links include a camera snapshot", async ({ page, context }) => {
@@ -118,7 +203,27 @@ test("copied view links include a camera snapshot", async ({ page, context }) =>
     .match(/c=1_([^&]+)/)?.[1]
     .split("_")
     .map(Number);
-  expect(camera?.slice(0, 3)).toEqual([180.4, 17.1, -24.5]);
+  const selectedId = new URLSearchParams(
+    new URL(page.url()).hash.replace(/^#\?/, ""),
+  ).get("s");
+  if (!selectedId) throw new Error("Selected paper is missing from the atlas URL");
+  const point = await page.evaluate(async (nodeId) => {
+    const base = new URL(".", window.location.href);
+    const coreResponse = await fetch(new URL("data/atlas.json", base));
+    const core = (await coreResponse.json()) as {
+      paper_asset: { path: string };
+    };
+    const paperPath = core.paper_asset.path.replace(/^\/+/, "");
+    const paperResponse = await fetch(new URL(paperPath, base));
+    const papers = (await paperResponse.json()) as {
+      layout: { positions: Record<string, [number, number, number]> };
+    };
+    return papers.layout.positions[nodeId];
+  }, selectedId);
+  const expected = point.map((value) => Math.round(value * 10) / 10);
+  const uses3d = await page.getByLabel("Interactive 3D research graph").count();
+  expect(camera?.slice(0, 2)).toEqual(expected.slice(0, 2));
+  expect(camera?.[2]).toBe(uses3d ? expected[2] : 0);
 });
 
 test("a failed paper shard retries once", async ({ page }) => {
@@ -236,7 +341,7 @@ test("nearby nodes support keyboard entry", async ({ page }) => {
     .toBe(true);
 });
 
-test("region labels cap and hide with filters", async ({ page }) => {
+test("the graph has no ambient labels", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 800 });
   await page.addInitScript(() => {
     const original = HTMLCanvasElement.prototype.getContext;
@@ -249,14 +354,71 @@ test("region labels cap and hide with filters", async ({ page }) => {
     } as typeof original;
   });
   await loadMap(page);
-  await expect.poll(() => page.locator(".region-label").count()).toBeGreaterThan(0);
-  expect(await page.locator(".region-label").count()).toBeLessThanOrEqual(2);
+  const tooltip = page.locator(".float-tooltip-kap");
+  await expect(tooltip).toBeHidden();
 
   await page.getByLabel("Search the atlas").fill("alignment");
-  await expect(page.locator(".region-label")).toHaveCount(0);
+  await expect(tooltip).toBeHidden();
   await page.getByLabel("Search the atlas").fill("");
   await page.getByRole("button", { name: "connections", exact: true }).click();
-  await expect(page.locator(".region-label")).toHaveCount(0);
+  await expect(tooltip).toBeHidden();
+});
+
+test("details panel resizes and returns to its default", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loadMap(page);
+  const separator = page.getByRole("separator", { name: "Resize details panel" });
+  const inspector = page.getByLabel("Node inspector");
+  await expect(separator).toBeVisible();
+  await expect(separator).toHaveAttribute("aria-valuenow", "330");
+
+  await separator.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(separator).toHaveAttribute("aria-valuenow", "346");
+  await expect
+    .poll(async () => Math.round((await inspector.boundingBox())?.width ?? 0))
+    .toBe(346);
+
+  const box = await separator.boundingBox();
+  if (!box) throw new Error("Resize separator has no bounds");
+  await page.mouse.move(box.x + box.width / 2, box.y + 180);
+  await page.mouse.down();
+  await page.mouse.move(box.x - 64, box.y + 180, { steps: 4 });
+  await page.mouse.up();
+  const stored = Number(await separator.getAttribute("aria-valuenow"));
+  expect(stored).toBeGreaterThan(346);
+  await page.reload();
+  await expect(separator).toHaveAttribute("aria-valuenow", String(stored));
+  expect(page.url()).not.toContain("panel");
+
+  await separator.focus();
+  await page.keyboard.press("Enter");
+  await expect(separator).toHaveAttribute("aria-valuenow", "330");
+  await expect
+    .poll(async () => Math.round((await inspector.boundingBox())?.width ?? 0))
+    .toBe(330);
+
+  await separator.focus();
+  await page.keyboard.press("ArrowLeft");
+  await page.getByRole("button", { name: "Reset panel width" }).click();
+  await expect(separator).toHaveAttribute("aria-valuenow", "330");
+});
+
+test("details panel resize control is hidden in stacked layouts", async ({ page }) => {
+  await page.setViewportSize({ width: 1_101, height: 844 });
+  await loadMap(page);
+  const separator = page.getByRole("separator", { name: "Resize details panel" });
+  await separator.focus();
+  await page.setViewportSize({ width: 1_100, height: 844 });
+  await expect(page.getByLabel("Node inspector")).toBeFocused();
+  await expect(
+    page.getByRole("separator", { name: "Resize details panel", includeHidden: true }),
+  ).toBeHidden();
+
+  await page.setViewportSize({ width: 1_101, height: 844 });
+  await page.getByRole("button", { name: "Reset panel width" }).focus();
+  await page.setViewportSize({ width: 1_100, height: 844 });
+  await expect(page.getByLabel("Node inspector")).toBeFocused();
 });
 
 test("context loss falls back to 2D", async ({ page }) => {
@@ -279,7 +441,7 @@ test("context loss falls back to 2D", async ({ page }) => {
     await expect(page.getByRole("button", { name: "Close inspector" })).toBeVisible();
   } else {
     await expect(page.getByLabel("Interactive research graph")).toContainText(
-      "2D semantic compatibility view",
+      "2D compatibility · semantic",
     );
   }
 });

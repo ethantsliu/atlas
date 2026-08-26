@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { makeFullReading, makePaper } from "../test/fixtures";
-import type { FullReading, Paper } from "../types";
+import type { Paper } from "../types";
 
 type Cleanup = void | (() => void);
 type EffectSlot = { cleanup: Cleanup; deps: readonly unknown[] };

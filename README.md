@@ -78,42 +78,66 @@ copied to `web/public/data/atlas.json`.
 
 ### Semantic graph layout
 
-`pipeline/embed.py` embeds papers, taxonomy markers, and research ideas in one
-384-dimensional space. A reviewed paper uses normalized character budgets for
+`pipeline/embed.py` embeds papers, taxonomy markers, and research ideas with one
+pinned 384-dimensional model. A reviewed paper uses normalized character budgets for
 `question` (100), `core_idea` (170), `mechanism` (170), and up to six techniques
 (70 combined) so one long field cannot crowd out later signals; title (160) and area
 routes (70) remain present. Unreviewed rows fall back to their compact problem and
 approach text, while placeholder prose is omitted. Ideas budget title (180), thesis
-(250), the first two proposed-method items (250 combined), and routes (80).
+(250), the first two proposed-method items (250 combined), and routes (80). Taxonomy
+markers embed their curated labels alone, without kind-specific boilerplate that would
+artificially separate topics and tricks from papers.
 
 The embedding contract is pinned, not merely model-named: Ollama `all-minilm` digest
 `1b226e2802dbb772b5fc32a58f103ca1804ef7501331012de126ab22f67475ef`, 384
 dimensions, a 256-token request context, `truncate: false`, Ollama 0.13.1, and text
-schema `field-budget-v1`. Generation fails if the installed model digest, runtime,
+schema `field-budget-v2`. Generation fails if the installed model digest, runtime,
 or embedding dimensions differ, or if its context capacity is below 256. Full vectors
 stay local; the public layout carries their SHA-256 provenance, not the vectors
-themselves.
+themselves. The raw-vector cache binds the exact ordered node IDs and a hash of every
+row's semantic input. Reducer configuration is deliberately excluded from that cache
+so projection tuning reuses, rather than silently re-embeds, the same verified
+vectors; the layout input hash binds the reducer separately.
 
 The published eight neighbors per node are an exact, exhaustive cosine ranking in
 the original embedding space, with self-links and canonical or identical-text aliases
 excluded. They are discovery suggestions only: a neighbor score is not a citation,
 paper dependency, related-work judgment, or evidence of agreement.
 
-UMAP reduces the embeddings to three rounded coordinates with seed 42 and one worker.
+UMAP reduces the embeddings to three rounded coordinates with cosine distance, 24
+neighbors, minimum distance 0.12, repulsion strength 2, negative-sample rate 20, seed
+42, and one worker. Coordinates are centered, scaled by the 98th absolute percentile,
+clipped at 1.25, and mapped to an extent of 360.
 The reported trustworthiness and exact-neighbor recall compare those static points
 with the original vectors at k=10; they do not measure the positions left on screen by
-the browser. The browser starts at the UMAP coordinates, then its semantic mode uses
-them as soft anchors while center, charge, and link forces move nodes. Connections
-mode removes the semantic anchor and emphasizes graph links. Consequently, final
-screen distance is an interactive orientation cue, not a reproducible similarity
-score.
+the browser. The browser starts at the UMAP coordinates, then uses either pinned or
+soft semantic anchors according to graph density. Connections mode removes the
+semantic anchor and emphasizes graph links. Consequently, final screen distance is
+an interactive orientation cue, not a reproducible similarity score.
 
 Layout quality must clear aggregate trustworthiness 0.90 and k-nearest-neighbor
 recall 0.25. The artifact also reports both values for all nodes, research papers,
 non-paper context, ideas, and taxonomy markers. Those cohorts are diagnostics over
-the same global neighborhood, not separate embeddings. Paper, idea, and taxonomy
-cohorts have explicit regression gates; the three context rows are descriptive only.
+the same global neighborhood, not separate embeddings. Paper and aggregate cohorts
+must clear 0.90 trustworthiness and 0.25 recall; ideas must clear 0.95 and 0.40;
+taxonomy markers must clear 0.88 and 0.33. The taxonomy gate replaces the stricter
+threshold calibrated on kind-prefixed text, which rewarded an artificial taxonomy
+island rather than cross-kind discovery. The context cohort is descriptive only.
 Alias-equivalent rows are excluded from the comparison.
+
+Exact embedding-space neighborhoods must retrieve routed research papers separately
+for topics, tricks, and their combined cohort: precision at eight must be at least
+0.20, and at least 75% of markers must retrieve one. Projected Euclidean neighborhoods
+must reach 0.20 precision and 50% hit rate for topics and tricks separately, and 0.30
+precision with 50% hit rate when combined. The artifact publishes all six diagnostics.
+These are evidence-retrieval regression gates, not claims that every routed paper is
+semantically interchangeable with its taxonomy marker.
+
+The build also requires zero duplicate rounded coordinate triples and reports the
+fraction of positional variance explained by the five node kinds (topic, trick,
+research paper, idea, and non-paper context), capped at 0.05. This eta-squared value is
+a centroid-separation diagnostic: it catches broad kind-color separation but does not
+prove the absence of shells, nonlinear banding, or every visual artifact.
 
 The region overlay is deliberately coarse orientation, not a claim that the corpus
 contains natural classes. Normalized KMeans fits research-paper and idea embeddings,
@@ -132,10 +156,10 @@ repeatable, but a seed alone does not promise bit-identical floating-point outpu
 across transitive numerical libraries, BLAS builds, or hardware. The requirements pin
 direct Python dependencies, while artifact hashes bind semantic input, the exact
 model contract, actual vector bytes, and reducer configuration. The committed result
-is therefore provenance-bound, not a promise that every platform will rebuild the
-same bytes. Any vector or layout hash change must be reviewed and committed. Only
-rounded coordinates, quality metadata, exact neighbors, and coarse region assignments
-are published.
+is therefore provenance-bound, not a
+promise that every platform will rebuild the same bytes. Any vector or layout hash
+change must be reviewed and committed. Only rounded coordinates, quality metadata,
+exact neighbors, and coarse region assignments are published.
 
 ## Daily paper discovery
 

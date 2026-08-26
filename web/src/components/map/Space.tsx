@@ -16,19 +16,17 @@ import {
   type LayoutMode,
 } from "../../hooks/layout";
 import { useQuality } from "../../hooks/quality";
-import { useRegions } from "../../hooks/regions";
 import { usePixel } from "../../hooks/pixel";
 import { useMarks } from "../../hooks/marks";
 import { useScene } from "../../hooks/scene";
 import type { Theme } from "../../hooks/theme";
 import { graphEndpointId } from "../../lib/graph";
-import { graphChrome, type ClusterSet } from "../../lib/clusters";
-import { showCluster, showLink } from "../../lib/quality";
+import { showLink } from "../../lib/quality";
 import { formatCamera, show3d, type CameraView } from "../../lib/camera";
 import { buildNode } from "../../lib/scene";
+import { labelOf } from "../../lib/text";
 import type { GraphData, GraphLink, GraphNode } from "../../types";
 import type { GraphRef } from "./Driver";
-import { RegionOverlay } from "./Regions";
 
 type SpaceProps = {
   graph: GraphData;
@@ -39,8 +37,6 @@ type SpaceProps = {
   theme: Theme;
   layout: LayoutMode;
   camera: CameraView | null;
-  clusters: ClusterSet;
-  regionsEnabled: boolean;
   onChoose: (node: GraphNode) => void;
   onFocus: (nodeId: string) => void;
   onClear: () => void;
@@ -55,8 +51,6 @@ export function GraphSpace({
   theme,
   layout,
   camera,
-  clusters,
-  regionsEnabled,
   onChoose,
   onFocus,
   onClear,
@@ -65,8 +59,8 @@ export function GraphSpace({
   const quality = useQuality(graph.nodes.length, width, height);
   const engineReadyRef = useRef(false);
   const fitRef = useRef(true);
+  const fitKeyRef = useRef<string>();
   const fitFrameRef = useRef<number>();
-  const timerRef = useRef<number>();
   const restoredRef = useRef<string | null>(null);
   const topology = useMemo(
     () =>
@@ -82,20 +76,6 @@ export function GraphSpace({
     (node: GraphNode) => buildNode(node, theme, quality.geometryDetail, simple),
     [quality.geometryDetail, simple, theme],
   );
-  const regionNodes = useMemo(() => [selected, hovered], [hovered, selected]);
-  const activeRegion = selected?.id
-    ? clusters.nodeClusters[selected.id]
-    : hovered?.id
-      ? clusters.nodeClusters[hovered.id]
-      : null;
-  const regionView = useRegions({
-    graph,
-    graphRef,
-    clusters,
-    active: regionNodes,
-    quality,
-    enabled: regionsEnabled,
-  });
   usePixel(graphRef, quality.pixelRatioCap);
   useMarks({
     graphRef,
@@ -108,16 +88,14 @@ export function GraphSpace({
   });
 
   useEffect(() => {
-    fitRef.current = !selected;
-  }, [graphRef, selected, topology]);
-
-  useEffect(
-    () => () => {
-      window.cancelAnimationFrame(fitFrameRef.current ?? 0);
-      window.clearTimeout(timerRef.current);
-    },
-    [],
-  );
+    if (selected || camera) {
+      fitRef.current = false;
+      return;
+    }
+    if (fitKeyRef.current === topology) return;
+    fitKeyRef.current = topology;
+    fitRef.current = true;
+  }, [camera, selected, topology]);
 
   useEffect(() => {
     if (graphRef.current) {
@@ -135,8 +113,7 @@ export function GraphSpace({
     restoredRef.current = key;
     fitRef.current = false;
     show3d(graphRef.current, camera);
-    regionView.project();
-  }, [camera, graphRef, regionView]);
+  }, [camera, graphRef]);
 
   useEffect(() => {
     if (camera || selected || layout !== "semantic" || !graphRef.current) return;
@@ -149,7 +126,7 @@ export function GraphSpace({
       api.zoomToFit(duration, 72, (node) => !rendered || rendered.has(node.id));
     });
     return () => window.cancelAnimationFrame(fitFrameRef.current ?? 0);
-  }, [camera, graphRef, layout, rendered, selected, topology]);
+  }, [camera, graphRef, layout, selected, topology]);
 
   const activeIds = useMemo(
     () => new Set([selected?.id, hovered?.id].filter(Boolean)),
@@ -157,71 +134,47 @@ export function GraphSpace({
   );
 
   return (
-    <>
-      <ForceGraph3D
-        ref={graphRef as MutableRefObject<ForceGraphMethods<GraphNode, GraphLink>>}
-        width={width}
-        height={height}
-        graphData={scene.graph}
-        backgroundColor={theme === "dark" ? "#0f1511" : "#f0eadf"}
-        showNavInfo={false}
-        numDimensions={3}
-        nodeLabel={(node) => node.label}
-        nodeThreeObject={makeNode}
-        linkColor={() => (theme === "dark" ? "#617065" : "#9d9285")}
-        linkWidth={0}
-        linkVisibility={(link) => {
-          if (layout === "connections") return true;
-          const active =
-            activeIds.has(graphEndpointId(link.source)) ||
-            activeIds.has(graphEndpointId(link.target));
-          return showLink(quality, { selected: active });
-        }}
-        linkOpacity={
-          layout === "connections"
-            ? Math.max(0.12, quality.linkOpacity)
-            : quality.linkOpacity
-        }
-        cooldownTicks={layoutTicks(layout, quality.cooldownTicks, simple)}
-        d3VelocityDecay={0.24}
-        enableNodeDrag={false}
-        onEngineTick={() => {
-          engineReadyRef.current = true;
-        }}
-        onEngineStop={() => {
-          if (!fitRef.current) {
-            regionView.project();
-            return;
-          }
-          fitRef.current = false;
-          const reduced = window.matchMedia?.(
-            "(prefers-reduced-motion: reduce)",
-          ).matches;
-          const duration = layoutTime(Boolean(reduced), 700);
-          graphRef.current?.zoomToFit(duration, 72, () => true);
-          window.clearTimeout(timerRef.current);
-          timerRef.current = window.setTimeout(() => {
-            regionView.markFit();
-          }, duration + 30);
-        }}
-        onNodeClick={onChoose}
-        onNodeHover={(node) => setHovered(node ?? null)}
-        onNodeRightClick={(node) => onFocus(node.id)}
-        onBackgroundClick={onClear}
-      />
-      <RegionOverlay
-        points={regionView.points}
-        view={{
-          width,
-          height,
-          scale: regionView.scale,
-          enabled:
-            regionsEnabled &&
-            showCluster(quality, regionView.scale, graph.nodes.length),
-          activeId: activeRegion,
-          reserved: [...regionView.reserved, ...graphChrome(width)],
-        }}
-      />
-    </>
+    <ForceGraph3D
+      ref={graphRef as MutableRefObject<ForceGraphMethods<GraphNode, GraphLink>>}
+      width={width}
+      height={height}
+      graphData={scene.graph}
+      backgroundColor={theme === "dark" ? "#0f1511" : "#f0eadf"}
+      showNavInfo={false}
+      numDimensions={3}
+      nodeLabel={(node) => `${labelOf(node.kind)} · ${node.label}`}
+      nodeThreeObject={makeNode}
+      linkColor={() => (theme === "dark" ? "#617065" : "#9d9285")}
+      linkWidth={0}
+      linkVisibility={(link) => {
+        if (layout === "connections") return true;
+        const active =
+          activeIds.has(graphEndpointId(link.source)) ||
+          activeIds.has(graphEndpointId(link.target));
+        return showLink(quality, { selected: active });
+      }}
+      linkOpacity={
+        layout === "connections"
+          ? Math.max(0.12, quality.linkOpacity)
+          : quality.linkOpacity
+      }
+      cooldownTicks={layoutTicks(layout, quality.cooldownTicks, simple)}
+      d3VelocityDecay={0.24}
+      enableNodeDrag={false}
+      onEngineTick={() => {
+        engineReadyRef.current = true;
+      }}
+      onEngineStop={() => {
+        if (!fitRef.current) return;
+        fitRef.current = false;
+        const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+        const duration = layoutTime(Boolean(reduced), 700);
+        graphRef.current?.zoomToFit(duration, 72, () => true);
+      }}
+      onNodeClick={onChoose}
+      onNodeHover={(node) => setHovered(node ?? null)}
+      onNodeRightClick={(node) => onFocus(node.id)}
+      onBackgroundClick={onClear}
+    />
   );
 }

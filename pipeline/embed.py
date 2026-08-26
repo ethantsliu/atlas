@@ -13,6 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
+from cache import valid_hashes, valid_ids
 from cluster import build_clusters
 from layout import (
     EMBED_DIM as DEFAULT_DIM,
@@ -23,6 +24,7 @@ from layout import (
     OLLAMA_VERSION,
     REDUCER,
 )
+from mix import ensure_mix, mix_report
 from semantic import (
     NEIGHBOR_COUNT,
     ensure_quality,
@@ -41,18 +43,10 @@ MODEL_DIGEST = os.environ.get("ATLAS_EMBED_DIGEST", DEFAULT_DIGEST)
 EMBED_DIM = int(os.environ.get("ATLAS_EMBED_DIM", str(DEFAULT_DIM)))
 ENDPOINT = os.environ.get("ATLAS_EMBED_URL", "http://127.0.0.1:11434/api/embed")
 EMBED_WORKERS = max(1, int(os.environ.get("ATLAS_EMBED_WORKERS", "1")))
-TAGS_ENDPOINT = os.environ.get(
-    "ATLAS_TAGS_URL",
-    f"{ENDPOINT.rsplit('/api/', 1)[0]}/api/tags",
-)
-SHOW_ENDPOINT = os.environ.get(
-    "ATLAS_SHOW_URL",
-    f"{ENDPOINT.rsplit('/api/', 1)[0]}/api/show",
-)
-VERSION_ENDPOINT = os.environ.get(
-    "ATLAS_VERSION_URL",
-    f"{ENDPOINT.rsplit('/api/', 1)[0]}/api/version",
-)
+API_ROOT = ENDPOINT.rsplit("/api/", 1)[0]
+TAGS_ENDPOINT = os.environ.get("ATLAS_TAGS_URL", f"{API_ROOT}/api/tags")
+SHOW_ENDPOINT = os.environ.get("ATLAS_SHOW_URL", f"{API_ROOT}/api/show")
+VERSION_ENDPOINT = os.environ.get("ATLAS_VERSION_URL", f"{API_ROOT}/api/version")
 
 
 def route_names(item: dict) -> str:
@@ -132,9 +126,9 @@ def idea_text(idea: dict) -> str:
     )
 
 
-def taxon_text(item: dict, prefix: str) -> str:
-    """Describe a curated taxonomy marker without corpus-order examples."""
-    return f"{prefix}: {item['label']}"
+def taxon_text(item: dict) -> str:
+    """Describe a curated taxonomy marker without encoding its node kind."""
+    return item["label"]
 
 
 def node_records(
@@ -144,14 +138,14 @@ def node_records(
     topics = [
         (
             f"topic:{item['id']}",
-            taxon_text(item, "machine learning research area"),
+            taxon_text(item),
         )
         for item in atlas["topics"]
     ]
     tricks = [
         (
             f"trick:{item['id']}",
-            taxon_text(item, "machine learning method"),
+            taxon_text(item),
         )
         for item in atlas["tricks"]
     ]
@@ -348,6 +342,8 @@ def reduce_points(vectors: np.ndarray) -> np.ndarray:
         metric=REDUCER["metric"],
         random_state=REDUCER["random_seed"],
         transform_seed=REDUCER["random_seed"],
+        repulsion_strength=REDUCER["repulsion_strength"],
+        negative_sample_rate=REDUCER["negative_sample_rate"],
         n_jobs=1,
     )
     points = reducer.fit_transform(vectors)
@@ -372,7 +368,7 @@ def vector_hash(records: list[tuple[str, str]]) -> str:
             "dimensions": EMBED_DIM,
             "context_length": MODEL_CONTEXT,
             "runtime": f"ollama-{OLLAMA_VERSION}",
-            "text_schema": "field-budget-v1",
+            "text_schema": "field-budget-v2",
             "truncate": False,
         },
         "records": records,
@@ -393,7 +389,7 @@ def row_hash(record: tuple[str, str]) -> str:
             "dimensions": EMBED_DIM,
             "context_length": MODEL_CONTEXT,
             "runtime": f"ollama-{OLLAMA_VERSION}",
-            "text_schema": "field-budget-v1",
+            "text_schema": "field-budget-v2",
             "truncate": False,
         },
         "record": record,
@@ -432,7 +428,11 @@ def valid_vectors(vectors: np.ndarray, expected_sha: str) -> bool:
     )
 
 
-def save_cache(digest: str, vectors: np.ndarray) -> None:
+def save_cache(
+    records: list[tuple[str, str]],
+    digest: str,
+    vectors: np.ndarray,
+) -> None:
     """Atomically persist a complete, self-verifying embedding cache."""
     CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
     temp_path = CACHE_PATH.with_suffix(".tmp.npz")
@@ -442,7 +442,8 @@ def save_cache(digest: str, vectors: np.ndarray) -> None:
         model=MODEL,
         model_digest=MODEL_DIGEST,
         dimensions=EMBED_DIM,
-        reducer=json.dumps(REDUCER, sort_keys=True),
+        ids=np.asarray([node_id for node_id, _ in records]),
+        row_hashes=np.asarray([row_hash(record) for record in records]),
         vector_sha256=vector_sha(vectors),
         vectors=vectors,
     )
@@ -460,6 +461,16 @@ def load_vectors(records: list[tuple[str, str]]) -> np.ndarray:
             if (
                 str(cached["digest"]) == digest
                 and vectors.shape[0] == len(records)
+                and "ids" in cached.files
+                and "row_hashes" in cached.files
+                and valid_ids(
+                    cached["ids"],
+                    np.asarray([node_id for node_id, _ in records]),
+                )
+                and valid_hashes(
+                    cached["row_hashes"],
+                    np.asarray([row_hash(record) for record in records]),
+                )
                 and valid_vectors(vectors, expected_sha)
             ):
                 print(f"Loaded {len(records):,} cached embeddings")
@@ -470,7 +481,7 @@ def load_vectors(records: list[tuple[str, str]]) -> np.ndarray:
             f"Embedding model returned {vectors.shape}, expected "
             f"({len(records)}, {EMBED_DIM})"
         )
-    save_cache(digest, vectors)
+    save_cache(records, digest, vectors)
     if PART_PATH.exists():
         PART_PATH.unlink()
     return vectors
@@ -536,6 +547,9 @@ def build_layout(atlas: dict, details: dict[str, dict] | None = None) -> dict:
         for (node_id, _), point in zip(records, points, strict=True)
     }
     cluster_fields = build_clusters(records, vectors, points)
+    neighbors = semantic_neighbors(records, vectors, exclusions=exclusions)
+    mixing = mix_report(atlas, neighbors, positions)
+    ensure_mix(mixing)
     vectors_sha = vector_sha(vectors)
     return {
         "schema_version": 3,
@@ -549,7 +563,7 @@ def build_layout(atlas: dict, details: dict[str, dict] | None = None) -> dict:
             "context_length": MODEL_CONTEXT,
             "metric": "cosine",
             "runtime": f"ollama-{OLLAMA_VERSION}",
-            "text_schema": "field-budget-v1",
+            "text_schema": "field-budget-v2",
             "truncate": False,
             "input_sha256": vector_hash(records),
             "vector_sha256": vectors_sha,
@@ -560,11 +574,8 @@ def build_layout(atlas: dict, details: dict[str, dict] | None = None) -> dict:
         "node_count": len(records),
         "quality": quality,
         "neighbor_count": NEIGHBOR_COUNT,
-        "neighbors": semantic_neighbors(
-            records,
-            vectors,
-            exclusions=exclusions,
-        ),
+        "neighbors": neighbors,
+        "mix_quality": mixing,
         **cluster_fields,
         "positions": positions,
     }

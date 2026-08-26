@@ -13,7 +13,9 @@ REDUCER = {
     "min_dist": 0.12,
     "metric": "cosine",
     "random_seed": 42,
+    "repulsion_strength": 2.0,
+    "negative_sample_rate": 20,
     "scale_percentile": 98,
     "clip": 1.25,
-    "extent": 260,
+    "extent": 360,
 }

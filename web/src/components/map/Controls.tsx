@@ -22,7 +22,7 @@ export function GraphControls({
 }: ControlsProps) {
   const space =
     layout === "semantic"
-      ? "semantic · similar meaning is nearby"
+      ? "semantic · embedding-guided similarity"
       : "connections · linked nodes pull together";
   return (
     <>
