@@ -18,7 +18,6 @@ import {
 import { useQuality } from "../../hooks/quality";
 import { usePixel } from "../../hooks/pixel";
 import { useMarks } from "../../hooks/marks";
-import { useScene } from "../../hooks/scene";
 import type { Theme } from "../../hooks/theme";
 import { graphEndpointId } from "../../lib/graph";
 import { showLink } from "../../lib/quality";
@@ -70,8 +69,7 @@ export function GraphSpace({
         .join("\u0000"),
     [graph.nodes],
   );
-  const scene = useScene(graph, layout, quality.tier, selected?.id);
-  const { ids: rendered, simple } = scene;
+  const simple = graph.nodes.length >= 1_000;
   const makeNode = useCallback(
     (node: GraphNode) => buildNode(node, theme, quality.geometryDetail, simple),
     [quality.geometryDetail, simple, theme],
@@ -99,13 +97,13 @@ export function GraphSpace({
 
   useEffect(() => {
     if (graphRef.current) {
-      const dense = layout === "semantic" && scene.simple;
-      if (dense) pinNodes(scene.graph.nodes);
-      else freeNodes(scene.graph.nodes);
+      const dense = layout === "semantic" && simple;
+      if (dense) pinNodes(graph.nodes);
+      else freeNodes(graph.nodes);
       applyLayout(graphRef.current, layout, engineReadyRef.current, dense);
       graphRef.current.refresh();
     }
-  }, [graphRef, layout, scene.graph.nodes, scene.simple]);
+  }, [graph.nodes, graphRef, layout, simple]);
 
   useEffect(() => {
     const key = formatCamera(camera);
@@ -123,7 +121,7 @@ export function GraphSpace({
     window.cancelAnimationFrame(fitFrameRef.current ?? 0);
     fitFrameRef.current = window.requestAnimationFrame(() => {
       fitRef.current = false;
-      api.zoomToFit(duration, 72, (node) => !rendered || rendered.has(node.id));
+      api.zoomToFit(duration, 72);
     });
     return () => window.cancelAnimationFrame(fitFrameRef.current ?? 0);
   }, [camera, graphRef, layout, selected, topology]);
@@ -138,7 +136,7 @@ export function GraphSpace({
       ref={graphRef as MutableRefObject<ForceGraphMethods<GraphNode, GraphLink>>}
       width={width}
       height={height}
-      graphData={scene.graph}
+      graphData={graph}
       backgroundColor={theme === "dark" ? "#0f1511" : "#f0eadf"}
       showNavInfo={false}
       numDimensions={3}

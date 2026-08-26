@@ -3,7 +3,6 @@ import { layoutTime, type LayoutMode } from "../../hooks/layout";
 import { useElementSize } from "../../hooks/size";
 import type { Theme } from "../../hooks/theme";
 import { useWebgl } from "../../hooks/webgl";
-import { useDrawn } from "../../hooks/drawn";
 import { ALL_NODE_KINDS, NODE_COLORS } from "../../lib/graph";
 import { findNextNode, type ArrowKey } from "../../lib/nav";
 import { labelOf } from "../../lib/text";
@@ -61,7 +60,6 @@ export function GraphCanvas({
   const selectedId = graph.nodes.some((node) => node.id === selected?.id)
     ? (selected?.id ?? "")
     : "";
-  const drawn = useDrawn(graph, width, height, layout, selected?.id);
 
   const resetView = useCallback(() => {
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -103,7 +101,6 @@ export function GraphCanvas({
       <GraphHelp mode={mode} selected={selected} />
       <GraphControls
         count={graph.nodes.length}
-        drawn={drawn}
         mode={mode}
         layout={layout}
         onReset={resetView}

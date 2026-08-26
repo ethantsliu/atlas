@@ -9,7 +9,6 @@ import {
   type LayoutMode,
 } from "../../hooks/layout";
 import { useQuality } from "../../hooks/quality";
-import { useScene } from "../../hooks/scene";
 import { graphEndpointId } from "../../lib/graph";
 import { showLink } from "../../lib/quality";
 import { formatCamera, show2d, type CameraView } from "../../lib/camera";
@@ -71,18 +70,18 @@ export function FallbackGraph({
   const [hovered, setHovered] = useState<GraphNode | null>(null);
   const restoredRef = useRef<string | null>(null);
   const quality = useQuality(graph.nodes.length, width, height);
-  const scene = useScene(graph, layout, quality.tier, selected?.id);
+  const simple = graph.nodes.length >= 1_000;
   const activeIds = new Set(
     [selected?.id, hovered?.id].filter((id): id is string => Boolean(id)),
   );
 
   useEffect(() => {
     if (!graphRef.current) return;
-    const dense = layout === "semantic" && scene.simple;
-    if (dense) pinNodes(scene.graph.nodes);
-    else freeNodes(scene.graph.nodes);
+    const dense = layout === "semantic" && simple;
+    if (dense) pinNodes(graph.nodes);
+    else freeNodes(graph.nodes);
     applyLayout(graphRef.current, layout, true, dense);
-  }, [graphRef, layout, scene.graph.nodes, scene.simple]);
+  }, [graph.nodes, graphRef, layout, simple]);
 
   useEffect(() => {
     const key = formatCamera(camera);
@@ -96,7 +95,7 @@ export function FallbackGraph({
       ref={graphRef}
       width={width}
       height={height}
-      graphData={scene.graph}
+      graphData={graph}
       backgroundColor={theme === "dark" ? "#0f1511" : "#f0eadf"}
       linkColor={() =>
         theme === "dark"
@@ -111,7 +110,7 @@ export function FallbackGraph({
         return showLink(quality, { selected: active });
       }}
       linkWidth={layout === "connections" ? 0.8 : 1}
-      cooldownTicks={layoutTicks(layout, quality.cooldownTicks, scene.simple)}
+      cooldownTicks={layoutTicks(layout, quality.cooldownTicks, simple)}
       d3VelocityDecay={0.28}
       nodeLabel={(node) => `${labelOf(node.kind)} · ${node.label}`}
       nodeCanvasObject={(node, context, scale) => {

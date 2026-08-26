@@ -159,13 +159,14 @@ test("2D hover and click use the same inline inspector", async ({ page }, testIn
   if (!box) throw new Error("2D research graph has no bounds");
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   const tooltip = page.locator(".float-tooltip-kap");
-  await expect(tooltip).toContainText("Paper · In-Context Language Learning");
+  await expect(tooltip).toBeVisible();
+  const hoveredLabel = (await tooltip.textContent()) ?? "";
+  expect(hoveredLabel).toMatch(/^Paper · .+/);
+  const hoveredTitle = hoveredLabel.replace(/^Paper · /, "");
   await expect(tooltip).toHaveCSS("font-family", /Baskerville/);
   await page.mouse.down();
   await page.mouse.up();
-  await expect(
-    page.getByRole("heading", { name: "In-Context Language Learning" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: hoveredTitle })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
@@ -186,14 +187,12 @@ test("copied view links include a camera snapshot", async ({ page, context }) =>
   await showFilters(page);
   await page.getByRole("button", { name: /Paper\s+2205/ }).click();
   const header = page.locator(".graph-header > div");
-  await expect(header).toContainText("drawn", { timeout: 20_000 });
-  const before = Number(
-    (await header.textContent())?.match(/([\d,]+) drawn/)?.[1].replace(",", ""),
-  );
+  await expect(header).toContainText("2,316 nodes", { timeout: 20_000 });
+  await expect(header).not.toContainText("drawn");
   const picker = page.getByLabel("Choose a visible graph node");
   await picker.fill("Massive Spikes in LLMs are Bias Vectors");
   await page.getByRole("option", { name: /Massive Spikes in LLMs/ }).click();
-  await expect(header).toContainText(`${before + 1} drawn`);
+  await expect(header).toContainText("2,316 nodes");
   await page.getByRole("button", { name: "Center selected" }).click();
   await page.getByRole("button", { name: "Copy a link to this atlas view" }).click();
   const copied = await page.evaluate(
