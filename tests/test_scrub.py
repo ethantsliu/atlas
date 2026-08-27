@@ -133,13 +133,21 @@ class ScrubTests(unittest.TestCase):
             scrub_author("Ada Researcher <ada@university.edu>"), "Ada Researcher"
         )
         self.assertEqual(scrub_author("ccarilli@nrao. edu"), "")
+        self.assertEqual(scrub_author("Ada <ada@example. EDU>"), "Ada")
         self.assertEqual(scrub_author("owner@localhost"), "")
         self.assertEqual(scrub_author("owner@localhostX"), "owner@localhostX")
-        self.assertEqual(scrub_contact("Mail ada@example.edu."), "Mail.")
-        self.assertEqual(scrub_contact("Mail owner@localhost."), "Mail.")
+        self.assertEqual(scrub_contact("Mail ada@example.edu."), "")
+        self.assertEqual(scrub_contact("Mail owner@localhost."), "")
         self.assertEqual(scrub_author("ada@example.edu."), "")
         self.assertEqual(scrub_contact("Contact ada@example.edu."), "")
         self.assertEqual(scrub_contact("Correspondence: ada@example. edu."), "")
+        self.assertEqual(scrub_contact("Contact ada@example. EDU"), "")
+        self.assertEqual(scrub_contact("Email: ada@example. COM"), "")
+        self.assertEqual(scrub_contact("Mail ada@example. Org"), "")
+        self.assertEqual(
+            scrub_contact("Note ada@example. EDU remains"),
+            "Note ada@example. EDU remains",
+        )
         self.assertEqual(scrub_contact("Contact ada＠example.edu"), "")
         self.assertEqual(scrub_contact("Contact ada@example．edu"), "")
         self.assertEqual(scrub_contact("Contact ada＠example．edu。"), "")

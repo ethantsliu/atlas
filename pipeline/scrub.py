@@ -43,13 +43,22 @@ UNC_ROOT = re.compile(
     r"(?=$|[\s<>\"'.,;:!?)}\]])"
 )
 SPACED_TLD = r"(?-i:com|edu|gov|int|mil|net|org)"
-AUTHOR_EMAIL = re.compile(
-    r"(?i)<?[a-z0-9_.+-]+@(?:[a-z0-9.-]+\.[a-z]{2,63}|"
-    rf"[a-z0-9.-]*[a-z][a-z0-9.-]+\.\s+{SPACED_TLD}|localhost)>?"
-    r"(?![a-z0-9-]|\.[a-z0-9])"
+EMAIL_HOST = (
+    r"(?:[a-z0-9.-]+\.[a-z]{2,63}|"
+    rf"[a-z0-9.-]*[a-z][a-z0-9.-]+\.\s+{SPACED_TLD}|localhost)"
 )
+EMAIL_END = r"(?![a-z0-9-]|\.[a-z0-9])"
+CONTACT_EMAIL = re.compile(rf"(?i)<?[a-z0-9_.+-]+@{EMAIL_HOST}>?{EMAIL_END}")
+ALL_TLD = r"(?:com|edu|gov|int|mil|net|org)"
+ALL_HOST = (
+    r"(?:[a-z0-9.-]+\.[a-z]{2,63}|"
+    rf"[a-z0-9.-]*[a-z][a-z0-9.-]+\.\s+{ALL_TLD}|localhost)"
+)
+ALL_EMAIL = re.compile(rf"(?i)<?[a-z0-9_.+-]+@{ALL_HOST}>?{EMAIL_END}")
+CONTACT_MARK = re.compile(r"(?i)\b(?:contact|correspondence|(?:e-?)?mail)\b")
 CONTACT_TAIL = re.compile(
-    r"(?i)(?:\bcontact|\bcorrespondence(?:\s+should\s+be\s+addressed\s+to)?)"
+    r"(?i)(?:\bcontact|\bcorrespondence(?:\s+should\s+be\s+addressed\s+to)?|"
+    r"\b(?:e-?)?mail)"
     r"\s*[:.,;!?。；：！？]*\s*$"
 )
 PUNCT_SPACE = re.compile(r"\s+([.,;:!?。；：！？])")
@@ -148,7 +157,7 @@ def scrub_text(value: str) -> str:
 
 def scrub_author(value: str) -> str:
     """Remove malformed contact details from one public author name."""
-    return scrub_contact(value)
+    return scrub_email(value, ALL_EMAIL)
 
 
 def scrub_authors(values: list[object]) -> list[object]:
@@ -164,11 +173,11 @@ def scrub_authors(values: list[object]) -> list[object]:
     return result
 
 
-def scrub_contact(value: str) -> str:
-    """Remove an email address from one structured public contact field."""
+def scrub_email(value: str, pattern: re.Pattern[str]) -> str:
+    """Remove email matches from one structured public field."""
     normalized = unicodedata.normalize("NFKC", value)
-    source = normalized if AUTHOR_EMAIL.search(normalized) else value
-    redacted = AUTHOR_EMAIL.sub(" ", source)
+    source = normalized if pattern.search(normalized) else value
+    redacted = pattern.sub(" ", source)
     result = clean_space(scrub_text(redacted))
     if redacted != source:
         result = PUNCT_SPACE.sub(r"\1", result)
@@ -177,6 +186,13 @@ def scrub_contact(value: str) -> str:
             return ""
         return result.rstrip(" ,;:")
     return result
+
+
+def scrub_contact(value: str) -> str:
+    """Remove context-aware emails from one public comment field."""
+    normalized = unicodedata.normalize("NFKC", value)
+    pattern = ALL_EMAIL if CONTACT_MARK.search(normalized) else CONTACT_EMAIL
+    return scrub_email(value, pattern)
 
 
 def scrub_paper(value: dict) -> dict:

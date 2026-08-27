@@ -167,8 +167,10 @@ class PrivacyTests(unittest.TestCase):
             ),
             ({"comment": "Contact author@example.edu"}, "email address"),
             ({"comment": "Contact author@example. edu"}, "email address"),
+            ({"comment": "Contact author@example. EDU"}, "email address"),
             ({"comment": "Contact author＠example.edu"}, "email address"),
             ({"authors": ["owner@localhost"]}, "email address"),
+            ({"authors": ["owner@example. COM"]}, "email address"),
             (
                 {"verification": {"reviewer_id": "not-opaque"}},
                 "reviewer ID",
@@ -200,6 +202,7 @@ class PrivacyTests(unittest.TestCase):
         self.assertTrue(unsafe_public("Mail ada@example.edu."))
         self.assertTrue(unsafe_public("Mail owner@localhost."))
         self.assertFalse(unsafe_public("Metric ada@example.edu.123 remains"))
+        self.assertTrue(unsafe_public("Contact ada@example. EDU"))
 
 
 class ValidationTests(unittest.TestCase):

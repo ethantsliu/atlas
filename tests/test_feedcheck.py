@@ -126,6 +126,7 @@ class FeedCheckTests(unittest.TestCase):
         comments = (
             "Contact ada＠example.edu",
             "Contact ada@example．edu",
+            "Contact ada@example. EDU",
             "Open ／Users／account／private",
             "See https：／／localhost／private",
             "Read file：／／／tmp／private",
@@ -136,6 +137,13 @@ class FeedCheckTests(unittest.TestCase):
                 paper["comment"] = comment
                 with self.assertRaisesRegex(RuntimeError, "Unsafe daily public paper"):
                     feedcheck.validate_paper(paper, DAY.isoformat())
+
+    def test_upper_author(self) -> None:
+        paper = make_intake()["papers"][0]
+        paper["authors"] = ["Ada <ada@example. COM>"]
+
+        with self.assertRaisesRegex(RuntimeError, "Unsafe daily public paper"):
+            feedcheck.validate_paper(paper, DAY.isoformat())
 
     def test_raw_shape(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

@@ -8,6 +8,7 @@ import unicodedata
 from collections.abc import Iterator
 
 from rules import check
+from scrub import ALL_EMAIL, CONTACT_EMAIL, CONTACT_MARK
 
 
 PUBLIC_REVIEWER = re.compile(r"^reviewer-[0-9a-f]{12}$")
@@ -21,14 +22,8 @@ PERSONAL_SOCIAL = re.compile(
 PRIVATE_REVIEWER = re.compile(
     r"(?i)(?:fleet|codex|" + re.escape("/" + "root/") + r"|corpus-reading)"
 )
-SPACED_TLD = r"(?-i:com|edu|gov|int|mil|net|org)"
-EMAIL = re.compile(
-    r"(?i)(?<![a-z0-9._%+-])[a-z0-9._%+-]+@"
-    r"(?:[a-z0-9.-]+\.[a-z]{2,}|"
-    rf"[a-z0-9.-]*[a-z][a-z0-9.-]+\.\s+{SPACED_TLD}|localhost)"
-    r"(?![a-z0-9-]|\.[a-z0-9])"
-)
-CONTACT_FIELD = re.compile(r"(?:\.comment|\.authors\[\d+\])$")
+AUTHOR_FIELD = re.compile(r"\.authors\[\d+\]$")
+COMMENT_FIELD = re.compile(r"\.comment$")
 HANDLE = re.compile(r"(?i)(?<![a-z0-9_])@[a-z0-9_]{2,32}(?![a-z0-9_])")
 FILE_URI = re.compile(r"(?i)(?:^|[^a-z0-9])file://")
 DEVICE_PATH = re.compile(
@@ -60,6 +55,11 @@ PRIVATE_CONTEXT = re.compile(
 UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Cs"})
 
 
+def contact_email(text: str) -> re.Pattern[str]:
+    """Select strict matching only when text explicitly marks contact data."""
+    return ALL_EMAIL if CONTACT_MARK.search(text) else CONTACT_EMAIL
+
+
 def public_reviewer_id(stable_id: str, checked_at: str) -> str:
     """Derive an opaque, repeatable identifier for one verification event."""
     payload = f"atlas-public-reviewer-v1\0{stable_id}\0{checked_at}".encode()
@@ -73,7 +73,7 @@ def unsafe_public(text: str) -> bool:
         LOCAL_PATH.search(value) is not None
         or DEVICE_PATH.search(value) is not None
         or FILE_URI.search(value) is not None
-        or EMAIL.search(value) is not None
+        or contact_email(value).search(value) is not None
         or HANDLE.search(value) is not None
         or PERSONAL_SOCIAL.search(value) is not None
         or SOCIAL_URL.search(value) is not None
@@ -112,9 +112,14 @@ def validate_public(value: object, label: str) -> None:
             PERSONAL_SOCIAL.search(normalized) is None,
             f"{label} contains a personal social URL at {location}",
         )
-        if CONTACT_FIELD.search(location):
+        if AUTHOR_FIELD.search(location):
             check(
-                EMAIL.search(normalized) is None,
+                ALL_EMAIL.search(normalized) is None,
+                f"{label} contains an email address at {location}",
+            )
+        elif COMMENT_FIELD.search(location):
+            check(
+                contact_email(normalized).search(normalized) is None,
                 f"{label} contains an email address at {location}",
             )
         if location.endswith(".reviewer_id"):
