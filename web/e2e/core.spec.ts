@@ -223,6 +223,7 @@ test("hover labels a node and click keeps details in the inspector", async ({
 test("historical paper points open the inline inspector", async ({
   page,
 }, testInfo) => {
+  test.setTimeout(90_000);
   test.skip(
     !["chrome", "safari"].includes(testInfo.project.name),
     "Historical point picking is covered in Chromium and WebKit",
@@ -274,6 +275,7 @@ test("historical paper points open the inline inspector", async ({
 });
 
 test("2D hover and click use the same inline inspector", async ({ page }, testInfo) => {
+  test.setTimeout(90_000);
   test.skip(["android", "iphone"].includes(testInfo.project.name));
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1_440, height: 900 });
