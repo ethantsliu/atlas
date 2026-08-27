@@ -21,10 +21,12 @@ PERSONAL_SOCIAL = re.compile(
 PRIVATE_REVIEWER = re.compile(
     r"(?i)(?:fleet|codex|" + re.escape("/" + "root/") + r"|corpus-reading)"
 )
+SPACED_TLD = r"(?-i:com|edu|gov|int|mil|net|org)"
 EMAIL = re.compile(
     r"(?i)(?<![a-z0-9._%+-])[a-z0-9._%+-]+@"
-    r"(?:localhost|[a-z0-9.-]+\.\s*[a-z]{2,})"
-    r"(?![a-z0-9.-])"
+    r"(?:[a-z0-9.-]+\.[a-z]{2,}|"
+    rf"[a-z0-9.-]*[a-z][a-z0-9.-]+\.\s+{SPACED_TLD}|localhost)"
+    r"(?![a-z0-9-]|\.[a-z0-9])"
 )
 CONTACT_FIELD = re.compile(r"(?:\.comment|\.authors\[\d+\])$")
 HANDLE = re.compile(r"(?i)(?<![a-z0-9_])@[a-z0-9_]{2,32}(?![a-z0-9_])")
@@ -101,22 +103,23 @@ def text_values(value: object) -> Iterator[tuple[str, str]]:
 def validate_public(value: object, label: str) -> None:
     """Reject machine paths, personal social links, and internal reviewer labels."""
     for location, text in text_values(value):
+        normalized = unicodedata.normalize("NFKC", text)
         check(
-            LOCAL_PATH.search(text) is None,
+            LOCAL_PATH.search(normalized) is None,
             f"{label} contains a local device path at {location}",
         )
         check(
-            PERSONAL_SOCIAL.search(text) is None,
+            PERSONAL_SOCIAL.search(normalized) is None,
             f"{label} contains a personal social URL at {location}",
         )
         if CONTACT_FIELD.search(location):
             check(
-                EMAIL.search(text) is None,
+                EMAIL.search(normalized) is None,
                 f"{label} contains an email address at {location}",
             )
         if location.endswith(".reviewer_id"):
             check(
-                bool(PUBLIC_REVIEWER.fullmatch(text))
-                and PRIVATE_REVIEWER.search(text) is None,
+                bool(PUBLIC_REVIEWER.fullmatch(normalized))
+                and PRIVATE_REVIEWER.search(normalized) is None,
                 f"{label} contains a private reviewer ID at {location}",
             )

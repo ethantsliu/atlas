@@ -15,7 +15,7 @@ from assign import build_reading_queue  # noqa: E402
 from verify import build_verification_queue  # noqa: E402
 from assets import reading_public_path  # noqa: E402
 from scholar import cache_text  # noqa: E402
-from privacy import public_reviewer_id, validate_public  # noqa: E402
+from privacy import public_reviewer_id, unsafe_public, validate_public  # noqa: E402
 from validate import (  # noqa: E402
     is_primary_url,
     validate_competitor_panel,
@@ -159,9 +159,15 @@ class PrivacyTests(unittest.TestCase):
         social_url = "https://" + "x.com/account/status/1"
         cases = (
             ({"notes": home_path}, "local device path"),
+            ({"notes": "／Users／account／research.pdf"}, "local device path"),
             ({"source": social_url}, "personal social URL"),
+            (
+                {"source": "https：／／x.com／account／status／1"},
+                "personal social URL",
+            ),
             ({"comment": "Contact author@example.edu"}, "email address"),
             ({"comment": "Contact author@example. edu"}, "email address"),
+            ({"comment": "Contact author＠example.edu"}, "email address"),
             ({"authors": ["owner@localhost"]}, "email address"),
             (
                 {"verification": {"reviewer_id": "not-opaque"}},
@@ -172,6 +178,28 @@ class PrivacyTests(unittest.TestCase):
             with self.subTest(message=message):
                 with self.assertRaisesRegex(RuntimeError, message):
                     validate_public(value, "fixture")
+
+    def test_metric_prose(self) -> None:
+        for text in (
+            "Recall@10. On held-out data",
+            "NDCG@20. These results",
+            "Recall@K. On held-out data",
+            "Precision@k. The score",
+            "Hits@N. We report",
+            "Pass@K. This improves robustness",
+            "Recall@k. Results follow",
+            "Recall@K. Net performance improves",
+            "Pass@N. Org results follow",
+            "Metric@scale. Com performance",
+            "Score@model. Edu results",
+        ):
+            with self.subTest(text=text):
+                self.assertFalse(unsafe_public(text))
+
+    def test_email_period(self) -> None:
+        self.assertTrue(unsafe_public("Mail ada@example.edu."))
+        self.assertTrue(unsafe_public("Mail owner@localhost."))
+        self.assertFalse(unsafe_public("Metric ada@example.edu.123 remains"))
 
 
 class ValidationTests(unittest.TestCase):

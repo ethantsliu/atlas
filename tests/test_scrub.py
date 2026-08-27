@@ -1,6 +1,12 @@
 import unittest
 
-from pipeline.scrub import has_locator, scrub_author, scrub_contact, scrub_text
+from pipeline.scrub import (
+    has_locator,
+    scrub_author,
+    scrub_contact,
+    scrub_paper,
+    scrub_text,
+)
 
 
 class ScrubTests(unittest.TestCase):
@@ -47,6 +53,17 @@ class ScrubTests(unittest.TestCase):
         self.assertIn("author@example.org", cleaned)
         self.assertIn("PERSON@EXAMPLE.COM", cleaned)
         self.assertFalse(has_locator(cleaned))
+
+    def test_unicode_paths(self) -> None:
+        cases = (
+            "Open ／Users／alice／note",
+            "See https：／／localhost／private",
+            "Read file：／／／tmp／private",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                self.assertFalse(has_locator(scrub_text(text)))
+                self.assertNotEqual(scrub_text(text), text)
 
     def test_public_links(self) -> None:
         text = (
@@ -118,12 +135,46 @@ class ScrubTests(unittest.TestCase):
         self.assertEqual(scrub_author("ccarilli@nrao. edu"), "")
         self.assertEqual(scrub_author("owner@localhost"), "")
         self.assertEqual(scrub_author("owner@localhostX"), "owner@localhostX")
+        self.assertEqual(scrub_contact("Mail ada@example.edu."), "Mail.")
+        self.assertEqual(scrub_contact("Mail owner@localhost."), "Mail.")
+        self.assertEqual(scrub_author("ada@example.edu."), "")
+        self.assertEqual(scrub_contact("Contact ada@example.edu."), "")
+        self.assertEqual(scrub_contact("Correspondence: ada@example. edu."), "")
+        self.assertEqual(scrub_contact("Contact ada＠example.edu"), "")
+        self.assertEqual(scrub_contact("Contact ada@example．edu"), "")
+        self.assertEqual(scrub_contact("Contact ada＠example．edu。"), "")
+        self.assertEqual(
+            scrub_contact("Metric ada@example.edu.123 remains"),
+            "Metric ada@example.edu.123 remains",
+        )
         self.assertEqual(
             scrub_contact(
                 "Under review. Correspondence should be addressed to author@example.edu"
             ),
             "Under review.",
         )
+
+    def test_metric_prose(self) -> None:
+        for text in (
+            "Recall@10. On held-out data",
+            "NDCG@20. These results",
+            "Recall@K. On held-out data",
+            "Precision@k. The score",
+            "Hits@N. We report",
+            "Pass@K. This improves robustness",
+            "Recall@k. Results follow",
+            "Recall@K. Net performance improves",
+            "Pass@N. Org results follow",
+            "Metric@scale. Com performance",
+            "Score@model. Edu results",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(scrub_contact(text), text)
+
+    def test_mixed_authors(self) -> None:
+        paper = {"authors": ["Ada <ada@example.edu>", None]}
+
+        self.assertEqual(scrub_paper(paper)["authors"], ["Ada", None])
 
 
 if __name__ == "__main__":

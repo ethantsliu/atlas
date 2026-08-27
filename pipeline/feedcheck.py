@@ -38,6 +38,19 @@ def valid_score(value: object) -> bool:
     )
 
 
+def valid_bib(paper: dict) -> bool:
+    """Accept typed public bibliography and contact fields."""
+    authors = paper.get("authors")
+    categories = paper.get("categories")
+    return (
+        isinstance(authors, list)
+        and all(isinstance(author, str) for author in authors)
+        and isinstance(categories, list)
+        and all(isinstance(category, str) for category in categories)
+        and isinstance(paper.get("comment"), str)
+    )
+
+
 def validate_paper(paper: dict, day: str) -> None:
     """Validate one relevance-positive, auditable public paper row."""
     identifier = paper.get("id")
@@ -55,11 +68,7 @@ def validate_paper(paper: dict, day: str) -> None:
         f"Invalid daily text on {identifier}",
     )
     check(valid_title(paper.get("title")), f"Unsafe daily title on {identifier}")
-    check(
-        isinstance(paper.get("authors"), list)
-        and isinstance(paper.get("categories"), list),
-        f"Invalid daily bibliography on {identifier}",
-    )
+    check(valid_bib(paper), f"Invalid daily bibliography on {identifier}")
     relevance = paper.get("relevance", {})
     interest = paper.get("interest", {})
     check(relevance.get("relevant") is True, f"Rejected paper published on {day}")
@@ -101,6 +110,7 @@ def validate_raw(path: Path, payload: dict) -> None:
     )
     raw_ids = [paper.get("id") for paper in raw["papers"]]
     for paper in raw["papers"]:
+        check(valid_bib(paper), f"Invalid raw bibliography on {paper.get('id')}")
         check(
             scrub_paper(paper) == paper,
             f"Unsafe raw public paper text on {paper.get('id') or path.name}",

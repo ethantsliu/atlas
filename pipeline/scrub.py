@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 
 
 PRIVATE_URL = re.compile(
@@ -41,13 +42,18 @@ UNC_ROOT = re.compile(
     r"(?P<share>[a-z0-9$._-]+)(?P<trail>[/\\])?"
     r"(?=$|[\s<>\"'.,;:!?)}\]])"
 )
+SPACED_TLD = r"(?-i:com|edu|gov|int|mil|net|org)"
 AUTHOR_EMAIL = re.compile(
-    r"(?i)<?[a-z0-9_.+-]+@(?:localhost|[a-z0-9.-]+\.\s*[a-z]{2,63})>?" r"(?![a-z0-9.-])"
+    r"(?i)<?[a-z0-9_.+-]+@(?:[a-z0-9.-]+\.[a-z]{2,63}|"
+    rf"[a-z0-9.-]*[a-z][a-z0-9.-]+\.\s+{SPACED_TLD}|localhost)>?"
+    r"(?![a-z0-9-]|\.[a-z0-9])"
 )
 CONTACT_TAIL = re.compile(
     r"(?i)(?:\bcontact|\bcorrespondence(?:\s+should\s+be\s+addressed\s+to)?)"
-    r"\s*:?\s*$"
+    r"\s*[:.,;!?。；：！？]*\s*$"
 )
+PUNCT_SPACE = re.compile(r"\s+([.,;:!?。；：！？])")
+PUNCT_ONLY = re.compile(r"^[.,;:!?。；：！？]+$")
 LOCATORS = (
     PRIVATE_URL,
     LOCAL_URL,
@@ -132,10 +138,12 @@ def has_unc(value: str) -> bool:
 
 def scrub_text(value: str) -> str:
     """Remove unsafe locator classes from one scholarly text field."""
-    result = scrub_unc(value)
+    normalized = unicodedata.normalize("NFKC", value)
+    source = normalized if has_locator(normalized) else value
+    result = scrub_unc(source)
     for pattern in LOCATORS:
         result = pattern.sub(" ", result)
-    return clean_space(result) if result != value else value
+    return clean_space(result) if result != source else source
 
 
 def scrub_author(value: str) -> str:
@@ -143,13 +151,32 @@ def scrub_author(value: str) -> str:
     return scrub_contact(value)
 
 
+def scrub_authors(values: list[object]) -> list[object]:
+    """Scrub string members while preserving invalid members for validation."""
+    result: list[object] = []
+    for value in values:
+        if not isinstance(value, str):
+            result.append(value)
+            continue
+        cleaned = scrub_author(value)
+        if cleaned:
+            result.append(cleaned)
+    return result
+
+
 def scrub_contact(value: str) -> str:
     """Remove an email address from one structured public contact field."""
-    redacted = AUTHOR_EMAIL.sub(" ", value)
+    normalized = unicodedata.normalize("NFKC", value)
+    source = normalized if AUTHOR_EMAIL.search(normalized) else value
+    redacted = AUTHOR_EMAIL.sub(" ", source)
     result = clean_space(scrub_text(redacted))
-    if redacted != value:
+    if redacted != source:
+        result = PUNCT_SPACE.sub(r"\1", result)
         result = clean_space(CONTACT_TAIL.sub(" ", result))
-    return result.rstrip(" ,;:") if redacted != value else result
+        if PUNCT_ONLY.fullmatch(result):
+            return ""
+        return result.rstrip(" ,;:")
+    return result
 
 
 def scrub_paper(value: dict) -> dict:
@@ -161,10 +188,8 @@ def scrub_paper(value: dict) -> dict:
     if isinstance(result.get("comment"), str):
         result["comment"] = scrub_contact(result["comment"])
     authors = result.get("authors")
-    if isinstance(authors, list) and all(isinstance(author, str) for author in authors):
-        result["authors"] = [
-            cleaned for author in authors if (cleaned := scrub_author(author))
-        ]
+    if isinstance(authors, list):
+        result["authors"] = scrub_authors(authors)
     return result
 
 

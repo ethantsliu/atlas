@@ -107,6 +107,49 @@ class FeedCheckTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "Unsafe raw public paper"):
                     feedcheck.validate_feed()
 
+    def test_author_shape(self) -> None:
+        paper = make_intake()["papers"][0]
+        paper["authors"] = ["Ada Researcher", None]
+
+        with self.assertRaisesRegex(RuntimeError, "Invalid daily bibliography"):
+            feedcheck.validate_paper(paper, DAY.isoformat())
+
+    def test_comment_shape(self) -> None:
+        for comment in (None, 1, {"email": "ada@example.edu"}, ["email"]):
+            with self.subTest(comment=comment):
+                paper = make_intake()["papers"][0]
+                paper["comment"] = comment
+                with self.assertRaisesRegex(RuntimeError, "Invalid daily bibliography"):
+                    feedcheck.validate_paper(paper, DAY.isoformat())
+
+    def test_unicode_email(self) -> None:
+        comments = (
+            "Contact ada＠example.edu",
+            "Contact ada@example．edu",
+            "Open ／Users／account／private",
+            "See https：／／localhost／private",
+            "Read file：／／／tmp／private",
+        )
+        for comment in comments:
+            with self.subTest(comment=comment):
+                paper = make_intake()["papers"][0]
+                paper["comment"] = comment
+                with self.assertRaisesRegex(RuntimeError, "Unsafe daily public paper"):
+                    feedcheck.validate_paper(paper, DAY.isoformat())
+
+    def test_raw_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            roots = write_feed(Path(folder))
+            raw_path = roots[0] / "raw/2026-08-21.json.gz"
+            raw = json.loads(gzip.decompress(raw_path.read_bytes()))
+            raw["papers"][0]["comment"] = {"email": "ada@example.edu"}
+            body = json.dumps(raw, separators=(",", ":")).encode()
+            raw_path.write_bytes(gzip.compress(body, mtime=0))
+            payload = json.loads((roots[0] / "2026-08-21.json").read_text())
+
+            with self.assertRaisesRegex(RuntimeError, "Invalid raw bibliography"):
+                feedcheck.validate_raw(raw_path, payload)
+
 
 if __name__ == "__main__":
     unittest.main()
