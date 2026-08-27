@@ -124,7 +124,7 @@ async function cloudTarget(): Promise<CloudTarget> {
   const at = best * 3;
   const camera = `1_${cameraPart(positions[at])}_${cameraPart(
     positions[at + 1],
-  )}_${cameraPart(positions[at + 2])}_8_0_0`;
+  )}_${cameraPart(positions[at + 2])}_16_0_0`;
   return { camera, title: row[1], url: row[2] };
 }
 
@@ -240,23 +240,18 @@ async function watchCopy(page: Page) {
 }
 
 async function waitCamera(page: Page, camera: string) {
-  await expect
-    .poll(
-      async () => {
-        await page
-          .getByRole("button", { name: "Copy a link to this atlas view" })
-          .click();
-        const copied = await page.evaluate(
-          () =>
-            (window as typeof window & { __atlasCopied?: string }).__atlasCopied ?? "",
-        );
-        return copied
-          ? new URLSearchParams(new URL(copied).hash.replace(/^#\?/, "")).get("c")
-          : null;
-      },
-      { timeout: 20_000 },
-    )
-    .toBe(camera);
+  const read = async () => {
+    await page.getByRole("button", { name: "Copy a link to this atlas view" }).click();
+    const copied = await page.evaluate(
+      () => (window as typeof window & { __atlasCopied?: string }).__atlasCopied ?? "",
+    );
+    return copied
+      ? new URLSearchParams(new URL(copied).hash.replace(/^#\?/, "")).get("c")
+      : null;
+  };
+  await expect.poll(read, { timeout: 20_000 }).toBe(camera);
+  await page.waitForTimeout(120);
+  await expect.poll(read, { timeout: 20_000 }).toBe(camera);
 }
 
 async function swarmPoint(
@@ -400,9 +395,15 @@ test("historical paper points open the inline inspector", async ({
     !["chrome", "safari"].includes(testInfo.project.name),
     "Historical point picking is covered in Chromium and WebKit",
   );
+  let metaTry = 0;
   await page.route(/\/data\/cloud\/\d{4}-\d{2}\.json(?:\?.*)?$/, async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 900));
-    await route.continue();
+    metaTry += 1;
+    if (metaTry === 1) {
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      await route.fulfill({ contentType: "text/html", body: "<!doctype html>" });
+      return;
+    }
+    await route.fulfill({ response: await route.fetch() });
   });
   await page.setViewportSize({ width: 1_440, height: 900 });
   const size = await cloudSize();
@@ -485,7 +486,7 @@ test("touch opens a historical paper in the stacked inspector", async ({
   test.skip((await cloudSize()) <= 100_000, "Dense cloud touch needs the full corpus");
   const target = await cloudTarget();
   await watchCopy(page);
-  await page.goto(`/#?k=trpi&c=${target.camera}`);
+  await page.goto(`/#?k=p&c=${target.camera}`);
   await expect(page.locator(".filters")).toContainText("historical arXiv records", {
     timeout: 20_000,
   });
@@ -520,6 +521,15 @@ test("touch opens a historical paper in the stacked inspector", async ({
       ),
     )
     .toBe(true);
+
+  const fullState = await fullNodes(page);
+  await page.getByRole("button", { name: "Isolate connections" }).click();
+  await expect(mapStatus(page)).toHaveText("9 visible graph nodes available.");
+  const unisolate = page.getByRole("button", { name: "Unisolate connections" });
+  await expect(unisolate).toHaveAttribute("aria-pressed", "true");
+  await unisolate.click();
+  await expect(mapStatus(page)).toHaveText(fullState);
+  await expect(inspector.getByRole("heading", { name: target.title })).toBeVisible();
 });
 
 test("foreground paper points open the visible paper", async ({ page }, testInfo) => {

@@ -278,6 +278,37 @@ export async function digestOf(bytes: ArrayBuffer): Promise<string> {
   ).join("");
 }
 
+async function metaBytes(
+  range: CloudRange,
+  signal: AbortSignal,
+  fetcher: typeof fetch,
+  base?: string,
+  reload = false,
+): Promise<ArrayBuffer> {
+  try {
+    const response = await fetcher(basePath(cloudPath(range.meta), base), {
+      signal,
+      cache: reload ? "reload" : "force-cache",
+    });
+    if (!response.ok) {
+      throw new Error(`Metadata request failed (${response.status})`);
+    }
+    const bytes = await response.arrayBuffer();
+    if (
+      bytes.byteLength !== range.meta.bytes ||
+      (await digestOf(bytes)) !== range.meta.sha256
+    ) {
+      throw new Error("Metadata does not match its index");
+    }
+    return bytes;
+  } catch (error) {
+    if (reload || signal.aborted || (error as Error).name === "AbortError") {
+      throw error;
+    }
+    return metaBytes(range, signal, fetcher, base, true);
+  }
+}
+
 export async function fetchCloudMeta(
   range: CloudRange,
   signal: AbortSignal,
@@ -285,20 +316,7 @@ export async function fetchCloudMeta(
   fetcher: typeof fetch = fetch,
   base?: string,
 ): Promise<CloudPaper[]> {
-  const response = await fetcher(basePath(cloudPath(range.meta), base), {
-    signal,
-    cache: "force-cache",
-  });
-  if (!response.ok) {
-    throw new Error(`Paper metadata request failed (${response.status})`);
-  }
-  const bytes = await response.arrayBuffer();
-  if (
-    bytes.byteLength !== range.meta.bytes ||
-    (await digestOf(bytes)) !== range.meta.sha256
-  ) {
-    throw new Error("Paper metadata does not match its index");
-  }
+  const bytes = await metaBytes(range, signal, fetcher, base);
   const { parseRows } = await import("./cloudrow");
   return parseRows(bytes, range, scopes);
 }

@@ -35,6 +35,36 @@ function routeBytes(anchor: string, row: string): ArrayBuffer {
   return bytes;
 }
 
+function metaCase() {
+  const bytes = new TextEncoder().encode(
+    JSON.stringify({
+      schema_version: 1,
+      month: "2020-01",
+      count: 1,
+      papers: [
+        [
+          "2001.00001",
+          "First",
+          "https://arxiv.org/abs/2001.00001",
+          "2020-01-02",
+          "likely",
+        ],
+      ],
+    }),
+  );
+  const range: CloudRange = {
+    month: "2020-01",
+    start: 0,
+    count: 1,
+    meta: {
+      path: "2020-01.json",
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+      bytes: bytes.byteLength,
+    },
+  };
+  return { bytes, range };
+}
+
 function pointBytes(start = 1): ArrayBuffer {
   const bytes = new ArrayBuffer(12 + 2 * 13);
   const raw = new Uint8Array(bytes);
@@ -244,6 +274,42 @@ describe("paper cloud", () => {
         fetcher,
       ),
     ).rejects.toThrow("invalid shape");
+  });
+
+  it("retries one transient metadata mismatch without trusting it", async () => {
+    const { bytes, range } = metaCase();
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("<!doctype html>"))
+      .mockResolvedValueOnce(new Response(bytes));
+
+    const papers = await fetchCloudMeta(
+      range,
+      new AbortController().signal,
+      new Uint8Array([0]),
+      request as unknown as typeof fetch,
+    );
+
+    expect(papers[0].title).toBe("First");
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls[1][1]).toMatchObject({ cache: "reload" });
+  });
+
+  it("never retries an aborted metadata request", async () => {
+    const { range } = metaCase();
+    const request = vi.fn(async () => {
+      throw new DOMException("Aborted", "AbortError");
+    });
+
+    await expect(
+      fetchCloudMeta(
+        range,
+        new AbortController().signal,
+        new Uint8Array([0]),
+        request as unknown as typeof fetch,
+      ),
+    ).rejects.toMatchObject({ name: "AbortError" });
+    expect(request).toHaveBeenCalledOnce();
   });
 
   it("rejects metadata row identity drift", async () => {
