@@ -572,13 +572,22 @@ jobs:
           jq -e '
             (.pages_this_run | type == "number") and
             .pages_this_run > 0 and
-            (.status == "complete" or .status == "partial")
+            ((.status == "complete" and .reason == "sealed") or
+             (.status == "partial" and
+              (.reason == "page-limit" or .reason == "time-limit")))
           ' "$RUNNER_TEMP/corpus-result.json" >/dev/null
           if jq -e '.history.complete == true' "$CORPUS_ROOT/cursor.json" >/dev/null; then
             echo "Historical bootstrap is complete; scheduled synchronization remains active."
             exit 0
           fi
-          jq -e '.history.complete == false' "$CORPUS_ROOT/cursor.json" >/dev/null
+          jq -e --slurpfile result "$RUNNER_TEMP/corpus-result.json" '
+            .history.complete == false and
+            .pending == [] and
+            .merged == [] and
+            (($result[0].status == "complete" and .active == null) or
+             ($result[0].status == "partial" and
+              .active.generation == $result[0].generation))
+          ' "$CORPUS_ROOT/cursor.json" >/dev/null
           gh workflow run corpus.yml \
             --ref main \
             -f pages="$CHAIN_PAGES" \

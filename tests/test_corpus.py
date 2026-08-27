@@ -239,12 +239,19 @@ class CorpusTests(unittest.TestCase):
             "steps.prep.outcome == 'success'",
             "steps.acknowledge.outcome == 'success'",
             ".pages_this_run > 0",
+            '.reason == "sealed"',
+            '.reason == "page-limit"',
+            '.reason == "time-limit"',
             ".history.complete == false",
+            ".pending == []",
+            ".merged == []",
+            ".active.generation == $result[0].generation",
             "gh workflow run corpus.yml",
             '-f pages="$CHAIN_PAGES"',
             '-f minutes="$CHAIN_MINUTES"',
         ):
             self.assertIn(guard, chain)
+        self.assertNotIn('.reason == "token-expiring"', chain)
         self.assertIn("actions: write", corpus)
         self.assertLess(
             corpus.index("- name: Publish release checkpoint"),
