@@ -221,6 +221,36 @@ class CorpusTests(unittest.TestCase):
         self.assertIn("group: arxiv-oai-corpus", feed)
         self.assertIn('default: "corpus-v2"', discover)
 
+    def test_backfill_chain(self) -> None:
+        corpus = (ROOT / ".github/workflows/corpus.yml").read_text(encoding="utf-8")
+        chain = corpus[
+            corpus.index("- name: Continue historical backfill") : corpus.index(
+                "- name: Enforce harvest result"
+            )
+        ]
+
+        for guard in (
+            "steps.harvest.outcome == 'success'",
+            "steps.checkpoint.outcome == 'success'",
+            "steps.merge.outcome == 'success'",
+            "steps.package.outcome == 'success'",
+            "steps.checkpoint_release.outcome == 'success'",
+            "steps.merge.outputs.promote == 'false'",
+            "steps.prep.outcome == 'success'",
+            "steps.acknowledge.outcome == 'success'",
+            ".pages_this_run > 0",
+            ".history.complete == false",
+            "gh workflow run corpus.yml",
+            '-f pages="$CHAIN_PAGES"',
+            '-f minutes="$CHAIN_MINUTES"',
+        ):
+            self.assertIn(guard, chain)
+        self.assertIn("actions: write", corpus)
+        self.assertLess(
+            corpus.index("- name: Publish release checkpoint"),
+            corpus.index("- name: Continue historical backfill"),
+        )
+
     def test_cadence(self) -> None:
         first = b"""<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
           <responseDate>2026-08-27T00:17:00Z</responseDate><ListRecords>
