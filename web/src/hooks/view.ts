@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef } from "react";
-import { formatCamera, show3d, type Camera3d, type CameraView } from "../lib/camera";
+import {
+  formatCamera,
+  read3d,
+  show3d,
+  type Camera3d,
+  type CameraView,
+} from "../lib/camera";
 
 type ViewGraph = Camera3d & {
   renderer: () => { domElement: HTMLCanvasElement };
@@ -16,8 +22,8 @@ export function useView(graphRef: ViewRef, view: CameraView | null, ready: boole
   const showView = useCallback(() => {
     const pending = pendingRef.current;
     const graph = graphRef.current;
-    if (!pending || !graph) return;
-    show3d(graph, pending.view);
+    if (!pending || !graph || !show3d(graph, pending.view)) return;
+    if (formatCamera(read3d(graph)) !== pending.key) return;
     restoredRef.current = pending.key;
     pendingRef.current = null;
   }, [graphRef]);
@@ -68,7 +74,14 @@ export function useView(graphRef: ViewRef, view: CameraView | null, ready: boole
     if (restoredRef.current === key) return;
     pendingRef.current = { key, view };
     if (typeof requestAnimationFrame !== "function") return;
-    const frame = requestAnimationFrame(showView);
+    let frame = 0;
+    const restoreFrame = () => {
+      showView();
+      if (pendingRef.current?.key === key) {
+        frame = requestAnimationFrame(restoreFrame);
+      }
+    };
+    frame = requestAnimationFrame(restoreFrame);
     return () => cancelAnimationFrame(frame);
   }, [ready, showView, view]);
 

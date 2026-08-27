@@ -57,12 +57,29 @@ describe("camera links", () => {
       pitch: 0,
     };
 
-    show3d(graph, view);
+    expect(show3d(graph, view)).toBe(true);
 
     expect(camera.position.x).toBeCloseTo(26);
     expect(camera.position.y).toBeCloseTo(20);
     expect(camera.position.z).toBeCloseTo(30);
     expect(read3d(graph)).toEqual(view);
+  });
+
+  it("reports when a 3D viewport is not ready", () => {
+    const graph = {
+      camera: () => ({ position: { x: 0, y: 0, z: 0 } }),
+      controls: () => ({}),
+      cameraPosition: () => undefined,
+    } as Camera3d;
+    const view: CameraView = {
+      target: [0, 0, 0],
+      radius: 16,
+      yaw: 0,
+      pitch: 0,
+    };
+
+    expect(show3d(graph, view)).toBe(false);
+    expect(show3d(undefined, view)).toBe(false);
   });
 
   it("preserves the minimum radius after floating-point projection", () => {

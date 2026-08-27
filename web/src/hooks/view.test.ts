@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CameraView } from "../lib/camera";
 
 let refSlots: Array<{ current: unknown }> = [];
 let refIndex = 0;
+let frames: FrameRequestCallback[] = [];
 
 vi.mock("react", () => ({
   useCallback: <Value>(callback: Value) => callback,
@@ -32,16 +33,37 @@ const second: CameraView = {
   pitch: 10,
 };
 
-function fakeGraph() {
+function fakeGraph(ready = true, controlsReady = true) {
   const canvas = new EventTarget() as HTMLCanvasElement;
-  const cameraPosition = vi.fn();
+  const camera = {
+    position: { x: 0, y: 0, z: 100 },
+    fov: ready ? 60 : undefined,
+  };
+  const target = { x: 0, y: 0, z: 0 };
+  const control: { target?: typeof target } = {
+    target: controlsReady ? target : undefined,
+  };
+  const cameraPosition = vi.fn(
+    (position: Partial<typeof target>, lookAt?: typeof target) => {
+      Object.assign(camera.position, position);
+      if (lookAt) Object.assign(target, lookAt);
+    },
+  );
   const graph = {
-    camera: () => ({ position: { x: 0, y: 0, z: 100 }, fov: 60 }),
-    controls: () => ({ target: { x: 0, y: 0, z: 0 } }),
+    camera: () => camera,
+    controls: () => control,
     cameraPosition,
     renderer: () => ({ domElement: canvas }),
   };
-  return { cameraPosition, canvas, graph, graphRef: { current: graph } };
+  return {
+    camera,
+    cameraPosition,
+    canvas,
+    control,
+    graph,
+    graphRef: { current: graph },
+    target,
+  };
 }
 
 function renderHook<Value>(callback: () => Value): Value {
@@ -52,7 +74,21 @@ function renderHook<Value>(callback: () => Value): Value {
 beforeEach(() => {
   refSlots = [];
   refIndex = 0;
+  frames = [];
+  vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+    frames.push(callback);
+    return frames.length;
+  });
+  vi.stubGlobal("cancelAnimationFrame", vi.fn());
 });
+
+afterEach(() => vi.unstubAllGlobals());
+
+function runFrame() {
+  const queued = frames;
+  frames = [];
+  queued.forEach((callback) => callback(performance.now()));
+}
 
 describe("camera restoration", () => {
   it("queues until a render frame and consumes the view once", () => {
@@ -87,6 +123,49 @@ describe("camera restoration", () => {
     const showView = renderHook(() => useView(graphRef, first, true));
     showView();
     expect(cameraPosition).toHaveBeenCalledOnce();
+  });
+
+  it("retries a pending view until the graph exists", () => {
+    const { cameraPosition, graph } = fakeGraph();
+    const graphRef: { current: typeof graph | undefined } = { current: undefined };
+    renderHook(() => useView(graphRef, first, true));
+
+    runFrame();
+    expect(cameraPosition).not.toHaveBeenCalled();
+
+    graphRef.current = graph;
+    runFrame();
+    expect(cameraPosition).toHaveBeenCalledOnce();
+
+    runFrame();
+    expect(cameraPosition).toHaveBeenCalledOnce();
+  });
+
+  it("retries until the graph camera is ready", () => {
+    const { camera, cameraPosition, graphRef } = fakeGraph(false);
+    renderHook(() => useView(graphRef, first, true));
+
+    runFrame();
+    expect(cameraPosition).not.toHaveBeenCalled();
+
+    camera.fov = 60;
+    runFrame();
+    expect(cameraPosition).toHaveBeenCalledOnce();
+  });
+
+  it("retries until the restored camera is readable", () => {
+    const { cameraPosition, control, graphRef, target } = fakeGraph(true, false);
+    renderHook(() => useView(graphRef, first, true));
+
+    runFrame();
+    expect(cameraPosition).toHaveBeenCalledOnce();
+
+    control.target = target;
+    runFrame();
+    expect(cameraPosition).toHaveBeenCalledTimes(2);
+
+    runFrame();
+    expect(cameraPosition).toHaveBeenCalledTimes(2);
   });
 
   it("keeps user navigation when data finishes loading", () => {

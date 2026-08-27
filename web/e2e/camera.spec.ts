@@ -52,6 +52,11 @@ test("camera links restore once and leave navigation in control", async ({
   const graph = page.getByLabel("Interactive 3D research graph");
   await expect(graph).toBeVisible({ timeout: 20_000 });
   await expect.poll(() => copyCamera(page), { timeout: 20_000 }).toBe(view);
+  await page.waitForTimeout(1_000);
+  expect(await copyCamera(page)).toBe(view);
+  await page.locator(".graph-node-picker select").selectOption("topic:alignment");
+  await page.waitForTimeout(1_000);
+  expect(await copyCamera(page)).toBe(view);
 
   const box = await graph.boundingBox();
   if (!box) throw new Error("Research graph has no bounds");

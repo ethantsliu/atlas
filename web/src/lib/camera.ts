@@ -107,10 +107,10 @@ export function show3d(
   graph: Camera3d | undefined,
   view: CameraView,
   duration = 0,
-): void {
-  if (!graph) return;
-  const camera = graph.camera() as Camera;
-  if (!camera.fov) return;
+): boolean {
+  if (!graph) return false;
+  const camera = graph.camera() as Camera | undefined;
+  if (!camera?.fov) return false;
   const yaw = (view.yaw * Math.PI) / 180;
   const pitch = (view.pitch * Math.PI) / 180;
   const distance = view.radius / Math.tan((camera.fov * Math.PI) / 360);
@@ -125,6 +125,7 @@ export function show3d(
     { x, y, z },
     duration,
   );
+  return true;
 }
 
 export function read2d(

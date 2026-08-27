@@ -105,7 +105,7 @@ export function GraphSpace({
     height,
   );
   const engineReadyRef = useRef(false);
-  const fitRef = useRef(true);
+  const fitRef = useRef(!camera);
   const fitKeyRef = useRef<string>();
   const showView = useView(graphRef, camera, viewReady);
   const cloudOpenRef = useRef(cloudSelected);
@@ -161,6 +161,7 @@ export function GraphSpace({
 
   useEffect(() => {
     if (camera) {
+      fitKeyRef.current = topology;
       fitRef.current = false;
       return;
     }
@@ -215,7 +216,7 @@ export function GraphSpace({
         }}
         onEngineStop={() => {
           showView();
-          if (!fitRef.current) return;
+          if (camera || !fitRef.current) return;
           fitRef.current = false;
           const reduced = window.matchMedia?.(
             "(prefers-reduced-motion: reduce)",
