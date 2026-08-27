@@ -109,6 +109,28 @@ async function cloudPoint(
   throw new Error("No historical paper point accepted hover input");
 }
 
+async function swarmPoint(
+  page: Page,
+): Promise<{ x: number; y: number; title: string }> {
+  const graph = page.getByLabel("Interactive 3D research graph");
+  const box = await graph.boundingBox();
+  if (!box) throw new Error("Research graph has no bounds");
+  const tip = page.locator(".swarm-tip:not(.cloud-tip)");
+  const cloud = page.locator(".cloud-tip");
+  for (const y of [0.35, 0.45, 0.55, 0.65, 0.75]) {
+    for (const x of [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]) {
+      const point = { x: box.x + box.width * x, y: box.y + box.height * y };
+      await page.mouse.move(point.x, point.y);
+      await page.waitForTimeout(180);
+      const label = (await tip.count()) ? await tip.textContent() : null;
+      if (label?.startsWith("Paper · ") && (await cloud.count()) === 0) {
+        return { ...point, title: label.slice("Paper · ".length) };
+      }
+    }
+  }
+  throw new Error("No foreground paper point accepted hover input");
+}
+
 test("the initial map enables every lens", async ({ page }) => {
   const hits = trackShard(page);
   await loadMap(page, "/");
@@ -246,17 +268,18 @@ test("historical paper points open the inline inspector", async ({
   await expect(tip).toHaveCSS("font-size", "14px");
   await page.mouse.move(point.x + 64, point.y + 64);
   await page.waitForTimeout(200);
-  await page.mouse.move(point.x, point.y);
-  await expect(tip).toContainText("Paper · ", { timeout: 5_000 });
-  const clickTitle = (await tip.textContent())!.slice("Paper · ".length);
-  await page.mouse.click(point.x, point.y);
+  const clickPoint = await cloudPoint(page);
+  await expect(tip).toContainText(`Paper · ${clickPoint.title}`);
+  await page.mouse.click(clickPoint.x, clickPoint.y);
   await page.mouse.move(2, 2);
 
   const inspector = page.getByLabel("Node inspector");
-  await expect(inspector.getByRole("heading", { name: clickTitle })).toBeVisible();
+  await expect(
+    inspector.getByRole("heading", { name: clickPoint.title }),
+  ).toBeVisible();
   await expect(inspector.getByRole("link", { name: "View on arXiv" })).toHaveAttribute(
     "href",
-    links.get(clickTitle) ?? "missing historical paper link",
+    links.get(clickPoint.title) ?? "missing historical paper link",
   );
   await expect(inspector.locator("time")).toHaveAttribute(
     "datetime",
@@ -272,6 +295,30 @@ test("historical paper points open the inline inspector", async ({
   await page.getByRole("option", { name: /Topic\s+pretraining/i }).click();
   await expect(inspector.getByRole("heading", { name: "pretraining" })).toBeVisible();
   await expect(inspector.getByRole("link", { name: "View on arXiv" })).toHaveCount(0);
+});
+
+test("foreground paper points open the visible paper", async ({ page }, testInfo) => {
+  test.setTimeout(90_000);
+  test.skip(
+    !["chrome", "safari"].includes(testInfo.project.name),
+    "Foreground point picking requires hosted 3D support",
+  );
+  await page.setViewportSize({ width: 1_440, height: 900 });
+  await page.goto("/");
+  await expect(page.locator(".filters")).toContainText("historical arXiv records", {
+    timeout: 20_000,
+  });
+  await page.waitForTimeout(2_500);
+
+  const point = await swarmPoint(page);
+  await page.waitForTimeout(400);
+  await expect(page.locator(".cloud-tip")).toHaveCount(0);
+  await page.mouse.click(point.x, point.y);
+
+  const inspector = page.getByLabel("Node inspector");
+  await expect(inspector.getByRole("heading", { name: point.title })).toBeVisible();
+  await expect(inspector.getByRole("button", { name: "Open paper" })).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
 test("2D hover and click use the same inline inspector", async ({ page }, testInfo) => {
@@ -337,7 +384,9 @@ test("2D hover and click use the same inline inspector", async ({ page }, testIn
     page.getByRole("heading", { name: "In-Context Language Learning" }),
   ).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: "Unisolate connections" }).click();
+  await page
+    .getByRole("button", { name: "Unisolate connections" })
+    .evaluate((button: HTMLButtonElement) => button.click());
   await expect(mapStatus(page)).toHaveText(fullState);
 });
 

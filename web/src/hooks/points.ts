@@ -36,6 +36,7 @@ type PointRefs = {
   block: Ref<number>;
   claim: Ref<Claim | null>;
   hover: Ref<Hover | null>;
+  mute: Ref<boolean>;
   pick: Ref<(paper: CloudPaper) => void>;
   request: Ref<number>;
   select: Ref<number>;
@@ -85,7 +86,10 @@ async function loadPaper(
   return cloudPaper(await request, range, index);
 }
 
-export function pickBound(refs: PointRefs, event: MouseEvent | PointerEvent) {
+export function pickBound(
+  refs: Pick<PointRefs, "claim" | "pick" | "target">,
+  event: MouseEvent | PointerEvent,
+) {
   const claim = refs.claim.current;
   const target = refs.target.current;
   const nearby =
@@ -140,7 +144,7 @@ function mountPoints(
   let moved: PointerEvent | null = null;
 
   const show = (event: PointerEvent) => {
-    if (performance.now() < refs.block.current) return;
+    if (refs.mute.current || performance.now() < refs.block.current) return;
     const match = hit(event);
     const token = ++refs.request.current;
     if (match.index == null) {
@@ -173,6 +177,13 @@ function mountPoints(
       });
   };
   const move = (event: PointerEvent) => {
+    if (refs.mute.current) {
+      if (timer) clearTimeout(timer);
+      timer = undefined;
+      moved = null;
+      clearHover(refs, setTip);
+      return;
+    }
     const prior = refs.target.current ?? refs.hover.current;
     if (prior && Math.hypot(event.clientX - prior.x, event.clientY - prior.y) > 10) {
       clearHover(refs, setTip);
@@ -193,7 +204,7 @@ function mountPoints(
   const press = (event: PointerEvent) => {
     refs.claim.current = null;
     refs.select.current += 1;
-    if (!event.isPrimary || event.button !== 0) return;
+    if (refs.mute.current || !event.isPrimary || event.button !== 0) return;
     const hovered = refs.target.current ?? refs.hover.current;
     const nearby =
       hovered && Math.hypot(event.clientX - hovered.x, event.clientY - hovered.y) <= 10;
@@ -215,6 +226,7 @@ function mountPoints(
     timer = undefined;
     moved = null;
     if (
+      refs.mute.current ||
       (performance.now() < refs.block.current && !claim?.paper) ||
       !claim ||
       Math.hypot(event.clientX - claim.x, event.clientY - claim.y) > 5
@@ -294,6 +306,7 @@ export function usePoints(input: PointInput): {
   tip: PointTip | null;
   block: () => void;
   drop: () => void;
+  mute: (active: boolean) => void;
   take: () => boolean;
 } {
   const [tip, setTip] = useState<PointTip | null>(null);
@@ -301,6 +314,7 @@ export function usePoints(input: PointInput): {
   const blockRef = useRef(0);
   const claimRef = useRef<Claim | null>(null);
   const hoverRef = useRef<Hover | null>(null);
+  const muteRef = useRef(false);
   const requestRef = useRef(0);
   const selectRef = useRef(0);
   const targetRef = useRef<Hover | null>(null);
@@ -316,6 +330,16 @@ export function usePoints(input: PointInput): {
   const drop = useCallback(() => {
     claimRef.current = null;
   }, []);
+  const mute = useCallback((active: boolean) => {
+    muteRef.current = active;
+    if (!active) return;
+    claimRef.current = null;
+    hoverRef.current = null;
+    targetRef.current = null;
+    requestRef.current += 1;
+    selectRef.current += 1;
+    setTip(null);
+  }, []);
   const take = useCallback(() => {
     const claim = claimRef.current;
     return Boolean(claim?.pending && claim.paper);
@@ -328,6 +352,7 @@ export function usePoints(input: PointInput): {
           block: blockRef,
           claim: claimRef,
           hover: hoverRef,
+          mute: muteRef,
           pick: pickRef,
           request: requestRef,
           select: selectRef,
@@ -337,5 +362,5 @@ export function usePoints(input: PointInput): {
       ),
     [input.data, input.graphRef, input.theme],
   );
-  return { tip, block, drop, take };
+  return { tip, block, drop, mute, take };
 }

@@ -140,7 +140,7 @@ export function GraphSpace({
     detail: quality.geometryDetail,
     simple,
   });
-  const tip = useSwarm({
+  const swarmHit = useSwarm({
     graphRef,
     nodes: swarmNodes,
     selected,
@@ -150,10 +150,11 @@ export function GraphSpace({
     },
     onFocus,
     onHover: (node) => {
-      if (node) cloudHit.block();
+      cloudHit.mute(Boolean(node));
       setSwarmHovered(node);
     },
   });
+  const tip = swarmHit.tip;
 
   useEffect(() => {
     if (camera) {
@@ -227,6 +228,7 @@ export function GraphSpace({
           graphRef.current?.zoomToFit(duration, 72, (node) => coreIds.has(node.id));
         }}
         onNodeClick={(node) => {
+          if (swarmHit.take()) return;
           pickFront(cloudHit, cloudOpenRef, onChoose, node);
         }}
         onNodeHover={(node) => {
@@ -235,7 +237,9 @@ export function GraphSpace({
         }}
         onNodeRightClick={(node) => onFocus(node.id)}
         onBackgroundClick={() => {
-          if (!cloudOpenRef.current && !cloudHit.take()) onClear();
+          if (!cloudOpenRef.current && !cloudHit.take() && !swarmHit.take()) {
+            onClear();
+          }
         }}
       />
       <PointTips tip={tip} cloud={cloudHit.tip} />
