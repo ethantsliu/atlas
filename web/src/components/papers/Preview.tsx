@@ -46,9 +46,8 @@ export function PaperPreview({
             <h2>Evidence boundary</h2>
             {isContext ? (
               <p>
-                This collection entry is contextual material, not a research paper. It
-                remains visible for provenance but is excluded from paper counts,
-                synthesis, and reading-completion requirements.
+                This Paper entry remains visible for provenance but is excluded from
+                synthesis and reading-completion requirements.
               </p>
             ) : (
               <p>

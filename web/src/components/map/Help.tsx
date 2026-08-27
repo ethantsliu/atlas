@@ -11,7 +11,8 @@ export function GraphHelp({ mode, selected }: HelpProps) {
   return (
     <>
       <p className="sr-only" id="graph-help">
-        Use the arrow keys to move between visible nodes.
+        Use the arrow keys to move between reviewed foreground nodes. Historical swarm
+        papers can be inspected with pointer or touch.
         {mode === "3d"
           ? " Drag to rotate the three dimensional map."
           : " Drag to pan the compatibility map."}{" "}

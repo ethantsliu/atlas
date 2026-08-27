@@ -1,12 +1,12 @@
 # Atlas
 
-An interactive map of machine-learning papers, research ideas, topics, and techniques.
+An interactive 3D map of ML Research, containing all of arXiv.
 
 [Open Atlas](https://xn--rss.to/atlas/)
 
 ## Run locally
 
-Requires Node.js 22. Docker is not required.
+Requires Node.js 22.
 
 ```bash
 npm --prefix web ci

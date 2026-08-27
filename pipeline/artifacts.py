@@ -25,6 +25,7 @@ from promote import base_records, build_corpus, load_days
 from related import build_work_rows
 from rules import check
 from sources import build_source_inventory
+from titles import valid_title
 from verify import build_verification_queue
 
 
@@ -88,14 +89,36 @@ def validate_corpus(manifest: dict, enriched: list[dict]) -> set[str]:
     )
     check(
         manifest.get("upstream_entry_count")
-        == len(source) + manifest.get("excluded_private_context", -1)
-        and manifest.get("excluded_private_context") == 3,
+        == len(source)
+        + manifest.get("excluded_private_context", -1)
+        + manifest.get("excluded_duplicate_papers", -1)
+        and manifest.get("excluded_private_context") == 6,
         "Private context exclusion ledger is stale",
+    )
+    check(
+        manifest.get("excluded_duplicate_papers") == 17,
+        "Duplicate-paper exclusion ledger is stale",
+    )
+    check(
+        manifest.get("excluded_unsafe_title") == 0,
+        "Unsafe-title exclusion ledger is stale",
+    )
+    check(
+        all(set(paper) == {"id", "title", "url", "source"} for paper in source),
+        "Public collection source contains curator-only fields",
+    )
+    check(
+        all(valid_title(paper.get("title"), strict=True) for paper in source),
+        "Public collection source contains an unsafe title",
     )
     overrides = json.loads(
         (ROOT / "data/source/overrides.json").read_text(encoding="utf-8")
     )
     base = base_records(source, enriched)
+    check(
+        len({record["stable_id"] for record in base}) == len(base),
+        "Base collection contains duplicate stable papers",
+    )
     expected_base = [
         merge_record(paper, overrides.get(str(paper["id"]), {}), record)
         for paper, record in zip(source, base, strict=True)
@@ -106,6 +129,14 @@ def validate_corpus(manifest: dict, enriched: list[dict]) -> set[str]:
     )
     expected, report = build_corpus(expected_base, load_days())
     check(enriched == expected, "Enriched corpus is stale against daily promotion")
+    check(
+        all(not {"note", "section", "tags"}.intersection(paper) for paper in enriched),
+        "Enriched public corpus contains curator-only fields",
+    )
+    check(
+        all(valid_title(paper.get("title")) for paper in enriched),
+        "Enriched public corpus contains an unsafe title",
+    )
     stored_report = json.loads(
         (ROOT / "data/generated/promotion.json").read_text(encoding="utf-8")
     )

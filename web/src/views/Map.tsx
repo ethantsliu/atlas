@@ -8,12 +8,12 @@ import { GraphCanvas } from "../components/map/Graph";
 import { Inspector } from "../components/map/Inspector";
 import { PanelResize } from "../components/map/Panel";
 import { MapFilters } from "../components/map/Filters";
-import { PaperDetailModal } from "../components/papers/Paper";
-import { ResultStatus } from "../components/shared/Empty";
+import { PaperSheet, PaperState } from "../components/map/State";
 import type { Theme } from "../hooks/theme";
 import type { CameraView } from "../lib/camera";
 import { resolvePaper } from "../lib/filters";
 import { useCloud } from "../hooks/cloud";
+import type { CloudPaper } from "../lib/cloud";
 
 type MapViewProps = {
   atlas: AtlasRead;
@@ -26,6 +26,7 @@ type MapViewProps = {
   onNeedPapers: () => void;
   onRetryPapers: () => void;
   onReplace: (patch: Partial<AtlasUrlState>) => void;
+  onPush: (patch: Partial<AtlasUrlState>) => void;
 };
 
 export function MapView({
@@ -39,10 +40,13 @@ export function MapView({
   onNeedPapers,
   onRetryPapers,
   onReplace,
+  onPush,
 }: MapViewProps) {
   const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
+  const [cloudPaper, setCloudPaper] = useState<CloudPaper | null>(null);
   const kinds = useMemo(() => new Set(url.kinds), [url.kinds]);
   const history = useCloud(kinds.has("paper") && url.layout === "semantic");
+  const visibleCloud = url.focus || url.query.trim() ? null : history.data;
   const nextGraph = useMemo(
     () =>
       buildGraph(atlas, {
@@ -58,6 +62,10 @@ export function MapView({
   const allNodes = useMemo(() => createGraphNodes(atlas, 1), [atlas]);
   const selected =
     graph.nodes.find((candidate) => candidate.id === url.selected) ?? null;
+
+  useEffect(() => {
+    if (cloudPaper && !visibleCloud) setCloudPaper(null);
+  }, [cloudPaper, visibleCloud]);
 
   useEffect(() => {
     if (!papersReady || !url.selected || selected) return;
@@ -92,6 +100,7 @@ export function MapView({
   }
 
   function chooseNode(node: GraphNode) {
+    setCloudPaper(null);
     onReplace({ selected: node.id });
     if (node.kind !== "paper" && !papersReady) onNeedPapers();
   }
@@ -99,6 +108,7 @@ export function MapView({
   function chooseNodeId(nodeId: string) {
     const node = allNodes.find((candidate) => candidate.id === nodeId);
     if (!node) return;
+    setCloudPaper(null);
     const nextKinds = new Set(kinds);
     if (node.kind !== "paper") nextKinds.add(node.kind);
     onReplace({
@@ -111,10 +121,11 @@ export function MapView({
   }
 
   function toggleFocus(nodeId: string) {
-    onReplace({ focus: url.focus === nodeId ? null : nodeId });
+    onPush({ focus: url.focus === nodeId ? null : nodeId });
   }
 
   function resetMap() {
+    setCloudPaper(null);
     onReplace({
       kinds: [...ALL_NODE_KINDS],
       focus: null,
@@ -127,31 +138,7 @@ export function MapView({
 
   return (
     <main className="map-layout">
-      <ResultStatus
-        count={graph.nodes.length + (history.data?.scopes.length ?? 0)}
-        label="visible graph node"
-        query={url.query}
-      />
-      {(papersLoading || papersError) && (
-        <aside
-          className="paper-state"
-          role={papersError ? "alert" : "status"}
-          aria-live="polite"
-          aria-atomic="true"
-          aria-busy={papersLoading}
-        >
-          <span>
-            {papersError
-              ? `Paper index unavailable: ${papersError}`
-              : "Loading papers…"}
-          </span>
-          {papersError && (
-            <button type="button" onClick={onRetryPapers}>
-              Retry papers
-            </button>
-          )}
-        </aside>
-      )}
+      <PaperState loading={papersLoading} error={papersError} retry={onRetryPapers} />
       <MapFilters
         atlas={atlas}
         archiveCount={history.manifest?.count}
@@ -160,15 +147,23 @@ export function MapView({
         minFeasibility={url.minFeasibility}
         onToggleKind={toggleKind}
         onMinFeasibilityChange={(value) => onReplace({ minFeasibility: value })}
-        onClearFocus={() => onReplace({ focus: null })}
+        onClearFocus={() => onPush({ focus: null })}
       />
       <GraphCanvas
         graph={graph}
-        cloud={history.data}
+        cloud={visibleCloud}
+        cloudSelected={Boolean(cloudPaper)}
         selected={selected}
         onChoose={chooseNode}
+        onCloudPick={(paper) => {
+          setCloudPaper(paper);
+          onReplace({ selected: null, focus: null });
+        }}
         onFocus={toggleFocus}
-        onClearSelection={() => onReplace({ selected: null })}
+        onClearSelection={() => {
+          setCloudPaper(null);
+          onReplace({ selected: null });
+        }}
         onReset={resetMap}
         query={url.query}
         theme={theme}
@@ -180,22 +175,19 @@ export function MapView({
       <PanelResize />
       <Inspector
         node={selected}
+        cloud={cloudPaper}
         hasNodes={graph.nodes.length > 0}
         atlas={atlas}
         focused={url.focus === selected?.id}
         onFocus={toggleFocus}
         onSelectNode={chooseNodeId}
-        onClose={() => onReplace({ selected: null })}
+        onClose={() => {
+          setCloudPaper(null);
+          onReplace({ selected: null });
+        }}
         onOpenPaper={setSelectedPaper}
       />
-      {selectedPaper && (
-        <PaperDetailModal
-          paper={selectedPaper}
-          close={() => {
-            setSelectedPaper(null);
-          }}
-        />
-      )}
+      <PaperSheet paper={selectedPaper} close={() => setSelectedPaper(null)} />
     </main>
   );
 }

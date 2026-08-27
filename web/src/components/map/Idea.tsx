@@ -1,5 +1,10 @@
 import { ChevronRight } from "lucide-react";
-import { findParentProgram, ideaRole, workPackagesFor } from "../../lib/portfolio";
+import {
+  findParentProgram,
+  ideaBasis,
+  ideaRole,
+  workPackagesFor,
+} from "../../lib/portfolio";
 import { labelOf } from "../../lib/text";
 import type { Idea } from "../../types";
 import type { AtlasRead } from "../../lib/payload";
@@ -16,6 +21,7 @@ export function IdeaDetails({ idea, atlas, onSelectNode }: IdeaProps) {
   const workPackages = role === "program" ? workPackagesFor(idea, atlas.ideas) : [];
   return (
     <>
+      <p className="idea-basis">{ideaBasis(idea)}</p>
       {parent && (
         <div className="inspector-program-context">
           <span>Work package within</span>

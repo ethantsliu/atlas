@@ -218,6 +218,15 @@ function filterNodeIds(graph: GraphData, nodeIds: ReadonlySet<string>): GraphDat
   };
 }
 
+function isolateGraph(graph: GraphData, centerId: string): GraphData {
+  const links = graph.links.filter((link) => endpointIds(link).includes(centerId));
+  const ids = neighborIds(new Set([centerId]), links);
+  return {
+    nodes: graph.nodes.filter((node) => ids.has(node.id)),
+    links,
+  };
+}
+
 export function buildGraph(atlas: AtlasRead, filters: GraphFilters): GraphData {
   const nodes = createGraphNodes(atlas, filters.minFeasibility);
   const normalizedQuery = filters.query.trim().toLocaleLowerCase();
@@ -238,10 +247,8 @@ export function buildGraph(atlas: AtlasRead, filters: GraphFilters): GraphData {
   let graph = filterNodeIds({ nodes, links: createGraphLinks(atlas) }, enabledNodeIds);
 
   if (filters.focus) {
-    graph = filterNodeIds(graph, neighborIds(new Set([filters.focus]), graph.links));
-  }
-
-  if (normalizedQuery) {
+    graph = isolateGraph(graph, filters.focus);
+  } else if (normalizedQuery) {
     const matches = new Set(
       graph.nodes
         .filter((node) => node.label.toLocaleLowerCase().includes(normalizedQuery))

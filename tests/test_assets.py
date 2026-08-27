@@ -26,7 +26,10 @@ from assets import (  # noqa: E402
 
 class PaperAssetTests(unittest.TestCase):
     def test_paper_digest(self) -> None:
-        bundle = {"schema_version": 1, "papers": [{"id": "paper-1"}]}
+        bundle = {
+            "schema_version": 1,
+            "papers": [{"id": "paper-1", "title": "Paper One"}],
+        }
         metadata, content = paper_asset(bundle)
 
         self.assertEqual(metadata["bytes"], len(content))
@@ -40,9 +43,18 @@ class PaperAssetTests(unittest.TestCase):
             public = Path(directory) / "public"
             output = public / "data/papers"
             public.mkdir()
-            first = {"schema_version": 1, "papers": [{"id": "paper-1"}]}
-            second = {"schema_version": 1, "papers": [{"id": "paper-2"}]}
-            third = {"schema_version": 1, "papers": [{"id": "paper-3"}]}
+            first = {
+                "schema_version": 1,
+                "papers": [{"id": "paper-1", "title": "Paper One"}],
+            }
+            second = {
+                "schema_version": 1,
+                "papers": [{"id": "paper-2", "title": "Paper Two"}],
+            }
+            third = {
+                "schema_version": 1,
+                "papers": [{"id": "paper-3", "title": "Paper Three"}],
+            }
 
             first_meta = stage_papers(output, first, public)
             second_meta = stage_papers(output, second, public)
@@ -64,10 +76,13 @@ class PaperAssetTests(unittest.TestCase):
             output = public / "data/papers"
             public.mkdir()
             private_url = "https://" + "x.com/account/status/1"
-            first = {"schema_version": 1, "papers": [{"url": private_url}]}
+            first = {
+                "schema_version": 1,
+                "papers": [{"url": private_url, "title": "Paper One"}],
+            }
             second = {
                 "schema_version": 1,
-                "papers": [{"url": "https://example.test"}],
+                "papers": [{"url": "https://example.test", "title": "Paper Two"}],
             }
             first_meta = stage_papers(output, first, public)
             second_meta = stage_papers(output, second, public)
@@ -77,6 +92,36 @@ class PaperAssetTests(unittest.TestCase):
             self.assertEqual(
                 {path.name for path in output.iterdir()},
                 {Path(second_meta["path"]).name},
+            )
+
+    def test_curator_prior(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            public = Path(directory) / "public"
+            output = public / "data/papers"
+            public.mkdir()
+            prior = {
+                "schema_version": 1,
+                "papers": [
+                    {
+                        "id": "context-1",
+                        "title": "Context",
+                        "record_kind": "non_paper_context",
+                        "note": "Curator annotation",
+                    }
+                ],
+            }
+            current = {
+                "schema_version": 1,
+                "papers": [{"id": "paper-1", "record_kind": "paper", "title": "Paper"}],
+            }
+            prior_meta = stage_papers(output, prior, public)
+            current_meta = stage_papers(output, current, public)
+
+            prune_papers(output, current_meta, prior_meta["path"], public)
+
+            self.assertEqual(
+                {path.name for path in output.iterdir()},
+                {Path(current_meta["path"]).name},
             )
 
     def test_paper_symlinks(self) -> None:

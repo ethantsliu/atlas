@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
@@ -26,6 +27,7 @@ from layout import (
 )
 from mix import ensure_mix, mix_report
 from node import load_details, node_records
+from orient import align_points, load_prior
 from semantic import (
     NEIGHBOR_COUNT,
     ensure_quality,
@@ -311,7 +313,11 @@ def row_hash(record: tuple[str, str]) -> str:
     return hashlib.sha256(body).hexdigest()
 
 
-def input_hash(records: list[tuple[str, str]], vector_sha256: str) -> str:
+def input_hash(
+    records: list[tuple[str, str]],
+    vector_sha256: str,
+    orientation: dict | None = None,
+) -> str:
     """Hash the immutable vectors plus every deterministic reducer parameter."""
     inputs = {
         "schema": "semantic-layout-v3",
@@ -319,6 +325,11 @@ def input_hash(records: list[tuple[str, str]], vector_sha256: str) -> str:
         "vector_sha256": vector_sha256,
         "reducer": REDUCER,
     }
+    if orientation is not None:
+        inputs["orientation"] = {
+            key: orientation[key]
+            for key in ("method", "anchor_count", "reference_sha256")
+        }
     body = json.dumps(inputs, ensure_ascii=False, separators=(",", ":")).encode()
     return hashlib.sha256(body).hexdigest()
 
@@ -432,19 +443,28 @@ def cohort_ids(atlas: dict, records: list[tuple[str, str]]) -> dict[str, set[str
     }
     context_ids = {item["id"] for item in atlas["papers"]} - paper_ids
     idea_ids = {item["id"] for item in atlas["ideas"]}
-    return {
+    cohorts = {
         "all": all_ids,
         "paper": paper_ids,
-        "context": context_ids,
         "idea": idea_ids,
         "taxonomy": all_ids - paper_ids - context_ids - idea_ids,
     }
+    if context_ids:
+        cohorts["context"] = context_ids
+    return cohorts
 
 
-def build_layout(atlas: dict, details: dict[str, dict] | None = None) -> dict:
+def build_layout(
+    atlas: dict,
+    details: dict[str, dict] | None = None,
+    prior: dict[str, list[float]] | None = None,
+) -> dict:
     records = node_records(atlas, details)
     vectors = load_vectors(records)
     points = reduce_points(vectors)
+    orientation = None
+    if prior is not None:
+        points, orientation = align_points(records, points, prior)
     points = np.round(points, 3)
     exclusions = alias_exclusions(atlas, records)
     quality = quality_report(
@@ -464,7 +484,7 @@ def build_layout(atlas: dict, details: dict[str, dict] | None = None) -> dict:
     mixing = mix_report(atlas, neighbors, positions)
     ensure_mix(mixing)
     vectors_sha = vector_sha(vectors)
-    return {
+    layout = {
         "schema_version": 3,
         "model": MODEL,
         "embedding": {
@@ -483,7 +503,7 @@ def build_layout(atlas: dict, details: dict[str, dict] | None = None) -> dict:
         },
         "method": LAYOUT_METHOD,
         "reducer": REDUCER,
-        "input_sha256": input_hash(records, vectors_sha),
+        "input_sha256": input_hash(records, vectors_sha, orientation),
         "node_count": len(records),
         "quality": quality,
         "neighbor_count": NEIGHBOR_COUNT,
@@ -492,11 +512,26 @@ def build_layout(atlas: dict, details: dict[str, dict] | None = None) -> dict:
         **cluster_fields,
         "positions": positions,
     }
+    if orientation is not None:
+        layout["orientation"] = orientation
+    return layout
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--prior",
+        help="prior layout or canonical atlas path; use - for standard input",
+    )
+    args = parser.parse_args()
     atlas = json.loads(ATLAS_PATH.read_text(encoding="utf-8"))
-    layout = build_layout(atlas, load_details())
+    details = load_details()
+    allowed = {node_id for node_id, _ in node_records(atlas, details)}
+    prior_path = args.prior
+    if prior_path is None and LAYOUT_PATH.exists():
+        prior_path = str(LAYOUT_PATH)
+    prior = load_prior(prior_path, allowed) if prior_path is not None else None
+    layout = build_layout(atlas, details, prior)
     LAYOUT_PATH.write_text(
         json.dumps(layout, ensure_ascii=False, separators=(",", ":")) + "\n",
         encoding="utf-8",

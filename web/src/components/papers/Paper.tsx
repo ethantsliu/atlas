@@ -22,12 +22,12 @@ export function PaperDetailModal({ paper, close }: PaperDetailModalProps) {
   const isContext = paper.record_kind === "non_paper_context";
   const showCollectionLink = paper.collection_url !== paper.url;
   const evidenceLabel = isContext
-    ? "Context"
+    ? "Paper"
     : hasReading
       ? "Full"
       : labelOf(paper.reading_depth);
   const evidenceDescription = isContext
-    ? "Curator context · excluded from the paper corpus"
+    ? "Collection Paper · retained for provenance"
     : paper.reading_depth === "verified"
       ? "Page-anchored reading · independently checked"
       : hasReading
@@ -53,7 +53,7 @@ export function PaperDetailModal({ paper, close }: PaperDetailModalProps) {
           <header>
             <div>
               <span className="type-pill topic">
-                {isContext ? "context" : paper.reading_depth}
+                {isContext ? "paper" : paper.reading_depth}
               </span>
               <h1 id="paper-modal-title">{paper.title}</h1>
               <p className="paper-byline">
@@ -71,7 +71,7 @@ export function PaperDetailModal({ paper, close }: PaperDetailModalProps) {
               <em>{Math.round(reading.confidence * 100)}% review confidence</em>
             )}
             <a href={paper.url} target="_blank" rel="noreferrer">
-              {isContext ? "Context source" : "Source"} <ExternalLink size={13} />
+              {isContext ? "Paper source" : "Source"} <ExternalLink size={13} />
             </a>
             {showCollectionLink && (
               <a href={paper.collection_url} target="_blank" rel="noreferrer">

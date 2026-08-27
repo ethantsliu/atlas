@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { makeIdea } from "../test/fixtures";
 import {
   findParentProgram,
+  ideaBasis,
   ideaRole,
+  ideaStage,
   independentlyRankedIdeas,
   portfolioAtScore,
   visibleProgramGroups,
@@ -29,6 +31,20 @@ describe("portfolio hierarchy", () => {
     expect(findParentProgram(workPackage, ideas)).toBe(program);
     expect(workPackagesFor(program, ideas)).toEqual([workPackage]);
     expect(independentlyRankedIdeas(ideas)).toEqual([program, standalone]);
+  });
+
+  it("describes idea evidence stages without exposing internal origins", () => {
+    const researched = makeIdea({
+      origin: "user-specified",
+      feasibility: { ...standalone.feasibility, screening_estimate: false },
+      brief: { ...standalone.brief, status: "researched-draft" },
+    });
+
+    expect(ideaStage(standalone)).toBe("Screening candidate");
+    expect(ideaBasis(standalone)).toContain("Automatically synthesized");
+    expect(ideaStage(researched)).toBe("Researched draft");
+    expect(ideaBasis(researched)).toContain("not a validated result");
+    expect(ideaBasis(researched)).not.toContain("user-specified");
   });
 
   it("keeps a matching work package grouped under its program", () => {

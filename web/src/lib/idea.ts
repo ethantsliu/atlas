@@ -369,7 +369,10 @@ function isFeasibility(value: unknown, status: string): boolean {
     rubricIds.some((id) => {
       const factor = factorsById.get(id);
       return (
-        factor == null || factor.max !== FACTOR_MAXIMA[id] || factor.score > factor.max
+        factor == null ||
+        factor.max !== FACTOR_MAXIMA[id] ||
+        roundDecimal(factor.score) !== factor.score ||
+        factor.score > factor.max
       );
     })
   ) {

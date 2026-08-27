@@ -114,7 +114,7 @@ export function LibraryView({ atlas, query, onClearQuery }: LibraryViewProps) {
                   <td>
                     <span className={`depth ${paper.reading_depth}`}>
                       {paper.record_kind === "non_paper_context"
-                        ? "Context"
+                        ? "Paper"
                         : labelOf(paper.reading_depth)}
                     </span>
                   </td>

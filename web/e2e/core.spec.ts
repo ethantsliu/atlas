@@ -1,7 +1,26 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
 
 const shard = /\/data\/papers\/[a-f0-9]{64}\.json(?:\?.*)?$/;
+
+async function cloudLinks() {
+  const root = join(process.cwd(), "public", "data", "cloud");
+  const names = (await readdir(root)).filter((name) =>
+    /^\d{4}-\d{2}\.json$/.test(name),
+  );
+  const links = new Map<string, string>();
+  await Promise.all(
+    names.map(async (name) => {
+      const metadata = JSON.parse(await readFile(join(root, name), "utf8")) as {
+        papers: string[][];
+      };
+      for (const paper of metadata.papers) links.set(paper[1], paper[2]);
+    }),
+  );
+  return links;
+}
 
 function trackShard(page: Page): string[] {
   const hits: string[] = [];
@@ -12,7 +31,9 @@ function trackShard(page: Page): string[] {
 }
 
 function mapStatus(page: Page) {
-  return page.locator(".map-layout > [role=status]").first();
+  return page
+    .locator(".map-layout > p.sr-only[role=status]")
+    .filter({ hasText: /visible graph nodes/ });
 }
 
 async function showFilters(page: Page) {
@@ -27,9 +48,12 @@ async function fullNodes(page: Page): Promise<string> {
       timeout: 20_000,
     });
   }
+  const toggles = page.locator(".filters .kind-toggle");
   const counts = await Promise.all(
     [0, 1, 2, 3].map(async (index) => {
-      const text = await page.locator(".filters .kind-toggle").nth(index).textContent();
+      const toggle = toggles.nth(index);
+      if ((await toggle.getAttribute("aria-pressed")) !== "true") return 0;
+      const text = await toggle.textContent();
       return Number((text?.match(/[\d,]+$/)?.[0] ?? "0").replaceAll(",", ""));
     }),
   );
@@ -86,6 +110,32 @@ async function hoverNode(
   );
 }
 
+async function cloudPoint(
+  page: Page,
+): Promise<{ x: number; y: number; title: string }> {
+  const graph = page.getByLabel("Interactive 3D research graph");
+  const box = await graph.boundingBox();
+  if (!box) throw new Error("Research graph has no bounds");
+  const tip = page.locator(".cloud-tip");
+  const core = page.locator(".swarm-tip:not(.cloud-tip)");
+  for (const y of [0.45, 0.55, 0.65, 0.75, 0.35]) {
+    for (const x of [0.25, 0.4, 0.55, 0.7, 0.8]) {
+      const point = { x: box.x + box.width * x, y: box.y + box.height * y };
+      await page.mouse.move(point.x, point.y);
+      await page.waitForTimeout(350);
+      let label = (await tip.count()) ? await tip.textContent() : null;
+      if (label === "Loading Paper…") {
+        await page.waitForTimeout(700);
+        label = (await tip.count()) ? await tip.textContent() : null;
+      }
+      if (label?.startsWith("Paper · ") && (await core.count()) === 0) {
+        return { ...point, title: label.slice("Paper · ".length) };
+      }
+    }
+  }
+  throw new Error("No historical paper point accepted hover input");
+}
+
 test("the initial map enables every lens", async ({ page }) => {
   const hits = trackShard(page);
   await loadMap(page, "/");
@@ -106,10 +156,10 @@ test("history streams points without eager paper metadata", async ({ page }) => 
     performance.getEntriesByType("resource").map((entry) => entry.name),
   );
   const points = resources.filter((url) =>
-    /\/data\/cloud\/\d{4}-\d{2}\.bin$/.test(url),
+    /\/data\/cloud\/\d{4}-\d{2}\.bin(?:\?.*)?$/.test(url),
   );
   const metadata = resources.filter((url) =>
-    /\/data\/cloud\/\d{4}-\d{2}\.json$/.test(url),
+    /\/data\/cloud\/\d{4}-\d{2}\.json(?:\?.*)?$/.test(url),
   );
 
   expect(points.length).toBeGreaterThan(0);
@@ -166,11 +216,12 @@ test("hover labels a node and click keeps details in the inspector", async ({
   await page.setViewportSize({ width: 1_440, height: 900 });
   await loadMap(page);
   await showFilters(page);
-  await page.getByRole("button", { name: /Paper\s+[,\d]+/ }).click();
   const fullState = await fullNodes(page);
   const picker = page.getByLabel("Choose a visible graph node");
-  await picker.fill("In-Context Language Learning");
-  await page.getByRole("option", { name: /In-Context Language Learning/ }).click();
+  const topic = picker.locator("option").filter({ hasText: "Topic · pretraining" });
+  const topicId = await topic.getAttribute("value");
+  if (!topicId) throw new Error("Pretraining topic is unavailable");
+  await picker.selectOption(topicId);
   await page.getByRole("button", { name: "Isolate connections" }).click();
   await expect(mapStatus(page)).not.toHaveText(fullState!);
   await page.waitForTimeout(2_500);
@@ -179,20 +230,13 @@ test("hover labels a node and click keeps details in the inspector", async ({
   const graph = page.getByLabel(/Interactive (3D )?research graph/);
   const box = await graph.boundingBox();
   if (!box) throw new Error("Research graph has no bounds");
-  const tooltip = await hoverNode(
-    page,
-    box,
-    "Paper · In-Context Language Learning",
-    true,
-  );
-  await expect(tooltip).toContainText("Paper · In-Context Language Learning");
+  const tooltip = await hoverNode(page, box, "Topic · pretraining", true);
+  await expect(tooltip).toContainText("Topic · pretraining");
   await expect(tooltip).toHaveCSS("font-family", /Baskerville/);
   await expect(tooltip).toHaveCSS("font-size", "14px");
   await page.mouse.down();
   await page.mouse.up();
-  await expect(
-    page.getByRole("heading", { name: "In-Context Language Learning" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "pretraining" })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   const inspector = await page.getByLabel("Node inspector").boundingBox();
   if (!inspector) throw new Error("Node inspector has no bounds");
@@ -201,6 +245,54 @@ test("hover labels a node and click keeps details in the inspector", async ({
   expect(inspector.width).toBeLessThanOrEqual(520);
   await page.mouse.move(box.x + 12, box.y + 12);
   await expect(tooltip).toBeHidden();
+});
+
+test("historical paper points open the inline inspector", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    !["chrome", "safari"].includes(testInfo.project.name),
+    "Historical point picking is covered in Chromium and WebKit",
+  );
+  const links = await cloudLinks();
+  await page.route(/\/data\/cloud\/\d{4}-\d{2}\.json(?:\?.*)?$/, async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 900));
+    await route.continue();
+  });
+  await page.setViewportSize({ width: 1_440, height: 900 });
+  await page.goto("/");
+  await expect(page.locator(".filters")).toContainText("historical arXiv records", {
+    timeout: 20_000,
+  });
+  await page.waitForTimeout(2_500);
+
+  const point = await cloudPoint(page);
+  const tip = page.locator(".cloud-tip");
+  await expect(tip).toHaveCSS("font-family", /Baskerville/);
+  await expect(tip).toHaveCSS("font-size", "14px");
+  await page.mouse.click(point.x, point.y);
+  await page.mouse.move(2, 2);
+
+  const inspector = page.getByLabel("Node inspector");
+  await expect(inspector.getByRole("heading", { name: point.title })).toBeVisible();
+  await expect(inspector.getByRole("link", { name: "View on arXiv" })).toHaveAttribute(
+    "href",
+    links.get(point.title) ?? "missing historical paper link",
+  );
+  await expect(inspector.locator("time")).toHaveAttribute(
+    "datetime",
+    /^\d{4}-\d{2}-\d{2}/,
+  );
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Isolate connections" })).toHaveCount(
+    0,
+  );
+
+  const picker = page.getByLabel("Choose a visible graph node");
+  await picker.fill("pretraining");
+  await page.getByRole("option", { name: /Topic\s+pretraining/i }).click();
+  await expect(inspector.getByRole("heading", { name: "pretraining" })).toBeVisible();
+  await expect(inspector.getByRole("link", { name: "View on arXiv" })).toHaveCount(0);
 });
 
 test("2D hover and click use the same inline inspector", async ({ page }, testInfo) => {
@@ -220,12 +312,36 @@ test("2D hover and click use the same inline inspector", async ({ page }, testIn
   await loadMap(page);
   await showFilters(page);
   await page.getByRole("button", { name: /Paper\s+[,\d]+/ }).click();
-  const fullState = await fullNodes(page);
   const picker = page.getByLabel("Choose a visible graph node");
+  const filters = page.locator(".filters");
+  await expect(filters).toContainText("historical arXiv records");
+  const lensCount = await page.locator(".filters .kind-toggle").evaluateAll((toggles) =>
+    toggles.reduce((total, toggle) => {
+      if (toggle.getAttribute("aria-pressed") !== "true") return total;
+      const count = toggle.textContent?.match(/[\d,]+$/)?.[0] ?? "0";
+      return total + Number(count.replaceAll(",", ""));
+    }, 0),
+  );
+  const archiveText = await filters.locator(".aside-copy").textContent();
+  const archiveCount = Number(
+    archiveText?.match(/batches ([\d,]+) historical/)?.[1].replaceAll(",", ""),
+  );
+  const fullCount = lensCount - archiveCount;
+  const fullState = `${fullCount.toLocaleString()} visible graph nodes available.`;
+  await expect(mapStatus(page)).toHaveText(fullState, { timeout: 20_000 });
+  expect(archiveCount).toBeGreaterThan(0);
+  await expect(page.locator(".graph-header")).toContainText(
+    `${fullCount.toLocaleString()} nodes`,
+  );
   await picker.fill("In-Context Language Learning");
   await page.getByRole("option", { name: /In-Context Language Learning/ }).click();
   await page.getByRole("button", { name: "Isolate connections" }).click();
   await expect(mapStatus(page)).not.toHaveText(fullState!);
+  const isolatedOptions = await picker.locator("option").count();
+  const isolatedCount = Number(
+    (await mapStatus(page).textContent())?.match(/[\d,]+/)?.[0].replaceAll(",", ""),
+  );
+  expect(isolatedCount).toBe(isolatedOptions - 1);
   await page.waitForTimeout(2_500);
   await page.getByRole("button", { name: "Center selected" }).click();
 
@@ -241,6 +357,8 @@ test("2D hover and click use the same inline inspector", async ({ page }, testIn
     page.getByRole("heading", { name: "In-Context Language Learning" }),
   ).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "Unisolate connections" }).click();
+  await expect(mapStatus(page)).toHaveText(fullState);
 });
 
 test("copied view links include a camera snapshot", async ({ page, context }) => {

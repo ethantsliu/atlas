@@ -27,6 +27,30 @@ describe("BriefModal", () => {
 
     expect(markup).toContain("Evidence basis");
     expect(markup).toContain(idea.brief.evidence_note);
+    expect(markup).toContain("Screening candidate");
+    expect(markup).toContain("Automatically synthesized from corpus routes");
+    expect(markup).not.toContain("cross-paper");
+  });
+
+  it("labels legacy provenance evidence as Paper", () => {
+    const atlas = makeAtlas();
+    atlas.papers[0] = {
+      ...atlas.papers[0],
+      record_kind: "non_paper_context",
+      reading_depth: "context",
+    };
+    const markup = renderToStaticMarkup(
+      <BriefModal
+        idea={atlas.ideas[0]}
+        atlas={atlas}
+        close={vi.fn()}
+        onOpenIdea={vi.fn()}
+        onOpenPaper={vi.fn()}
+      />,
+    );
+
+    expect(markup).toContain("<span>paper</span>");
+    expect(markup).not.toContain("<span>context</span>");
   });
 
   it("renders registered outcomes, analysis, and claim-blocking falsifiers", () => {

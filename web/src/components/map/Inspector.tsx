@@ -2,13 +2,17 @@ import { useMemo } from "react";
 import { ChevronRight, CircleDot, Sparkles, X } from "lucide-react";
 import { findNodePapers } from "../../lib/filters";
 import { createGraphNodes } from "../../lib/graph";
+import { ideaStage } from "../../lib/portfolio";
 import { labelOf } from "../../lib/text";
 import type { GraphNode, Paper } from "../../types";
 import type { AtlasRead } from "../../lib/payload";
+import type { CloudPaper } from "../../lib/cloud";
 import { IdeaDetails } from "./Idea";
+import { CloudDetail } from "./Cloud";
 
 type InspectorProps = {
   node: GraphNode | null;
+  cloud: CloudPaper | null;
   hasNodes: boolean;
   atlas: AtlasRead;
   focused: boolean;
@@ -20,6 +24,7 @@ type InspectorProps = {
 
 export function Inspector({
   node,
+  cloud,
   hasNodes,
   atlas,
   focused,
@@ -32,6 +37,9 @@ export function Inspector({
     () => new Map(createGraphNodes(atlas, 1).map((item) => [item.id, item])),
     [atlas],
   );
+  if (cloud) {
+    return <CloudDetail paper={cloud} onClose={onClose} />;
+  }
   if (!node) {
     return (
       <aside
@@ -73,6 +81,7 @@ export function Inspector({
         <X size={16} />
       </button>
       <span className={`type-pill ${node.kind}`}>{labelOf(node.kind)}</span>
+      {idea && <span className="type-pill brief-status">{ideaStage(idea)}</span>}
       <h2>{node.label}</h2>
       {node.count != null && (
         <div className="big-stat">
@@ -99,7 +108,7 @@ export function Inspector({
             </span>
             <b>
               {paper.record_kind === "non_paper_context"
-                ? "Context"
+                ? "Paper"
                 : labelOf(paper.reading_depth)}
             </b>
           </div>
@@ -154,7 +163,7 @@ export function Inspector({
               >
                 <span>
                   {paper.record_kind === "non_paper_context"
-                    ? "context"
+                    ? "paper"
                     : paper.reading_depth}
                 </span>
                 {paper.title}

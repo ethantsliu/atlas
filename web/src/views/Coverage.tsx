@@ -14,8 +14,8 @@ function AccessCopy({ partial }: { partial: number }) {
   return (
     <p>
       Adapter support describes whether the pipeline knows how to fetch a source. It
-      does not mean that the paper already has a full reading; contextual links are
-      classified separately and never receive fabricated paper reviews. Reviewable text
+      does not mean that the paper already has a full reading. Non-paper sources remain
+      outside Paper coverage and never receive fabricated paper reviews. Reviewable text
       requires usable extraction on at least 85% of pages.{" "}
       {partial > 0 ? (
         <>Partial extracts remain visible below but do not count as full text.</>
@@ -67,26 +67,17 @@ export function CoverageView({ atlas }: CoverageViewProps) {
       {archive && (
         <section className="access-board">
           <header>
-            <span>Discovery archive</span>
+            <span>Historical Papers</span>
             <h2>Historical intake stays complete without loading it all at once</h2>
             <p>
-              Every harvested arXiv record is retained. Scope controls default
-              visibility; it never deletes metadata. Month bodies load only when a
-              search or map action requests them.
+              Every harvested arXiv paper is retained as a Paper. Month bodies load only
+              when a search or map action requests them.
             </p>
           </header>
           <div className="access-metrics">
             <div>
               <b>{archive.counts.all.toLocaleString()}</b>
-              <span>records retained</span>
-            </div>
-            <div>
-              <b>{archive.counts.likely.toLocaleString()}</b>
-              <span>likely ML</span>
-            </div>
-            <div>
-              <b>{archive.counts.possible.toLocaleString()}</b>
-              <span>possible ML</span>
+              <span>historical Papers</span>
             </div>
             <div>
               <b>
@@ -119,10 +110,6 @@ export function CoverageView({ atlas }: CoverageViewProps) {
             <div>
               <b>{sourceAccess.supportedWithoutReadings.toLocaleString()}</b>
               <span>supported, awaiting full reading</span>
-            </div>
-            <div>
-              <b>{sourceAccess.nonPaperRecords.toLocaleString()}</b>
-              <span>classified contextual records</span>
             </div>
           </div>
           <div className="access-routes">

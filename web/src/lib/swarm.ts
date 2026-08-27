@@ -4,7 +4,6 @@ import {
   Float32BufferAttribute,
   Points,
   ShaderMaterial,
-  Uint8BufferAttribute,
 } from "three";
 import type { Theme } from "../hooks/theme";
 import type { GraphNode } from "../types";
@@ -26,28 +25,17 @@ const VERTEX = `
 `;
 
 const CLOUD_VERTEX = `
-  attribute float scope;
   varying vec3 pointColor;
   varying float pointAlpha;
-  uniform vec3 likelyColor;
-  uniform vec3 possibleColor;
-  uniform vec3 contextColor;
+  uniform vec3 paperColor;
+  uniform float pointOpacity;
   uniform float pointSize;
   void main() {
-    if (scope < 0.5) {
-      pointColor = likelyColor;
-      pointAlpha = 0.96;
-    } else if (scope < 1.5) {
-      pointColor = possibleColor;
-      pointAlpha = 0.78;
-    } else {
-      pointColor = contextColor;
-      pointAlpha = 0.28;
-    }
-    float scale = scope < 0.5 ? 1.35 : (scope < 1.5 ? 1.12 : 0.62);
+    pointColor = paperColor;
+    pointAlpha = pointOpacity;
     vec4 view = modelViewMatrix * vec4(position, 1.0);
     gl_Position = projectionMatrix * view;
-    gl_PointSize = pointSize * scale;
+    gl_PointSize = pointSize;
   }
 `;
 
@@ -98,17 +86,14 @@ function cloudMaterial(pointSize: number, theme: Theme): ShaderMaterial {
     depthWrite: false,
     uniforms: {
       pointSize: { value: pointSize },
-      likelyColor: {
-        value: new Color(theme === "dark" ? "#8fc6cf" : "#3f7884"),
-      },
-      possibleColor: {
-        value: new Color(theme === "dark" ? "#d8ba78" : "#967129"),
-      },
-      contextColor: {
-        value: new Color(theme === "dark" ? "#64736d" : "#9b968c"),
-      },
+      paperColor: { value: paperColor(theme) },
+      pointOpacity: { value: 0.96 },
     },
   });
+}
+
+function paperColor(theme: Theme): Color {
+  return new Color(theme === "dark" ? "#83b5bf" : "#4f7f89");
 }
 
 export function swarmNodes(nodes: GraphNode[]): GraphNode[] {
@@ -123,7 +108,7 @@ export function swarmNodes(nodes: GraphNode[]): GraphNode[] {
 
 export function buildSwarm(nodes: GraphNode[], theme: Theme): PaperSwarm {
   const papers = swarmNodes(nodes);
-  const base = new Color(theme === "dark" ? "#83b5bf" : "#4f7f89");
+  const base = paperColor(theme);
   const hot = new Color(theme === "dark" ? "#f0c4ae" : "#a94730");
   const positions: number[] = [];
   const colors: number[] = [];
@@ -165,7 +150,6 @@ export function buildCloud(data: CloudData, theme: Theme): CloudSwarm {
   const count = data.scopes.length;
   const geometry = new BufferGeometry();
   geometry.setAttribute("position", new Float32BufferAttribute(data.positions, 3));
-  geometry.setAttribute("scope", new Uint8BufferAttribute(data.scopes, 1));
   geometry.computeBoundingSphere();
   const size = count >= 1_000_000 ? 2.4 : count >= 250_000 ? 3.2 : 4.8;
   const points = new Points(geometry, cloudMaterial(size, theme));

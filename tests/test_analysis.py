@@ -69,20 +69,17 @@ class PaperAnalysisTests(unittest.TestCase):
         self.assertNotIn("full_reading", paper)
         self.assertNotIn("full_reading_path", paper)
 
-    def test_context_reading(self) -> None:
+    def test_context_rejected(self) -> None:
         record = {
             **self.record,
             "record_kind": "non_paper_context",
             "note": "A curator comment retained for provenance.",
         }
-        paper = compact_paper(
-            record,
-            {"stable_id": record["stable_id"], "reading_depth": "verified"},
-        )
-        self.assertEqual(paper["reading_depth"], "context")
-        self.assertNotIn("full_reading", paper)
-        self.assertNotIn("full_reading_path", paper)
-        self.assertIn("not a paper", paper["reading"]["problem"])
+        with self.assertRaisesRegex(ValueError, "must be papers"):
+            compact_paper(
+                record,
+                {"stable_id": record["stable_id"], "reading_depth": "verified"},
+            )
 
 
 if __name__ == "__main__":

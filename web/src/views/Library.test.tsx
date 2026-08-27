@@ -45,4 +45,27 @@ describe("hosted library", () => {
     expect(markup).toContain("Searching the hosted corpus");
     expect(markup).toContain('aria-live="polite"');
   });
+
+  it("labels legacy provenance rows as Papers", () => {
+    const atlas = makeAtlas();
+    atlas.papers[0] = {
+      ...atlas.papers[0],
+      record_kind: "non_paper_context",
+      reading_depth: "context",
+    };
+    corpus.useCorpus.mockReturnValue({
+      active: false,
+      matches: [],
+      total: 0,
+      loading: false,
+      error: null,
+    });
+
+    const markup = renderToStaticMarkup(
+      <LibraryView atlas={atlas} query="" onClearQuery={vi.fn()} />,
+    );
+
+    expect(markup).toContain('<span class="depth context">Paper</span>');
+    expect(markup).not.toContain(">Context</span>");
+  });
 });

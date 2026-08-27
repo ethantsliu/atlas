@@ -43,7 +43,39 @@ class CollectionTests(unittest.TestCase):
             validate_collection(rows)
 
     def test_private_context(self) -> None:
-        rows = [sample_row(identifier) for identifier in (1, 2092, 2111, 2112)]
+        rows = [
+            sample_row(identifier)
+            for identifier in (1, 2092, 2110, 2111, 2112, 2125, 2170)
+        ]
+        rows[0]["note"] = "Private curator annotation"
+
+        public = public_collection(rows)
+
+        self.assertEqual([row["id"] for row in public], [1])
+        self.assertEqual(set(public[0]), {"id", "title", "url", "source"})
+
+    def test_title_boundary(self) -> None:
+        annotated = sample_row(1)
+        annotated["title"] = "READ THIS! ALSO LINK TO: A Paper"
+        linked = sample_row(2)
+        linked["title"] = "https://papers.example.org/paper.pdf"
+
+        public = public_collection([annotated, linked], {"1": "A Canonical Paper"})
+
+        self.assertEqual(
+            public,
+            [
+                {
+                    "id": 1,
+                    "title": "A Canonical Paper",
+                    "url": annotated["url"],
+                    "source": "collection",
+                }
+            ],
+        )
+
+    def test_alias_filter(self) -> None:
+        rows = [sample_row(1), sample_row(882), sample_row(2169)]
 
         self.assertEqual([row["id"] for row in public_collection(rows)], [1])
 

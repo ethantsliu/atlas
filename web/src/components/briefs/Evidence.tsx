@@ -49,7 +49,7 @@ export function EvidenceSections({ detail, papers, onOpenPaper }: EvidenceProps)
               <button type="button" onClick={() => onOpenPaper(paper)} key={paper.id}>
                 <span>
                   {paper.record_kind === "non_paper_context"
-                    ? "context"
+                    ? "paper"
                     : paper.reading_depth}
                 </span>
                 {paper.title}

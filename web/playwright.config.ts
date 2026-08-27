@@ -1,5 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const requestedPort = process.env.ATLAS_TEST_PORT ?? "4173";
+const testPort = /^\d{4,5}$/.test(requestedPort) ? requestedPort : "4173";
+const testUrl = `http://127.0.0.1:${testPort}`;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
@@ -9,7 +13,7 @@ export default defineConfig({
   timeout: 45_000,
   reporter: "line",
   use: {
-    baseURL: "http://127.0.0.1:4173",
+    baseURL: testUrl,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
@@ -36,8 +40,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run build && npm run preview -- --port 4173 --strictPort",
-    url: "http://127.0.0.1:4173",
-    reuseExistingServer: !process.env.CI,
+    command: `npm run build && npm run preview -- --port ${testPort} --strictPort`,
+    url: testUrl,
+    reuseExistingServer: !process.env.CI && !process.env.ATLAS_TEST_PORT,
+    timeout: 120_000,
   },
 });

@@ -60,6 +60,26 @@ describe("buildGraph", () => {
     expect(new Set(graph.nodes.map((node) => node.id))).toEqual(
       new Set(["idea-high", "paper-1", "topic:alignment", "trick:variance-control"]),
     );
+    expect(
+      graph.links.every((link) =>
+        [graphEndpointId(link.source), graphEndpointId(link.target)].some(
+          (id) => id === "idea-high",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps the complete direct neighborhood while a prior search remains set", () => {
+    const graph = buildGraph(makeAtlas(), {
+      kinds: allKinds(),
+      focus: "idea-high",
+      query: "alignment signals",
+      minFeasibility: 1,
+    });
+
+    expect(new Set(graph.nodes.map((node) => node.id))).toEqual(
+      new Set(["idea-high", "paper-1", "topic:alignment", "trick:variance-control"]),
+    );
   });
 
   it("matches labels case-insensitively and includes direct neighbors", () => {

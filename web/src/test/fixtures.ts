@@ -55,7 +55,7 @@ export function makeLayout(): SemanticLayout {
       knn_recall: 0.5,
       thresholds: { trustworthiness: 0.9, knn_recall: 0.25 },
       alias_policy: "exclude canonical and identical-text aliases",
-      cohort_policy: "research cohorts gated; context reported descriptively",
+      cohort_policy: "only present cohorts reported; research cohorts gated",
       cohorts: {
         all: {
           node_count: ids.length,
@@ -68,12 +68,6 @@ export function makeLayout(): SemanticLayout {
           trustworthiness: 0.95,
           knn_recall: 0.5,
           thresholds: { trustworthiness: 0.9, knn_recall: 0.25 },
-        },
-        context: {
-          node_count: 0,
-          trustworthiness: 0.95,
-          knn_recall: 0.5,
-          thresholds: { trustworthiness: 0, knn_recall: 0 },
         },
         idea: {
           node_count: 2,

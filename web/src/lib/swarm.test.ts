@@ -30,7 +30,7 @@ describe("paper swarm", () => {
     swarm.material.dispose();
   });
 
-  it("renders every historical point in one scope-aware draw call", () => {
+  it("renders every historical point with one Paper treatment", () => {
     const cloud = buildCloud(
       {
         positions: new Float32Array([1, 2, 3, 4, 5, 6]),
@@ -41,12 +41,14 @@ describe("paper swarm", () => {
     );
 
     expect(cloud.geometry.getAttribute("position").count).toBe(2);
-    expect(cloud.geometry.getAttribute("scope").getX(0)).toBe(0);
-    expect(cloud.geometry.getAttribute("scope").getX(1)).toBe(2);
+    expect(cloud.geometry.getAttribute("scope")).toBeUndefined();
     expect(cloud.geometry.getAttribute("color")).toBeUndefined();
     expect(cloud.geometry.getAttribute("opacity")).toBeUndefined();
     expect(cloud.geometry.getAttribute("scale")).toBeUndefined();
+    expect(cloud.material.uniforms.paperColor.value.getHexString()).toBe("83b5bf");
+    expect(cloud.material.uniforms.pointOpacity.value).toBe(0.96);
     expect(cloud.material.uniforms.pointSize.value).toBe(4.8);
+    expect(cloud.material.vertexShader).not.toContain("scope");
 
     cloud.geometry.dispose();
     cloud.material.dispose();

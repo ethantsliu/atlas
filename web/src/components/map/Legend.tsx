@@ -1,11 +1,7 @@
 import { ALL_NODE_KINDS, NODE_COLORS } from "../../lib/graph";
 import { labelOf } from "../../lib/text";
 
-type LegendProps = {
-  history: boolean;
-};
-
-export function GraphLegend({ history }: LegendProps) {
+export function GraphLegend() {
   return (
     <div className="legend">
       {ALL_NODE_KINDS.map((kind) => (
@@ -14,19 +10,6 @@ export function GraphLegend({ history }: LegendProps) {
           {labelOf(kind)}
         </span>
       ))}
-      {history && (
-        <>
-          <span>
-            <i className="cloud-likely" /> likely ML
-          </span>
-          <span>
-            <i className="cloud-possible" /> possible ML
-          </span>
-          <span>
-            <i className="cloud-context" /> archive context
-          </span>
-        </>
-      )}
     </div>
   );
 }

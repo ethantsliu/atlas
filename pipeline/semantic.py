@@ -208,7 +208,7 @@ def quality_report(
             "knn_recall": MIN_RECALL,
         },
         "alias_policy": "exclude canonical and identical-text aliases",
-        "cohort_policy": "research cohorts gated; context reported descriptively",
+        "cohort_policy": "only present cohorts reported; research cohorts gated",
         "cohorts": {},
     }
     for name, cohort_ids in cohorts.items():

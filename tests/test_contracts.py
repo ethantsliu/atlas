@@ -24,13 +24,27 @@ class GeneratedDataContractTests(unittest.TestCase):
         cls.overrides = json.loads((ROOT / "data/source/overrides.json").read_text())
 
     def test_collection_counts(self) -> None:
-        self.assertEqual(self.manifest["paper_count"], 2205)
+        self.assertEqual(self.manifest["paper_count"], 2185)
         self.assertEqual(
             len(self.atlas["papers"]),
             self.manifest["paper_count"] + self.promotion["promoted_count"],
         )
         self.assertEqual(self.atlas["meta"]["paper_count"], len(self.atlas["papers"]))
-        self.assertEqual(self.manifest["excluded_private_context"], 3)
+        self.assertEqual(self.manifest["excluded_private_context"], 6)
+        self.assertEqual(self.manifest["excluded_duplicate_papers"], 17)
+        self.assertEqual(self.atlas["meta"]["context_entry_count"], 0)
+        self.assertTrue(
+            all(
+                set(row) == {"id", "title", "url", "source"}
+                for row in self.source_papers
+            )
+        )
+        self.assertTrue(
+            all(
+                not {"note", "section", "tags"}.intersection(row)
+                for row in self.atlas["papers"]
+            )
+        )
 
     def test_manifest_count(self) -> None:
         canonical_ids = {
@@ -38,6 +52,8 @@ class GeneratedDataContractTests(unittest.TestCase):
             for paper in self.source_papers
         }
         self.assertEqual(len(canonical_ids), self.manifest["unique_canonical_records"])
+        stable_ids = [paper["stable_id"] for paper in self.atlas["papers"]]
+        self.assertEqual(len(stable_ids), len(set(stable_ids)))
         self.assertTrue(
             all(
                 override.get("source_override_reason")

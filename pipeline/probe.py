@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
+import struct
 import time
 import urllib.error
 import urllib.parse
@@ -20,7 +22,12 @@ PAPER_LIMIT = 8_000_000
 DETAIL_LIMIT = 8_000_000
 FEED_LIMIT = 20_000_000
 SCRIPT_LIMIT = 5_000_000
+CLOUD_LIMIT = 2_000_000
+POINT_LIMIT = 16_000_000
 USER_AGENT = "atlas-probe/1.0"
+CLOUD_MAGIC = b"ATLASPT1"
+MONTH = re.compile(r"^\d{4}-(?:0[1-9]|1[0-2])$")
+DIGEST = re.compile(r"^[0-9a-f]{64}$")
 
 
 class ProbeError(RuntimeError):
@@ -223,6 +230,93 @@ def check_feed(base: str, fetcher: Fetcher) -> str | None:
     return day_url
 
 
+def is_count(value: object) -> bool:
+    """Return whether one manifest count is a non-negative integer."""
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def point_meta(shard: object) -> dict:
+    """Validate one cloud shard and return its point asset metadata."""
+    if not isinstance(shard, dict):
+        raise ProbeError("Cloud shard is not an object")
+    month = shard.get("month")
+    count = shard.get("count")
+    counts = shard.get("counts")
+    point = shard.get("points")
+    if (
+        not isinstance(month, str)
+        or MONTH.fullmatch(month) is None
+        or not is_count(count)
+        or not isinstance(counts, dict)
+        or set(counts) != {"likely", "possible", "outside"}
+        or not all(is_count(value) for value in counts.values())
+        or count != sum(counts.values())
+        or not isinstance(point, dict)
+        or point.get("path") != f"{month}.bin"
+        or not isinstance(point.get("sha256"), str)
+        or DIGEST.fullmatch(point["sha256"]) is None
+        or point.get("bytes") != 12 + 13 * count
+        or point["bytes"] > POINT_LIMIT
+    ):
+        raise ProbeError(f"Cloud shard is invalid: {month}")
+    return point
+
+
+def check_point(base: str, shard: dict, fetcher: Fetcher) -> str:
+    """Verify one deployed point shard against its manifest metadata."""
+    point = point_meta(shard)
+    url = scoped_url(base, f"/data/cloud/{point['path']}", data=True)
+    result = get_asset(base, url, POINT_LIMIT, fetcher)
+    if len(result.body) != point["bytes"]:
+        raise ProbeError("Cloud point byte length does not match its index")
+    if hashlib.sha256(result.body).hexdigest() != point["sha256"]:
+        raise ProbeError("Cloud point digest does not match its index")
+    if len(result.body) < 12:
+        raise ProbeError("Cloud point header is truncated")
+    magic, count = struct.unpack("<8sI", result.body[:12])
+    if magic != CLOUD_MAGIC or count != shard["count"]:
+        raise ProbeError("Cloud point header does not match its index")
+    return url
+
+
+def check_cloud(base: str, fetcher: Fetcher) -> tuple[dict, list[str]]:
+    """Verify the cloud manifest and deterministic boundary point shards."""
+    index_url = scoped_url(base, "/data/cloud/index.json", data=True)
+    cloud = json_body(get_asset(base, index_url, CLOUD_LIMIT, fetcher), "Cloud index")
+    if not isinstance(cloud, dict):
+        raise ProbeError("Cloud index is not an object")
+    rows = cloud.get("shards")
+    counts = cloud.get("counts")
+    if (
+        cloud.get("schema_version") != 1
+        or cloud.get("source") != "arxiv"
+        or cloud.get("point_bytes") != 13
+        or not is_count(cloud.get("count"))
+        or not isinstance(counts, dict)
+        or set(counts) != {"likely", "possible", "outside"}
+        or not all(is_count(value) for value in counts.values())
+        or not isinstance(rows, list)
+        or not rows
+    ):
+        raise ProbeError("Cloud index has an unsupported shape")
+    for row in rows:
+        point_meta(row)
+    months = [row["month"] for row in rows]
+    totals = {
+        scope: sum(row["counts"][scope] for row in rows)
+        for scope in ("likely", "possible", "outside")
+    }
+    if (
+        months != sorted(set(months))
+        or cloud["count"] != sum(row["count"] for row in rows)
+        or cloud["count"] != sum(counts.values())
+        or counts != totals
+    ):
+        raise ProbeError("Cloud index counts or ordering are invalid")
+    boundary = rows[:1] if len(rows) == 1 else [rows[0], rows[-1]]
+    return cloud, [check_point(base, row, fetcher) for row in boundary]
+
+
 def run_probe(base: str, fetcher: Fetcher = fetch_url) -> dict:
     """Run every anonymous live-release check and return a compact report."""
     root = parse_base(base)
@@ -230,6 +324,7 @@ def run_probe(base: str, fetcher: Fetcher = fetch_url) -> dict:
     core, bundle = check_core(root, fetcher)
     reading = check_reading(root, bundle, fetcher)
     feed = check_feed(root, fetcher)
+    cloud, cloud_assets = check_cloud(root, fetcher)
     return {
         "site": root,
         "script": script,
@@ -237,6 +332,8 @@ def run_probe(base: str, fetcher: Fetcher = fetch_url) -> dict:
         "paper_count": len(bundle["papers"]),
         "reading": reading,
         "feed": feed,
+        "cloud_count": cloud["count"],
+        "cloud_assets": cloud_assets,
     }
 
 

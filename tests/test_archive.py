@@ -14,9 +14,13 @@ from archive import (
     add_day,
     build_month,
     merge_month,
+    migrate_archive,
     read_manifest,
+    read_shard,
     scope_paper,
     shard_bytes,
+    shard_meta,
+    write_shard,
 )
 from archivecheck import validate_archive
 from backfill import completed_days, harvest_days, pending_days
@@ -82,6 +86,153 @@ class ArchiveTests(unittest.TestCase):
             sum(payload["counts"][key] for key in ("likely", "possible", "outside")), 2
         )
         self.assertEqual(len(payload["papers"]), 2)
+        self.assertNotIn("comment", payload["papers"][0])
+
+    def test_scholarly_text(self) -> None:
+        payload = build_month(
+            date(2020, 1, 2),
+            intake(
+                [
+                    paper(
+                        "2001.00001",
+                        abstract=(
+                            "Code is available at "
+                            "https://github.com/public-lab/public-paper."
+                        ),
+                        authors=["Ada Researcher <ada@university.edu>"],
+                    )
+                ]
+            ),
+            RULES,
+        )
+
+        self.assertIn("github.com", payload["papers"][0]["abstract"])
+        self.assertIn("@university.edu", payload["papers"][0]["authors"][0])
+
+    def test_public_boundary(self) -> None:
+        unsafe = (
+            {"id": "private-paper"},
+            {"title": "Left\u202eright"},
+            {"title": "Not  normalized"},
+            {"title": "x" * 4_097},
+        )
+        for changes in unsafe:
+            with self.subTest(changes=changes):
+                with self.assertRaisesRegex(ValueError, "public paper text"):
+                    build_month(
+                        date(2020, 1, 2),
+                        intake([paper("2001.00001", **changes)]),
+                        RULES,
+                    )
+
+    def test_duplicate_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            january = build_month(
+                date(2020, 1, 2), intake([paper("2001.00001")]), RULES
+            )
+            february = build_month(
+                date(2020, 2, 2),
+                intake(
+                    [
+                        paper(
+                            "2001.00001",
+                            published="2020-02-02T01:00:00Z",
+                            updated="2020-02-02T01:00:00Z",
+                        )
+                    ]
+                ),
+                RULES,
+            )
+            write_shard(root, january)
+            write_shard(root, february)
+            rows = [
+                shard_meta(root / "2020-01.json.gz"),
+                shard_meta(root / "2020-02.json.gz"),
+            ]
+            (root / "index.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "counts": {
+                            "all": 2,
+                            "likely": 0,
+                            "possible": 2,
+                            "outside": 0,
+                        },
+                        "shards": rows,
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "duplicated"):
+                validate_archive(root)
+
+    def test_shard_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            payload = build_month(
+                date(2020, 1, 2), intake([paper("2001.00001")]), RULES
+            )
+            payload["papers"][0]["comment"] = "/Users/alice/private/note"
+            payload["papers"][0]["secret"] = "/Users/sample/private/note"
+            write_shard(root, payload)
+
+            saved = read_shard(root / "2020-01.json.gz")["papers"][0]
+            self.assertNotIn("comment", saved)
+            self.assertNotIn("secret", saved)
+
+    def test_exact_shard(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            payload = build_month(
+                date(2020, 1, 2), intake([paper("2001.00001")]), RULES
+            )
+            path = write_shard(root, payload)
+            forged = json.loads(gzip.decompress(path.read_bytes()))
+            forged["papers"][0]["source_path"] = "/tmp/private.json"
+            path.write_bytes(shard_bytes(forged))
+
+            with self.assertRaisesRegex(ValueError, "public paper text"):
+                read_shard(path)
+
+    def test_exact_counts(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            payload = build_month(
+                date(2020, 1, 2), intake([paper("2001.00001")]), RULES
+            )
+            path = write_shard(root, payload)
+            forged = json.loads(gzip.decompress(path.read_bytes()))
+            forged["counts"]["all"] = 2
+            path.write_bytes(shard_bytes(forged))
+
+            with self.assertRaisesRegex(ValueError, "counts"):
+                read_shard(path)
+
+    def test_legacy_migration(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            payload = build_month(
+                date(2020, 1, 2), intake([paper("2001.00001")]), RULES
+            )
+            payload["papers"][0]["comment"] = "Prior public annotation"
+            path = root / "2020-01.json.gz"
+            path.write_bytes(shard_bytes(payload))
+
+            self.assertEqual(migrate_archive(root), ["2020-01"])
+
+            saved = read_shard(path)
+            self.assertEqual(saved["counts"]["all"], 1)
+            self.assertEqual(saved["papers"][0]["id"], "2001.00001")
+            self.assertNotIn("comment", saved["papers"][0])
+            self.assertEqual(migrate_archive(root), [])
+
+    def test_known_legacy(self) -> None:
+        unknown = paper("private/9901001", published="1999-01-02")
+        with self.assertRaisesRegex(ValueError, "public paper text"):
+            build_month(date(1999, 1, 2), intake([unknown]), RULES)
 
     def test_merge_updates(self) -> None:
         prior = build_month(date(2020, 1, 2), intake([paper("2001.00001")]), RULES)

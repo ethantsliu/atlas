@@ -54,7 +54,12 @@ class IdeaGenerationTests(unittest.TestCase):
                 "id": "paper-env",
                 "topics": [routed("environment-design")],
                 "tricks": [routed("evolutionary-search")],
-            }
+            },
+            {
+                "id": "paper-env-2",
+                "topics": [routed("environment-design")],
+                "tricks": [routed("evolutionary-search")],
+            },
         ]
         environment_brief = build_provisional_ideas(environment_papers)[0]["brief"]
         self.assertNotEqual(agent_brief["evaluation"], environment_brief["evaluation"])

@@ -1,0 +1,278 @@
+name: cloud-all
+
+on:
+  repository_dispatch:
+    types: [corpus-promoted]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Corpus release tag"
+        required: false
+        default: "corpus-v2"
+        type: string
+
+concurrency:
+  group: arxiv-cloud
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: >-
+      (github.event_name == 'repository_dispatch' && github.event.client_payload.tag == 'corpus-v2') ||
+      (github.event_name == 'workflow_dispatch' && (inputs.tag == 'corpus-v2' || inputs.tag == ''))
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.plan.outputs.changed }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      digest: ${{ steps.plan.outputs.digest }}
+      tag: ${{ steps.plan.outputs.tag }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DISPATCH_TAG: ${{ github.event.client_payload.tag }}
+      INPUT_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install planner
+        run: python -m pip install -r dev.txt
+      - name: Plan bounded partitions
+        id: plan
+        run: |
+          tag="${DISPATCH_TAG:-$INPUT_TAG}"
+          tag="${tag:-corpus-v2}"
+          if [ "$tag" != "corpus-v2" ]; then
+            echo "cloud-all only accepts the corpus-v2 release" >&2
+            exit 1
+          fi
+          root="$RUNNER_TEMP/cloud-plan"
+          mkdir -p "$root/archive"
+          gh release download "$tag" \
+            --pattern index.json \
+            --dir "$root/archive" \
+            --clobber
+          gh release download "$tag" \
+            --pattern cloud-ready.json \
+            --dir "$root/archive" \
+            --clobber
+          index_sha=$(sha256sum "$root/archive/index.json" | awk '{print $1}')
+          paper_count=$(jq -r '.counts.all' "$root/archive/index.json")
+          jq -e \
+            --arg index_sha256 "$index_sha" \
+            --argjson paper_count "$paper_count" '
+              .schema_version == 1 and
+              .history_complete == true and
+              .index_sha256 == $index_sha256 and
+              .paper_count == $paper_count
+            ' "$root/archive/cloud-ready.json" >/dev/null
+          python pipeline/parallel.py plan \
+            --archive "$root/archive" \
+            --cloud web/public/data/cloud \
+            --output "$root/plan.json" \
+            --atlas web/public/data/atlas.json \
+            --parts 16
+          matrix=$(jq -c '[.partitions[] | {part:.id}]' "$root/plan.json")
+          count=$(jq '.partitions | length' "$root/plan.json")
+          digest=$(jq -r '.source_sha256' "$root/plan.json")
+          echo "changed=$([ "$count" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloud-plan
+          path: ${{ runner.temp }}/cloud-plan
+          compression-level: 0
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 2
+
+  points:
+    needs: plan
+    if: needs.plan.outputs.changed == 'true'
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PART: ${{ matrix.part }}
+      CORPUS_TAG: ${{ needs.plan.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            dev.txt
+            cloud.txt
+      - name: Install semantic runtime
+        run: python -m pip install -r dev.txt -r cloud.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: cloud-plan
+          path: ${{ runner.temp }}/cloud-plan
+      - name: Read assigned source months
+        run: |
+          root="$RUNNER_TEMP/cloud-source"
+          mkdir -p "$root"
+          cp "$RUNNER_TEMP/cloud-plan/archive/index.json" "$root/index.json"
+          jq -r --argjson part "$PART" \
+            '.partitions[$part].months[]' \
+            "$RUNNER_TEMP/cloud-plan/plan.json" | while read -r month; do
+            if [[ ! "$month" =~ ^[0-9]{4}-(0[1-9]|1[0-2])$ ]]; then
+              echo "Invalid assigned month: $month" >&2
+              exit 1
+            fi
+            row=$(jq -ce --arg month "$month" '
+              [.shards[] | select(.month == $month)] as $rows |
+              if ($rows | length) == 1 then $rows[0]
+              else error("month must have exactly one source row") end
+            ' "$root/index.json")
+            jq -e '
+              (.counts | keys == ["all", "likely", "outside", "possible"]) and
+              ([.counts.all, .counts.likely, .counts.possible, .counts.outside] |
+                all(type == "number" and floor == . and . >= 0)) and
+              (.counts.all == (.counts.likely + .counts.possible + .counts.outside))
+            ' <<< "$row" >/dev/null
+            path=$(jq -r '.path' <<< "$row")
+            digest=$(jq -r '.sha256' <<< "$row")
+            if [[ ! "$path" =~ ^${month}(-[0-9a-f]{16})?\.json\.gz$ ]]; then
+              echo "Invalid source path for $month" >&2
+              exit 1
+            fi
+            if [[ ! "$digest" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "Invalid source digest for $month" >&2
+              exit 1
+            fi
+            gh release download "$CORPUS_TAG" \
+              --pattern "$path" \
+              --dir "$root" \
+              --clobber
+            test "$(sha256sum "$root/$path" | awk '{print $1}')" = "$digest"
+          done
+      - uses: actions/cache/restore@v4
+        with:
+          path: data/cache/cloud
+          key: cloud-part-${{ runner.os }}-${{ matrix.part }}-${{ needs.plan.outputs.digest }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            cloud-part-${{ runner.os }}-${{ matrix.part }}-${{ needs.plan.outputs.digest }}-
+            cloud-part-${{ runner.os }}-${{ matrix.part }}-
+      - name: Build assigned points
+        id: build
+        continue-on-error: true
+        timeout-minutes: 300
+        run: |
+          python pipeline/parallel.py build \
+            --archive "$RUNNER_TEMP/cloud-source" \
+            --anchors data/source/anchors.npz \
+            --cache data/cache/cloud \
+            --output "$RUNNER_TEMP/cloud-part" \
+            --prior web/public/data/cloud \
+            --plan "$RUNNER_TEMP/cloud-plan/plan.json" \
+            --part "$PART" \
+            --provider native
+      - name: Save vector checkpoint
+        if: always() && steps.build.outcome != 'skipped'
+        uses: actions/cache/save@v4
+        with:
+          path: data/cache/cloud
+          key: cloud-part-${{ runner.os }}-${{ matrix.part }}-${{ needs.plan.outputs.digest }}-${{ github.run_id }}-${{ github.run_attempt }}
+      - name: Upload complete partition
+        if: steps.build.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloud-part-${{ matrix.part }}
+          path: ${{ runner.temp }}/cloud-part
+          compression-level: 0
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 2
+      - name: Enforce partition result
+        if: steps.build.outcome == 'failure'
+        run: exit 1
+
+  publish:
+    needs: [plan, points]
+    if: needs.plan.outputs.changed == 'true'
+    permissions:
+      contents: write
+      actions: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CORPUS_TAG: ${{ needs.plan.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install validator
+        run: python -m pip install -r dev.txt
+      - uses: actions/download-artifact@v4
+        with:
+          name: cloud-plan
+          path: ${{ runner.temp }}/cloud-plan
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cloud-part-*
+          path: ${{ runner.temp }}/cloud-parts
+          merge-multiple: true
+      - name: Join complete cloud
+        run: |
+          python pipeline/parallel.py join \
+            --archive "$RUNNER_TEMP/cloud-plan/archive" \
+            --cloud web/public/data/cloud \
+            --plan "$RUNNER_TEMP/cloud-plan/plan.json" \
+            --parts "$RUNNER_TEMP/cloud-parts"
+          python pipeline/cloud.py \
+            --archive "$RUNNER_TEMP/cloud-plan/archive" \
+            --output web/public/data/cloud \
+            --check
+      - name: Verify parallel contracts
+        run: |
+          python -m unittest tests.test_parallel tests.test_cloud -v
+          ruff check pipeline/parallel.py tests/test_parallel.py
+          ruff format --check pipeline/parallel.py tests/test_parallel.py
+      - name: Publish complete cloud
+        id: publish
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/public/data/cloud
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "Update parallel semantic cloud from $CORPUS_TAG"
+          for attempt in 1 2 3; do
+            if git pull --rebase origin main && git push origin HEAD:main; then
+              break
+            fi
+            git rebase --abort 2>/dev/null || true
+            if [ "$attempt" -eq 3 ]; then
+              echo "Cloud publish failed after three attempts" >&2
+              exit 1
+            fi
+          done
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+      - name: Deploy published cloud
+        if: steps.publish.outputs.changed == 'true'
+        run: gh workflow run deploy.yml --ref main

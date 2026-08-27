@@ -1,9 +1,6 @@
 name: cloud
 
 on:
-  workflow_run:
-    workflows: [archive]
-    types: [completed]
   workflow_dispatch:
 
 concurrency:
@@ -12,15 +9,15 @@ concurrency:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   points:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 355
     env:
       GH_TOKEN: ${{ github.token }}
       ARCHIVE_ROOT: data/cache/archive
-      ARCHIVE_TAG: corpus-v1
     steps:
       - uses: actions/checkout@v6
         with:
@@ -37,40 +34,124 @@ jobs:
       - name: Install semantic runtime
         run: python -m pip install -r dev.txt -r cloud.txt
 
-      - name: Read archive index
+      - name: Select corpus release
+        id: corpus
         run: |
+          if gh release view corpus-v2 >/dev/null 2>&1; then
+            echo "corpus-v2 owns the published cloud; legacy publication is disabled" >&2
+            exit 1
+          fi
+          tag=corpus-v1
           mkdir -p "$ARCHIVE_ROOT"
-          gh release download "$ARCHIVE_TAG" \
+          gh release download "$tag" \
             --pattern index.json \
             --dir "$ARCHIVE_ROOT" \
             --clobber
+          jq -e '
+            .schema_version == 1 and
+            (.shards | type == "array") and
+            (.counts.all | type == "number") and
+            ([.shards[].month] == ([.shards[].month] | sort | unique))
+          ' "$ARCHIVE_ROOT/index.json" >/dev/null
+          digest=$(sha256sum "$ARCHIVE_ROOT/index.json" | awk '{print $1}')
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Restore vector cache
+        id: vectors
+        uses: actions/cache/restore@v4
+        with:
+          path: data/cache/cloud
+          key: cloud-${{ runner.os }}-${{ steps.corpus.outputs.digest }}-${{ github.run_id }}
+          restore-keys: |
+            cloud-${{ runner.os }}-${{ steps.corpus.outputs.digest }}-
+            cloud-${{ runner.os }}-
 
       - name: Read changed months
+        env:
+          ARCHIVE_TAG: ${{ steps.corpus.outputs.tag }}
         run: |
-          jq -r '.shards[] | [.month, .sha256] | @tsv' \
-            "$ARCHIVE_ROOT/index.json" | while IFS=$'\t' read -r month digest; do
+          needed="$RUNNER_TEMP/cloud-needed.tsv"
+          : > "$needed"
+          jq -r '.shards[] | [.month, .path, .sha256] | @tsv' \
+            "$ARCHIVE_ROOT/index.json" | while IFS=$'\t' read -r month path digest; do
+            if [[ ! "$month" =~ ^[0-9]{4}-[0-9]{2}$ ]] || \
+              [[ ! "$path" =~ ^[0-9]{4}-[0-9]{2}(-[0-9a-f]{16})?\.json\.gz$ ]]; then
+              echo "Invalid corpus shard identity: $month $path" >&2
+              exit 1
+            fi
             saved=""
+            point_path=""
+            point_sha=""
+            meta_path=""
+            meta_sha=""
             if [ -f web/public/data/cloud/index.json ]; then
               saved=$(jq -r --arg month "$month" \
-                '.shards[] | select(.month == $month) | .source_sha256' \
+                '.shards[] | select(.month == $month) | .source_sha256 // empty' \
+                web/public/data/cloud/index.json)
+              point_path=$(jq -r --arg month "$month" \
+                '.shards[] | select(.month == $month) | .points.path // empty' \
+                web/public/data/cloud/index.json)
+              point_sha=$(jq -r --arg month "$month" \
+                '.shards[] | select(.month == $month) | .points.sha256 // empty' \
+                web/public/data/cloud/index.json)
+              meta_path=$(jq -r --arg month "$month" \
+                '.shards[] | select(.month == $month) | .meta.path // empty' \
+                web/public/data/cloud/index.json)
+              meta_sha=$(jq -r --arg month "$month" \
+                '.shards[] | select(.month == $month) | .meta.sha256 // empty' \
                 web/public/data/cloud/index.json)
             fi
             if [ "$saved" = "$digest" ] && \
-              [ -f "web/public/data/cloud/$month.bin" ] && \
-              [ -f "web/public/data/cloud/$month.json" ]; then
-              continue
+              [ "$point_path" = "$month.bin" ] && \
+              [ "$meta_path" = "$month.json" ] && \
+              [[ "$point_sha" =~ ^[0-9a-f]{64}$ ]] && \
+              [[ "$meta_sha" =~ ^[0-9a-f]{64}$ ]] && \
+              [ -f "web/public/data/cloud/$point_path" ] && \
+              [ -f "web/public/data/cloud/$meta_path" ]; then
+              if [ "$(sha256sum "web/public/data/cloud/$point_path" | awk '{print $1}')" = "$point_sha" ] && \
+                [ "$(sha256sum "web/public/data/cloud/$meta_path" | awk '{print $1}')" = "$meta_sha" ]; then
+                continue
+              fi
             fi
-            gh release download "$ARCHIVE_TAG" \
-              --pattern "$month.json.gz" \
-              --dir "$ARCHIVE_ROOT" \
-              --clobber
+            printf '%s\t%s\t%s\n' "$month" "$path" "$digest" >> "$needed"
           done
+          download="$RUNNER_TEMP/cloud-source"
+          mkdir -p "$download"
+          if [ "$(wc -l < "$needed")" -gt 20 ]; then
+            gh release download "$ARCHIVE_TAG" \
+              --pattern '*.json.gz' \
+              --dir "$download" \
+              --clobber
+          fi
+          while IFS=$'\t' read -r month path digest; do
+            if [ ! -f "$download/$path" ]; then
+              gh release download "$ARCHIVE_TAG" \
+                --pattern "$path" \
+                --dir "$download" \
+                --clobber
+            fi
+            test "$(sha256sum "$download/$path" | awk '{print $1}')" = "$digest"
+            mv "$download/$path" "$ARCHIVE_ROOT/$month.json.gz"
+          done < "$needed"
 
       - name: Build semantic points
+        id: build
+        continue-on-error: true
+        timeout-minutes: 300
         run: python pipeline/cloud.py --provider native
 
+      - name: Save vector checkpoint
+        if: always() && steps.build.outcome != 'skipped'
+        uses: actions/cache/save@v4
+        with:
+          path: data/cache/cloud
+          key: cloud-${{ runner.os }}-${{ steps.corpus.outputs.digest }}-${{ github.run_id }}
+
       - name: Verify point contracts
+        if: steps.build.outcome == 'success'
         run: |
+          python pipeline/cloud.py --check
           python -m unittest tests.test_cloud tests.test_architecture -v
           ruff check pipeline tests
           ruff format --check pipeline tests
@@ -79,10 +160,34 @@ jobs:
           npm --prefix web run build
 
       - name: Publish point shards
+        id: publish
+        if: steps.build.outcome == 'success'
+        env:
+          ARCHIVE_TAG: ${{ steps.corpus.outputs.tag }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add web/public/data/cloud
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m "Update arXiv semantic cloud"
-          git push
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "Update semantic cloud from $ARCHIVE_TAG"
+          pushed=false
+          for attempt in 1 2 3; do
+            git pull --rebase origin main
+            if git push origin HEAD:main; then
+              pushed=true
+              break
+            fi
+          done
+          test "$pushed" = true
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy published cloud
+        if: steps.publish.outputs.changed == 'true'
+        run: gh workflow run deploy.yml --ref main
+
+      - name: Enforce cloud result
+        if: steps.build.outcome == 'failure'
+        run: exit 1

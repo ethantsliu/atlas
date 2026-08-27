@@ -18,11 +18,14 @@ from embed import (  # noqa: E402
     MODEL_CONTEXT,
     MODEL_DIGEST,
     OLLAMA_VERSION,
+    align_points,
     alias_exclusions,
+    cohort_ids,
     embed_batch,
     input_hash,
     load_cache,
     load_parts,
+    load_prior,
     node_records,
     row_hash,
     save_parts,
@@ -181,6 +184,74 @@ class EmbedTests(unittest.TestCase):
         text = paper_text(paper)
 
         self.assertTrue(text.startswith("collection entry:"))
+
+    def test_empty_cohort(self) -> None:
+        atlas = sample_atlas()
+        records = node_records(atlas)
+
+        cohorts = cohort_ids(atlas, records)
+
+        self.assertNotIn("context", cohorts)
+        self.assertEqual(cohorts["paper"], {"paper-1", "paper-2"})
+
+    def test_align_rotation(self) -> None:
+        records = [(f"node-{index}", "text") for index in range(4)]
+        target = np.asarray(
+            [[0, 0, 0], [1, 0, 0], [0, 2, 0], [0, 0, 3]],
+            dtype=np.float64,
+        )
+        rotation = np.asarray([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
+        points = target @ rotation + np.asarray([8, -4, 2])
+        prior = {
+            node_id: target[index].tolist()
+            for index, (node_id, _) in enumerate(records)
+        }
+        prior["removed-context"] = [999, 999, 999]
+
+        aligned, report = align_points(records, points, prior)
+
+        self.assertTrue(np.allclose(aligned, target, atol=1e-10))
+        self.assertEqual(report["anchor_count"], 4)
+        self.assertEqual(report["determinant"], 1.0)
+        self.assertLess(report["rmsd_after"], report["rmsd_before"])
+        old_distances = np.linalg.norm(points[:, None] - points[None, :], axis=2)
+        new_distances = np.linalg.norm(aligned[:, None] - aligned[None, :], axis=2)
+        self.assertTrue(np.allclose(old_distances, new_distances, atol=1e-10))
+
+    def test_align_reflection(self) -> None:
+        records = [(f"node-{index}", "text") for index in range(4)]
+        target = np.asarray(
+            [[0, 0, 0], [1, 0, 0], [0, 2, 0], [0, 0, 3]],
+            dtype=np.float64,
+        )
+        points = target * np.asarray([-1, 1, 1])
+        prior = {
+            node_id: target[index].tolist()
+            for index, (node_id, _) in enumerate(records)
+        }
+
+        aligned, report = align_points(records, points, prior)
+
+        self.assertTrue(np.allclose(aligned, target, atol=1e-10))
+        self.assertEqual(report["determinant"], -1.0)
+
+    def test_prior_filter(self) -> None:
+        payload = {
+            "private_note": "must not be copied",
+            "layout": {
+                "positions": {
+                    "node-1": [1, 2, 3],
+                    "removed-context": [4, 5, 6],
+                }
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "prior.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+
+            prior = load_prior(path, {"node-1"})
+
+        self.assertEqual(prior, {"node-1": [1.0, 2.0, 3.0]})
 
     def test_field_budget(self) -> None:
         paper = sample_atlas()["papers"][0]

@@ -45,6 +45,59 @@ def valid_score(value: object) -> bool:
     )
 
 
+def validate_orientation(layout: dict, node_count: int) -> None:
+    """Require a bounded coordinate-only orientation receipt when present."""
+    orientation = layout.get("orientation")
+    if orientation is None:
+        return
+    check(
+        isinstance(orientation, dict)
+        and set(orientation)
+        == {
+            "method",
+            "anchor_count",
+            "reference_sha256",
+            "determinant",
+            "rmsd_before",
+            "rmsd_after",
+        },
+        "Semantic orientation receipt is invalid",
+    )
+    check(
+        orientation.get("method") == "orthogonal-procrustes-3d-v1",
+        "Semantic orientation method is stale",
+    )
+    anchor_count = orientation.get("anchor_count")
+    check(
+        isinstance(anchor_count, int)
+        and not isinstance(anchor_count, bool)
+        and 4 <= anchor_count <= node_count,
+        "Semantic orientation anchor count is invalid",
+    )
+    check(
+        isinstance(orientation.get("reference_sha256"), str)
+        and bool(re.fullmatch(r"[0-9a-f]{64}", orientation["reference_sha256"])),
+        "Semantic orientation reference is invalid",
+    )
+    determinant = orientation.get("determinant")
+    before = orientation.get("rmsd_before")
+    after = orientation.get("rmsd_after")
+    check(
+        isinstance(determinant, (int, float))
+        and not isinstance(determinant, bool)
+        and math.isclose(abs(determinant), 1, abs_tol=0.000001)
+        and all(
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+            and value >= 0
+            for value in (before, after)
+        )
+        and after <= before + 0.000001,
+        "Semantic orientation fit is invalid",
+    )
+
+
 def validate_quality(layout: dict, cohort_sizes: dict[str, int]) -> None:
     """Require reproducible projection metrics to clear fixed quality gates."""
     quality = layout.get("quality", {})
@@ -55,7 +108,7 @@ def validate_quality(layout: dict, cohort_sizes: dict[str, int]) -> None:
     )
     check(
         quality.get("cohort_policy")
-        == "research cohorts gated; context reported descriptively",
+        == "only present cohorts reported; research cohorts gated",
         "Layout quality cohort policy is stale",
     )
     check(quality.get("k") == QUALITY_K, "Layout quality neighborhood is stale")
@@ -309,8 +362,14 @@ def validate_layout(atlas: dict, details: dict[str, dict]) -> None:
         embedding["input_sha256"] == vector_hash(records),
         "Semantic embedding input is stale",
     )
+    validate_orientation(layout, len(graph_ids))
     check(
-        layout.get("input_sha256") == input_hash(records, embedding["vector_sha256"]),
+        layout.get("input_sha256")
+        == input_hash(
+            records,
+            embedding["vector_sha256"],
+            layout.get("orientation"),
+        ),
         "Semantic layout input is stale",
     )
     check(layout.get("node_count") == len(graph_ids), "Layout node count is stale")
@@ -327,17 +386,19 @@ def validate_layout(atlas: dict, details: dict[str, dict]) -> None:
         ),
         "Semantic coordinates are invalid",
     )
+    context_count = sum(
+        item.get("record_kind") == "non_paper_context" for item in atlas["papers"]
+    )
     cohort_sizes = {
         "all": len(graph_ids),
         "paper": sum(
             item.get("record_kind") != "non_paper_context" for item in atlas["papers"]
         ),
-        "context": sum(
-            item.get("record_kind") == "non_paper_context" for item in atlas["papers"]
-        ),
         "idea": len(atlas["ideas"]),
         "taxonomy": len(atlas["topics"]) + len(atlas["tricks"]),
     }
+    if context_count:
+        cohort_sizes["context"] = context_count
     validate_quality(layout, cohort_sizes)
     validate_neighbors(layout, graph_ids)
     expected_mix = mix_report(atlas, layout["neighbors"], positions)

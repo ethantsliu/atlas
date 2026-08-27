@@ -1,5 +1,6 @@
 import hashlib
 import json
+import struct
 import sys
 import unittest
 from pathlib import Path
@@ -53,6 +54,37 @@ def fixture() -> tuple[FakeFetch, dict]:
         "schema_version": 1,
         "days": [{"date": "2026-08-24", "path": "/data/feed/2026-08-24.json"}],
     }
+    first = struct.pack("<8sI3fB", b"ATLASPT1", 1, 1.0, 2.0, 3.0, 0)
+    latest = struct.pack("<8sI3fB", b"ATLASPT1", 1, 4.0, 5.0, 6.0, 1)
+    cloud = {
+        "schema_version": 1,
+        "source": "arxiv",
+        "point_bytes": 13,
+        "count": 2,
+        "counts": {"likely": 1, "possible": 1, "outside": 0},
+        "shards": [
+            {
+                "month": "1991-01",
+                "count": 1,
+                "counts": {"likely": 1, "possible": 0, "outside": 0},
+                "points": {
+                    "path": "1991-01.bin",
+                    "sha256": hashlib.sha256(first).hexdigest(),
+                    "bytes": len(first),
+                },
+            },
+            {
+                "month": "2026-08",
+                "count": 1,
+                "counts": {"likely": 0, "possible": 1, "outside": 0},
+                "points": {
+                    "path": "2026-08.bin",
+                    "sha256": hashlib.sha256(latest).hexdigest(),
+                    "bytes": len(latest),
+                },
+            },
+        ],
+    }
     responses = {
         base: (
             "text/html",
@@ -73,6 +105,9 @@ def fixture() -> tuple[FakeFetch, dict]:
             "application/json",
             encoded({"schema_version": 1, "date": "2026-08-24"}),
         ),
+        base + "data/cloud/index.json": ("application/json", encoded(cloud)),
+        base + "data/cloud/1991-01.bin": ("application/octet-stream", first),
+        base + "data/cloud/2026-08.bin": ("application/octet-stream", latest),
     }
     return FakeFetch(responses), core
 
@@ -101,7 +136,9 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual(report["paper_count"], 1)
         self.assertTrue(report["reading"].endswith("aaa-bbb.json"))
         self.assertTrue(report["feed"].endswith("2026-08-24.json"))
-        self.assertEqual(len(fetcher.requests), 7)
+        self.assertEqual(report["cloud_count"], 2)
+        self.assertEqual(len(report["cloud_assets"]), 2)
+        self.assertEqual(len(fetcher.requests), 10)
 
     def test_bad_digest(self) -> None:
         fetcher, _ = fixture()
@@ -156,6 +193,26 @@ class ProbeTests(unittest.TestCase):
         with self.assertRaisesRegex(ProbeError, "escapes"):
             run_probe(html_url, fetcher)
 
+    def test_cloud_digest(self) -> None:
+        fetcher, _ = fixture()
+        url = "https://example.org/atlas/data/cloud/index.json"
+        content_type, body = fetcher.responses[url]
+        cloud = json.loads(body)
+        cloud["shards"][0]["points"]["sha256"] = "0" * 64
+        fetcher.responses[url] = (content_type, encoded(cloud))
+        with self.assertRaisesRegex(ProbeError, "Cloud point digest"):
+            run_probe("https://example.org/atlas/", fetcher)
+
+    def test_cloud_shape(self) -> None:
+        fetcher, _ = fixture()
+        url = "https://example.org/atlas/data/cloud/index.json"
+        content_type, body = fetcher.responses[url]
+        cloud = json.loads(body)
+        cloud["count"] = 3
+        fetcher.responses[url] = (content_type, encoded(cloud))
+        with self.assertRaisesRegex(ProbeError, "counts or ordering"):
+            run_probe("https://example.org/atlas/", fetcher)
+
     def test_retry(self) -> None:
         fetcher, _ = fixture()
         calls = 0
@@ -169,7 +226,7 @@ class ProbeTests(unittest.TestCase):
 
         report = probe_many("https://example.org/atlas/", 2, 0, flaky)
         self.assertEqual(report["paper_count"], 1)
-        self.assertEqual(calls, 8)
+        self.assertEqual(calls, 11)
 
     def test_local_base(self) -> None:
         self.assertEqual(

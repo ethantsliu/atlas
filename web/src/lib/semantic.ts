@@ -50,6 +50,14 @@ const REDUCER_KEYS = new Set([
   "clip",
   "extent",
 ]);
+const ORIENT_KEYS = new Set([
+  "method",
+  "anchor_count",
+  "reference_sha256",
+  "determinant",
+  "rmsd_before",
+  "rmsd_after",
+]);
 const QUALITY_KEYS = new Set([
   "k",
   "trustworthiness",
@@ -59,7 +67,7 @@ const QUALITY_KEYS = new Set([
   "cohort_policy",
   "cohorts",
 ]);
-const COHORT_KEYS = new Set(["all", "paper", "context", "idea", "taxonomy"]);
+const COHORT_NAMES = ["all", "paper", "context", "idea", "taxonomy"] as const;
 const COHORT_VALUE_KEYS = new Set([
   "node_count",
   "trustworthiness",
@@ -178,6 +186,13 @@ function exactKeys(
   );
 }
 
+function layoutShape(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false;
+  const allowed = new Set([...LAYOUT_KEYS, "orientation"]);
+  const expected = LAYOUT_KEYS.size + ("orientation" in value ? 1 : 0);
+  return hasOnlyKeys(value, allowed) && Object.keys(value).length === expected;
+}
+
 function isHash(value: unknown): value is string {
   return isString(value) && HASH.test(value);
 }
@@ -240,11 +255,32 @@ function reducerError(value: unknown): string | null {
     : "invalid semantic reducer";
 }
 
+function orientationError(value: unknown, nodeCount: number): string | null {
+  if (!exactKeys(value, ORIENT_KEYS)) return "invalid semantic orientation";
+  const determinant = value.determinant;
+  const before = value.rmsd_before;
+  const after = value.rmsd_after;
+  return value.method === "orthogonal-procrustes-3d-v1" &&
+    isInt(value.anchor_count) &&
+    value.anchor_count >= 4 &&
+    value.anchor_count <= nodeCount &&
+    isHash(value.reference_sha256) &&
+    isNumber(determinant) &&
+    Math.abs(Math.abs(determinant) - 1) <= 0.000001 &&
+    isNumber(before) &&
+    before >= 0 &&
+    isNumber(after) &&
+    after >= 0 &&
+    after <= before + 0.000001
+    ? null
+    : "invalid semantic orientation";
+}
+
 function cohortError(value: unknown, scope: LayoutScope): string | null {
-  if (!exactKeys(value, COHORT_KEYS)) return "invalid quality cohorts";
-  for (const name of Object.keys(scope.cohorts) as Array<
-    keyof LayoutScope["cohorts"]
-  >) {
+  const names = COHORT_NAMES.filter((name) => scope.cohorts[name] > 0);
+  const keys = new Set(names);
+  if (!exactKeys(value, keys)) return "invalid quality cohorts";
+  for (const name of names) {
     const count = scope.cohorts[name];
     const cohort = value[name];
     const expected = COHORT_THRESHOLDS[name];
@@ -281,7 +317,7 @@ function qualityError(value: unknown, scope: LayoutScope): string | null {
     thresholds.trustworthiness === 0.9 &&
     thresholds.knn_recall === 0.25 &&
     value.alias_policy === "exclude canonical and identical-text aliases" &&
-    value.cohort_policy === "research cohorts gated; context reported descriptively" &&
+    value.cohort_policy === "only present cohorts reported; research cohorts gated" &&
     cohorts.all.trustworthiness === value.trustworthiness &&
     cohorts.all.knn_recall === value.knn_recall
     ? null
@@ -488,7 +524,7 @@ function mapError(value: Record<string, unknown>, scope: LayoutScope): string | 
 }
 
 export function layoutError(value: unknown, scope: LayoutScope): string | null {
-  if (!exactKeys(value, LAYOUT_KEYS)) return "invalid semantic layout shape";
+  if (!layoutShape(value)) return "invalid semantic layout shape";
   if (
     value.schema_version !== 3 ||
     value.model !== "all-minilm" ||
@@ -503,6 +539,9 @@ export function layoutError(value: unknown, scope: LayoutScope): string | null {
   return (
     embeddingError(value.embedding) ??
     reducerError(value.reducer) ??
+    ("orientation" in value
+      ? orientationError(value.orientation, scope.nodeCount)
+      : null) ??
     qualityError(value.quality, scope) ??
     mapError(value, scope) ??
     mixError(value.mix_quality) ??

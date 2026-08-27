@@ -96,6 +96,8 @@ describe("search states", () => {
     expect(markup).toContain("Blog concepts awaiting source development");
     expect(markup).toContain(">screening candidate<");
     expect(markup).toContain(">blog lead<");
+    expect(markup).toContain("Automatically synthesized from corpus routes");
+    expect(markup).toContain("Researched draft · Related work checked");
     expect(markup).toContain(
       "rank across all independently scored research and blog briefs",
     );

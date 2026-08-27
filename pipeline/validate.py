@@ -34,6 +34,7 @@ from layoutcheck import validate_clusters, validate_layout
 from ledger import load_json, load_json_lines, validate_json
 from ontology import TOPICS, TRICKS
 from privacy import validate_public
+from titles import valid_title
 from readings import (
     READINGS_DIR,
     load_valid_readings,
@@ -85,6 +86,7 @@ def validate_atlas_metadata(
         if paper.get("record_kind") != "non_paper_context"
     ]
     context_records = len(atlas["papers"]) - len(research_papers)
+    check(context_records == 0, "Atlas must contain papers only")
     check(
         atlas["meta"].get("research_entry_count") == len(research_papers),
         "Atlas research-entry count is inconsistent",
@@ -92,6 +94,22 @@ def validate_atlas_metadata(
     check(
         atlas["meta"].get("context_entry_count") == context_records,
         "Atlas contextual-entry count is inconsistent",
+    )
+    check(
+        all(
+            not {"note", "section", "tags"}.intersection(paper)
+            for paper in atlas["papers"]
+        ),
+        "Atlas papers contain curator-only fields",
+    )
+    paper_ids = [paper.get("stable_id") for paper in atlas["papers"]]
+    check(
+        all(paper_ids) and len(paper_ids) == len(set(paper_ids)),
+        "Atlas papers contain duplicate stable records",
+    )
+    check(
+        all(valid_title(paper.get("title")) for paper in atlas["papers"]),
+        "Atlas papers contain unsafe titles",
     )
     check(
         atlas["meta"]["repo_count"] == 0 and atlas["repos"] == [],

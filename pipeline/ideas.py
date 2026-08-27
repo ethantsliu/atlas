@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 
 from experiments import confound_for, protocol_for
@@ -20,6 +21,71 @@ IDEA_ORIGINS = {
     "user-specified",
 }
 BRIEF_STATUSES = {"provisional", "researched-draft"}
+ID_CHARS = re.compile(r"[^a-z0-9]+")
+LEGACY_IDS = {
+    ("efficiency-systems", "retrieval-and-memory"): "idea-standalone-1",
+    ("efficiency-systems", "sparsity"): "idea-standalone-2",
+    ("evaluation", "retrieval-and-memory"): "idea-standalone-3",
+    ("optimization", "regularization"): "idea-standalone-4",
+    ("multimodal", "retrieval-and-memory"): "idea-standalone-5",
+    ("representation-learning", "sparsity"): "idea-standalone-6",
+    ("agents", "retrieval-and-memory"): "idea-standalone-7",
+    ("optimization", "sparsity"): "idea-standalone-8",
+    ("evaluation", "sparsity"): "idea-standalone-9",
+    ("optimization", "retrieval-and-memory"): "idea-standalone-10",
+    ("representation-learning", "retrieval-and-memory"): "idea-standalone-11",
+    ("reasoning", "retrieval-and-memory"): "idea-standalone-12",
+    ("multimodal", "sparsity"): "idea-standalone-13",
+    ("interpretability", "sparsity"): "idea-standalone-14",
+    ("efficiency-systems", "test-time-compute"): "idea-standalone-15",
+    ("reasoning", "sparsity"): "idea-standalone-16",
+    ("efficiency-systems", "low-rank-adaptation"): "idea-standalone-17",
+    ("representation-learning", "contrastive-learning"): "idea-standalone-18",
+    ("evaluation", "routing-and-moe"): "idea-standalone-19",
+    ("post-training", "retrieval-and-memory"): "idea-standalone-20",
+    ("efficiency-systems", "routing-and-moe"): "idea-standalone-21",
+    ("optimization", "normalization"): "idea-standalone-22",
+    ("post-training", "sparsity"): "idea-standalone-23",
+    ("pre-training", "retrieval-and-memory"): "idea-standalone-24",
+    ("evaluation", "test-time-compute"): "idea-standalone-25",
+    ("pre-training", "scaling-laws"): "idea-standalone-26",
+    ("interpretability", "routing-and-moe"): "idea-standalone-27",
+    ("representation-learning", "regularization"): "idea-standalone-28",
+    ("efficiency-systems", "regularization"): "idea-standalone-29",
+    ("evaluation", "ensembling"): "idea-standalone-30",
+    ("efficiency-systems", "distillation"): "idea-standalone-31",
+    ("post-training", "low-rank-adaptation"): "idea-standalone-32",
+    ("reasoning", "test-time-compute"): "idea-standalone-33",
+    ("efficiency-systems", "ensembling"): "idea-standalone-34",
+    ("evaluation", "low-rank-adaptation"): "idea-standalone-35",
+    ("representation-learning", "routing-and-moe"): "idea-standalone-36",
+    ("generative-modeling", "sparsity"): "idea-standalone-37",
+    ("optimization", "low-rank-adaptation"): "idea-standalone-38",
+    ("reasoning", "routing-and-moe"): "idea-standalone-39",
+    ("generative-modeling", "retrieval-and-memory"): "idea-standalone-40",
+    ("multimodal", "routing-and-moe"): "idea-standalone-41",
+    ("agents", "routing-and-moe"): "idea-standalone-42",
+    ("agents", "sparsity"): "idea-standalone-43",
+    ("ai-for-science", "sparsity"): "idea-standalone-44",
+    ("multimodal", "low-rank-adaptation"): "idea-standalone-45",
+    ("evaluation", "regularization"): "idea-standalone-46",
+    ("interpretability", "retrieval-and-memory"): "idea-standalone-47",
+    ("representation-learning", "ensembling"): "idea-standalone-48",
+}
+
+
+def route_id(value: object) -> str:
+    """Normalize one ontology identifier for stable derived IDs."""
+    normalized = ID_CHARS.sub("-", str(value or "").casefold()).strip("-")
+    if not normalized:
+        raise ValueError("Idea routes require non-empty identifiers")
+    return normalized
+
+
+def idea_id(topic: str, trick: str) -> str:
+    """Return a rank-independent public ID for one normalized route pair."""
+    pair = (route_id(topic), route_id(trick))
+    return LEGACY_IDS.get(pair, f"idea-standalone-{pair[0]}--{pair[1]}")
 
 
 def make_brief(
@@ -123,11 +189,22 @@ def index_paper_support(
     topic_papers: dict[str, list[dict]] = defaultdict(list)
     pair_papers: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for paper in papers:
-        for topic in paper["topics"]:
-            topic_papers[topic["id"]].append(paper)
-            for trick in paper["tricks"]:
-                pair_papers[(topic["id"], trick["id"])].append(paper)
-    return topic_papers, pair_papers
+        topics = {route_id(topic.get("id")) for topic in paper["topics"]}
+        tricks = {route_id(trick.get("id")) for trick in paper["tricks"]}
+        for topic in sorted(topics):
+            topic_papers[topic].append(paper)
+            for trick in sorted(tricks):
+                pair_papers[(topic, trick)].append(paper)
+    return (
+        {
+            topic: select_supporting_papers(supporting, len(supporting))
+            for topic, supporting in topic_papers.items()
+        },
+        {
+            pair: select_supporting_papers(supporting, len(supporting))
+            for pair, supporting in pair_papers.items()
+        },
+    )
 
 
 def build_cross_ideas(
@@ -135,15 +212,27 @@ def build_cross_ideas(
 ) -> list[dict]:
     """Create the highest-support topic-technique screening hypotheses."""
     ideas: list[dict] = []
-    best_pairs = sorted(pair_papers.items(), key=lambda item: (-len(item[1]), item[0]))[
-        :48
+    grouped: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    for pair, papers in pair_papers.items():
+        normalized = (route_id(pair[0]), route_id(pair[1]))
+        grouped[normalized].extend(papers)
+    unique_pairs = [
+        (pair, select_supporting_papers(papers, len(papers)))
+        for pair, papers in grouped.items()
     ]
-    for index, ((topic, trick), supporting) in enumerate(best_pairs, start=1):
+    best_pairs = sorted(
+        (item for item in unique_pairs if len(item[1]) >= 2),
+        key=lambda item: (-len(item[1]), item[0]),
+    )
+    retained = [item for item in best_pairs if item[0] in LEGACY_IDS]
+    novel = [item for item in best_pairs if item[0] not in LEGACY_IDS]
+    best_pairs = [*retained, *novel][:48]
+    for (topic, trick), supporting in best_pairs:
         title = f"Stress-test {trick.replace('-', ' ')} for {topic.replace('-', ' ')}"
-        selected_support = select_supporting_papers(supporting, 6)
+        selected_support = supporting[:6]
         ideas.append(
             {
-                "id": f"idea-standalone-{index}",
+                "id": idea_id(topic, trick),
                 "kind": "research",
                 "origin": "cross-paper",
                 "topic_ids": [topic],

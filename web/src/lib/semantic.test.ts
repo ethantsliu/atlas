@@ -55,6 +55,39 @@ describe("semantic layout guard", () => {
     changes.forEach(rejects);
   });
 
+  it("accepts and binds an optional orientation receipt", () => {
+    const atlas = makeAtlas({ layout: makeLayout() });
+    const layout = atlas.layout as SemanticLayout;
+    layout.orientation = {
+      method: "orthogonal-procrustes-3d-v1",
+      anchor_count: layout.node_count,
+      reference_sha256: "e".repeat(64),
+      determinant: -1,
+      rmsd_before: 4,
+      rmsd_after: 1,
+    };
+
+    expect(layoutError(layout, atlasScope(atlas))).toBeNull();
+    rejects((candidate) => {
+      candidate.orientation = { ...layout.orientation!, anchor_count: 3 };
+    });
+    rejects((candidate) => {
+      candidate.orientation = { ...layout.orientation!, determinant: 0.99 };
+    });
+    rejects((candidate) => {
+      candidate.orientation = { ...layout.orientation!, rmsd_after: 5 };
+    });
+    rejects((candidate) => {
+      candidate.orientation = { ...layout.orientation!, reference_sha256: "bad" };
+    });
+    rejects((candidate) => {
+      candidate.orientation = {
+        ...layout.orientation!,
+        extra: true,
+      } as never;
+    });
+  });
+
   it("requires quality aliases, cohorts, and literal thresholds", () => {
     rejects((layout) => {
       layout.quality.k = 9;
@@ -85,7 +118,12 @@ describe("semantic layout guard", () => {
       ).thresholds;
     });
     rejects((layout) => {
-      layout.quality.cohorts.context.thresholds.knn_recall = 0.25 as never;
+      layout.quality.cohorts.context = {
+        node_count: 0,
+        trustworthiness: 1,
+        knn_recall: 1,
+        thresholds: { trustworthiness: 0, knn_recall: 0 },
+      };
     });
     rejects((layout) => {
       layout.quality.cohorts.idea.thresholds.trustworthiness = 0.9 as never;

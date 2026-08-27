@@ -85,41 +85,21 @@ def summarize_abstract(record: dict) -> dict:
     }
 
 
-def summarize_context_record(record: dict) -> dict:
-    """Describe why a non-paper collection entry is retained without inventing claims."""
-    return {
-        "problem": "This is a contextual collection entry, not a paper.",
-        "approach": (
-            "The atlas preserves the original link as curator context while excluding "
-            "it from paper-reading and related-work requirements."
-        ),
-        "evidence": record.get("note")
-        or "No abstract, experiment, or paper-level claim is attached to this entry.",
-        "limitations": (
-            "Do not cite this record as research evidence; inspect the linked resource "
-            "for its own provenance and scope."
-        ),
-        "why_it_matters": "It may explain the curator's interests or point to supporting material.",
-    }
-
-
 def compact_paper(record: dict, full_reading: dict | None = None) -> dict:
     """Build the compact paper record consumed by the web application."""
     record_kind = record.get("record_kind", "paper")
-    is_context = record_kind == "non_paper_context"
+    if record_kind != "paper":
+        raise ValueError("Atlas compact records must be papers")
     evidence_text = " ".join(
         str(value or "")
         for value in (
             record.get("title"),
             record.get("abstract"),
-            record.get("note"),
-            " ".join(record.get("tags", [])),
+            " ".join(record.get("categories", [])),
         )
     )
     reading_depth = (
-        "context"
-        if is_context
-        else full_reading.get("reading_depth", "full_text")
+        full_reading.get("reading_depth", "full_text")
         if full_reading
         else record.get("reading_depth", "metadata")
     )
@@ -135,15 +115,12 @@ def compact_paper(record: dict, full_reading: dict | None = None) -> dict:
         "authors": record.get("authors", []),
         "published": record.get("published"),
         "categories": record.get("categories", []),
-        "note": record.get("note"),
         "reading_depth": reading_depth,
         "topics": route(evidence_text, TOPICS),
         "tricks": route(evidence_text, TRICKS),
-        "reading": summarize_context_record(record)
-        if is_context
-        else summarize_abstract(record),
+        "reading": summarize_abstract(record),
     }
-    if full_reading and not is_context and reading_depth in {"full_text", "verified"}:
+    if full_reading and reading_depth in {"full_text", "verified"}:
         paper["full_reading_path"] = reading_public_path(
             record["stable_id"], full_reading
         )

@@ -1,7 +1,13 @@
 import { ChevronRight, X } from "lucide-react";
 import { useDialog } from "../../hooks/dialog";
 import { findPaperIds } from "../../lib/filters";
-import { findParentProgram, ideaRole, workPackagesFor } from "../../lib/portfolio";
+import {
+  findParentProgram,
+  ideaBasis,
+  ideaRole,
+  ideaStage,
+  workPackagesFor,
+} from "../../lib/portfolio";
 import type { Atlas, Idea, Paper } from "../../types";
 import { DialogPortal } from "../shared/Portal";
 import { EvidenceSections } from "./Evidence";
@@ -48,11 +54,11 @@ export function BriefModal({
         >
           <header>
             <div>
-              <span className="type-pill idea">{idea.origin}</span>
+              <span className="type-pill idea">Idea</span>
               {role !== "standalone" && (
                 <span className="type-pill portfolio-role">{role}</span>
               )}
-              <span className="type-pill brief-status">{detail.status}</span>
+              <span className="type-pill brief-status">{ideaStage(idea)}</span>
               <h1 id="brief-modal-title">{detail.title}</h1>
             </div>
             <button onClick={close} aria-label="Close research brief">
@@ -102,7 +108,9 @@ export function BriefModal({
           <p className="modal-thesis">{detail.thesis}</p>
           <aside className="brief-evidence-basis" aria-label="Evidence basis">
             <b>Evidence basis</b>
-            <span>{detail.evidence_note}</span>
+            <span>
+              {ideaBasis(idea)} {detail.evidence_note}
+            </span>
           </aside>
           <div className="modal-columns">
             <MethodColumn detail={detail} />

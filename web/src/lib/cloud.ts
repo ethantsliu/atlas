@@ -10,8 +10,15 @@ export type CloudAsset = {
 export type CloudShard = {
   month: string;
   source_sha256: string;
+  source_count: number;
+  source_counts: { likely: number; possible: number; outside: number };
+  foreground_sha256: string;
   count: number;
   counts: { likely: number; possible: number; outside: number };
+  omitted_count: number;
+  omitted_counts: { likely: number; possible: number; outside: number };
+  omitted_ids: string[];
+  omitted_sha256: string;
   points: CloudAsset;
   meta: CloudAsset;
 };
@@ -24,8 +31,13 @@ export type CloudManifest = {
   model_revision: string;
   projection: "anchor-cosine-8-v1";
   point_bytes: 13;
+  source_count: number;
   count: number;
   counts: { likely: number; possible: number; outside: number };
+  omitted_count: number;
+  omitted_counts: { likely: number; possible: number; outside: number };
+  omitted_sha256: string;
+  foreground_sha256: string;
   shards: CloudShard[];
 };
 
@@ -56,6 +68,12 @@ const REVISION = /^[0-9a-f]{40}$/;
 const POINT = /^\d{4}-\d{2}\.bin$/;
 const META = /^\d{4}-\d{2}\.json$/;
 const MAGIC = "ATLASPT1";
+const PUBLISHED = /^\d{4}-\d{2}-\d{2}(?:T[^\s]+)?$/;
+const SCOPES = new Set(["likely", "possible", "outside"]);
+
+function cloudPath(asset: CloudAsset): string {
+  return `/data/cloud/${asset.path}?sha=${asset.sha256}`;
+}
 
 function isCount(value: unknown): value is number {
   return isNumber(value) && Number.isSafeInteger(value) && value >= 0;
@@ -79,15 +97,54 @@ function isCounts(value: unknown): value is CloudShard["counts"] {
 }
 
 function isShard(value: unknown): value is CloudShard {
-  if (!isRecord(value) || !isCounts(value.counts)) return false;
+  if (
+    !isRecord(value) ||
+    !isCounts(value.counts) ||
+    !isCounts(value.source_counts) ||
+    !isCounts(value.omitted_counts)
+  ) {
+    return false;
+  }
   const sum = value.counts.likely + value.counts.possible + value.counts.outside;
+  const sourceSum =
+    value.source_counts.likely +
+    value.source_counts.possible +
+    value.source_counts.outside;
+  const omittedSum =
+    value.omitted_counts.likely +
+    value.omitted_counts.possible +
+    value.omitted_counts.outside;
+  const omittedIds = Array.isArray(value.omitted_ids) ? value.omitted_ids : [];
   return (
     isString(value.month) &&
     MONTH.test(value.month) &&
     isString(value.source_sha256) &&
     DIGEST.test(value.source_sha256) &&
+    isCount(value.source_count) &&
+    isString(value.foreground_sha256) &&
+    DIGEST.test(value.foreground_sha256) &&
     isCount(value.count) &&
     value.count === sum &&
+    isCount(value.omitted_count) &&
+    value.omitted_count === omittedSum &&
+    value.source_count === value.count + value.omitted_count &&
+    value.source_count === sourceSum &&
+    value.source_counts.likely === value.counts.likely + value.omitted_counts.likely &&
+    value.source_counts.possible ===
+      value.counts.possible + value.omitted_counts.possible &&
+    value.source_counts.outside ===
+      value.counts.outside + value.omitted_counts.outside &&
+    omittedIds.length === value.omitted_count &&
+    omittedIds.every(
+      (identifier) =>
+        isString(identifier) &&
+        identifier.length > 0 &&
+        identifier.length <= 128 &&
+        !/\s/.test(identifier),
+    ) &&
+    omittedIds.join() === [...new Set(omittedIds)].sort().join() &&
+    isString(value.omitted_sha256) &&
+    DIGEST.test(value.omitted_sha256) &&
     isAsset(value.points, POINT) &&
     value.points.path === `${value.month}.bin` &&
     isAsset(value.meta, META) &&
@@ -107,8 +164,15 @@ export function isCloud(value: unknown): value is CloudManifest {
     !REVISION.test(value.model_revision) ||
     value.projection !== "anchor-cosine-8-v1" ||
     value.point_bytes !== 13 ||
+    !isCount(value.source_count) ||
     !isCount(value.count) ||
     !isCounts(value.counts) ||
+    !isCount(value.omitted_count) ||
+    !isCounts(value.omitted_counts) ||
+    !isString(value.omitted_sha256) ||
+    !DIGEST.test(value.omitted_sha256) ||
+    !isString(value.foreground_sha256) ||
+    !DIGEST.test(value.foreground_sha256) ||
     !Array.isArray(value.shards) ||
     !value.shards.every(isShard)
   ) {
@@ -118,16 +182,37 @@ export function isCloud(value: unknown): value is CloudManifest {
   const months = manifest.shards.map((shard) => shard.month);
   if (months.join() !== [...new Set(months)].sort().join()) return false;
   const total = manifest.shards.reduce((sum, shard) => sum + shard.count, 0);
+  const sourceTotal = manifest.shards.reduce(
+    (sum, shard) => sum + shard.source_count,
+    0,
+  );
+  const omittedTotal = manifest.shards.reduce(
+    (sum, shard) => sum + shard.omitted_count,
+    0,
+  );
   const lanes = (["likely", "possible", "outside"] as const).every(
     (scope) =>
       manifest.counts[scope] ===
       manifest.shards.reduce((sum, shard) => sum + shard.counts[scope], 0),
   );
+  const omittedLanes = (["likely", "possible", "outside"] as const).every(
+    (scope) =>
+      manifest.omitted_counts[scope] ===
+      manifest.shards.reduce((sum, shard) => sum + shard.omitted_counts[scope], 0),
+  );
   return (
     lanes &&
+    omittedLanes &&
     manifest.count === total &&
+    manifest.source_count === sourceTotal &&
+    manifest.omitted_count === omittedTotal &&
+    manifest.source_count === manifest.count + manifest.omitted_count &&
     manifest.count ===
-      manifest.counts.likely + manifest.counts.possible + manifest.counts.outside
+      manifest.counts.likely + manifest.counts.possible + manifest.counts.outside &&
+    manifest.omitted_count ===
+      manifest.omitted_counts.likely +
+        manifest.omitted_counts.possible +
+        manifest.omitted_counts.outside
   );
 }
 
@@ -136,6 +221,79 @@ async function digestOf(bytes: ArrayBuffer): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
   ).join("");
+}
+
+function parseMeta(bytes: ArrayBuffer, range: CloudRange): CloudPaper[] {
+  let value: unknown;
+  try {
+    value = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    throw new Error("Paper metadata has an invalid shape");
+  }
+  if (
+    !isRecord(value) ||
+    value.schema_version !== 1 ||
+    value.month !== range.month ||
+    value.count !== range.count ||
+    !Array.isArray(value.papers) ||
+    value.papers.length !== range.count
+  ) {
+    throw new Error("Paper metadata has an invalid shape");
+  }
+  return value.papers.map((row) => {
+    if (
+      !Array.isArray(row) ||
+      row.length !== 5 ||
+      !row.every(isString) ||
+      !row[0] ||
+      !row[1].trim() ||
+      !/^https:\/\/arxiv\.org\/abs\//.test(row[2]) ||
+      !PUBLISHED.test(row[3]) ||
+      !SCOPES.has(row[4])
+    ) {
+      throw new Error("Paper metadata has an invalid shape");
+    }
+    return {
+      id: row[0],
+      title: row[1],
+      url: row[2],
+      published: row[3],
+      scope: row[4] as CloudPaper["scope"],
+    };
+  });
+}
+
+export async function fetchCloudMeta(
+  range: CloudRange,
+  signal: AbortSignal,
+  fetcher: typeof fetch = fetch,
+  base?: string,
+): Promise<CloudPaper[]> {
+  const response = await fetcher(basePath(cloudPath(range.meta), base), {
+    signal,
+    cache: "force-cache",
+  });
+  if (!response.ok) {
+    throw new Error(`Paper metadata request failed (${response.status})`);
+  }
+  const bytes = await response.arrayBuffer();
+  if (
+    bytes.byteLength !== range.meta.bytes ||
+    (await digestOf(bytes)) !== range.meta.sha256
+  ) {
+    throw new Error("Paper metadata does not match its index");
+  }
+  return parseMeta(bytes, range);
+}
+
+export function cloudPaper(
+  papers: readonly CloudPaper[],
+  range: CloudRange,
+  index: number,
+): CloudPaper | null {
+  const local = index - range.start;
+  if (local < 0 || local >= range.count) return null;
+  return papers[local] ?? null;
 }
 
 export async function fetchCloud(
@@ -159,7 +317,7 @@ async function pointShard(
   fetcher: typeof fetch,
   base?: string,
 ): Promise<{ positions: Float32Array; scopes: Uint8Array }> {
-  const response = await fetcher(basePath(`/data/cloud/${shard.points.path}`, base), {
+  const response = await fetcher(basePath(cloudPath(shard.points), base), {
     signal,
     cache: "force-cache",
   });
@@ -214,12 +372,14 @@ export async function loadCloud(
       ranges.push({
         month: shard.month,
         start: next,
-        count: shard.count,
+        count: data.scopes.length,
         meta: shard.meta,
       });
-      next += shard.count;
+      next += data.scopes.length;
     }
   }
+  if (next !== manifest.count)
+    throw new Error("Paper cloud count drifted while loading");
   return { positions, scopes, ranges };
 }
 

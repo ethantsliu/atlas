@@ -10,6 +10,7 @@ from pathlib import Path
 
 from files import atomic_write_bytes
 from privacy import validate_public
+from titles import valid_title
 
 PUBLIC_READING_PREFIX = "/data/readings/"
 PUBLIC_PAPER_PREFIX = "/data/papers/"
@@ -60,6 +61,8 @@ def paper_bytes(bundle: dict) -> bytes:
     """Serialize a paper bundle canonically for hashing and publication."""
     if not isinstance(bundle, dict) or not isinstance(bundle.get("papers"), list):
         raise PaperAssetError("Paper bundle must contain a paper list")
+    if any(not valid_title(paper.get("title")) for paper in bundle["papers"]):
+        raise PaperAssetError("Paper bundle contains an unsafe title")
     return (
         json.dumps(bundle, ensure_ascii=False, separators=(",", ":")) + "\n"
     ).encode("utf-8")
@@ -91,12 +94,21 @@ def paper_valid(path: Path) -> bool:
 
 
 def paper_safe(path: Path) -> bool:
-    """Return whether a valid bundle also satisfies the public privacy boundary."""
+    """Return whether a valid bundle satisfies the public paper-only boundary."""
     if not paper_valid(path):
         return False
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
         validate_public(value, f"Paper asset {path.name}")
+        papers = value.get("papers")
+        if not isinstance(papers, list) or any(
+            not isinstance(paper, dict)
+            or paper.get("record_kind") == "non_paper_context"
+            or {"note", "section", "tags"}.intersection(paper)
+            or not valid_title(paper.get("title"))
+            for paper in papers
+        ):
+            return False
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, RuntimeError):
         return False
     return True

@@ -110,6 +110,7 @@ export default function App() {
             onNeedPapers={load.loadPapers}
             onRetryPapers={load.retryPapers}
             onReplace={replace}
+            onPush={push}
           />
         )}
         {state.view === "insights" &&

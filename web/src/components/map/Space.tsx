@@ -16,7 +16,7 @@ import {
 import { useQuality } from "../../hooks/quality";
 import { usePixel } from "../../hooks/pixel";
 import { useMarks } from "../../hooks/marks";
-import { useSwarm } from "../../hooks/swarm";
+import { useSwarm, type SwarmTip } from "../../hooks/swarm";
 import type { Theme } from "../../hooks/theme";
 import { graphEndpointId, largestGroup, splitPapers } from "../../lib/graph";
 import { showLink } from "../../lib/quality";
@@ -24,13 +24,15 @@ import { formatCamera, show3d, type CameraView } from "../../lib/camera";
 import { buildNode } from "../../lib/scene";
 import { labelOf } from "../../lib/text";
 import type { GraphData, GraphLink, GraphNode } from "../../types";
-import type { CloudData } from "../../lib/cloud";
-import { usePoints } from "../../hooks/points";
+import type { CloudData, CloudPaper } from "../../lib/cloud";
+import { usePoints, type PointTip } from "../../hooks/points";
 import type { GraphRef } from "./Driver";
+import { pickFront } from "./Front";
 
 type SpaceProps = {
   graph: GraphData;
   cloud: CloudData | null;
+  cloudSelected: boolean;
   graphRef: GraphRef;
   width: number;
   height: number;
@@ -39,13 +41,40 @@ type SpaceProps = {
   layout: LayoutMode;
   camera: CameraView | null;
   onChoose: (node: GraphNode) => void;
+  onCloudPick: (paper: CloudPaper) => void;
   onFocus: (nodeId: string) => void;
   onClear: () => void;
 };
 
+function PointTips({ tip, cloud }: { tip: SwarmTip | null; cloud: PointTip | null }) {
+  return (
+    <>
+      {tip && (
+        <div
+          className="swarm-tip"
+          role="tooltip"
+          style={{ left: tip.x + 14, top: tip.y + 14 }}
+        >
+          Paper · {tip.label}
+        </div>
+      )}
+      {cloud && (
+        <div
+          className="swarm-tip cloud-tip"
+          role="tooltip"
+          style={{ left: cloud.x + 14, top: cloud.y + 14 }}
+        >
+          {cloud.label}
+        </div>
+      )}
+    </>
+  );
+}
+
 export function GraphSpace({
   graph,
   cloud,
+  cloudSelected,
   graphRef,
   width,
   height,
@@ -54,6 +83,7 @@ export function GraphSpace({
   layout,
   camera,
   onChoose,
+  onCloudPick,
   onFocus,
   onClear,
 }: SpaceProps) {
@@ -69,6 +99,10 @@ export function GraphSpace({
   const fitRef = useRef(true);
   const fitKeyRef = useRef<string>();
   const restoredRef = useRef<string | null>(null);
+  const cloudOpenRef = useRef(cloudSelected);
+  useEffect(() => {
+    cloudOpenRef.current = cloudSelected;
+  }, [cloudSelected]);
   const split = useMemo(() => splitPapers(graph), [graph]);
   const showSwarm = layout === "semantic" && split.papers.length >= 1_000;
   const sceneGraph = showSwarm ? split.core : graph;
@@ -88,7 +122,15 @@ export function GraphSpace({
     [quality.geometryDetail, simple, theme],
   );
   usePixel(graphRef, quality.pixelRatioCap);
-  usePoints(graphRef, layout === "semantic" ? cloud : null, theme);
+  const cloudHit = usePoints({
+    graphRef,
+    data: layout === "semantic" ? cloud : null,
+    theme,
+    onPick: (paper) => {
+      cloudOpenRef.current = true;
+      onCloudPick(paper);
+    },
+  });
   useMarks({
     graphRef,
     nodes: sceneGraph.nodes,
@@ -103,9 +145,14 @@ export function GraphSpace({
     nodes: swarmNodes,
     selected,
     theme,
-    onChoose,
+    onChoose: (node) => {
+      pickFront(cloudHit, cloudOpenRef, onChoose, node);
+    },
     onFocus,
-    onHover: setSwarmHovered,
+    onHover: (node) => {
+      if (node) cloudHit.block();
+      setSwarmHovered(node);
+    },
   });
 
   useEffect(() => {
@@ -179,20 +226,19 @@ export function GraphSpace({
           const duration = layoutTime(Boolean(reduced), 700);
           graphRef.current?.zoomToFit(duration, 72, (node) => coreIds.has(node.id));
         }}
-        onNodeClick={onChoose}
-        onNodeHover={(node) => setCoreHovered(node ?? null)}
+        onNodeClick={(node) => {
+          pickFront(cloudHit, cloudOpenRef, onChoose, node);
+        }}
+        onNodeHover={(node) => {
+          if (node) cloudHit.block();
+          setCoreHovered(node ?? null);
+        }}
         onNodeRightClick={(node) => onFocus(node.id)}
-        onBackgroundClick={onClear}
+        onBackgroundClick={() => {
+          if (!cloudOpenRef.current && !cloudHit.take()) onClear();
+        }}
       />
-      {tip && (
-        <div
-          className="swarm-tip"
-          role="tooltip"
-          style={{ left: tip.x + 14, top: tip.y + 14 }}
-        >
-          Paper · {tip.label}
-        </div>
-      )}
+      <PointTips tip={tip} cloud={cloudHit.tip} />
     </>
   );
 }

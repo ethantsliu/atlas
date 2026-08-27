@@ -64,6 +64,7 @@ def merge_record(paper: dict, override: dict, prior: dict | None = None) -> dict
         if record.get("abstract"):
             record["reading_depth"] = "abstract"
     record.update(override)
+    record["title"] = paper["title"]
     stable_id, identifier_kind = canonical_id(paper, override)
     record["stable_id"] = stable_id
     record["identifier_kind"] = identifier_kind

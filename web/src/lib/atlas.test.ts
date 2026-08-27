@@ -291,6 +291,13 @@ describe("isAtlasPayload", () => {
     expect(atlasValidationError(atlas)).toBe("invalid idea at index 0");
   });
 
+  it("requires one-decimal feasibility factors", () => {
+    const atlas = makeAtlas();
+    atlas.ideas[0].feasibility.factors[0].score = 1.41;
+
+    expect(atlasValidationError(atlas)).toBe("invalid idea at index 0");
+  });
+
   it("requires a rendered primary outcome for researched experiments", () => {
     const atlas = makeAtlas();
     atlas.ideas[0].origin = "user-specified";

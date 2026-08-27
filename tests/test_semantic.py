@@ -19,6 +19,7 @@ from semantic import (  # noqa: E402
     recall_at,
     semantic_neighbors,
 )
+from layoutcheck import validate_orientation  # noqa: E402
 from validate import validate_clusters  # noqa: E402
 
 
@@ -248,6 +249,35 @@ class SemanticTests(unittest.TestCase):
         quality["knn_recall"] = float("nan")
         with self.assertRaisesRegex(RuntimeError, "knn_recall"):
             ensure_quality(quality)
+
+    def test_valid_orientation(self) -> None:
+        layout = {
+            "orientation": {
+                "method": "orthogonal-procrustes-3d-v1",
+                "anchor_count": 4,
+                "reference_sha256": "a" * 64,
+                "determinant": -1.0,
+                "rmsd_before": 4.0,
+                "rmsd_after": 0.1,
+            }
+        }
+
+        validate_orientation(layout, 5)
+
+    def test_bad_orientation(self) -> None:
+        layout = {
+            "orientation": {
+                "method": "orthogonal-procrustes-3d-v1",
+                "anchor_count": 4,
+                "reference_sha256": "a" * 64,
+                "determinant": 0.0,
+                "rmsd_before": 1.0,
+                "rmsd_after": 2.0,
+            }
+        }
+
+        with self.assertRaisesRegex(RuntimeError, "fit"):
+            validate_orientation(layout, 5)
 
 
 def cluster_fixture() -> tuple[dict, set[str]]:

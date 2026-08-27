@@ -39,7 +39,7 @@ describe("PaperDetailModal", () => {
     expect(markup).not.toContain("<b>Abstract</b>");
   });
 
-  it("keeps contextual records explicitly outside the paper corpus", () => {
+  it("presents legacy provenance records as Papers", () => {
     const markup = renderToStaticMarkup(
       <PaperDetailModal
         paper={makePaper({
@@ -50,8 +50,10 @@ describe("PaperDetailModal", () => {
       />,
     );
 
-    expect(markup).toContain("<b>Context</b>");
-    expect(markup).toContain("excluded from the paper corpus");
+    expect(markup).toContain("<b>Paper</b>");
+    expect(markup).toContain("Paper source");
+    expect(markup).not.toContain("Context");
+    expect(markup).not.toContain("context");
   });
 
   it("renders full provenance, attribution, verification, and linked PDF anchors", () => {

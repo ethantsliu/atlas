@@ -26,6 +26,7 @@ def make_payload(detail_path: str, generated_at: str) -> dict:
             {
                 "id": "paper-1",
                 "stable_id": "arxiv:1",
+                "title": "A Paper",
                 "full_reading_path": detail_path,
             }
         ],
@@ -78,7 +79,7 @@ class BuildIdeasTests(unittest.TestCase):
             "topics": [{"id": "a"}],
             "tricks": [],
             "ideas": [],
-            "papers": [{"id": "paper-1"}],
+            "papers": [{"id": "paper-1", "title": "A Paper"}],
             "layout": {
                 "model": "all-minilm",
                 "positions": {"topic:a": [0, 0, 0], "paper-1": [1, 1, 1]},

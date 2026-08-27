@@ -6,7 +6,9 @@ import { EmptyState, ResultStatus } from "../components/shared/Empty";
 import { PageHead } from "../components/shared/Head";
 import { filterIdeaQuery, sortIdeaScores } from "../lib/filters";
 import {
+  ideaBasis,
   ideaRole,
+  ideaStage,
   independentlyRankedIdeas,
   visibleProgramGroups,
 } from "../lib/portfolio";
@@ -281,11 +283,7 @@ function BriefCard({
       ? "research program"
       : role === "work-package"
         ? "work package"
-        : featured
-          ? "researched draft"
-          : idea.kind === "research"
-            ? "screening candidate"
-            : "blog lead";
+        : ideaStage(idea).toLocaleLowerCase();
 
   return (
     <article className={`brief-card ${featured ? "featured" : ""} ${role}`}>
@@ -299,6 +297,10 @@ function BriefCard({
         </b>
       </div>
       <h2>{idea.brief.title}</h2>
+      <small className="idea-basis">
+        {role !== "standalone" && `${ideaStage(idea)} · `}
+        {ideaBasis(idea)}
+      </small>
       <p>{idea.brief.thesis}</p>
       <div className="chip-row">
         {[...idea.topic_ids, ...idea.trick_ids].map((id) => (

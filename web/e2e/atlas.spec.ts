@@ -17,7 +17,9 @@ async function scan(page: Page) {
 }
 
 function mapStatus(page: Page) {
-  return page.locator(".map-layout > [role=status]").first();
+  return page
+    .locator(".map-layout > p.sr-only[role=status]")
+    .filter({ hasText: /visible graph nodes/ });
 }
 
 async function fullNodes(page: Page) {
@@ -27,16 +29,21 @@ async function fullNodes(page: Page) {
       timeout: 20_000,
     });
   }
+  const toggles = page.locator(".filters .kind-toggle");
   const counts = await Promise.all(
     [0, 1, 2, 3].map(async (index) => {
-      const text = await page.locator(".filters .kind-toggle").nth(index).textContent();
+      const toggle = toggles.nth(index);
+      if ((await toggle.getAttribute("aria-pressed")) !== "true") return 0;
+      const text = await toggle.textContent();
       return Number((text?.match(/[\d,]+$/)?.[0] ?? "0").replaceAll(",", ""));
     }),
   );
   const total = counts.reduce((sum, count) => sum + count, 0).toLocaleString();
-  await expect(mapStatus(page)).toHaveText(`${total} visible graph nodes available.`, {
+  const expected = `${total} visible graph nodes available.`;
+  await expect(mapStatus(page)).toHaveText(expected, {
     timeout: 20_000,
   });
+  return expected;
 }
 
 for (const viewport of viewports) {
@@ -152,15 +159,14 @@ test("dark mode follows the system and remembers a choice", async ({ page }) => 
 });
 
 test("connection isolation toggles back to the full map", async ({ page }) => {
-  await page.goto(corePath);
+  await page.goto("/");
   const status = mapStatus(page);
-  await expect(status).toHaveText(/\d+ visible graph nodes available\./);
-  const fullState = await status.textContent();
-  expect(fullState).toBeTruthy();
+  const fullState = await fullNodes(page);
+  const fullCount = Number(fullState.match(/[\d,]+/)?.[0].replaceAll(",", ""));
   const picker = page.getByLabel("Choose a visible graph node");
-  const firstNode = await picker.locator("option").nth(1).getAttribute("value");
-  expect(firstNode).toBeTruthy();
-  await picker.selectOption(firstNode!);
+  await picker.fill("pretraining");
+  await page.getByRole("option", { name: /Topic\s+pretraining/i }).click();
+  const fullUrl = page.url();
 
   const isolate = page.getByRole("button", { name: "Isolate connections" });
   await expect(isolate).toHaveAttribute("aria-pressed", "false");
@@ -168,12 +174,51 @@ test("connection isolation toggles back to the full map", async ({ page }) => {
   const unisolate = page.getByRole("button", { name: "Unisolate connections" });
   await expect(unisolate).toHaveAttribute("aria-pressed", "true");
   await expect(status).not.toHaveText(fullState!);
+  await expect.poll(() => new URL(page.url()).hash).toContain("x=");
+  const isolatedCount = Number(
+    (await status.textContent())?.match(/[\d,]+/)?.[0].replaceAll(",", ""),
+  );
+  expect(isolatedCount).toBeLessThan(fullCount);
+  expect(isolatedCount).toBeLessThan(1_000);
 
-  await unisolate.click();
+  await page.goBack();
+  await expect(status).toHaveText(fullState);
+  await expect(
+    page.getByRole("button", { name: "Isolate connections" }),
+  ).toHaveAttribute("aria-pressed", "false");
+  expect(page.url()).toBe(fullUrl);
+
+  await page.goForward();
+  await expect(
+    page.getByRole("button", { name: "Unisolate connections" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(status).not.toHaveText(fullState);
+
+  await page.getByRole("button", { name: "Unisolate connections" }).click();
   await expect(
     page.getByRole("button", { name: "Isolate connections" }),
   ).toHaveAttribute("aria-pressed", "false");
   await expect(status).toHaveText(fullState!);
+  expect(page.url()).toBe(fullUrl);
+});
+
+test("search excludes the unfiltered historical cloud", async ({ page }) => {
+  await page.goto("/");
+  const fullState = await fullNodes(page);
+  const fullCount = Number(fullState.match(/[\d,]+/)?.[0].replaceAll(",", ""));
+
+  await page.getByLabel("Search the atlas").fill("pretraining");
+  await expect(mapStatus(page)).toContainText("match “pretraining”");
+  const matchCount = Number(
+    (await mapStatus(page).textContent())?.match(/[\d,]+/)?.[0].replaceAll(",", ""),
+  );
+  expect(matchCount).toBeLessThan(fullCount);
+  await expect(page.locator(".graph-header")).toContainText(
+    `${matchCount.toLocaleString()} nodes`,
+  );
+
+  await page.getByLabel("Search the atlas").fill("");
+  await expect(mapStatus(page)).toHaveText(fullState);
 });
 
 test("paper lens and arrow-key graph navigation stay concise", async ({ page }) => {
@@ -200,10 +245,7 @@ test("paper lens and arrow-key graph navigation stay concise", async ({ page }) 
   await expect(graph).toContainText(/drag (rotates|pans)/);
   let selected: string;
   if ((await picker.evaluate((element) => element.tagName)) === "SELECT") {
-    const option = picker
-      .locator("option")
-      .filter({ hasText: /^Paper · / })
-      .first();
+    const option = picker.locator("option").filter({ hasText: /Paper · AI4AI-Bench/ });
     await expect(option).toBeAttached({ timeout: 20_000 });
     selected = (await option.getAttribute("value"))!;
     await picker.selectOption(selected);
@@ -445,20 +487,29 @@ test("insight visualizations provide inspectable data tables", async ({ page }) 
 test("coverage reports partial extraction state honestly", async ({ page }) => {
   await page.goto(corePath);
   await page.getByRole("button", { name: "Coverage" }).click();
-
-  const partialStatus = page.getByText(/^Partial Text\s+[\d,]+$/);
-  if ((await partialStatus.count()) > 0) {
-    await expect(partialStatus).toBeVisible();
-    await expect(page.getByText(/partial extracts remain visible/i)).toBeVisible();
-  } else {
-    await expect(
-      page.getByText(/no partial extracts remain in the current ledger/i),
-    ).toBeVisible();
-  }
   await expect(
     page.getByRole("heading", {
       name: "Historical intake stays complete without loading it all at once",
     }),
   ).toBeVisible();
-  await expect(page.getByText("records retained")).toBeVisible();
+
+  const accessHeading = page.getByRole("heading", {
+    name: "Retrieval routes are classified, not equally complete",
+  });
+  const partialStatus = page.getByText(/^Partial Text\s+[\d,]+$/);
+  if ((await accessHeading.count()) > 0) {
+    await expect(accessHeading).toBeVisible();
+    if ((await partialStatus.count()) > 0) {
+      await expect(partialStatus).toBeVisible();
+      await expect(page.getByText(/partial extracts remain visible/i)).toBeVisible();
+    } else {
+      await expect(
+        page.getByText(/no partial extracts remain in the current ledger/i),
+      ).toBeVisible();
+    }
+  } else {
+    await expect(partialStatus).toHaveCount(0);
+  }
+  await expect(page.getByText("historical Papers", { exact: true })).toBeVisible();
+  await scan(page);
 });

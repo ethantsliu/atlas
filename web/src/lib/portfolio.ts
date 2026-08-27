@@ -5,6 +5,25 @@ export type ProgramGroup = {
   workPackages: Idea[];
 };
 
+export type IdeaStage = "Blog lead" | "Researched draft" | "Screening candidate";
+
+export function ideaStage(idea: Idea): IdeaStage {
+  if (idea.kind === "blog") return "Blog lead";
+  return idea.brief.status === "researched-draft"
+    ? "Researched draft"
+    : "Screening candidate";
+}
+
+export function ideaBasis(idea: Idea): string {
+  if (idea.brief.status === "researched-draft") {
+    return "Related work checked; this remains a research proposal, not a validated result.";
+  }
+  if (idea.origin === "cross-paper") {
+    return "Automatically synthesized from corpus routes; provisional and awaiting related-work review.";
+  }
+  return "Provisional and awaiting related-work review.";
+}
+
 export function ideaRole(idea: Idea): "program" | "work-package" | "standalone" {
   return idea.portfolio_role ?? "standalone";
 }

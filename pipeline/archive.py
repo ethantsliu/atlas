@@ -6,17 +6,48 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
-from datetime import date
+import re
+import unicodedata
+from datetime import date, datetime
 from pathlib import Path
 
+from arxivid import valid_id
 from files import atomic_write_bytes, atomic_write_text
 from rank import rank_paper
+from titles import valid_title
 
 
 ROOT = Path(__file__).resolve().parents[1]
 ARCHIVE_ROOT = ROOT / "data/cache/archive"
 MANIFEST_NAME = "index.json"
 SCOPES = ("likely", "possible", "outside")
+SHARD_NAME = re.compile(r"^(?P<month>[0-9]{4}-[0-9]{2})(?:-[0-9a-f]{16})?\.json\.gz$")
+PRIVATE_ID = re.compile(
+    r"(?i)^(?:private|personal|local|repo|repository|device|machine|workspace)[./_-]"
+)
+UNSAFE_CATEGORIES = frozenset({"Cc", "Cf", "Cs"})
+MAX_TITLE = 4_096
+MAX_ABSTRACT = 1_000_000
+MAX_AUTHOR = 4_096
+MAX_AUTHORS = 10_000
+PUBLIC_FIELDS = (
+    "id",
+    "url",
+    "title",
+    "abstract",
+    "authors",
+    "categories",
+    "primary_category",
+    "published",
+    "updated",
+    "scope",
+    "relevance",
+    "interest",
+    "topics",
+    "tricks",
+)
+PUBLIC_KEYS = frozenset(PUBLIC_FIELDS)
+LEGACY_KEYS = PUBLIC_KEYS | {"comment"}
 
 
 def month_key(value: str) -> str:
@@ -43,26 +74,113 @@ def scope_paper(paper: dict, rules: dict) -> dict:
 
 def compact_paper(paper: dict) -> dict:
     """Retain searchable metadata while omitting duplicated ranking internals."""
-    return {
-        key: paper[key]
-        for key in (
-            "id",
-            "url",
-            "title",
-            "abstract",
-            "authors",
-            "categories",
-            "primary_category",
-            "published",
-            "updated",
-            "comment",
-            "scope",
-            "relevance",
-            "interest",
-            "topics",
-            "tricks",
+    try:
+        result = {key: paper[key] for key in PUBLIC_FIELDS}
+    except (KeyError, TypeError) as error:
+        raise ValueError("Archive paper fields are incomplete") from error
+    check_paper(result)
+    return result
+
+
+def check_paper(paper: dict) -> None:
+    """Enforce a completeness-safe public scholarly-text boundary."""
+    identifier = paper.get("id")
+    title = paper.get("title")
+    abstract = paper.get("abstract")
+    authors = paper.get("authors")
+    if (
+        set(paper) != PUBLIC_KEYS
+        or not valid_id(identifier)
+        or PRIVATE_ID.search(identifier) is not None
+        or not title
+        or not safe_text(title, MAX_TITLE)
+        or not valid_title(title)
+        or not safe_text(abstract, MAX_ABSTRACT)
+        or (
+            not isinstance(authors, list)
+            or len(authors) > MAX_AUTHORS
+            or not all(isinstance(author, str) for author in authors)
+            or not all(safe_text(author, MAX_AUTHOR) for author in authors)
         )
-    }
+        or paper.get("url") != f"https://arxiv.org/abs/{identifier}"
+        or not text_list(paper.get("categories"))
+        or not safe_text(paper.get("primary_category"), MAX_TITLE)
+        or not valid_stamp(paper.get("published"))
+        or not valid_stamp(paper.get("updated"))
+        or paper.get("scope") not in SCOPES
+        or not isinstance(paper.get("relevance"), dict)
+        or not isinstance(paper.get("interest"), dict)
+        or not isinstance(paper.get("topics"), list)
+        or not isinstance(paper.get("tricks"), list)
+    ):
+        raise ValueError("Archive public paper text is invalid")
+
+
+def text_list(value: object) -> bool:
+    """Require a bounded list of normalized public strings."""
+    return (
+        isinstance(value, list)
+        and len(value) <= MAX_AUTHORS
+        and all(safe_text(item, MAX_AUTHOR) for item in value)
+    )
+
+
+def valid_stamp(value: object) -> bool:
+    """Accept a normalized ISO day or timezone-aware timestamp."""
+    if not isinstance(value, str) or not value:
+        return False
+    try:
+        if len(value) == 10:
+            return date.fromisoformat(value).isoformat() == value
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None
+
+
+def safe_text(value: object, limit: int) -> bool:
+    """Accept bounded normalized text from the official scholarly source."""
+    if (
+        not isinstance(value, str)
+        or len(value) > limit
+        or value != " ".join(value.split())
+    ):
+        return False
+    return not any(
+        unicodedata.category(character) in UNSAFE_CATEGORIES for character in value
+    )
+
+
+def clean_text(value: object) -> str:
+    """Normalize controls in one field from the known prior archive schema."""
+    if not isinstance(value, str):
+        raise ValueError("Archive legacy paper text is invalid")
+    visible = "".join(
+        " " if unicodedata.category(character) in UNSAFE_CATEGORIES else character
+        for character in value
+    )
+    return " ".join(visible.split())
+
+
+def clean_legacy(paper: dict) -> dict:
+    """Project and sanitize only the one explicitly supported prior schema."""
+    result = {key: paper[key] for key in PUBLIC_FIELDS}
+    for field in ("title", "abstract", "primary_category"):
+        result[field] = clean_text(result[field])
+    for field in ("authors", "categories"):
+        values = result[field]
+        if not isinstance(values, list):
+            raise ValueError("Archive legacy paper text is invalid")
+        result[field] = [clean_text(value) for value in values]
+    check_paper(result)
+    return result
+
+
+def public_paper(paper: object) -> dict:
+    """Remove non-public source fields at the shard persistence boundary."""
+    if not isinstance(paper, dict):
+        raise ValueError("Archive shard paper is invalid")
+    return compact_paper(paper)
 
 
 def scope_counts(papers: list[dict]) -> dict[str, int]:
@@ -110,8 +228,9 @@ def merge_month(prior: dict, current: dict) -> dict:
         raise ValueError("Archive shards use different relevance policies")
     days = {row["date"]: row for row in prior["days"]}
     days.update({row["date"]: row for row in current["days"]})
-    papers = {paper["id"]: paper for paper in prior["papers"]}
+    papers = {paper["id"]: compact_paper(paper) for paper in prior["papers"]}
     for paper in current["papers"]:
+        paper = compact_paper(paper)
         saved = papers.get(paper["id"])
         if saved is None or paper["updated"] >= saved["updated"]:
             papers[paper["id"]] = paper
@@ -132,16 +251,18 @@ def shard_bytes(payload: dict) -> bytes:
     return gzip.compress(body, compresslevel=9, mtime=0)
 
 
-def read_shard(path: Path) -> dict:
-    """Read one bounded local archive shard and verify its root contract."""
+def raw_shard(path: Path) -> dict:
+    """Decode one bounded shard and verify its root envelope."""
     try:
         payload = json.loads(gzip.decompress(path.read_bytes()))
     except (OSError, EOFError, json.JSONDecodeError) as error:
         raise ValueError(f"Archive shard is invalid: {path.name}") from error
+    match = SHARD_NAME.fullmatch(path.name)
     if (
         not isinstance(payload, dict)
         or payload.get("schema_version") != 1
-        or payload.get("month") != path.name.removesuffix(".json.gz")
+        or match is None
+        or payload.get("month") != match.group("month")
         or not isinstance(payload.get("papers"), list)
         or not isinstance(payload.get("days"), list)
     ):
@@ -149,20 +270,87 @@ def read_shard(path: Path) -> dict:
     return payload
 
 
+def check_rows(payload: dict, path: Path) -> None:
+    """Validate exact public rows, ordering, month routing, and counts."""
+    papers = payload["papers"]
+    if any(not isinstance(paper, dict) for paper in papers):
+        raise ValueError(f"Archive shard papers are invalid: {path.name}")
+    for paper in papers:
+        check_paper(paper)
+        if month_key(paper["published"]) != payload["month"]:
+            raise ValueError(f"Archive shard papers are invalid: {path.name}")
+    identifiers = [paper["id"] for paper in papers]
+    if identifiers != sorted(set(identifiers)):
+        raise ValueError(f"Archive paper IDs are duplicated or unsorted: {path.name}")
+    expected = {"all": len(papers), **scope_counts(papers)}
+    if payload.get("counts") != expected:
+        raise ValueError(f"Archive shard counts are invalid: {path.name}")
+
+
+def read_shard(path: Path) -> dict:
+    """Read one bounded local archive shard and verify its public contract."""
+    payload = raw_shard(path)
+    check_rows(payload, path)
+    return payload
+
+
+def migrate_shard(path: Path) -> bool:
+    """Rewrite the one known prior schema without losing public metadata."""
+    payload = raw_shard(path)
+    papers = payload["papers"]
+    if all(isinstance(paper, dict) and set(paper) == PUBLIC_KEYS for paper in papers):
+        check_rows(payload, path)
+        return False
+    if not all(
+        isinstance(paper, dict) and set(paper) in {PUBLIC_KEYS, LEGACY_KEYS}
+        for paper in papers
+    ):
+        raise ValueError(f"Archive shard papers are invalid: {path.name}")
+    payload = {**payload, "papers": [clean_legacy(paper) for paper in papers]}
+    check_rows(payload, path)
+    write_shard(path.parent, payload)
+    return True
+
+
+def migrate_archive(root: Path) -> list[str]:
+    """Migrate every local mutable month from the known prior schema."""
+    return [
+        path.name[:7]
+        for path in sorted(root.glob("????-??.json.gz"))
+        if migrate_shard(path)
+    ]
+
+
 def write_shard(root: Path, payload: dict) -> Path:
     """Atomically publish one local month shard."""
     month = payload["month"]
     if month_key(f"{month}-01") != month:
         raise ValueError("Archive shard month is invalid")
+    papers = payload.get("papers")
+    if not isinstance(papers, list):
+        raise ValueError("Archive shard papers are invalid")
+    payload = {**payload, "papers": [public_paper(paper) for paper in papers]}
     path = root / f"{month}.json.gz"
     atomic_write_bytes(path, shard_bytes(payload))
     return path
 
 
-def shard_meta(path: Path) -> dict:
+def shard_meta(path: Path, seen: set[str] | None = None) -> dict:
     """Describe one content-verified month for the remote object manifest."""
     content = path.read_bytes()
     payload = read_shard(path)
+    identifiers = [paper.get("id") for paper in payload["papers"]]
+    if (
+        not all(
+            isinstance(identifier, str) and identifier for identifier in identifiers
+        )
+        or len(identifiers) != len(set(identifiers))
+        or seen is not None
+        and not set(identifiers).isdisjoint(seen)
+    ):
+        raise ValueError("Archive paper IDs are duplicated or invalid")
+    if seen is not None:
+        seen.update(identifiers)
     return {
         "month": payload["month"],
         "path": path.name,
@@ -172,6 +360,16 @@ def shard_meta(path: Path) -> dict:
         "dates": [row["date"] for row in payload["days"]],
         "counts": payload["counts"],
     }
+
+
+def check_ids(root: Path, shards: list[dict]) -> None:
+    """Reject duplicate paper identities across available indexed shards."""
+    seen: set[str] = set()
+    for row in shards:
+        if isinstance(row, dict) and isinstance(row.get("path"), str):
+            path = root / row["path"]
+            if path.is_file():
+                shard_meta(path, seen)
 
 
 def read_manifest(root: Path) -> dict:
@@ -187,6 +385,7 @@ def read_manifest(root: Path) -> dict:
         payload.get("shards"), list
     ):
         raise ValueError("Archive manifest contract is invalid")
+    check_ids(root, payload["shards"])
     return payload
 
 
@@ -197,10 +396,10 @@ def build_manifest(root: Path) -> dict:
         for shard in read_manifest(root)["shards"]
         if isinstance(shard, dict) and isinstance(shard.get("month"), str)
     }
-    local = {
-        path.name.removesuffix(".json.gz"): shard_meta(path)
-        for path in sorted(root.glob("????-??.json.gz"))
-    }
+    local = {}
+    seen: set[str] = set()
+    for path in sorted(root.glob("????-??.json.gz")):
+        local[path.name.removesuffix(".json.gz")] = shard_meta(path, seen)
     shards = [
         (local.get(month) or prior[month])
         for month in sorted(prior.keys() | local.keys())

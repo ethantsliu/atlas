@@ -42,7 +42,7 @@ class ArxivEnrichmentTests(unittest.TestCase):
 
         resumed = merge_record(paper, {}, prior)
 
-        self.assertEqual(resumed["title"], "Fetched title")
+        self.assertEqual(resumed["title"], "Current collection title")
         self.assertEqual(resumed["abstract"], "Cached API abstract")
         self.assertNotIn("pdf_url_override", resumed)
         self.assertNotIn("source_override_reason", resumed)

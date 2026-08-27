@@ -679,6 +679,11 @@ class ValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "rubric factors drifted"):
             validate_feasibility(idea)
 
+        idea["feasibility"] = score_feasibility(idea)
+        idea["feasibility"]["factors"][0]["score"] = 1.41
+        with self.assertRaisesRegex(RuntimeError, "factor exceeds"):
+            validate_feasibility(idea)
+
     def test_feasibility_text(self) -> None:
         base = {
             "id": "idea-1",

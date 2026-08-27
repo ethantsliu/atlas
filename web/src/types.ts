@@ -395,6 +395,14 @@ export type SemanticLayout = {
     clip: 1.25;
     extent: 360;
   };
+  orientation?: {
+    method: "orthogonal-procrustes-3d-v1";
+    anchor_count: number;
+    reference_sha256: string;
+    determinant: number;
+    rmsd_before: number;
+    rmsd_after: number;
+  };
   input_sha256: string;
   node_count: number;
   quality: {
@@ -403,11 +411,11 @@ export type SemanticLayout = {
     knn_recall: number;
     thresholds: { trustworthiness: 0.9; knn_recall: 0.25 };
     alias_policy: "exclude canonical and identical-text aliases";
-    cohort_policy: "research cohorts gated; context reported descriptively";
+    cohort_policy: "only present cohorts reported; research cohorts gated";
     cohorts: {
       all: QualityCohort<0.9, 0.25>;
       paper: QualityCohort<0.9, 0.25>;
-      context: QualityCohort<0, 0>;
+      context?: QualityCohort<0, 0>;
       idea: QualityCohort<0.95, 0.4>;
       taxonomy: QualityCohort<0.88, 0.33>;
     };

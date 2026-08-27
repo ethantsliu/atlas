@@ -9,6 +9,7 @@ from pathlib import Path
 
 from ontology import TOPICS, TRICKS
 from rules import check
+from titles import valid_title
 
 ROOT = Path(__file__).resolve().parents[1]
 FEED_ROOT = ROOT / "data/generated/feed"
@@ -48,6 +49,7 @@ def validate_paper(paper: dict, day: str) -> None:
         all(isinstance(paper.get(key), str) for key in ("title", "abstract")),
         f"Invalid daily text on {identifier}",
     )
+    check(valid_title(paper.get("title")), f"Unsafe daily title on {identifier}")
     check(
         isinstance(paper.get("authors"), list)
         and isinstance(paper.get("categories"), list),

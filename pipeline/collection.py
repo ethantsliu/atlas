@@ -11,6 +11,7 @@ from urllib.request import Request
 
 from identifiers import canonical_id
 from files import atomic_write_bytes, atomic_write_text
+from titles import valid_title
 from urls import is_public_url, open_public, read_limited
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,9 +19,32 @@ SOURCE_URL = "https://metacircleai.github.io/ziming-paper-collection/data/papers
 SOURCE_PATH = ROOT / "data/source/papers.json"
 MANIFEST_PATH = ROOT / "data/generated/corpus_manifest.json"
 OVERRIDES_PATH = ROOT / "data/source/overrides.json"
+TITLES_PATH = ROOT / "data/source/titles.json"
 COLLECTION_FIELDS = {"id", "title", "url", "section", "tags", "note", "source"}
+PUBLIC_FIELDS = ("id", "title", "url", "source")
 MAX_COLLECTION_BYTES = 16 * 1024 * 1024
-PRIVATE_CONTEXT_IDS = frozenset({2092, 2111, 2112})
+EXCLUDED_CONTEXT_IDS = frozenset({2092, 2110, 2111, 2112, 2125, 2170})
+EXCLUDED_ALIAS_IDS = frozenset(
+    {
+        882,
+        898,
+        1459,
+        1471,
+        1534,
+        1573,
+        1685,
+        1720,
+        2094,
+        2095,
+        2129,
+        2134,
+        2137,
+        2147,
+        2158,
+        2168,
+        2169,
+    }
+)
 
 
 def validate_row(paper: object, index: int) -> dict:
@@ -60,9 +84,20 @@ def validate_collection(papers: object) -> list[dict]:
     return rows
 
 
-def public_collection(papers: list[dict]) -> list[dict]:
-    """Omit account-linked context while preserving every research paper row."""
-    return [paper for paper in papers if paper["id"] not in PRIVATE_CONTEXT_IDS]
+def public_collection(
+    papers: list[dict], titles: dict[str, str] | None = None
+) -> list[dict]:
+    """Project research rows onto general public source fields only."""
+    canonical = titles or {}
+    result = []
+    for paper in papers:
+        if paper["id"] in EXCLUDED_CONTEXT_IDS | EXCLUDED_ALIAS_IDS:
+            continue
+        row = {key: paper[key] for key in PUBLIC_FIELDS}
+        row["title"] = canonical.get(str(paper["id"]), row["title"])
+        if valid_title(row["title"], strict=True):
+            result.append(row)
+    return result
 
 
 def main() -> None:
@@ -70,9 +105,12 @@ def main() -> None:
     with open_public(request, timeout=60) as response:
         raw = read_limited(response, MAX_COLLECTION_BYTES)
     upstream = validate_collection(json.loads(raw))
-    papers = public_collection(upstream)
+    titles = json.loads(TITLES_PATH.read_text(encoding="utf-8"))
+    papers = public_collection(upstream, titles)
     overrides = json.loads(OVERRIDES_PATH.read_text(encoding="utf-8"))
     ids = [paper.get("id") for paper in papers]
+    excluded_context = sum(paper["id"] in EXCLUDED_CONTEXT_IDS for paper in upstream)
+    excluded_aliases = sum(paper["id"] in EXCLUDED_ALIAS_IDS for paper in upstream)
 
     source_bytes = (
         json.dumps(papers, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"
@@ -91,7 +129,11 @@ def main() -> None:
         "sha256": hashlib.sha256(source_bytes).hexdigest(),
         "upstream_sha256": hashlib.sha256(raw).hexdigest(),
         "upstream_entry_count": len(upstream),
-        "excluded_private_context": len(upstream) - len(papers),
+        "excluded_private_context": excluded_context,
+        "excluded_duplicate_papers": excluded_aliases,
+        "excluded_unsafe_title": (
+            len(upstream) - len(papers) - excluded_context - excluded_aliases
+        ),
         "paper_count": len(papers),
         "unique_canonical_records": len(set(canonical_ids)),
         "duplicate_collection_entries": len(papers) - len(set(canonical_ids)),

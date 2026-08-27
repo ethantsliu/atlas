@@ -13,8 +13,9 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
 
 from archive import add_day
-from cloud import MAGIC, archive_text, build_cloud, row_hash
+from cloud import MAGIC, archive_text, build_cloud, row_hash, validate_cloud
 from embed import EMBED_DIM, MODEL, MODEL_DIGEST
+from omit import ids_hash
 from rank import load_rules
 
 
@@ -67,6 +68,33 @@ def save_anchors(path: Path) -> np.ndarray:
 
 
 class CloudTests(unittest.TestCase):
+    def test_workflow_policy(self) -> None:
+        workflow = (ROOT / ".github/workflows/cloud.yml").read_text(encoding="utf-8")
+
+        for required in (
+            "tag=corpus-v1",
+            "workflow_dispatch:",
+            "gh release view corpus-v2",
+            "corpus-v2 owns the published cloud",
+            "(-[0-9a-f]{16})?",
+            "actions/cache/restore@v4",
+            "actions/cache/save@v4",
+            "python pipeline/cloud.py --check",
+            "git add web/public/data/cloud",
+            "git pull --rebase origin main",
+            "git push origin HEAD:main",
+            "gh workflow run deploy.yml --ref main",
+            "points.sha256",
+            "meta.sha256",
+        ):
+            self.assertIn(required, workflow)
+        for forbidden in ("repository_dispatch:", "workflow_run:", "schedule:"):
+            self.assertNotIn(forbidden, workflow)
+        self.assertLess(
+            workflow.index("python pipeline/cloud.py --check"),
+            workflow.index("git add web/public/data/cloud"),
+        )
+
     def test_semantic_assets(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -105,9 +133,75 @@ class CloudTests(unittest.TestCase):
             self.assertEqual(manifest["count"], 2)
             self.assertEqual(metadata["count"], 2)
             self.assertEqual(metadata["papers"][0][0], "2001.00001")
+            self.assertEqual(validate_cloud(archive, output), manifest)
 
             repeated = build_cloud(archive, anchors, cache, output, 2)
             self.assertEqual(repeated, manifest)
+
+            polluted = {
+                **manifest,
+                "shards": [
+                    *manifest["shards"],
+                    manifest["shards"][0] | {"month": "1999-01"},
+                ],
+            }
+            (output / "index.json").write_text(json.dumps(polluted), encoding="utf-8")
+            cleaned = build_cloud(archive, anchors, cache, output, 2)
+            self.assertEqual([row["month"] for row in cleaned["shards"]], ["2020-01"])
+
+            (output / "2020-01.bin").write_bytes(b"tampered")
+            with self.assertRaisesRegex(RuntimeError, "points drifted"):
+                validate_cloud(archive, output)
+
+    def test_foreground_dedupe(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = root / "archive"
+            cache = root / "cache"
+            output = root / "cloud"
+            anchors = root / "anchors.npz"
+            source = [paper("2001.00001", "cs.LG"), paper("2001.00002", "math.AT")]
+            add_day(archive, date(2020, 1, 2), intake(source), RULES)
+            vectors = save_anchors(anchors)
+            payload = json.loads(
+                gzip.decompress((archive / "2020-01.json.gz").read_bytes())
+            )
+            rows = [(item["id"], archive_text(item)) for item in payload["papers"]]
+            cache.mkdir()
+            np.savez_compressed(
+                cache / "2020-01.npz",
+                ids=np.asarray([identifier for identifier, _ in rows]),
+                hashes=np.asarray([row_hash(*row) for row in rows]),
+                vectors=vectors,
+                done=np.ones(2, dtype=bool),
+            )
+            foreground = {"2020-01": {"2001.00001"}}
+            baseline = build_cloud(archive, anchors, cache, output, 2)
+            baseline_content = (output / "2020-01.bin").read_bytes()
+            baseline_second = baseline_content[24:36]
+
+            manifest = build_cloud(
+                archive, anchors, cache, output, 2, foreground=foreground
+            )
+
+            self.assertEqual(manifest["source_count"], 2)
+            self.assertEqual(manifest["count"], 1)
+            self.assertEqual(manifest["omitted_count"], 1)
+            self.assertEqual(manifest["shards"][0]["omitted_ids"], ["2001.00001"])
+            metadata = json.loads((output / "2020-01.json").read_text())
+            self.assertEqual([row[0] for row in metadata["papers"]], ["2001.00002"])
+            self.assertEqual(
+                (output / "2020-01.bin").read_bytes()[12:24], baseline_second
+            )
+            self.assertEqual(baseline["count"], 2)
+            self.assertEqual(validate_cloud(archive, output, foreground), manifest)
+
+            polluted = json.loads((output / "index.json").read_text())
+            polluted["shards"][0]["omitted_ids"] = ["2001.00002"]
+            polluted["shards"][0]["omitted_sha256"] = ids_hash(["2001.00002"])
+            (output / "index.json").write_text(json.dumps(polluted))
+            with self.assertRaisesRegex(RuntimeError, "omission proof"):
+                validate_cloud(archive, output, foreground)
 
 
 if __name__ == "__main__":
