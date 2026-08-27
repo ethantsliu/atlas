@@ -15,6 +15,7 @@ from pathlib import Path
 
 from identifiers import ARXIV_ID, OLD_ARXIV_ID, canonical_id
 from files import atomic_write_text
+from scrub import scrub_paper
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_PATH = ROOT / "data/source/papers.json"
@@ -68,7 +69,7 @@ def merge_record(paper: dict, override: dict, prior: dict | None = None) -> dict
     stable_id, identifier_kind = canonical_id(paper, override)
     record["stable_id"] = stable_id
     record["identifier_kind"] = identifier_kind
-    return record
+    return scrub_paper(record)
 
 
 def fetch_batch(ids: list[str]) -> dict[str, dict]:

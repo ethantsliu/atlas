@@ -31,7 +31,8 @@ class ArxivEnrichmentTests(unittest.TestCase):
             "title": "Fetched title",
             "arxiv_id": "2401.00001",
             "abstract": "Cached API abstract",
-            "authors": ["A. Author"],
+            "authors": ["A. Author <author@example.edu>"],
+            "comment": "Correspondence: author@example.edu",
             "reading_depth": "abstract",
             "stable_id": "arxiv:2401.00001",
             "identifier_kind": "arxiv",
@@ -44,6 +45,8 @@ class ArxivEnrichmentTests(unittest.TestCase):
 
         self.assertEqual(resumed["title"], "Current collection title")
         self.assertEqual(resumed["abstract"], "Cached API abstract")
+        self.assertEqual(resumed["authors"], ["A. Author"])
+        self.assertEqual(resumed["comment"], "")
         self.assertNotIn("pdf_url_override", resumed)
         self.assertNotIn("source_override_reason", resumed)
         self.assertNotIn("unexpected_cache_key", resumed)

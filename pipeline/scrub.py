@@ -41,7 +41,13 @@ UNC_ROOT = re.compile(
     r"(?P<share>[a-z0-9$._-]+)(?P<trail>[/\\])?"
     r"(?=$|[\s<>\"'.,;:!?)}\]])"
 )
-AUTHOR_EMAIL = re.compile(r"(?i)<?[a-z0-9_.+-]+@[a-z0-9.-]+\.\s*[a-z]{2,63}>?")
+AUTHOR_EMAIL = re.compile(
+    r"(?i)<?[a-z0-9_.+-]+@(?:localhost|[a-z0-9.-]+\.\s*[a-z]{2,63})>?" r"(?![a-z0-9.-])"
+)
+CONTACT_TAIL = re.compile(
+    r"(?i)(?:\bcontact|\bcorrespondence(?:\s+should\s+be\s+addressed\s+to)?)"
+    r"\s*:?\s*$"
+)
 LOCATORS = (
     PRIVATE_URL,
     LOCAL_URL,
@@ -134,7 +140,32 @@ def scrub_text(value: str) -> str:
 
 def scrub_author(value: str) -> str:
     """Remove malformed contact details from one public author name."""
-    return clean_space(scrub_text(AUTHOR_EMAIL.sub(" ", value)))
+    return scrub_contact(value)
+
+
+def scrub_contact(value: str) -> str:
+    """Remove an email address from one structured public contact field."""
+    redacted = AUTHOR_EMAIL.sub(" ", value)
+    result = clean_space(scrub_text(redacted))
+    if redacted != value:
+        result = clean_space(CONTACT_TAIL.sub(" ", result))
+    return result.rstrip(" ,;:") if redacted != value else result
+
+
+def scrub_paper(value: dict) -> dict:
+    """Remove contact details and private locators from public paper text."""
+    result = {**value}
+    for field in ("title", "abstract"):
+        if isinstance(result.get(field), str):
+            result[field] = scrub_text(result[field])
+    if isinstance(result.get("comment"), str):
+        result["comment"] = scrub_contact(result["comment"])
+    authors = result.get("authors")
+    if isinstance(authors, list) and all(isinstance(author, str) for author in authors):
+        result["authors"] = [
+            cleaned for author in authors if (cleaned := scrub_author(author))
+        ]
+    return result
 
 
 def has_locator(value: str) -> bool:

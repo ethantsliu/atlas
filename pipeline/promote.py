@@ -9,6 +9,7 @@ from pathlib import Path
 
 from feedcheck import DAY_NAME, validate_day
 from files import atomic_write_text
+from scrub import scrub_paper
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,7 +33,7 @@ def corpus_id(identifier: str) -> int:
 def feed_record(paper: dict) -> dict:
     """Convert one validated feed paper into the enriched corpus contract."""
     identifier = paper["id"]
-    return {
+    record = {
         "id": corpus_id(identifier),
         "title": paper["title"],
         "url": paper["url"],
@@ -51,6 +52,7 @@ def feed_record(paper: dict) -> dict:
         "relevance": paper["relevance"],
         "interest": paper["interest"],
     }
+    return scrub_paper(record)
 
 
 def base_records(source: list[dict], enriched: list[dict]) -> list[dict]:
@@ -62,7 +64,7 @@ def base_records(source: list[dict], enriched: list[dict]) -> list[dict]:
         raise RuntimeError(
             f"Enriched corpus is missing {len(missing)} base collection rows"
         )
-    return [by_id[identifier] for identifier in source_ids]
+    return [scrub_paper(by_id[identifier]) for identifier in source_ids]
 
 
 def build_corpus(base: list[dict], days: list[dict]) -> tuple[list[dict], dict]:

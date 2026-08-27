@@ -22,9 +22,11 @@ PRIVATE_REVIEWER = re.compile(
     r"(?i)(?:fleet|codex|" + re.escape("/" + "root/") + r"|corpus-reading)"
 )
 EMAIL = re.compile(
-    r"(?i)(?<![a-z0-9._%+-])[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}"
+    r"(?i)(?<![a-z0-9._%+-])[a-z0-9._%+-]+@"
+    r"(?:localhost|[a-z0-9.-]+\.\s*[a-z]{2,})"
     r"(?![a-z0-9.-])"
 )
+CONTACT_FIELD = re.compile(r"(?:\.comment|\.authors\[\d+\])$")
 HANDLE = re.compile(r"(?i)(?<![a-z0-9_])@[a-z0-9_]{2,32}(?![a-z0-9_])")
 FILE_URI = re.compile(r"(?i)(?:^|[^a-z0-9])file://")
 DEVICE_PATH = re.compile(
@@ -107,6 +109,11 @@ def validate_public(value: object, label: str) -> None:
             PERSONAL_SOCIAL.search(text) is None,
             f"{label} contains a personal social URL at {location}",
         )
+        if CONTACT_FIELD.search(location):
+            check(
+                EMAIL.search(text) is None,
+                f"{label} contains an email address at {location}",
+            )
         if location.endswith(".reviewer_id"):
             check(
                 bool(PUBLIC_REVIEWER.fullmatch(text))

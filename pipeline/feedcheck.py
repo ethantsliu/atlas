@@ -9,6 +9,7 @@ from pathlib import Path
 
 from ontology import TOPICS, TRICKS
 from rules import check
+from scrub import scrub_paper
 from titles import valid_title
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,6 +41,10 @@ def valid_score(value: object) -> bool:
 def validate_paper(paper: dict, day: str) -> None:
     """Validate one relevance-positive, auditable public paper row."""
     identifier = paper.get("id")
+    check(
+        scrub_paper(paper) == paper,
+        f"Unsafe daily public paper text on {identifier or day}",
+    )
     check(bool(identifier), f"Daily paper without ID on {day}")
     check(
         paper.get("url") == f"https://arxiv.org/abs/{identifier}",
@@ -95,6 +100,11 @@ def validate_raw(path: Path, payload: dict) -> None:
         f"Raw daily archive is incomplete: {path}",
     )
     raw_ids = [paper.get("id") for paper in raw["papers"]]
+    for paper in raw["papers"]:
+        check(
+            scrub_paper(paper) == paper,
+            f"Unsafe raw public paper text on {paper.get('id') or path.name}",
+        )
     check(
         len(set(raw_ids)) == source["unique_count"],
         f"Raw daily unique count mismatch: {path}",

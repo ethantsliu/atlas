@@ -1,3 +1,4 @@
+import gzip
 import json
 import tempfile
 import unittest
@@ -87,6 +88,23 @@ class FeedCheckTests(unittest.TestCase):
                 ROOT=Path(folder),
             ):
                 with self.assertRaisesRegex(RuntimeError, "Incomplete daily intake"):
+                    feedcheck.validate_feed()
+
+    def test_raw_email(self) -> None:
+        with tempfile.TemporaryDirectory() as folder:
+            roots = write_feed(Path(folder))
+            raw_path = roots[0] / "raw/2026-08-21.json.gz"
+            raw = json.loads(gzip.decompress(raw_path.read_bytes()))
+            raw["papers"][0]["comment"] = "Contact author@example. edu"
+            body = json.dumps(raw, separators=(",", ":")).encode()
+            raw_path.write_bytes(gzip.compress(body, mtime=0))
+            with patch.multiple(
+                feedcheck,
+                FEED_ROOT=roots[0],
+                PUBLIC_ROOT=roots[1],
+                ROOT=Path(folder),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "Unsafe raw public paper"):
                     feedcheck.validate_feed()
 
 

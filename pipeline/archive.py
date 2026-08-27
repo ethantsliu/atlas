@@ -16,7 +16,7 @@ from arxivid import valid_id
 from files import atomic_write_bytes, atomic_write_text
 from ontology import TOPICS, TRICKS
 from rank import rank_paper
-from scrub import scrub_author, scrub_text
+from scrub import scrub_paper
 from titles import valid_title
 
 
@@ -92,15 +92,7 @@ def compact_paper(paper: dict) -> dict:
         result = {key: paper[key] for key in PUBLIC_FIELDS}
     except (KeyError, TypeError) as error:
         raise ValueError("Archive paper fields are incomplete") from error
-    for field in ("title", "abstract"):
-        if isinstance(result[field], str):
-            result[field] = scrub_text(result[field])
-    if isinstance(result["authors"], list) and all(
-        isinstance(author, str) for author in result["authors"]
-    ):
-        result["authors"] = [
-            cleaned for author in result["authors"] if (cleaned := scrub_author(author))
-        ]
+    result = scrub_paper(result)
     check_paper(result)
     return result
 

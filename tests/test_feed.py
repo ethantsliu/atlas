@@ -132,19 +132,26 @@ class FeedTests(unittest.TestCase):
 
     def test_public_retention(self) -> None:
         intake = make_intake()
+        intake["papers"][0]["comment"] = "Contact author@example.edu"
+        intake["papers"][0]["authors"] = ["Ada <ada@example.edu>"]
         payload = make_day(DAY, intake, RULES, shortlist=1)
 
         self.assertTrue(payload["source"]["complete"])
         self.assertEqual(payload["relevant_count"], 1)
         self.assertEqual(payload["shortlist_ids"], ["2608.00001"])
         self.assertEqual(len(payload["papers"]), payload["relevant_count"])
+        self.assertEqual(payload["papers"][0]["comment"], "")
+        self.assertEqual(payload["papers"][0]["authors"], ["Ada"])
 
     def test_raw_auditable(self) -> None:
-        decoded = json.loads(gzip.decompress(raw_payload(DAY, make_intake())))
+        intake = make_intake()
+        intake["papers"][0]["comment"] = "Questions: author@example.edu"
+        decoded = json.loads(gzip.decompress(raw_payload(DAY, intake)))
 
         self.assertEqual(decoded["date"], DAY.isoformat())
         self.assertEqual(decoded["source_total"], 1)
         self.assertEqual(len(decoded["papers"]), 1)
+        self.assertEqual(decoded["papers"][0]["comment"], "Questions")
 
     def test_index_sorted(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

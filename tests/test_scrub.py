@@ -1,6 +1,6 @@
 import unittest
 
-from pipeline.scrub import has_locator, scrub_author, scrub_text
+from pipeline.scrub import has_locator, scrub_author, scrub_contact, scrub_text
 
 
 class ScrubTests(unittest.TestCase):
@@ -116,6 +116,14 @@ class ScrubTests(unittest.TestCase):
             scrub_author("Ada Researcher <ada@university.edu>"), "Ada Researcher"
         )
         self.assertEqual(scrub_author("ccarilli@nrao. edu"), "")
+        self.assertEqual(scrub_author("owner@localhost"), "")
+        self.assertEqual(scrub_author("owner@localhostX"), "owner@localhostX")
+        self.assertEqual(
+            scrub_contact(
+                "Under review. Correspondence should be addressed to author@example.edu"
+            ),
+            "Under review.",
+        )
 
 
 if __name__ == "__main__":

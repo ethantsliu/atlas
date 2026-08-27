@@ -160,6 +160,9 @@ class PrivacyTests(unittest.TestCase):
         cases = (
             ({"notes": home_path}, "local device path"),
             ({"source": social_url}, "personal social URL"),
+            ({"comment": "Contact author@example.edu"}, "email address"),
+            ({"comment": "Contact author@example. edu"}, "email address"),
+            ({"authors": ["owner@localhost"]}, "email address"),
             (
                 {"verification": {"reviewer_id": "not-opaque"}},
                 "reviewer ID",

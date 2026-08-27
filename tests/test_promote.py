@@ -41,10 +41,12 @@ class PromoteTests(unittest.TestCase):
     def test_base_rows(self) -> None:
         source = [{"id": 2}, {"id": 1}]
         enriched = [base_record(1, "arxiv:one"), base_record(2, "arxiv:two")]
+        enriched[0]["comment"] = "Contact author@example.edu"
 
         rows = base_records(source, enriched)
 
         self.assertEqual([row["id"] for row in rows], [2, 1])
+        self.assertEqual(rows[1]["comment"], "")
 
     def test_base_missing(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "missing 1"):

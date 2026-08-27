@@ -17,6 +17,7 @@ from pathlib import Path
 from files import atomic_write_bytes, atomic_write_text
 from identifiers import ARXIV_ID, OLD_ARXIV_ID
 from rank import load_rules, rank_day
+from scrub import scrub_paper
 from urls import open_public, read_limited
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -175,7 +176,7 @@ def fetch_day(day: date, size: int = 500, delay: float = 3.1) -> dict:
 
 def make_day(day: date, intake: dict, rules: dict, shortlist: int) -> dict:
     """Create a public day payload while retaining every relevant result."""
-    ranked = rank_day(intake["papers"], rules)
+    ranked = [scrub_paper(paper) for paper in rank_day(intake["papers"], rules)]
     shortlist_ids = [paper["id"] for paper in ranked[:shortlist]]
     now = datetime.now(timezone.utc).isoformat()
     return {
@@ -201,11 +202,12 @@ def make_day(day: date, intake: dict, rules: dict, shortlist: int) -> dict:
 
 
 def raw_payload(day: date, intake: dict) -> bytes:
-    """Compress the complete source intake for audit and offline re-scoring."""
+    """Compress complete, contact-scrubbed rows for audit and offline re-scoring."""
     payload = {
         "schema_version": 1,
         "date": day.isoformat(),
         **intake,
+        "papers": [scrub_paper(paper) for paper in intake["papers"]],
     }
     body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
     return gzip.compress(body, compresslevel=9, mtime=0)
@@ -240,7 +242,7 @@ def build_index(root: Path) -> dict:
 
 
 def save_day(day: date, intake: dict, payload: dict) -> None:
-    """Atomically publish raw, private, and web-facing daily artifacts."""
+    """Atomically publish auditable, contact-scrubbed daily artifacts."""
     name = f"{day.isoformat()}.json"
     text = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
     atomic_write_bytes(FEED_ROOT / "raw" / f"{name}.gz", raw_payload(day, intake))
