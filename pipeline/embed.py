@@ -454,11 +454,24 @@ def cohort_ids(atlas: dict, records: list[tuple[str, str]]) -> dict[str, set[str
     return cohorts
 
 
+def fit_atlas(atlas: dict, prior: dict[str, list[float]] | None) -> dict:
+    """Keep newly generated screening ideas out of an established UMAP fit."""
+    if prior is None:
+        return atlas
+    ideas = [
+        idea
+        for idea in atlas["ideas"]
+        if idea.get("origin") != "cross-paper" or idea["id"] in prior
+    ]
+    return {**atlas, "ideas": ideas}
+
+
 def build_layout(
     atlas: dict,
     details: dict[str, dict] | None = None,
     prior: dict[str, list[float]] | None = None,
 ) -> dict:
+    atlas = fit_atlas(atlas, prior)
     records = node_records(atlas, details)
     vectors = load_vectors(records)
     points = reduce_points(vectors)

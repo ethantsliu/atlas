@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   createCloud,
   fetchCloud,
@@ -27,11 +27,19 @@ const EMPTY: CloudState = {
 export function useCloud(enabled: boolean): CloudLoad {
   const [state, setState] = useState<CloudState>(EMPTY);
   const [attempt, setAttempt] = useState(0);
-  const retry = useCallback(() => setAttempt((value) => value + 1), []);
+  const cached = useRef<CloudState | null>(null);
+  const retry = useCallback(() => {
+    cached.current = null;
+    setAttempt((value) => value + 1);
+  }, []);
 
   useEffect(() => {
     if (!enabled) {
       setState(EMPTY);
+      return;
+    }
+    if (cached.current) {
+      setState(cached.current);
       return;
     }
     const controller = new AbortController();
@@ -55,11 +63,9 @@ export function useCloud(enabled: boolean): CloudLoad {
           );
         });
         if (controller.signal.aborted) return;
-        setState((current) =>
-          current.data === data
-            ? { manifest, data, loading: false, error: null }
-            : current,
-        );
+        const complete = { manifest, data, loading: false, error: null };
+        cached.current = complete;
+        setState((current) => (current.data === data ? complete : current));
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;

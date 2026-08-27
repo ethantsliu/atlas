@@ -119,6 +119,24 @@ class ClusterTests(unittest.TestCase):
             {row["label"] for row in result["clusters"]},
             {"world models", "preference optimization"},
         )
+
+    def test_route_labels(self) -> None:
+        records, vectors, points = sample_data()
+        records[0] = (
+            "topic:worlds",
+            "world models: world model, dynamics model, simulator",
+        )
+        records[3] = (
+            "trick:preference",
+            "preference optimization: dpo, human feedback",
+        )
+
+        result = build_clusters(records, vectors, points, cluster_count=2)
+
+        self.assertEqual(
+            {row["label"] for row in result["clusters"]},
+            {"world models", "preference optimization"},
+        )
         self.assertEqual(result["cluster_quality"]["fit_count"], 4)
 
     def test_repeatable_output(self) -> None:

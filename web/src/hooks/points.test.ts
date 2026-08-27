@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { cacheMeta, clearHover, cloudFront, pickBound, pickSize } from "./points";
+import {
+  cacheMeta,
+  clearHover,
+  cloudFront,
+  hoverWait,
+  pickBound,
+  pickSize,
+} from "./points";
 
 const paper = {
   id: "2001.00001",
@@ -14,6 +21,11 @@ describe("paper point input", () => {
   it("keeps dense points usable with touch-sized picking", () => {
     expect(pickSize("mouse")).toBe(8);
     expect(pickSize("touch")).toBe(24);
+  });
+
+  it("requires a stable dwell before probing a dense cloud", () => {
+    expect(hoverWait(100_000)).toBe(120);
+    expect(hoverWait(100_001)).toBe(700);
   });
 
   it("bounds metadata to four recently used shards", async () => {
@@ -152,7 +164,7 @@ describe("paper point input", () => {
     pickBound(refs, event);
 
     expect(pick).toHaveBeenCalledOnce();
-    expect(pick).toHaveBeenCalledWith(bound);
+    expect(pick).toHaveBeenCalledWith(bound, 1);
   });
 
   it("rejects a touch drag across the paper cloud", () => {

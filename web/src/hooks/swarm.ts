@@ -1,15 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Raycaster, Vector2, type Camera } from "three";
+import { type Camera } from "three";
 import type { GraphRef } from "../components/map/Driver";
-import { hitRadius } from "../lib/ray";
+import { hitScreen } from "../lib/screen";
 import { buildSwarm, markSwarm, swarmNode } from "../lib/swarm";
 import type { GraphNode } from "../types";
 import type { Theme } from "./theme";
+import { bindChange } from "./control";
+import type { PickOrder } from "../lib/order";
 
-export type SwarmTip = { id: string; label: string; x: number; y: number };
+export type SwarmTip = {
+  depth: number;
+  id: string;
+  label: string;
+  x: number;
+  y: number;
+};
 
-type SwarmMark = { node: GraphNode; x: number; y: number };
-type SwarmClaim = { node: GraphNode | null; x: number; y: number };
+type SwarmClaim = {
+  depth: number;
+  node: GraphNode | null;
+  x: number;
+  y: number;
+};
+type SwarmDown = { x: number; y: number };
 type ClaimRef = { current: boolean };
 
 type SwarmInput = {
@@ -20,17 +33,8 @@ type SwarmInput = {
   onChoose: (node: GraphNode) => void;
   onFocus: (nodeId: string) => void;
   onHover: (node: GraphNode | null) => void;
+  order: PickOrder;
 };
-
-export function bindSwarm(
-  target: SwarmMark | null,
-  fallback: GraphNode | null,
-  x: number,
-  y: number,
-): SwarmClaim {
-  const nearby = target && Math.hypot(x - target.x, y - target.y) <= 10;
-  return { node: nearby ? target.node : fallback, x, y };
-}
 
 export function pickSwarm(
   claim: SwarmClaim | null,
@@ -69,30 +73,18 @@ export function useSwarm(input: SwarmInput): {
     swarmRef.current = swarm;
     graph.scene().add(swarm);
     const canvas = graph.renderer().domElement;
-    const raycaster = new Raycaster();
-    const pointer = new Vector2();
     let frame = 0;
     let moved: PointerEvent | null = null;
-    let down: SwarmClaim | null = null;
+    let down: SwarmDown | null = null;
+    let pressed = false;
     let hovered: GraphNode | null = null;
-    let target: SwarmMark | null = null;
 
     const hit = (event: PointerEvent | MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
-      pointer.set(
-        ((event.clientX - rect.left) / rect.width) * 2 - 1,
-        -((event.clientY - rect.top) / rect.height) * 2 + 1,
-      );
       const camera = graph.camera() as Camera;
-      const target = (
-        graph.controls() as { target?: { x: number; y: number; z: number } }
-      ).target;
-      raycaster.params.Points = {
-        threshold: hitRadius(camera, target, rect.height),
-      };
-      raycaster.setFromCamera(pointer, camera);
-      const match = raycaster.intersectObject(swarm, false)[0];
+      const match = hitScreen(swarm, camera, rect, event.clientX, event.clientY);
       return {
+        depth: match?.depth ?? Number.POSITIVE_INFINITY,
         node: swarmNode(swarm, match?.index),
         x: event.clientX - rect.left,
         y: event.clientY - rect.top,
@@ -101,21 +93,40 @@ export function useSwarm(input: SwarmInput): {
 
     const show = (event: PointerEvent) => {
       const match = hit(event);
-      target = match.node
-        ? { node: match.node, x: event.clientX, y: event.clientY }
-        : null;
       if (match.node !== hovered) {
         hovered = match.node;
         hoverRef.current(hovered);
       }
       setTip(
         match.node
-          ? { id: match.node.id, label: match.node.label, x: match.x, y: match.y }
+          ? {
+              depth: match.depth,
+              id: match.node.id,
+              label: match.node.label,
+              x: match.x,
+              y: match.y,
+            }
           : null,
       );
     };
 
+    const clear = () => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = 0;
+      moved = null;
+      hovered = null;
+      setTip(null);
+      hoverRef.current(null);
+    };
+
     const move = (event: PointerEvent) => {
+      if (pressed) {
+        if (down && Math.hypot(event.clientX - down.x, event.clientY - down.y) > 5) {
+          down = null;
+        }
+        clear();
+        return;
+      }
       moved = event;
       if (frame) return;
       frame = requestAnimationFrame(() => {
@@ -125,33 +136,41 @@ export function useSwarm(input: SwarmInput): {
     };
 
     const leave = () => {
-      if (frame) cancelAnimationFrame(frame);
-      frame = 0;
-      moved = null;
-      hovered = null;
-      target = null;
-      setTip(null);
-      hoverRef.current(null);
+      down = null;
+      pressed = false;
+      clear();
+    };
+    const change = () => {
+      down = null;
+      clear();
     };
 
     const press = (event: PointerEvent) => {
+      input.order.begin(event.timeStamp);
       claimRef.current = false;
+      clear();
       if (!event.isPrimary || event.button !== 0) {
         down = null;
+        pressed = false;
         return;
       }
-      const nearby =
-        target && Math.hypot(event.clientX - target.x, event.clientY - target.y) <= 10;
-      const fallback = nearby ? null : hit(event).node;
-      down = bindSwarm(target, fallback, event.clientX, event.clientY);
+      down = { x: event.clientX, y: event.clientY };
+      pressed = true;
     };
 
     const choose = (event: MouseEvent | PointerEvent) => {
-      const node = pickSwarm(down, event.clientX, event.clientY);
+      const start = down;
       down = null;
+      pressed = false;
+      if (!start || Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5) {
+        return;
+      }
+      const match = hit(event);
+      const claim = { ...match, ...start };
+      const node = pickSwarm(claim, event.clientX, event.clientY);
       if (!node) return;
       claimRef.current = true;
-      chooseRef.current(node);
+      input.order.claim(2, claim.depth, () => chooseRef.current(node));
     };
 
     const focus = (event: MouseEvent) => {
@@ -161,6 +180,7 @@ export function useSwarm(input: SwarmInput): {
       focusRef.current(node.id);
     };
 
+    const dropChange = bindChange(graph.controls?.(), change);
     canvas.addEventListener("pointermove", move);
     canvas.addEventListener("pointerleave", leave);
     canvas.addEventListener("pointerdown", press);
@@ -176,6 +196,7 @@ export function useSwarm(input: SwarmInput): {
       window.removeEventListener("mouseup", choose, true);
       canvas.removeEventListener("click", choose, true);
       canvas.removeEventListener("contextmenu", focus);
+      dropChange();
       if (frame) cancelAnimationFrame(frame);
       graph.scene().remove(swarm);
       swarm.geometry.dispose();

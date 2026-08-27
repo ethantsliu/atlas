@@ -185,6 +185,52 @@ class AuditTests(unittest.TestCase):
             values["ids"] = values["ids"][::-1]
             np.savez_compressed(path, **values)
 
+            with self.assertRaisesRegex(RuntimeError, "row hashes"):
+                audit_layout(atlas, {}, path, layout)
+
+    def test_cache_superset(self) -> None:
+        atlas = sample_atlas()
+        layout, vectors = sample_layout(atlas)
+        extra = np.full((1, vectors.shape[1]), 0.5, dtype=np.float32)
+        expanded = np.vstack([vectors, extra])
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "vectors.npz"
+            write_cache(path, atlas, layout, vectors)
+            with np.load(path) as saved:
+                values = {field: saved[field] for field in saved.files}
+            values["digest"] = "superset"
+            values["ids"] = np.append(values["ids"], "idea-unfitted")
+            values["row_hashes"] = np.append(
+                values["row_hashes"], row_hash(("idea-unfitted", "extra"))
+            )
+            values["vectors"] = expanded
+            values["vector_sha256"] = vector_sha(expanded)
+            np.savez_compressed(path, **values)
+
+            audit_layout(atlas, {}, path, layout)
+
+            values["ids"] = np.append(values["ids"][:-2], "idea-unfitted")
+            values["row_hashes"] = np.append(
+                values["row_hashes"][:-2], row_hash(("idea-unfitted", "extra"))
+            )
+            values["vectors"] = np.vstack([vectors[:-1], extra])
+            values["vector_sha256"] = vector_sha(values["vectors"])
+            np.savez_compressed(path, **values)
+            with self.assertRaisesRegex(RuntimeError, "missing fitted"):
+                audit_layout(atlas, {}, path, layout)
+
+    def test_cache_duplicate(self) -> None:
+        atlas = sample_atlas()
+        layout, vectors = sample_layout(atlas)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "vectors.npz"
+            write_cache(path, atlas, layout, vectors)
+            with np.load(path) as saved:
+                values = {field: saved[field] for field in saved.files}
+            values["ids"] = values["ids"].copy()
+            values["ids"][1] = values["ids"][0]
+            np.savez_compressed(path, **values)
+
             with self.assertRaisesRegex(RuntimeError, "row IDs"):
                 audit_layout(atlas, {}, path, layout)
 

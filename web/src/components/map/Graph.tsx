@@ -1,4 +1,11 @@
-import { lazy, Suspense, useCallback, useRef, type KeyboardEvent } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  type KeyboardEvent,
+} from "react";
 import { layoutTime, type LayoutMode } from "../../hooks/layout";
 import { useElementSize } from "../../hooks/size";
 import type { Theme } from "../../hooks/theme";
@@ -42,8 +49,11 @@ type GraphCanvasProps = {
   query: string;
   theme: Theme;
   layout: LayoutMode;
-  shareUrl: (camera?: CameraView | null) => string;
+  render: RenderMode;
+  shareUrl: (camera?: CameraView | null, render?: RenderMode) => string;
   onLayout: (mode: LayoutMode) => void;
+  onRender: (mode: RenderMode) => void;
+  onMode: (mode: RenderMode) => void;
   camera: CameraView | null;
   cameraReady: boolean;
   viewReady: boolean;
@@ -71,7 +81,7 @@ function nodeCount(
 function arrowNode(
   event: KeyboardEvent<HTMLElement>,
   graph: GraphData,
-  graphRef: GraphRef,
+  graphRef: GraphRef | FallbackRef,
   selected: GraphNode | null,
 ): GraphNode | null {
   if (event.target !== event.currentTarget || !event.key.startsWith("Arrow")) {
@@ -107,19 +117,24 @@ export function GraphCanvas({
   query,
   theme,
   layout,
+  render,
   shareUrl,
   onLayout,
+  onRender,
+  onMode,
   camera,
   cameraReady,
   viewReady,
 }: GraphCanvasProps) {
   const { ref: containerRef, width, height } = useElementSize<HTMLElement>();
-  const { mode, status, retry } = useWebgl(containerRef);
+  const { mode, status, retry } = useWebgl(containerRef, render);
   const graphRef = useRef<GraphRef["current"]>();
   const fallbackRef = useRef<FallbackRef["current"]>();
   const selectedId = selectedValue(graph, selected);
   const visibleCount = nodeCount(graph, cloud, cloudHidden, cloudMark, mode);
   const hasContent = visibleCount > 0;
+
+  useEffect(() => onMode(mode), [mode, onMode]);
 
   const resetView = useCallback(() => {
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -146,7 +161,8 @@ export function GraphCanvas({
         aria-describedby="graph-help"
         tabIndex={0}
         onKeyDown={(event: KeyboardEvent<HTMLElement>) => {
-          const source = arrowNode(event, graph, graphRef, selected);
+          const activeRef = mode === "3d" ? graphRef : fallbackRef;
+          const source = arrowNode(event, graph, activeRef, selected);
           if (source) onChoose(source);
         }}
       >
@@ -163,15 +179,17 @@ export function GraphCanvas({
             height={height}
             layout={layout}
             mode={mode}
+            render={render}
             nodes={graph.nodes}
             onChoose={onChoose}
             onLayout={onLayout}
+            onRender={onRender}
             selected={selected}
             selectedId={selectedId}
             shareUrl={shareUrl}
           />
         </GraphControls>
-        <WebglStatus status={status} onRetry={retry} />
+        <WebglStatus status={status} requested={render} onRetry={retry} />
 
         {!hasContent && viewReady && (
           <EmptyState
@@ -233,7 +251,7 @@ export function GraphCanvas({
                 aria-live="polite"
                 aria-busy="true"
               >
-                Loading compatibility view…
+                Loading 2D overview…
               </p>
             }
           >

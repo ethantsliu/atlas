@@ -103,7 +103,7 @@ class IdeaIdTests(unittest.TestCase):
             "idea-standalone-agents--variance-control",
         )
 
-    def test_candidate_cap(self) -> None:
+    def test_all_pairs(self) -> None:
         pairs = {
             (f"topic-{index}", "regularization"): [
                 paper(f"paper-{index}-a", f"arxiv:{index}-a"),
@@ -112,7 +112,13 @@ class IdeaIdTests(unittest.TestCase):
             for index in range(49)
         }
 
-        self.assertEqual(len(build_cross_ideas(pairs)), 48)
+        ideas = build_cross_ideas(pairs)
+
+        self.assertEqual(len(ideas), len(pairs))
+        self.assertEqual(
+            {(idea["topic_ids"][0], idea["trick_ids"][0]) for idea in ideas},
+            set(pairs),
+        )
 
 
 if __name__ == "__main__":

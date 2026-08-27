@@ -32,10 +32,10 @@ vi.mock("react", () => ({
 
 import { probeWebgl, useWebgl, watchCanvas } from "./webgl";
 
-function renderHook() {
+function renderHook(requested: "2d" | "3d" = "3d") {
   stateIndex = 0;
   refIndex = 0;
-  return useWebgl({ current: null });
+  return useWebgl({ current: null }, requested);
 }
 
 beforeEach(() => {
@@ -119,5 +119,23 @@ describe("useWebgl", () => {
     expect(renderHook()).toMatchObject({ mode: "3d", status: "ready" });
     expect(createElement).toHaveBeenCalledTimes(2);
     expect(loseContext).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the requested view separate from WebGL capability", () => {
+    const getContext = vi.fn(() => null);
+    const createElement = vi.fn(() => ({ getContext }));
+    vi.stubGlobal("document", { createElement });
+    vi.stubGlobal("window", {
+      clearTimeout: vi.fn(),
+      setTimeout: vi.fn(),
+    });
+
+    expect(renderHook("2d")).toMatchObject({ mode: "2d", status: "ready" });
+    expect(createElement).not.toHaveBeenCalled();
+
+    stateSlots = [];
+    refSlots = [];
+    expect(renderHook("3d")).toMatchObject({ mode: "2d", status: "unsupported" });
+    expect(createElement).toHaveBeenCalledOnce();
   });
 });

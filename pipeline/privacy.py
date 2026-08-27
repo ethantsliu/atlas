@@ -100,6 +100,14 @@ def text_values(value: object) -> Iterator[tuple[str, str]]:
             )
 
 
+def validate_strings(value: object, label: str) -> None:
+    """Reject unsafe text from any string at a public content boundary."""
+    check(
+        all(not unsafe_public(text) for _, text in text_values(value)),
+        f"{label} contains unsafe text",
+    )
+
+
 def validate_public(value: object, label: str) -> None:
     """Reject machine paths, personal social links, and internal reviewer labels."""
     for location, text in text_values(value):

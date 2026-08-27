@@ -91,7 +91,7 @@ export function largestGroup(graph: GraphData): Set<string> {
 }
 
 function nodePosition(atlas: AtlasRead, nodeId: string) {
-  const point = atlas.layout?.positions[nodeId];
+  const point = atlas.layout?.positions[nodeId] ?? atlas.idea_layout?.positions[nodeId];
   if (!point) return {};
   const [x, y, z] = point;
   return { x, y, z, sx: x, sy: y, sz: z };

@@ -198,7 +198,7 @@ def _taxon(node_id: str, text: str) -> str:
     if not node_id.startswith(("topic:", "trick:")):
         return ""
     match = TAXON.match(text)
-    label = match.group(1) if match else text
+    label = match.group(1) if match else text.partition(":")[0]
     return SPACE.sub(" ", label).strip(" .").lower()
 
 

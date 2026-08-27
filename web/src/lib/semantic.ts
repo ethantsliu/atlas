@@ -148,13 +148,15 @@ export type LayoutScope = {
 };
 
 export function atlasScope(
-  atlas: Pick<Atlas, "topics" | "tricks" | "papers" | "ideas">,
+  atlas: Pick<Atlas, "topics" | "tricks" | "papers" | "ideas" | "idea_layout">,
 ): LayoutScope {
+  const derived = new Set(Object.keys(atlas.idea_layout?.positions ?? {}));
+  const fittedIdeas = atlas.ideas.filter((item) => !derived.has(item.id));
   const ids = new Set([
     ...atlas.topics.map((item) => `topic:${item.id}`),
     ...atlas.tricks.map((item) => `trick:${item.id}`),
     ...atlas.papers.map((item) => item.id),
-    ...atlas.ideas.map((item) => item.id),
+    ...fittedIdeas.map((item) => item.id),
   ]);
   const context = atlas.papers.filter(
     (paper) => paper.record_kind === "non_paper_context",
@@ -164,12 +166,12 @@ export function atlasScope(
     ids,
     allIds: ids,
     nodeCount: ids.size,
-    fitCount: paper + atlas.ideas.length,
+    fitCount: paper + fittedIdeas.length,
     cohorts: {
       all: ids.size,
       paper,
       context,
-      idea: atlas.ideas.length,
+      idea: fittedIdeas.length,
       taxonomy: atlas.topics.length + atlas.tricks.length,
     },
   };

@@ -1,5 +1,6 @@
-import { ChevronRight, CircleDot, X } from "lucide-react";
+import { ChevronRight, CircleDot } from "lucide-react";
 import type { CloudPaper } from "../../lib/cloud";
+import { CloseButton } from "./Close";
 
 type CloudProps = {
   paper: CloudPaper;
@@ -27,9 +28,7 @@ export function CloudDetail({
       aria-labelledby="map-inspector-title"
       tabIndex={-1}
     >
-      <button className="icon-close" onClick={onClose} aria-label="Close inspector">
-        <X size={16} />
-      </button>
+      <CloseButton onClose={onClose} />
       <span className="type-pill paper">Paper</span>
       <h2 id="map-inspector-title">{paper.title}</h2>
       <div className="confidence">

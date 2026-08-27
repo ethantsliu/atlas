@@ -5,6 +5,7 @@ import { makeAtlas, makeLayout } from "../test/fixtures";
 import type { Atlas, SemanticLayout } from "../types";
 import {
   type AtlasCore,
+  type LegacyPaperBundle,
   type PaperBundle,
   bundleError,
   coreError,
@@ -36,8 +37,10 @@ function splitAtlas(atlas: Atlas): { core: AtlasCore; bundle: PaperBundle } {
     );
   }
   const bundle: PaperBundle = {
-    schema_version: 1,
+    schema_version: 2,
     papers,
+    ideas: [],
+    idea_layout: null,
     layout: paperLayout,
   };
   const content = `${JSON.stringify(bundle)}\n`;
@@ -71,7 +74,8 @@ describe("split payload contracts", () => {
 
     expect(coreError(core)).toBeNull();
     expect(bundleError(bundle, core.paper_asset)).toBeNull();
-    expect(mergeAtlas(core, bundle).papers).toHaveLength(core.meta.paper_count);
+    const merged = mergeAtlas(core, bundle);
+    expect(merged.papers).toHaveLength(core.meta.paper_count);
   });
 
   it("validates a map-first core and reconstructs the authoritative atlas", () => {
@@ -87,6 +91,22 @@ describe("split payload contracts", () => {
 
     bundle.layout!.positions!["topic:alignment"] = [9, 9, 9];
     expect(() => mergeAtlas(core, bundle)).toThrow("overlaps core");
+  });
+
+  it("accepts cached schema v1 paper bundles without changing the v2 type", () => {
+    const atlas = makeAtlas({ layout: makeLayout() });
+    const { core, bundle } = splitAtlas(atlas);
+    const legacy: LegacyPaperBundle = {
+      schema_version: 1,
+      papers: bundle.papers,
+      layout: bundle.layout,
+    };
+
+    expect(bundleError(legacy, core.paper_asset)).toBeNull();
+    expect(mergeAtlas(core, legacy)).toEqual(atlas);
+    expect(bundleError({ ...legacy, ideas: [] }, core.paper_asset)).toBe(
+      "invalid paper bundle contract",
+    );
   });
 
   it("binds the asset path, digest, byte count, and paper count", () => {

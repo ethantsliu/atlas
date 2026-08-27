@@ -3,6 +3,7 @@ import { Sparkles } from "lucide-react";
 import {
   EvidenceMaturity,
   PublicationTimeline,
+  RegionDistribution,
   TopicDistribution,
   TopicEvidenceCoverage,
   TopicTrickHeatmap,
@@ -80,6 +81,7 @@ export default function Insights({ atlas, onOpenIdea }: InsightsProps) {
         />
         <EvidenceMaturity atlas={atlas} researchEntryTotal={researchEntryTotal} />
         <TopicDistribution topics={topicRows} />
+        <RegionDistribution atlas={atlas} />
         <TopicEvidenceCoverage rows={topicEvidenceRows} />
         <ReadingBalance rows={readingBalance} />
         <PublicationTimeline years={years} />

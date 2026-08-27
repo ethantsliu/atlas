@@ -24,6 +24,8 @@ from ideas import (
 from files import atomic_write_text
 from ontology import TOPICS, TRICKS
 from analysis import compact_paper
+from place import build_places
+from privacy import validate_strings
 from sources import build_source_inventory, write_source_inventory
 from assets import (
     prune_papers,
@@ -73,13 +75,18 @@ def layout_split(payload: dict) -> tuple[dict | None, dict | None]:
 
 
 def paper_bundle(payload: dict) -> dict:
-    """Project full paper metadata into its independently cached asset."""
+    """Project papers and unfitted ideas into one independently cached asset."""
     _, layout = layout_split(payload)
     if layout is None:
         raise RuntimeError("Atlas publication requires a semantic layout")
+    derived_ids = set(payload.get("idea_layout", {}).get("positions", {}))
     bundle = {
-        "schema_version": 1,
+        "schema_version": 2,
         "papers": payload["papers"],
+        "ideas": [
+            idea for idea in payload.get("ideas", []) if idea["id"] in derived_ids
+        ],
+        "idea_layout": payload.get("idea_layout"),
         "layout": layout,
     }
     return bundle
@@ -87,16 +94,54 @@ def paper_bundle(payload: dict) -> dict:
 
 def public_core(payload: dict, asset: dict) -> dict:
     """Project the map-first core and bind it to one immutable paper asset."""
-    core = {key: value for key, value in payload.items() if key != "papers"}
+    core = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"papers", "idea_layout"}
+    }
     core_layout, _ = layout_split(payload)
     if core_layout is None:
         raise RuntimeError("Atlas publication requires a semantic layout")
+    fitted_ids = set(core_layout.get("positions", {}))
+    if "ideas" in payload:
+        core["ideas"] = [idea for idea in payload["ideas"] if idea["id"] in fitted_ids]
     core["layout"] = core_layout
     return {
         "schema_version": 2,
         **core,
         "paper_asset": asset,
     }
+
+
+def merge_ideas(atlas: dict, bundle: dict) -> set[str]:
+    """Merge lazy ideas and return the fitted idea identities."""
+    had_ideas = "ideas" in atlas
+    fitted_ids = {item["id"] for item in atlas.get("ideas", [])}
+    extra_ideas = deepcopy(bundle.get("ideas", []))
+    idea_layout = deepcopy(bundle.get("idea_layout"))
+    if not isinstance(extra_ideas, list):
+        raise ValueError("Paper bundle has an invalid idea list")
+    derived_ids = (
+        set(idea_layout.get("positions", {}))
+        if isinstance(idea_layout, dict)
+        else set()
+    )
+    extra_ids = {item.get("id") for item in extra_ideas if isinstance(item, dict)}
+    if extra_ids != derived_ids:
+        raise ValueError("Paper bundle idea placement coverage is invalid")
+    if fitted_ids.intersection(derived_ids):
+        raise ValueError("Paper bundle ideas overlap the core")
+    if had_ideas or extra_ideas:
+        atlas["ideas"] = sorted(
+            [*atlas.get("ideas", []), *extra_ideas],
+            key=lambda item: (
+                -item.get("feasibility", {}).get("score", 0),
+                item["id"],
+            ),
+        )
+    if idea_layout is not None:
+        atlas["idea_layout"] = idea_layout
+    return fitted_ids
 
 
 def reconstruct_atlas(core: dict, bundle: dict) -> dict:
@@ -110,11 +155,12 @@ def reconstruct_atlas(core: dict, bundle: dict) -> dict:
     if not isinstance(papers, list):
         raise ValueError("Paper bundle lacks a paper list")
     atlas["papers"] = papers
+    core_idea_ids = merge_ideas(atlas, bundle)
     paper_ids = {paper.get("id") for paper in papers if isinstance(paper, dict)}
     core_ids = {
         *(f"topic:{item['id']}" for item in atlas.get("topics", [])),
         *(f"trick:{item['id']}" for item in atlas.get("tricks", [])),
-        *(item["id"] for item in atlas.get("ideas", [])),
+        *core_idea_ids,
     }
     core_layout = atlas.get("layout")
     shard = bundle.get("layout")
@@ -265,11 +311,13 @@ def build_atlas_payload(
     }
     if layout is not None:
         payload["layout"] = layout
+        payload["idea_layout"] = build_places(payload, layout)
     return payload, source_inventory, coverage
 
 
 def publish_atlas_payload(payload: dict) -> None:
     """Publish details, paper asset, and core in an interruption-safe order."""
+    validate_strings(payload.get("ideas", []), "Atlas ideas")
     previous_path = prior_path()
     staged_paths = stage_reading_assets(READINGS_DIR, WEB_READINGS_DIR)
     payload_paths = {

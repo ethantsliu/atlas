@@ -210,7 +210,7 @@ def index_paper_support(
 def build_cross_ideas(
     pair_papers: dict[tuple[str, str], list[dict]],
 ) -> list[dict]:
-    """Create the highest-support topic-technique screening hypotheses."""
+    """Create every topic-technique hypothesis with repeated support."""
     ideas: list[dict] = []
     grouped: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for pair, papers in pair_papers.items():
@@ -224,9 +224,6 @@ def build_cross_ideas(
         (item for item in unique_pairs if len(item[1]) >= 2),
         key=lambda item: (-len(item[1]), item[0]),
     )
-    retained = [item for item in best_pairs if item[0] in LEGACY_IDS]
-    novel = [item for item in best_pairs if item[0] not in LEGACY_IDS]
-    best_pairs = [*retained, *novel][:48]
     for (topic, trick), supporting in best_pairs:
         title = f"Stress-test {trick.replace('-', ' ')} for {topic.replace('-', ' ')}"
         selected_support = supporting[:6]

@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import type { LayoutMode } from "../../hooks/layout";
+import type { RenderMode } from "../../hooks/webgl";
 
-export type RenderMode = "3d" | "2d";
+export type { RenderMode } from "../../hooks/webgl";
 
 type ControlsProps = {
   count: number;
@@ -18,22 +19,19 @@ export function GraphControls({
   onReset,
   children,
 }: ControlsProps) {
-  const space =
-    layout === "semantic"
-      ? "semantic · embedding-guided similarity"
-      : "connections · linked nodes pull together";
+  const space = layout === "semantic" ? "semantic frame" : "linked structure";
   return (
     <>
       <div className="graph-header">
         <div>
           <span className="live-dot" />
-          {`${mode === "3d" ? `3D · ${space}` : `2D compatibility · ${space}`} · ${count.toLocaleString()} nodes`}
+          {`${mode === "3d" ? `3D · ${space}` : `2D overview · ${space}`} · ${count.toLocaleString()} nodes`}
         </div>
         <span>
           {count > 0
             ? mode === "3d"
-              ? "Arrow keys select nodes · drag rotates · scroll travels · pinch zooms"
-              : "Arrow keys select nodes · drag pans · scroll/pinch zooms"
+              ? "Arrows select · drag rotates · scroll travels · pinch zooms"
+              : "Arrows select · drag pans · scroll/pinch zooms"
             : "Adjust the active search or lenses"}
         </span>
       </div>

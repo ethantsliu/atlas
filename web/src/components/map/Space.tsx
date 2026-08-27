@@ -20,6 +20,8 @@ import { useSwarm, type SwarmTip } from "../../hooks/swarm";
 import type { Theme } from "../../hooks/theme";
 import { useView } from "../../hooks/view";
 import { useFly } from "../../hooks/fly";
+import { useCore, type CoreTip } from "../../hooks/core";
+import { useBegin } from "../../hooks/begin";
 import { graphEndpointId, graphKey, largestGroup, splitPapers } from "../../lib/graph";
 import { showLink } from "../../lib/quality";
 import type { CameraView } from "../../lib/camera";
@@ -28,10 +30,151 @@ import { labelOf } from "../../lib/text";
 import type { GraphData, GraphLink, GraphNode } from "../../types";
 import type { CloudData, CloudPick } from "../../lib/cloud";
 import type { CloudMark } from "../../lib/focus";
-import { usePoints, type PointTip } from "../../hooks/points";
+import { nodeDepth, usePoints, type PointTip } from "../../hooks/points";
 import type { GraphRef } from "./Driver";
 import { pickFront } from "./Front";
 import { RouteMark } from "./Route";
+import { frontRank, makeOrder } from "../../lib/order";
+
+export const FRAME_IDLE_WAIT = 240;
+
+type FrameControl = {
+  addEventListener?: (type: string, listener: () => void) => void;
+  removeEventListener?: (type: string, listener: () => void) => void;
+};
+
+type FrameGraph = {
+  controls: () => FrameControl;
+  pauseAnimation: () => unknown;
+  renderer: () => { domElement: HTMLCanvasElement };
+  resumeAnimation: () => unknown;
+};
+
+type FrameTimer = {
+  clear: (timer: number) => void;
+  set: (callback: () => void, delay: number) => number;
+};
+
+export type FrameIdle = {
+  dispose: () => void;
+  engineStop: (delay?: number) => void;
+  engineTick: () => void;
+  start: () => void;
+  touch: () => void;
+};
+
+export function makeFrameIdle(
+  graph: FrameGraph,
+  timer: FrameTimer = {
+    clear: (value) => window.clearTimeout(value),
+    set: (callback, delay) => window.setTimeout(callback, delay),
+  },
+): FrameIdle {
+  const canvas = graph.renderer().domElement;
+  const controls = graph.controls();
+  let running = true;
+  let paused = false;
+  let pending = 0;
+  const cancel = () => {
+    if (pending) timer.clear(pending);
+    pending = 0;
+  };
+  const resume = () => {
+    cancel();
+    if (!paused) return;
+    paused = false;
+    graph.resumeAnimation();
+  };
+  const rest = (delay = FRAME_IDLE_WAIT) => {
+    cancel();
+    if (running) return;
+    pending = timer.set(() => {
+      pending = 0;
+      paused = true;
+      graph.pauseAnimation();
+    }, delay);
+  };
+  const start = () => {
+    running = true;
+    resume();
+  };
+  const touch = () => {
+    resume();
+    rest();
+  };
+  const engineTick = () => {
+    running = true;
+    cancel();
+  };
+  const engineStop = (delay = FRAME_IDLE_WAIT) => {
+    running = false;
+    rest(delay);
+  };
+  const press = () => resume();
+  const release = () => touch();
+  controls.addEventListener?.("start", press);
+  controls.addEventListener?.("change", touch);
+  controls.addEventListener?.("end", release);
+  canvas.addEventListener("pointermove", touch, true);
+  canvas.addEventListener("pointerup", release, true);
+  canvas.addEventListener("pointerleave", release, true);
+  canvas.addEventListener("wheel", touch, true);
+  return {
+    dispose: () => {
+      cancel();
+      controls.removeEventListener?.("start", press);
+      controls.removeEventListener?.("change", touch);
+      controls.removeEventListener?.("end", release);
+      canvas.removeEventListener("pointermove", touch, true);
+      canvas.removeEventListener("pointerup", release, true);
+      canvas.removeEventListener("pointerleave", release, true);
+      canvas.removeEventListener("wheel", touch, true);
+    },
+    engineStop,
+    engineTick,
+    start,
+    touch,
+  };
+}
+
+function useFrameIdle(graphRef: GraphRef) {
+  const frameRef = useRef<FrameIdle | null>(null);
+  useEffect(() => {
+    const graph = graphRef.current as FrameGraph | undefined;
+    if (!graph) return;
+    const frame = makeFrameIdle(graph);
+    frameRef.current = frame;
+    return () => {
+      if (frameRef.current === frame) frameRef.current = null;
+      frame.dispose();
+    };
+  }, [graphRef]);
+  return frameRef;
+}
+
+function useFrameTouch(frame: MutableRefObject<FrameIdle | null>, values: unknown[]) {
+  useEffect(() => frame.current?.touch(), values);
+}
+
+function stopFrames(
+  frame: MutableRefObject<FrameIdle | null>,
+  graph: GraphRef,
+  camera: CameraView | null,
+  fit: MutableRefObject<boolean>,
+  showView: () => void,
+  coreIds: Set<string>,
+) {
+  showView();
+  if (camera || !fit.current) {
+    frame.current?.engineStop();
+    return;
+  }
+  fit.current = false;
+  const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const duration = layoutTime(Boolean(reduced), 700);
+  graph.current?.zoomToFit(duration, 72, (node) => coreIds.has(node.id));
+  frame.current?.engineStop(duration + FRAME_IDLE_WAIT);
+}
 
 type SpaceProps = {
   graph: GraphData;
@@ -53,12 +196,31 @@ type SpaceProps = {
   onClear: () => void;
 };
 
-function PointTips({ tip, cloud }: { tip: SwarmTip | null; cloud: PointTip | null }) {
+function PointTips({
+  core,
+  tip,
+  cloud,
+}: {
+  core: CoreTip | null;
+  tip: SwarmTip | null;
+  cloud: PointTip | null;
+}) {
   return (
     <>
+      {core && (
+        <div
+          className="swarm-tip core-tip"
+          data-depth={core.depth}
+          role="tooltip"
+          style={{ left: core.x + 14, top: core.y + 14 }}
+        >
+          {labelOf(core.node.kind)} · {core.node.label}
+        </div>
+      )}
       {tip && (
         <div
           className="swarm-tip"
+          data-depth={tip.depth}
           role="tooltip"
           style={{ left: tip.x + 14, top: tip.y + 14 }}
         >
@@ -68,6 +230,7 @@ function PointTips({ tip, cloud }: { tip: SwarmTip | null; cloud: PointTip | nul
       {cloud && (
         <div
           className="swarm-tip cloud-tip"
+          data-depth={cloud.depth}
           role="tooltip"
           style={{ left: cloud.x + 14, top: cloud.y + 14 }}
         >
@@ -76,6 +239,20 @@ function PointTips({ tip, cloud }: { tip: SwarmTip | null; cloud: PointTip | nul
       )}
     </>
   );
+}
+
+function hoverFront(
+  core: CoreTip | null,
+  tip: SwarmTip | null,
+  cloud: PointTip | null,
+  probing: boolean,
+) {
+  if (probing) return 0;
+  return frontRank([
+    ...(core ? [{ depth: core.depth, rank: 3 as const }] : []),
+    ...(tip ? [{ depth: tip.depth, rank: 2 as const }] : []),
+    ...(cloud ? [{ depth: cloud.depth, rank: 1 as const }] : []),
+  ]);
 }
 
 export function GraphSpace({
@@ -97,14 +274,16 @@ export function GraphSpace({
   onFocus,
   onClear,
 }: SpaceProps) {
-  const [coreHovered, setCoreHovered] = useState<GraphNode | null>(null);
   const [swarmHovered, setSwarmHovered] = useState<GraphNode | null>(null);
-  const hovered = swarmHovered ?? coreHovered;
+  const core = useCore(graphRef);
+  const order = useMemo(() => makeOrder(), []);
+  useBegin(graphRef, order);
   const quality = useQuality(graph.nodes.length + (cloud?.loaded ?? 0), width, height);
   const engineReadyRef = useRef(false);
   const fitRef = useRef(!camera);
   const fitKeyRef = useRef<string>();
   const showView = useView(graphRef, camera, viewReady);
+  const frameRef = useFrameIdle(graphRef);
   useFly(graphRef);
   const cloudOpenRef = useRef(cloudSelected);
   useEffect(() => {
@@ -131,15 +310,7 @@ export function GraphSpace({
       cloudOpenRef.current = true;
       onCloudPick(pick);
     },
-  });
-  useMarks({
-    graphRef,
-    nodes: sceneGraph.nodes,
-    selected,
-    hovered,
-    theme,
-    detail: quality.geometryDetail,
-    simple,
+    order,
   });
   const swarmHit = useSwarm({
     graphRef,
@@ -151,12 +322,23 @@ export function GraphSpace({
     },
     onFocus,
     onHover: (node) => {
-      cloudHit.mute(Boolean(node));
       setSwarmHovered(node);
     },
+    order,
   });
   const tip = swarmHit.tip;
-
+  const hoverRank = hoverFront(core.tip, tip, cloudHit.tip, cloudHit.probing);
+  const hovered =
+    hoverRank === 3 ? (core.tip?.node ?? null) : hoverRank === 2 ? swarmHovered : null;
+  useMarks({
+    graphRef,
+    nodes: sceneGraph.nodes,
+    selected,
+    hovered,
+    theme,
+    detail: quality.geometryDetail,
+    simple,
+  });
   useEffect(() => {
     if (camera) {
       fitKeyRef.current = topology;
@@ -167,19 +349,27 @@ export function GraphSpace({
     fitKeyRef.current = topology;
     fitRef.current = true;
   }, [camera, topology]);
-
   useEffect(() => {
     if (graphRef.current) {
+      frameRef.current?.start();
       applyLayout(graphRef.current, layout, engineReadyRef.current);
       graphRef.current.refresh();
     }
   }, [graphRef, layout, simple, topology]);
-
+  useFrameTouch(frameRef, [
+    cloud?.loaded,
+    cloudHidden,
+    cloudMark,
+    height,
+    selected?.id,
+    theme,
+    topology,
+    width,
+  ]);
   const activeIds = useMemo(
     () => new Set([selected?.id, hovered?.id].filter(Boolean)),
     [hovered?.id, selected?.id],
   );
-
   return (
     <>
       <ForceGraph3D
@@ -190,7 +380,7 @@ export function GraphSpace({
         backgroundColor={theme === "dark" ? "#0f1511" : "#f0eadf"}
         showNavInfo={false}
         numDimensions={3}
-        nodeLabel={(node) => `${labelOf(node.kind)} · ${node.label}`}
+        nodeLabel={() => ""}
         nodeThreeObject={makeNode}
         linkColor={() => (theme === "dark" ? "#617065" : "#9d9285")}
         linkWidth={0}
@@ -211,33 +401,31 @@ export function GraphSpace({
         enableNodeDrag={false}
         onEngineTick={() => {
           engineReadyRef.current = true;
+          frameRef.current?.engineTick();
         }}
-        onEngineStop={() => {
-          showView();
-          if (camera || !fitRef.current) return;
-          fitRef.current = false;
-          const reduced = window.matchMedia?.(
-            "(prefers-reduced-motion: reduce)",
-          ).matches;
-          const duration = layoutTime(Boolean(reduced), 700);
-          graphRef.current?.zoomToFit(duration, 72, (node) => coreIds.has(node.id));
-        }}
+        onEngineStop={() =>
+          stopFrames(frameRef, graphRef, camera, fitRef, showView, coreIds)
+        }
         onNodeClick={(node) => {
-          if (swarmHit.take()) return;
-          pickFront(cloudHit, cloudOpenRef, onChoose, node);
+          order.claim(3, nodeDepth(graphRef.current, node), () =>
+            pickFront(cloudHit, cloudOpenRef, onChoose, node),
+          );
+          order.settle();
         }}
-        onNodeHover={(node) => {
-          if (node) cloudHit.block();
-          setCoreHovered(node ?? null);
-        }}
+        onNodeHover={(node) => core.hover(node ?? null)}
         onNodeRightClick={(node) => onFocus(node.id)}
         onBackgroundClick={() => {
           if (!cloudOpenRef.current && !cloudHit.take() && !swarmHit.take()) {
             onClear();
           }
+          order.settle();
         }}
       />
-      <PointTips tip={tip} cloud={cloudHit.tip} />
+      <PointTips
+        core={hoverRank === 3 ? core.tip : null}
+        tip={hoverRank === 2 ? tip : null}
+        cloud={hoverRank === 1 ? cloudHit.tip : null}
+      />
       <RouteMark graphRef={graphRef} mark={cloudMark} theme={theme} />
     </>
   );

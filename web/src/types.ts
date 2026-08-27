@@ -355,6 +355,20 @@ export type Atlas = {
   repos: Repo[];
   ideas: Idea[];
   layout?: SemanticLayout;
+  idea_layout?: IdeaLayout;
+};
+
+export type IdeaLayout = {
+  schema_version: 1;
+  method: "support-centroid-80-20-3d-v1";
+  base_method: "embedding-umap-3d-v1";
+  base_node_count: number;
+  base_sha256: string;
+  input_sha256: string;
+  node_count: number;
+  positions: Record<string, [number, number, number]>;
+  neighbors: Record<string, string[]>;
+  node_clusters: Record<string, string>;
 };
 
 type QualityCohort<Trust extends number, Recall extends number> = {

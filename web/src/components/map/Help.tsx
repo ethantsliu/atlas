@@ -12,11 +12,11 @@ export function GraphHelp({ cloudLabel, mode, selected }: HelpProps) {
   return (
     <>
       <p className="sr-only" id="graph-help">
-        Use the arrow keys to move between reviewed foreground nodes. Historical swarm
-        papers can be inspected with pointer or touch.
+        Arrow keys move between foreground nodes.
+        {mode === "3d" ? " Pointer or touch inspects historical papers." : ""}
         {mode === "3d"
-          ? " Drag to rotate the three dimensional map. Scroll to travel through it, or pinch to zoom."
-          : " Drag to pan the compatibility map. Scroll or pinch to zoom."}{" "}
+          ? " Drag rotates; scroll travels; pinch zooms."
+          : " Drag pans; scroll or pinch zooms."}{" "}
         Select a node to inspect it.
       </p>
       <p id="graph-selection" className="sr-only" aria-live="polite">

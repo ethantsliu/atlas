@@ -35,6 +35,16 @@ async function steadyCamera(page: Page) {
   return prior;
 }
 
+async function chooseAlignment(page: Page) {
+  const picker = page.getByLabel("Choose a visible graph node");
+  if ((await picker.evaluate((element) => element.tagName)) === "SELECT") {
+    await picker.selectOption("topic:alignment");
+    return;
+  }
+  await picker.fill("alignment");
+  await page.getByRole("option", { name: /Topic\s+alignment/i }).click();
+}
+
 function cameraParts(value: string | null) {
   return value?.split("_").slice(1).map(Number) ?? [];
 }
@@ -130,7 +140,7 @@ test("camera links restore once and leave navigation in control", async ({
   await expect.poll(() => copyCamera(page), { timeout: 20_000 }).toBe(view);
   await page.waitForTimeout(1_000);
   expect(await copyCamera(page)).toBe(view);
-  await page.locator(".graph-node-picker select").selectOption("topic:alignment");
+  await chooseAlignment(page);
   await page.waitForTimeout(1_000);
   expect(await copyCamera(page)).toBe(view);
 
@@ -196,7 +206,7 @@ test("navigation cancels a deferred camera restore", async ({
   const moved = await steadyCamera(page);
 
   release();
-  await expect(page.locator(".filters")).toContainText("historical arXiv records", {
+  await expect(page.locator(".filters")).toContainText("historical arXiv papers", {
     timeout: 20_000,
   });
   const after = await steadyCamera(page);

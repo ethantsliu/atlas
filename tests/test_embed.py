@@ -22,6 +22,7 @@ from embed import (  # noqa: E402
     alias_exclusions,
     cohort_ids,
     embed_batch,
+    fit_atlas,
     input_hash,
     load_cache,
     load_parts,
@@ -252,6 +253,33 @@ class EmbedTests(unittest.TestCase):
             prior = load_prior(path, {"node-1"})
 
         self.assertEqual(prior, {"node-1": [1.0, 2.0, 3.0]})
+
+    def test_fit_refresh(self) -> None:
+        atlas = sample_atlas()
+        atlas["ideas"][0]["origin"] = "cross-paper"
+        atlas["ideas"].extend(
+            [
+                {
+                    "id": "idea-new-auto",
+                    "origin": "cross-paper",
+                    "brief": {},
+                },
+                {
+                    "id": "idea-new-reviewed",
+                    "origin": "cross-paper-reviewed",
+                    "brief": {},
+                },
+            ]
+        )
+        prior = {"idea-1": [0.0, 0.0, 0.0]}
+
+        fitted = fit_atlas(atlas, prior)
+
+        self.assertEqual(
+            [idea["id"] for idea in fitted["ideas"]],
+            ["idea-1", "idea-new-reviewed"],
+        )
+        self.assertEqual(len(atlas["ideas"]), 3)
 
     def test_field_budget(self) -> None:
         paper = sample_atlas()["papers"][0]

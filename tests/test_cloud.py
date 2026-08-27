@@ -26,7 +26,7 @@ from cloud import (
 from cloudpub import validate_published_assets
 from cloudvec import row_hash
 from embed import EMBED_DIM, MODEL, MODEL_DIGEST
-from omit import ids_hash
+from omit import ids_hash, load_foreground
 from rank import load_rules
 from routes import load_anchors, load_node_ids, project_points
 
@@ -96,6 +96,62 @@ def save_anchors(path: Path) -> np.ndarray:
 
 
 class CloudTests(unittest.TestCase):
+    def test_foreground_versions(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            data = Path(directory) / "data"
+            papers = data / "papers"
+            papers.mkdir(parents=True)
+            atlas = data / "atlas.json"
+            for version in (1, 2):
+                bundle = {
+                    "schema_version": version,
+                    "papers": [
+                        {
+                            "record_kind": "paper",
+                            "stable_id": "arxiv:2401.00001v2",
+                            "published": "2024-01-03T00:00:00Z",
+                        }
+                    ],
+                }
+                content = json.dumps(bundle).encode()
+                digest = hashlib.sha256(content).hexdigest()
+                (papers / f"{digest}.json").write_bytes(content)
+                atlas.write_text(
+                    json.dumps(
+                        {
+                            "paper_asset": {
+                                "path": f"/data/papers/{digest}.json",
+                                "sha256": digest,
+                                "bytes": len(content),
+                                "paper_count": 1,
+                            }
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+                self.assertEqual(load_foreground(atlas), {"2024-01": {"2401.00001"}})
+
+            bundle["schema_version"] = 3
+            content = json.dumps(bundle).encode()
+            digest = hashlib.sha256(content).hexdigest()
+            (papers / f"{digest}.json").write_bytes(content)
+            atlas.write_text(
+                json.dumps(
+                    {
+                        "paper_asset": {
+                            "path": f"/data/papers/{digest}.json",
+                            "sha256": digest,
+                            "bytes": len(content),
+                            "paper_count": 1,
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(RuntimeError, "bundle is invalid"):
+                load_foreground(atlas)
+
     def test_route_ties(self) -> None:
         vectors = np.zeros((1, EMBED_DIM), dtype=np.float32)
         vectors[0, 0] = 1
@@ -121,9 +177,6 @@ class CloudTests(unittest.TestCase):
                     "positions": {f"paper:{index}": [index, 0, 0] for index in range(4)}
                 },
             }
-            content = json.dumps(paper_bundle).encode()
-            digest = hashlib.sha256(content).hexdigest()
-            (papers / f"{digest}.json").write_bytes(content)
             core = {
                 "layout": {
                     "node_count": 8,
@@ -131,22 +184,28 @@ class CloudTests(unittest.TestCase):
                         f"anchor:{index}": [index, 1, 0] for index in range(4)
                     },
                 },
-                "paper_asset": {
-                    "schema_version": 1,
-                    "path": f"/data/papers/{digest}.json",
-                    "sha256": digest,
-                    "bytes": len(content),
-                    "paper_count": 4,
-                },
+                "paper_asset": {"schema_version": 1, "paper_count": 4},
             }
             atlas = data / "atlas.json"
-            atlas.write_text(json.dumps(core), encoding="utf-8")
+            for version in (1, 2):
+                paper_bundle["schema_version"] = version
+                content = json.dumps(paper_bundle).encode()
+                digest = hashlib.sha256(content).hexdigest()
+                (papers / f"{digest}.json").write_bytes(content)
+                core["paper_asset"].update(
+                    {
+                        "path": f"/data/papers/{digest}.json",
+                        "sha256": digest,
+                        "bytes": len(content),
+                    }
+                )
+                atlas.write_text(json.dumps(core), encoding="utf-8")
 
-            self.assertEqual(
-                load_node_ids(atlas),
-                {f"anchor:{index}" for index in range(4)}
-                | {f"paper:{index}" for index in range(4)},
-            )
+                self.assertEqual(
+                    load_node_ids(atlas),
+                    {f"anchor:{index}" for index in range(4)}
+                    | {f"paper:{index}" for index in range(4)},
+                )
 
             anchors = root / "anchors.npz"
             save_anchors(anchors)

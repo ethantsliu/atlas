@@ -16,7 +16,8 @@ import {
   type WebGLRenderer,
 } from "three";
 
-const PICK_SIZE = 25;
+export const PICK_SIZE = 51;
+export const ID_SIZE = 3;
 const PICK_RADIUS = (PICK_SIZE - 1) / 2;
 
 const VERTEX = `
@@ -129,15 +130,27 @@ function readId(bytes: Uint8Array, offset: number): number | null {
   return value === 0 ? null : value - 1;
 }
 
-function readHit(
+export function pickRadius(
+  hitSize: number,
+  width: number,
+  height: number,
+  rect: Pick<DOMRect, "width" | "height">,
+): number {
+  if (rect.width <= 0 || rect.height <= 0) return 0;
+  const scale = Math.max(width / rect.width, height / rect.height);
+  return Math.min(PICK_RADIUS, Math.max(0, (hitSize * scale) / 2));
+}
+
+export function readHit(
   bytes: Uint8Array,
   pointX: number,
   pointY: number,
   left: number,
   top: number,
   count: number,
+  radius: number,
 ): number | null {
-  let best = Number.POSITIVE_INFINITY;
+  let best = radius * radius;
   let picked: number | null = null;
   for (let y = 0; y < PICK_SIZE; y += 1) {
     for (let x = 0; x < PICK_SIZE; x += 1) {
@@ -146,7 +159,7 @@ function readHit(
       const dx = left + x + 0.5 - pointX;
       const dy = top + (PICK_SIZE - y - 1) + 0.5 - pointY;
       const distance = dx * dx + dy * dy;
-      if (distance >= best) continue;
+      if (distance > best) continue;
       best = distance;
       picked = index;
     }
@@ -166,7 +179,7 @@ export function makeGpuPick(
     glslVersion: GLSL3,
     toneMapped: false,
     uniforms: {
-      pointSize: { value: source.material.uniforms.pointSize.value },
+      pointSize: { value: ID_SIZE },
     },
     vertexShader: VERTEX,
   });
@@ -233,10 +246,7 @@ export function makeGpuPick(
     source.updateWorldMatrix(true, false);
     points.matrix.copy(source.matrixWorld);
     points.matrixWorld.copy(source.matrixWorld);
-    material.uniforms.pointSize.value = Math.max(
-      source.material.uniforms.pointSize.value,
-      hitSize,
-    );
+    material.uniforms.pointSize.value = ID_SIZE;
     setView(camera, width, height, left, top);
     try {
       renderer.autoClear = false;
@@ -255,7 +265,8 @@ export function makeGpuPick(
       restoreView(camera, view);
     }
     const count = Math.max(0, source.geometry.drawRange.count);
-    const index = readHit(bytes, pointX, pointY, left, top, count);
+    const radius = pickRadius(hitSize, width, height, rect);
+    const index = readHit(bytes, pointX, pointY, left, top, count, radius);
     if (index == null || index * 3 + 2 >= positions.length) return null;
     world.fromArray(positions, index * 3).applyMatrix4(source.matrixWorld);
     camera.getWorldPosition(cameraAt);

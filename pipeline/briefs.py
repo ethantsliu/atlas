@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
-import unicodedata
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
@@ -16,7 +14,7 @@ from ideas import (
     PROVISIONAL_FACTOR_CAPS,
 )
 from ontology import TOPICS, TRICKS
-from privacy import LOCAL_PATH, PERSONAL_SOCIAL, text_values
+from privacy import validate_strings
 from rules import check, validate_competitor_panel, validate_schema
 from shapes import validate_experiment_shape, validate_idea_shape
 
@@ -68,45 +66,17 @@ BRIEF_FIELDS = {
     "competitive_landscape",
     "novelty_assessment",
 }
-EMAIL = re.compile(
-    r"(?i)(?<![a-z0-9._%+-])[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}(?![a-z0-9.-])"
-)
-SOCIAL_HANDLE = re.compile(r"(?i)(?<![a-z0-9_])@[a-z0-9_]{2,32}(?![a-z0-9_])")
-SOCIAL_URL = re.compile(
-    r"(?i)https?://(?:www\.)?(?:bsky\.app|facebook\.com|instagram\.com|"
-    r"linkedin\.com|mastodon\.social|threads\.net|tiktok\.com)/"
-)
-FILE_URI = re.compile(r"(?i)(?:^|[^a-z0-9])file://")
-UNSAFE_CATEGORIES = {"Cc", "Cf", "Cs"}
-
-
-def unsafe_text(text: str) -> bool:
-    """Detect identity-bearing or display-manipulating candidate text."""
-    return (
-        LOCAL_PATH.search(text) is not None
-        or FILE_URI.search(text) is not None
-        or EMAIL.search(text) is not None
-        or PERSONAL_SOCIAL.search(text) is not None
-        or SOCIAL_URL.search(text) is not None
-        or SOCIAL_HANDLE.search(text) is not None
-        or any(
-            unicodedata.category(character) in UNSAFE_CATEGORIES for character in text
-        )
-    )
 
 
 def validate_idea_boundary(idea: object) -> None:
-    """Close idea fields and screen unreviewed synthesis without echoing content."""
+    """Close idea fields and screen every public origin without echoing content."""
     check(isinstance(idea, dict), "Idea boundary requires an object")
+    validate_strings(idea, "Public idea")
     origin = idea.get("origin")
     brief = idea.get("brief")
     feasibility = idea.get("feasibility")
     status = brief.get("status") if isinstance(brief, dict) else None
     if origin == "cross-paper":
-        check(
-            all(not unsafe_text(text) for _, text in text_values(idea)),
-            "Automatically generated idea contains unsafe text",
-        )
         check(
             status == "provisional"
             and isinstance(feasibility, dict)

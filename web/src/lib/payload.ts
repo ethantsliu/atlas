@@ -1,4 +1,4 @@
-import type { Atlas, Paper } from "../types";
+import type { Atlas, Idea, IdeaLayout, Paper } from "../types";
 import { type RecordValue, hasOnlyKeys, isNumber, isRecord, isString } from "./guards";
 import { isCoverage, isTaxon, isAtlasPayload } from "./atlas";
 import { isCoreIdea, portfolioError } from "./idea";
@@ -33,7 +33,14 @@ const ASSET_KEYS = new Set([
   "bytes",
   "paper_count",
 ]);
-const BUNDLE_KEYS = new Set(["schema_version", "papers", "layout"]);
+const BUNDLE_KEYS = new Set([
+  "schema_version",
+  "papers",
+  "ideas",
+  "idea_layout",
+  "layout",
+]);
+const LEGACY_BUNDLE_KEYS = new Set(["schema_version", "papers", "layout"]);
 const PAPER_PATH = /^\/data\/papers\/([0-9a-f]{64})\.json$/;
 const LAYOUT_MAPS = ["positions", "neighbors", "node_clusters"] as const;
 const LAYOUT_KEYS = new Set(LAYOUT_MAPS);
@@ -59,7 +66,7 @@ type CoreLayout = Omit<
 > &
   LayoutShard & { positions: Record<string, Point3> };
 
-export type AtlasCore = Omit<Atlas, "papers" | "layout"> & {
+export type AtlasCore = Omit<Atlas, "papers" | "layout" | "idea_layout"> & {
   schema_version: 2;
   paper_asset: PaperAsset;
   layout: CoreLayout;
@@ -74,10 +81,20 @@ export type AtlasPreview = Omit<Atlas, "papers" | "layout"> & {
 export type AtlasRead = Atlas | AtlasPreview;
 
 export type PaperBundle = {
+  schema_version: 2;
+  papers: Paper[];
+  ideas: Idea[];
+  idea_layout: IdeaLayout | null;
+  layout: LayoutShard;
+};
+
+export type LegacyPaperBundle = {
   schema_version: 1;
   papers: Paper[];
   layout: LayoutShard;
 };
+
+type AcceptedPaperBundle = PaperBundle | LegacyPaperBundle;
 
 function shardLayout(value: unknown): value is LayoutShard {
   if (!isRecord(value) || !hasOnlyKeys(value, LAYOUT_KEYS)) return false;
@@ -229,8 +246,7 @@ export function coreError(value: unknown): string | null {
     meta.paper_count !== asset.paper_count ||
     Number(meta.research_entry_count) + Number(meta.context_entry_count) !==
       meta.paper_count ||
-    meta.repo_count !== 0 ||
-    meta.idea_count !== value.ideas.length
+    meta.repo_count !== 0
   ) {
     return "inconsistent core counts";
   }
@@ -247,9 +263,12 @@ export function coreError(value: unknown): string | null {
 }
 
 export function bundleError(value: unknown, asset: PaperAsset): string | null {
-  if (!isRecord(value) || !hasOnlyKeys(value, BUNDLE_KEYS)) {
+  if (!isRecord(value)) {
     return "invalid paper bundle shape";
   }
+  const versionIsValid =
+    (value.schema_version === 1 && hasOnlyKeys(value, LEGACY_BUNDLE_KEYS)) ||
+    (value.schema_version === 2 && hasOnlyKeys(value, BUNDLE_KEYS));
   const layout = value.layout;
   const layoutIsValid = shardLayout(layout);
   const paperIds = new Set(
@@ -259,9 +278,10 @@ export function bundleError(value: unknown, asset: PaperAsset): string | null {
         )
       : [],
   );
-  return value.schema_version === 1 &&
+  return versionIsValid &&
     Array.isArray(value.papers) &&
     value.papers.length === asset.paper_count &&
+    (value.schema_version === 1 || Array.isArray(value.ideas)) &&
     layoutIsValid &&
     LAYOUT_MAPS.every((field) => sameIds(layout[field], paperIds))
     ? null
@@ -275,7 +295,7 @@ export function stageAtlas(core: AtlasCore): AtlasPreview {
 
 function mergeLayout(
   core: AtlasCore["layout"],
-  shard: PaperBundle["layout"],
+  shard: AcceptedPaperBundle["layout"],
   paperIds: ReadonlySet<string>,
 ): Atlas["layout"] {
   if (!core) return core;
@@ -308,12 +328,16 @@ function mergeLayout(
   return merged as Atlas["layout"];
 }
 
-export function mergeAtlas(core: AtlasCore, bundle: PaperBundle): Atlas {
+export function mergeAtlas(core: AtlasCore, bundle: AcceptedPaperBundle): Atlas {
   const staged = stageAtlas(core);
   const { complete: _complete, ...atlasCore } = staged;
   const atlas = {
     ...atlasCore,
     papers: bundle.papers,
+    ideas: [...atlasCore.ideas, ...(bundle.schema_version === 2 ? bundle.ideas : [])],
+    ...(bundle.schema_version === 2 && bundle.idea_layout
+      ? { idea_layout: bundle.idea_layout }
+      : {}),
     layout: mergeLayout(
       staged.layout,
       bundle.layout,

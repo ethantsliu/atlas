@@ -71,19 +71,25 @@ function watchRoot(root: HTMLElement, handlers: ContextHandlers): () => void {
   };
 }
 
-export function useWebgl(root: RefObject<HTMLElement>): WebglState {
-  const [supported] = useState(probeWebgl);
-  const [mode, setMode] = useState<RenderMode>(supported ? "3d" : "2d");
-  const [status, setStatus] = useState<WebglStatus>(
-    supported ? "ready" : "unsupported",
+export function useWebgl(
+  root: RefObject<HTMLElement>,
+  requested: RenderMode,
+): WebglState {
+  const [supported, setSupported] = useState<boolean | null>(() =>
+    requested === "3d" ? probeWebgl() : null,
   );
+  const [status, setStatus] = useState<WebglStatus>(
+    supported === false ? "unsupported" : "ready",
+  );
+  const mode =
+    requested === "3d" && supported === true && status === "ready" ? "3d" : "2d";
   const timerRef = useRef<number>();
   const lost = useCallback(() => {
-    setMode("2d");
+    setSupported(false);
     setStatus("lost");
   }, []);
   const restored = useCallback(() => {
-    setMode("2d");
+    setSupported(false);
     setStatus("lost");
   }, []);
 
@@ -91,6 +97,13 @@ export function useWebgl(root: RefObject<HTMLElement>): WebglState {
     if (mode !== "3d" || !root.current) return;
     return watchRoot(root.current, { lost, restored });
   }, [lost, mode, restored, root]);
+
+  useEffect(() => {
+    if (requested !== "3d" || supported !== null) return;
+    const ready = probeWebgl();
+    setSupported(ready);
+    setStatus(ready ? "ready" : "unsupported");
+  }, [requested, supported]);
 
   useEffect(
     () => () => {
@@ -104,7 +117,7 @@ export function useWebgl(root: RefObject<HTMLElement>): WebglState {
     setStatus("retrying");
     timerRef.current = window.setTimeout(() => {
       const ready = probeWebgl();
-      setMode(ready ? "3d" : "2d");
+      setSupported(ready);
       setStatus(ready ? "ready" : "unsupported");
     });
   }, []);

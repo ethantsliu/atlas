@@ -11,6 +11,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
 
 from ideas import score_feasibility  # noqa: E402
+from ontology import TOPICS, TRICKS  # noqa: E402
 from assign import build_reading_queue  # noqa: E402
 from verify import build_verification_queue  # noqa: E402
 from assets import reading_public_path  # noqa: E402
@@ -25,6 +26,7 @@ from validate import (  # noqa: E402
     validate_idea_shape,
     validate_progress,
     validate_paper_routes,
+    validate_taxonomy_counts,
     validate_brief_protocols,
     validate_portfolio_hierarchy,
     validate_reading,
@@ -203,6 +205,22 @@ class PrivacyTests(unittest.TestCase):
         self.assertTrue(unsafe_public("Mail owner@localhost."))
         self.assertFalse(unsafe_public("Metric ada@example.edu.123 remains"))
         self.assertTrue(unsafe_public("Contact ada@example. EDU"))
+
+    def test_taxonomy_text(self) -> None:
+        for kind in ("topics", "tricks"):
+            with self.subTest(kind=kind):
+                atlas = {
+                    "topics": [
+                        {"id": key, "label": key, "paper_count": 0} for key in TOPICS
+                    ],
+                    "tricks": [
+                        {"id": key, "label": key, "paper_count": 0} for key in TRICKS
+                    ],
+                }
+                atlas[kind][0]["label"] = "Contact author@example.org"
+
+                with self.assertRaisesRegex(RuntimeError, f"Public {kind}.*unsafe"):
+                    validate_taxonomy_counts(atlas, [])
 
 
 class ValidationTests(unittest.TestCase):

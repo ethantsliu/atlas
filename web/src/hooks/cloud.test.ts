@@ -23,6 +23,10 @@ vi.mock("react", () => ({
     if (!activeHarness) throw new Error("Hook effect rendered outside its harness");
     activeHarness.useEffect(setup, deps);
   },
+  useRef: <Value>(initial: Value) => {
+    if (!activeHarness) throw new Error("Hook ref rendered outside its harness");
+    return activeHarness.useRef(initial);
+  },
   useState: <Value>(initial: Value | (() => Value)) => {
     if (!activeHarness) throw new Error("Hook state rendered outside its harness");
     return activeHarness.useState(initial);
@@ -38,9 +42,11 @@ import { useCloud } from "./cloud";
 
 class HookHarness {
   private states: unknown[] = [];
+  private refs: { current: unknown }[] = [];
   private effects: EffectSlot[] = [];
   private pending: PendingEffect[] = [];
   private stateIndex = 0;
+  private refIndex = 0;
   private effectIndex = 0;
   private dirty = false;
 
@@ -63,6 +69,12 @@ class HookHarness {
     return [this.states[index] as Value, update];
   }
 
+  useRef<Value>(initial: Value): { current: Value } {
+    const index = this.refIndex++;
+    if (!(index in this.refs)) this.refs[index] = { current: initial };
+    return this.refs[index] as { current: Value };
+  }
+
   useEffect(setup: () => Cleanup, deps: readonly unknown[]): void {
     const index = this.effectIndex++;
     const prior = this.effects[index];
@@ -81,6 +93,7 @@ class HookHarness {
     do {
       this.dirty = false;
       this.stateIndex = 0;
+      this.refIndex = 0;
       this.effectIndex = 0;
       this.pending = [];
       activeHarness = this;
@@ -97,6 +110,7 @@ class HookHarness {
   unmount(): void {
     this.effects.forEach((effect) => effect.cleanup?.());
     this.effects = [];
+    this.refs = [];
   }
 
   private flushEffects(): void {
@@ -134,6 +148,13 @@ function cloudData(total = 4): CloudData {
   };
 }
 
+const EMPTY_STATE = {
+  manifest: null,
+  data: null,
+  loading: false,
+  error: null,
+};
+
 async function flushPromises(): Promise<void> {
   for (let index = 0; index < 8; index += 1) await Promise.resolve();
 }
@@ -144,6 +165,122 @@ beforeEach(() => {
 });
 
 describe("progressive paper cloud state", () => {
+  it("does no cloud work while disabled", async () => {
+    const harness = new HookHarness();
+
+    expect(harness.render(false)).toMatchObject(EMPTY_STATE);
+    await flushPromises();
+    expect(harness.render(false)).toMatchObject(EMPTY_STATE);
+    expect(cloudMocks.fetchCloud).not.toHaveBeenCalled();
+    expect(cloudMocks.createCloud).not.toHaveBeenCalled();
+    expect(cloudMocks.streamCloud).not.toHaveBeenCalled();
+    harness.unmount();
+  });
+
+  it("reuses one completed cloud across repeated re-entry", async () => {
+    const manifest = { count: 4 } as CloudManifest;
+    const data = cloudData();
+    data.loaded = manifest.count;
+    cloudMocks.fetchCloud.mockResolvedValue(manifest);
+    cloudMocks.createCloud.mockReturnValue(data);
+    cloudMocks.streamCloud.mockResolvedValue(data);
+    const harness = new HookHarness();
+
+    harness.render(true);
+    await flushPromises();
+    const complete = harness.render(true);
+    expect(complete).toMatchObject({ manifest, data, loading: false, error: null });
+    const positions = data.positions.buffer;
+    const scopes = data.scopes.buffer;
+
+    for (let entry = 0; entry < 3; entry += 1) {
+      expect(harness.render(false)).toMatchObject(EMPTY_STATE);
+      const restored = harness.render(true);
+      expect(restored).toMatchObject({ manifest, data, loading: false, error: null });
+      expect(restored.data?.positions.buffer).toBe(positions);
+      expect(restored.data?.scopes.buffer).toBe(scopes);
+    }
+    expect(cloudMocks.fetchCloud).toHaveBeenCalledTimes(1);
+    expect(cloudMocks.createCloud).toHaveBeenCalledTimes(1);
+    expect(cloudMocks.streamCloud).toHaveBeenCalledTimes(1);
+    harness.unmount();
+  });
+
+  it("discards an aborted partial load and ignores its late completion", async () => {
+    const manifest = { count: 4 } as CloudManifest;
+    const firstData = cloudData();
+    const secondData = cloudData();
+    const first = deferred<CloudData>();
+    const second = deferred<CloudData>();
+    let firstSignal: AbortSignal | undefined;
+    let firstProgress: ((step: CloudStep) => void) | undefined;
+    let secondProgress: ((step: CloudStep) => void) | undefined;
+    cloudMocks.fetchCloud.mockResolvedValue(manifest);
+    cloudMocks.createCloud
+      .mockReturnValueOnce(firstData)
+      .mockReturnValueOnce(secondData);
+    cloudMocks.streamCloud
+      .mockImplementationOnce(
+        async (
+          _manifest: CloudManifest,
+          _data: CloudData,
+          signal: AbortSignal,
+          onStep?: (step: CloudStep) => void,
+        ) => {
+          firstSignal = signal;
+          firstProgress = onStep;
+          return first.promise;
+        },
+      )
+      .mockImplementationOnce(
+        async (
+          _manifest: CloudManifest,
+          _data: CloudData,
+          _signal: AbortSignal,
+          onStep?: (step: CloudStep) => void,
+        ) => {
+          secondProgress = onStep;
+          return second.promise;
+        },
+      );
+    const harness = new HookHarness();
+
+    harness.render(true);
+    await flushPromises();
+    firstData.loaded = 2;
+    firstProgress?.({ start: 0, count: 2, loaded: 2, total: 4 });
+    expect(harness.render(true).data).toBe(firstData);
+
+    expect(harness.render(false)).toMatchObject(EMPTY_STATE);
+    expect(firstSignal?.aborted).toBe(true);
+    harness.render(true);
+    await flushPromises();
+    expect(harness.render(true).data).toBe(secondData);
+
+    firstData.loaded = 4;
+    firstProgress?.({ start: 2, count: 2, loaded: 4, total: 4 });
+    first.resolve(firstData);
+    await flushPromises();
+    expect(harness.render(true).data).toBe(secondData);
+
+    secondData.loaded = 4;
+    secondProgress?.({ start: 0, count: 4, loaded: 4, total: 4 });
+    second.resolve(secondData);
+    await flushPromises();
+    expect(harness.render(true)).toMatchObject({
+      manifest,
+      data: secondData,
+      loading: false,
+      error: null,
+    });
+    harness.render(false);
+    expect(harness.render(true).data).toBe(secondData);
+    expect(cloudMocks.fetchCloud).toHaveBeenCalledTimes(2);
+    expect(cloudMocks.createCloud).toHaveBeenCalledTimes(2);
+    expect(cloudMocks.streamCloud).toHaveBeenCalledTimes(2);
+    harness.unmount();
+  });
+
   it("finishes an empty but valid cloud without waiting for a progress step", async () => {
     const manifest = { count: 0 } as CloudManifest;
     const data = cloudData(0);

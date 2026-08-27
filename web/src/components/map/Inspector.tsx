@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { ChevronRight, CircleDot, Sparkles, X } from "lucide-react";
+import { ChevronRight, CircleDot, Sparkles } from "lucide-react";
 import { findNodePapers } from "../../lib/filters";
 import { createGraphNodes } from "../../lib/graph";
 import { ideaStage } from "../../lib/portfolio";
@@ -9,6 +9,7 @@ import type { AtlasRead } from "../../lib/payload";
 import type { CloudPaper } from "../../lib/cloud";
 import { IdeaDetails } from "./Idea";
 import { CloudDetail } from "./Cloud";
+import { CloseButton } from "./Close";
 
 type InspectorProps = {
   node: GraphNode | null;
@@ -99,9 +100,7 @@ export function Inspector({
       aria-labelledby="map-inspector-title"
       tabIndex={-1}
     >
-      <button className="icon-close" onClick={onClose} aria-label="Close inspector">
-        <X size={16} />
-      </button>
+      <CloseButton onClose={onClose} />
       <span className={`type-pill ${node.kind}`}>{labelOf(node.kind)}</span>
       {idea && <span className="type-pill brief-status">{ideaStage(idea)}</span>}
       <h2 id="map-inspector-title">{node.label}</h2>

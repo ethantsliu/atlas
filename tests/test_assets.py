@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 import sys
 import tempfile
@@ -37,6 +38,23 @@ class PaperAssetTests(unittest.TestCase):
         self.assertEqual(metadata["path"], f"/data/papers/{metadata['sha256']}.json")
         self.assertEqual(metadata["paper_count"], 1)
         self.assertEqual(paper_asset(dict(bundle))[0], metadata)
+
+    def test_bundle_privacy(self) -> None:
+        bundle = {
+            "schema_version": 2,
+            "papers": [],
+            "ideas": [
+                {
+                    "id": "unsafe",
+                    "brief": {"title": "Contact author@example.org"},
+                }
+            ],
+            "idea_layout": None,
+            "layout": {},
+        }
+
+        with self.assertRaisesRegex(RuntimeError, "Paper bundle ideas.*unsafe text"):
+            paper_asset(bundle)
 
     def test_paper_retention(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -84,10 +102,16 @@ class PaperAssetTests(unittest.TestCase):
                 "schema_version": 1,
                 "papers": [{"url": "https://example.test", "title": "Paper Two"}],
             }
-            first_meta = stage_papers(output, first, public)
+            output.mkdir(parents=True)
+            content = (
+                json.dumps(first, ensure_ascii=False, separators=(",", ":")) + "\n"
+            ).encode()
+            digest = hashlib.sha256(content).hexdigest()
+            prior_path = f"/data/papers/{digest}.json"
+            (output / f"{digest}.json").write_bytes(content)
             second_meta = stage_papers(output, second, public)
 
-            prune_papers(output, second_meta, first_meta["path"], public)
+            prune_papers(output, second_meta, prior_path, public)
 
             self.assertEqual(
                 {path.name for path in output.iterdir()},

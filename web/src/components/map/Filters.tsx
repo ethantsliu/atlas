@@ -31,7 +31,7 @@ function countForKind(
     case "paper":
       return atlas.meta.paper_count + (archiveCount ?? 0);
     case "idea":
-      return atlas.ideas.length;
+      return atlas.meta.idea_count;
   }
 }
 
@@ -72,8 +72,8 @@ export function MapFilters({
       >
         <p className="aside-copy">
           {archiveCount
-            ? `The paper lens batches ${archiveCount.toLocaleString()} historical arXiv records into one semantic swarm. Click or tap a dot to inspect it; reviewed collection papers remain interactive foreground nodes.`
-            : `Mix research areas with reusable techniques, paper-grounded ideas, and the ${atlas.meta.paper_count.toLocaleString()}-entry reviewed collection.`}
+            ? `${archiveCount.toLocaleString()} historical arXiv papers form the 3D swarm; foreground papers remain inspectable nodes.`
+            : `${atlas.meta.paper_count.toLocaleString()} foreground papers join research areas, techniques, and ideas.`}
         </p>
 
         {ALL_NODE_KINDS.map((kind) => (

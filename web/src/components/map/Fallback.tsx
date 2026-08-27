@@ -6,8 +6,8 @@ import { useQuality } from "../../hooks/quality";
 import { graphEndpointId, graphKey } from "../../lib/graph";
 import { showLink } from "../../lib/quality";
 import { formatCamera, show2d, type CameraView } from "../../lib/camera";
-import { labelOf } from "../../lib/text";
 import type { GraphData, GraphLink, GraphNode } from "../../types";
+import { nodeTip } from "./Tip";
 
 export type FallbackRef = MutableRefObject<
   ForceGraphMethods<GraphNode, GraphLink> | undefined
@@ -104,7 +104,7 @@ export function FallbackGraph({
       linkWidth={layout === "connections" ? 0.8 : 1}
       cooldownTicks={layoutTicks(quality.cooldownTicks, simple)}
       d3VelocityDecay={0.28}
-      nodeLabel={(node) => `${labelOf(node.kind)} · ${node.label}`}
+      nodeLabel={nodeTip}
       nodeCanvasObject={(node, context, scale) => {
         const size = nodeSize(node);
         drawNode(node, context, size);

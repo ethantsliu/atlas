@@ -10,7 +10,7 @@ from typing import Any
 
 import numpy as np
 
-from cache import valid_hashes, valid_ids
+from cache import valid_hashes
 from cluster import build_clusters
 from embed import (
     CACHE_PATH,
@@ -23,6 +23,7 @@ from embed import (
     vector_sha,
 )
 from mix import mix_report
+from place import base_atlas
 from rules import check
 from semantic import NEIGHBOR_COUNT, quality_report, semantic_neighbors
 
@@ -83,7 +84,6 @@ def audit_vectors(
     embedding = layout.get("embedding", {})
     expected_input = vector_hash(records)
     checks = (
-        (metadata["digest"] == expected_input, "Vector cache input is stale"),
         (
             embedding.get("input_sha256") == expected_input,
             "Layout vector input is stale",
@@ -102,25 +102,43 @@ def audit_vectors(
         check(condition, message)
     expected_ids = np.asarray([node_id for node_id, _ in records])
     expected_hashes = np.asarray([row_hash(record) for record in records])
-    check(valid_ids(ids, expected_ids), "Vector cache row IDs are stale")
     check(
-        valid_hashes(row_hashes, expected_hashes),
-        "Vector cache row hashes are stale",
+        ids.ndim == 1
+        and row_hashes.ndim == 1
+        and len(ids) == len(row_hashes) == len(vectors)
+        and len({str(node_id) for node_id in ids}) == len(ids),
+        "Vector cache row IDs are stale",
     )
     check(
         vectors.dtype == np.float32
-        and vectors.shape == (len(records), embedding.get("dimensions"))
+        and vectors.shape == (len(ids), embedding.get("dimensions"))
         and np.isfinite(vectors).all()
         and np.all(np.linalg.norm(vectors, axis=1) > 0),
         "Vector cache matrix is invalid",
     )
     actual_sha = vector_sha(vectors)
     check(metadata["vector_sha256"] == actual_sha, "Vector cache SHA is invalid")
+    indexes = {str(node_id): index for index, node_id in enumerate(ids)}
     check(
-        embedding.get("vector_sha256") == actual_sha,
+        all(str(node_id) in indexes for node_id in expected_ids),
+        "Vector cache is missing fitted rows",
+    )
+    selected = np.asarray([indexes[str(node_id)] for node_id in expected_ids])
+    check(
+        valid_hashes(row_hashes[selected], expected_hashes),
+        "Vector cache fitted row hashes are stale",
+    )
+    fitted = np.ascontiguousarray(vectors[selected], dtype=np.float32)
+    check(
+        embedding.get("vector_sha256") == vector_sha(fitted),
         "Layout vector SHA disagrees with the cache",
     )
-    return vectors
+    if len(ids) == len(expected_ids):
+        check(
+            metadata["digest"] == expected_input,
+            "Vector cache input is stale",
+        )
+    return fitted
 
 
 def neighbors_match(published: object, expected: dict[str, list[dict]]) -> bool:
@@ -157,7 +175,8 @@ def audit_layout(
     """Recompute every vector-derived public field and require exact output."""
     published = atlas.get("layout") if layout is None else layout
     check(isinstance(published, dict), "Scientific layout is missing")
-    records = node_records(atlas, details)
+    fitted = base_atlas(atlas)
+    records = node_records(fitted, details)
     vectors = audit_vectors(records, published, cache_path)
     positions = published.get("positions", {})
     node_ids = [node_id for node_id, _ in records]
@@ -170,7 +189,7 @@ def audit_layout(
         points.shape == (len(records), 3) and np.isfinite(points).all(),
         "Layout positions are invalid",
     )
-    exclusions = alias_exclusions(atlas, records)
+    exclusions = alias_exclusions(fitted, records)
     expected_neighbors = semantic_neighbors(
         records,
         vectors,
@@ -186,14 +205,14 @@ def audit_layout(
         records,
         vectors,
         points,
-        cohort_ids(atlas, records),
+        cohort_ids(fitted, records),
         exclusions=exclusions,
     )
     check(
         published.get("quality") == expected_quality,
         "Layout quality or cohort metrics disagree with cached vectors",
     )
-    expected_mix = mix_report(atlas, expected_neighbors, positions)
+    expected_mix = mix_report(fitted, expected_neighbors, positions)
     check(
         published.get("mix_quality") == expected_mix,
         "Layout mixing metrics disagree with cached vectors",

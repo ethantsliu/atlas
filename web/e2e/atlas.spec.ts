@@ -9,6 +9,7 @@ const viewports = [
 ];
 
 const corePath = "/#?k=tri";
+const cloudPath = "/#?d=3";
 
 async function scan(page: Page) {
   const results = await new AxeBuilder({ page })
@@ -86,6 +87,12 @@ test("map and semantic fallbacks pass an automated accessibility scan", async ({
 });
 
 test("map remains usable without WebGL2", async ({ page }) => {
+  let cloudRequests = 0;
+  page.on("request", (request) => {
+    if (/\/data\/cloud\/index\.json(?:\?.*)?$/.test(request.url())) {
+      cloudRequests += 1;
+    }
+  });
   await page.addInitScript(() => {
     const original = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = function (
@@ -99,8 +106,9 @@ test("map remains usable without WebGL2", async ({ page }) => {
   await page.goto("/");
 
   const graph = page.getByLabel("Interactive research graph");
-  await expect(graph).toContainText("2D compatibility · semantic");
-  await fullNodes(page);
+  await expect(graph).toContainText("2D overview · semantic");
+  await expect(mapStatus(page)).toHaveText("3,999 visible graph nodes available.");
+  expect(cloudRequests).toBe(0);
   await expect(graph.locator("canvas")).toBeVisible();
   await graph.focus();
   await page.keyboard.press("ArrowRight");
@@ -112,6 +120,7 @@ test("historical paper loading can recover without resetting the map", async ({
 }) => {
   test.setTimeout(90_000);
   let attempts = 0;
+  let rejectCloud = true;
   let resumePapers = () => {};
   const paperGate = new Promise<void>((resolve) => {
     resumePapers = resolve;
@@ -122,14 +131,14 @@ test("historical paper loading can recover without resetting the map", async ({
   });
   await page.route(/\/data\/cloud\/index\.json(?:\?.*)?$/, async (route) => {
     attempts += 1;
-    if (attempts === 1) {
+    if (rejectCloud) {
       await route.fulfill({ status: 503, body: "Unavailable" });
       return;
     }
     await route.continue();
   });
 
-  await page.goto("/");
+  await page.goto(cloudPath);
   const alert = page.getByRole("alert").filter({
     hasText: "Historical papers unavailable: Paper cloud request failed (503)",
   });
@@ -148,14 +157,15 @@ test("historical paper loading can recover without resetting the map", async ({
 
   const graph = page.getByLabel(/Interactive (3D )?research graph/);
   const retry = page.getByRole("button", { name: "Retry historical papers" });
+  rejectCloud = false;
   await retry.focus();
   await page.keyboard.press("Enter");
   await expect(graph).toBeFocused();
   await expect(alert).toHaveCount(0);
-  await expect(page.locator(".filters")).toContainText("historical arXiv records", {
+  await expect(page.locator(".filters")).toContainText("historical arXiv papers", {
     timeout: 30_000,
   });
-  expect(attempts).toBe(2);
+  expect(attempts).toBeGreaterThan(1);
   await expect(graph).toBeFocused();
   await expect(inspector.getByRole("heading", { name: "pretraining" })).toBeVisible();
 });
@@ -185,7 +195,7 @@ test("dark mode follows the system and remembers a choice", async ({ page }) => 
 
 test("connection isolation toggles back to the full map", async ({ page }) => {
   test.setTimeout(90_000);
-  await page.goto("/");
+  await page.goto(cloudPath);
   const status = mapStatus(page);
   const fullState = await fullNodes(page);
   const fullCount = Number(fullState.match(/[\d,]+/)?.[0].replaceAll(",", ""));
@@ -229,7 +239,7 @@ test("connection isolation toggles back to the full map", async ({ page }) => {
 });
 
 test("search excludes the unfiltered historical cloud", async ({ page }) => {
-  await page.goto("/");
+  await page.goto(cloudPath);
   const fullState = await fullNodes(page);
   const fullCount = Number(fullState.match(/[\d,]+/)?.[0].replaceAll(",", ""));
 
@@ -508,9 +518,9 @@ test("insight visualizations provide inspectable data tables", async ({ page }) 
   ).toBeVisible();
 
   const tableToggles = page.getByText("View data table");
-  await expect(tableToggles).toHaveCount(10);
+  await expect(tableToggles).toHaveCount(11);
   for (const toggle of await tableToggles.all()) await toggle.click();
-  await expect(page.getByRole("table")).toHaveCount(10);
+  await expect(page.getByRole("table")).toHaveCount(11);
   await scan(page);
 });
 

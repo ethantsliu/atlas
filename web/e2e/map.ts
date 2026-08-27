@@ -10,8 +10,11 @@ export async function fullNodes(page: Page): Promise<string> {
   const filters = page.locator(".filters");
   const paperLens = filters.locator(".kind-toggle").nth(2);
   const paperOn = (await paperLens.getAttribute("aria-pressed")) === "true";
-  if (paperOn) {
-    await expect(filters).toContainText("historical arXiv records", {
+  const is3d =
+    (await page.getByLabel("Interactive 3D research graph", { exact: true }).count()) >
+    0;
+  if (paperOn && is3d) {
+    await expect(filters).toContainText("historical arXiv papers", {
       timeout: 20_000,
     });
   }
@@ -25,19 +28,7 @@ export async function fullNodes(page: Page): Promise<string> {
       return Number((text?.match(/[\d,]+$/)?.[0] ?? "0").replaceAll(",", ""));
     }),
   );
-  let total = counts.reduce((sum, count) => sum + count, 0);
-
-  const is3d =
-    (await page.getByLabel("Interactive 3D research graph", { exact: true }).count()) >
-    0;
-  if (paperOn && !is3d) {
-    const copy = await filters.locator(".aside-copy").textContent();
-    const archive = Number(
-      (copy?.match(/batches ([\d,]+) historical/)?.[1] ?? "0").replaceAll(",", ""),
-    );
-    if (!archive) throw new Error("Historical paper count is unavailable");
-    total -= archive;
-  }
+  const total = counts.reduce((sum, count) => sum + count, 0);
 
   const expected = `${total.toLocaleString()} visible graph nodes available.`;
   await expect(mapStatus(page)).toHaveText(expected, { timeout: 20_000 });

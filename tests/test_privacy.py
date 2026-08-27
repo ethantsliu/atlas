@@ -64,11 +64,13 @@ class IdeaBoundaryTests(unittest.TestCase):
                     validate_idea_boundary(idea)
 
     def test_reviewed_text(self) -> None:
-        idea = deepcopy(candidate())
-        idea["origin"] = "cross-paper-reviewed"
-        idea["brief"]["title"] = "Archived reviewer note: author@example.org"
-
-        validate_idea_boundary(idea)
+        for origin in ("cross-paper-reviewed", "user-specified"):
+            with self.subTest(origin=origin):
+                idea = deepcopy(candidate())
+                idea["origin"] = origin
+                idea["brief"]["title"] = "Archived reviewer note: author@example.org"
+                with self.assertRaisesRegex(RuntimeError, "unsafe text"):
+                    validate_idea_boundary(idea)
 
     def test_synthesis_lifecycle(self) -> None:
         changes = (

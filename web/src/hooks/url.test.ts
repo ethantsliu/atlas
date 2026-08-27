@@ -34,6 +34,7 @@ function fullState(): AtlasUrlState {
     minFeasibility: 6.5,
     focus: "topic:world-models",
     layout: "connections",
+    render: "3d",
     camera: null,
   };
 }
@@ -51,11 +52,19 @@ describe("atlas URLs", () => {
     ]);
   });
 
+  it("defaults fresh URLs to 2D while preserving legacy Atlas links as 3D", () => {
+    expect(decodeUrl("https://example.com/atlas/").render).toBe("2d");
+    expect(decodeUrl("https://example.com/atlas/#about").render).toBe("2d");
+    expect(decodeUrl("https://example.com/atlas/#?k=tri").render).toBe("3d");
+    expect(decodeUrl("https://example.com/atlas/#?d=2&k=tri").render).toBe("2d");
+    expect(decodeUrl("https://example.com/atlas/#?d=3&k=tri").render).toBe("3d");
+  });
+
   it("round trips every shareable state field with compact parameters", () => {
     const url = encodeUrl(fullState(), "https://example.com/atlas/?old=value#map");
     expect(url.search).toBe("");
     expect(url.hash).toBe(
-      "#?v=l&q=world+models&s=paper%3A2401.01234&k=tpi&f=6.5&x=topic%3Aworld-models&l=c",
+      "#?v=l&q=world+models&s=paper%3A2401.01234&k=tpi&f=6.5&x=topic%3Aworld-models&l=c&d=3",
     );
     expect(decodeUrl(url)).toEqual(fullState());
   });
@@ -65,8 +74,9 @@ describe("atlas URLs", () => {
       encodeUrl(DEFAULT_URL_STATE, "https://example.com/atlas/?q=private#section").href,
     ).toBe("https://example.com/atlas/#section");
     const url = encodeUrl({ ...DEFAULT_URL_STATE, kinds: [] }, "https://example.com/");
-    expect(url.hash).toBe("#?k=-");
+    expect(url.hash).toBe("#?k=-&d=2");
     expect(decodeUrl(url).kinds).toEqual([]);
+    expect(decodeUrl(url).render).toBe("2d");
   });
 
   it("round trips a bounded camera snapshot in the fragment", () => {
@@ -80,7 +90,7 @@ describe("atlas URLs", () => {
       { ...DEFAULT_URL_STATE, camera },
       "https://example.com/atlas/",
     );
-    expect(url.hash).toBe("#?c=1_12.3_-45.6_0_90_35_-20");
+    expect(url.hash).toBe("#?c=1_12.3_-45.6_0_90_35_-20&d=2");
     expect(decodeUrl(url).camera).toEqual(camera);
   });
 
@@ -94,7 +104,8 @@ describe("atlas URLs", () => {
     const state = decodeUrl(
       "https://example.com/atlas/#?v=nope&q=%00bad&s=%3Cscript%3E&k=ttz&f=10.5&x=%2Fbad&l=x",
     );
-    expect(state).toEqual(DEFAULT_URL_STATE);
+    expect(state).toEqual({ ...DEFAULT_URL_STATE, render: "3d" });
+    expect(decodeUrl("https://example.com/atlas/#?d=x")).toEqual(DEFAULT_URL_STATE);
     expect(decodeUrl("http://[")).toEqual(DEFAULT_URL_STATE);
   });
 
@@ -124,18 +135,22 @@ describe("atlas URLs", () => {
     const restore = vi.fn();
     const stop = watchUrl(restore, host);
 
-    host.location.href = "https://example.com/atlas/#?q=back&f=4.5";
+    host.location.href = "https://example.com/atlas/#?q=back&f=4.5&d=2";
     host.dispatchEvent(new Event("popstate"));
-    host.location.href = "https://example.com/atlas/#?q=forward&l=c";
+    host.location.href = "https://example.com/atlas/#?q=forward&l=c&d=3";
     host.dispatchEvent(new Event("popstate"));
 
     expect(restore).toHaveBeenNthCalledWith(
       1,
-      expect.objectContaining({ query: "back", minFeasibility: 4.5 }),
+      expect.objectContaining({ query: "back", minFeasibility: 4.5, render: "2d" }),
     );
     expect(restore).toHaveBeenNthCalledWith(
       2,
-      expect.objectContaining({ query: "forward", layout: "connections" }),
+      expect.objectContaining({
+        query: "forward",
+        layout: "connections",
+        render: "3d",
+      }),
     );
 
     stop();

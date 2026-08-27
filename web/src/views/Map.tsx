@@ -14,12 +14,13 @@ import type { CameraView } from "../lib/camera";
 import { resolvePaper } from "../lib/filters";
 import { useCloud, type CloudLoad } from "../hooks/cloud";
 import { useFocus } from "../hooks/focus";
+import type { RenderMode } from "../hooks/webgl";
 
 type MapViewProps = {
   atlas: AtlasRead;
   theme: Theme;
   url: AtlasUrlState;
-  shareUrl: (camera?: CameraView | null) => string;
+  shareUrl: (camera?: CameraView | null, render?: RenderMode) => string;
   papersReady: boolean;
   papersLoading: boolean;
   papersError: string | null;
@@ -54,7 +55,7 @@ function showInspector(): void {
 
 function mapReady(
   hasPapers: boolean,
-  semantic: boolean,
+  cloudEnabled: boolean,
   papersReady: boolean,
   papersError: string | null,
   history: CloudLoad,
@@ -62,59 +63,25 @@ function mapReady(
   const papersDone = !hasPapers || papersReady || Boolean(papersError);
   const cloudDone =
     !hasPapers ||
-    !semantic ||
+    !cloudEnabled ||
     (!history.loading && Boolean(history.data || history.error));
   return {
     camera:
       papersDone &&
-      (!hasPapers || !semantic || Boolean(history.data?.loaded || history.error)),
+      (!hasPapers || !cloudEnabled || Boolean(history.data?.loaded || history.error)),
     view: papersDone && cloudDone,
   };
 }
 
-export function MapView({
-  atlas,
-  theme,
-  url,
-  shareUrl,
-  papersReady,
-  papersLoading,
-  papersError,
-  onNeedPapers,
-  onRetryPapers,
-  onReplace,
-  onPush,
-}: MapViewProps) {
-  const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
-  const kinds = useMemo(() => new Set(url.kinds), [url.kinds]);
-  const history = useCloud(kinds.has("paper") && url.layout === "semantic");
-  const ready = mapReady(
-    kinds.has("paper"),
-    url.layout === "semantic",
-    papersReady,
-    papersError,
-    history,
-  );
-  const cloud = useFocus(atlas, history, Boolean(url.focus || url.query.trim()));
-  const nextGraph = useMemo(
-    () =>
-      buildGraph(atlas, {
-        kinds,
-        focus: url.focus,
-        selected: url.selected,
-        query: url.query,
-        minFeasibility: url.minFeasibility,
-      }),
-    [atlas, kinds, url.focus, url.minFeasibility, url.query, url.selected],
-  );
-  const graph = useGraph(nextGraph);
-  const allNodes = useMemo(() => createGraphNodes(atlas, 1), [atlas]);
+function useSelection(
+  atlas: AtlasRead,
+  graph: ReturnType<typeof useGraph>,
+  papersReady: boolean,
+  url: AtlasUrlState,
+  onReplace: (patch: Partial<AtlasUrlState>) => void,
+) {
   const selected =
     graph.nodes.find((candidate) => candidate.id === url.selected) ?? null;
-
-  useEffect(() => {
-    if (cloud.pick || selected) showInspector();
-  }, [cloud.pick, selected]);
 
   useEffect(() => {
     if (!papersReady || !url.selected || selected) return;
@@ -139,6 +106,55 @@ export function MapView({
       onReplace({ focus: null });
     }
   }, [atlas.papers, graph.nodes, onReplace, papersReady, url.focus, url.selected]);
+
+  return selected;
+}
+
+export function MapView({
+  atlas,
+  theme,
+  url,
+  shareUrl,
+  papersReady,
+  papersLoading,
+  papersError,
+  onNeedPapers,
+  onRetryPapers,
+  onReplace,
+  onPush,
+}: MapViewProps) {
+  const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
+  const [activeMode, setActiveMode] = useState<RenderMode>("2d");
+  const kinds = useMemo(() => new Set(url.kinds), [url.kinds]);
+  const cloudEnabled =
+    activeMode === "3d" && kinds.has("paper") && url.layout === "semantic";
+  const history = useCloud(cloudEnabled);
+  const ready = mapReady(
+    kinds.has("paper"),
+    cloudEnabled,
+    papersReady,
+    papersError,
+    history,
+  );
+  const cloud = useFocus(atlas, history, Boolean(url.focus || url.query.trim()));
+  const nextGraph = useMemo(
+    () =>
+      buildGraph(atlas, {
+        kinds,
+        focus: url.focus,
+        selected: url.selected,
+        query: url.query,
+        minFeasibility: url.minFeasibility,
+      }),
+    [atlas, kinds, url.focus, url.minFeasibility, url.query, url.selected],
+  );
+  const graph = useGraph(nextGraph);
+  const allNodes = useMemo(() => createGraphNodes(atlas, 1), [atlas]);
+  const selected = useSelection(atlas, graph, papersReady, url, onReplace);
+
+  useEffect(() => {
+    if (cloud.pick || selected) showInspector();
+  }, [cloud.pick, selected]);
 
   function toggleKind(kind: GraphNodeKind) {
     const next = new Set(kinds);
@@ -189,7 +205,7 @@ export function MapView({
       />
       <MapFilters
         atlas={atlas}
-        archiveCount={history.manifest?.count}
+        archiveCount={activeMode === "3d" ? history.manifest?.count : undefined}
         kinds={kinds}
         focus={url.focus}
         minFeasibility={url.minFeasibility}
@@ -219,11 +235,14 @@ export function MapView({
         query={url.query}
         theme={theme}
         layout={url.layout}
+        render={url.render}
         camera={url.camera}
         cameraReady={ready.camera}
         viewReady={ready.view}
         shareUrl={shareUrl}
         onLayout={(layout) => onReplace({ layout })}
+        onRender={(render) => onPush({ render })}
+        onMode={setActiveMode}
       />
       <PanelResize />
       <Inspector

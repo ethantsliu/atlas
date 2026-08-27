@@ -25,6 +25,7 @@ export default function App() {
     PAPER_VIEWS.has(state.view) ||
     (state.view === "map" &&
       (state.kinds.includes("paper") ||
+        state.kinds.includes("idea") ||
         Boolean(state.selected) ||
         state.query.trim().length > 0 ||
         state.focus?.startsWith("paper-")));

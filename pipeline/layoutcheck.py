@@ -25,6 +25,7 @@ from layout import (
     REDUCER,
 )
 from mix import ensure_mix, mix_report
+from place import base_atlas, validate_places
 from rules import check
 from semantic import (
     COHORT_GATES,
@@ -318,6 +319,7 @@ def validate_clusters(layout: dict, graph_ids: set[str], fit_count: int) -> None
 
 def validate_layout(atlas: dict, details: dict[str, dict]) -> None:
     """Require measured semantic data for every public graph node."""
+    fitted = base_atlas(atlas)
     layout = atlas.get("layout", {})
     embedding = layout.get("embedding", {})
     positions = layout.get("positions", {})
@@ -325,7 +327,7 @@ def validate_layout(atlas: dict, details: dict[str, dict]) -> None:
         *(f"topic:{item['id']}" for item in atlas["topics"]),
         *(f"trick:{item['id']}" for item in atlas["tricks"]),
         *(item["id"] for item in atlas["papers"]),
-        *(item["id"] for item in atlas["ideas"]),
+        *(item["id"] for item in fitted["ideas"]),
     }
     check(layout.get("schema_version") == 3, "Unknown layout schema version")
     check(layout.get("method") == LAYOUT_METHOD, "Unknown layout method")
@@ -357,7 +359,7 @@ def validate_layout(atlas: dict, details: dict[str, dict]) -> None:
         "Semantic embedding hashes are invalid",
     )
     check(layout.get("reducer") == REDUCER, "Semantic reducer configuration is stale")
-    records = node_records(atlas, details)
+    records = node_records(fitted, details)
     check(
         embedding["input_sha256"] == vector_hash(records),
         "Semantic embedding input is stale",
@@ -387,21 +389,22 @@ def validate_layout(atlas: dict, details: dict[str, dict]) -> None:
         "Semantic coordinates are invalid",
     )
     context_count = sum(
-        item.get("record_kind") == "non_paper_context" for item in atlas["papers"]
+        item.get("record_kind") == "non_paper_context" for item in fitted["papers"]
     )
     cohort_sizes = {
         "all": len(graph_ids),
         "paper": sum(
-            item.get("record_kind") != "non_paper_context" for item in atlas["papers"]
+            item.get("record_kind") != "non_paper_context" for item in fitted["papers"]
         ),
-        "idea": len(atlas["ideas"]),
-        "taxonomy": len(atlas["topics"]) + len(atlas["tricks"]),
+        "idea": len(fitted["ideas"]),
+        "taxonomy": len(fitted["topics"]) + len(fitted["tricks"]),
     }
     if context_count:
         cohort_sizes["context"] = context_count
     validate_quality(layout, cohort_sizes)
     validate_neighbors(layout, graph_ids)
-    expected_mix = mix_report(atlas, layout["neighbors"], positions)
+    expected_mix = mix_report(fitted, layout["neighbors"], positions)
     check(layout.get("mix_quality") == expected_mix, "Layout mixing metrics are stale")
     ensure_mix(expected_mix)
     validate_clusters(layout, graph_ids, cohort_sizes["paper"] + cohort_sizes["idea"])
+    validate_places(atlas)

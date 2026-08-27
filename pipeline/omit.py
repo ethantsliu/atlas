@@ -11,6 +11,7 @@ from node import clip_words
 
 
 SCOPES = ("likely", "possible", "outside")
+PAPER_SCHEMAS = {1, 2}
 
 
 def archive_text(paper: dict) -> str:
@@ -54,7 +55,7 @@ def load_foreground(path: Path) -> dict[str, set[str]]:
         asset.get("sha256") != hashlib.sha256(content).hexdigest()
         or asset.get("bytes") != len(content)
         or asset.get("paper_count") != len(bundle.get("papers", []))
-        or bundle.get("schema_version") != 1
+        or bundle.get("schema_version") not in PAPER_SCHEMAS
     ):
         raise RuntimeError("Foreground paper bundle is invalid")
     months: dict[str, set[str]] = {}

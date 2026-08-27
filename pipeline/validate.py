@@ -33,7 +33,7 @@ from feedcheck import validate_feed
 from layoutcheck import validate_clusters, validate_layout
 from ledger import load_json, load_json_lines, validate_json
 from ontology import TOPICS, TRICKS
-from privacy import validate_public
+from privacy import validate_public, validate_strings
 from titles import valid_title
 from readings import (
     READINGS_DIR,
@@ -200,6 +200,8 @@ def validate_paper_routes(
 
 def validate_taxonomy_counts(atlas: dict, research_papers: list[dict]) -> None:
     """Require aggregate topic and technique counts to exclude context records."""
+    validate_strings(atlas["topics"], "Public topics")
+    validate_strings(atlas["tricks"], "Public tricks")
     expected_topic_counts = Counter(
         route["id"] for paper in research_papers for route in paper["topics"]
     )

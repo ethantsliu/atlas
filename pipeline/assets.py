@@ -9,7 +9,7 @@ import unicodedata
 from pathlib import Path
 
 from files import atomic_write_bytes
-from privacy import validate_public
+from privacy import validate_public, validate_strings
 from titles import valid_title
 
 PUBLIC_READING_PREFIX = "/data/readings/"
@@ -63,6 +63,8 @@ def paper_bytes(bundle: dict) -> bytes:
         raise PaperAssetError("Paper bundle must contain a paper list")
     if any(not valid_title(paper.get("title")) for paper in bundle["papers"]):
         raise PaperAssetError("Paper bundle contains an unsafe title")
+    validate_public(bundle, "Paper bundle")
+    validate_strings(bundle.get("ideas", []), "Paper bundle ideas")
     return (
         json.dumps(bundle, ensure_ascii=False, separators=(",", ":")) + "\n"
     ).encode("utf-8")
@@ -100,6 +102,7 @@ def paper_safe(path: Path) -> bool:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
         validate_public(value, f"Paper asset {path.name}")
+        validate_strings(value.get("ideas", []), f"Paper asset {path.name} ideas")
         papers = value.get("papers")
         if not isinstance(papers, list) or any(
             not isinstance(paper, dict)

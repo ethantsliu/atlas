@@ -4,6 +4,7 @@ import { ALL_NODE_KINDS } from "../lib/graph";
 import { formatCamera, parseCamera, type CameraView } from "../lib/camera";
 import type { GraphNodeKind } from "../types";
 import type { LayoutMode } from "./layout";
+import type { RenderMode } from "./webgl";
 
 export type { LayoutMode } from "./layout";
 
@@ -15,6 +16,7 @@ export type AtlasUrlState = {
   minFeasibility: number;
   focus: string | null;
   layout: LayoutMode;
+  render: RenderMode;
   camera: CameraView | null;
 };
 
@@ -56,6 +58,7 @@ export const DEFAULT_URL_STATE: AtlasUrlState = {
   minFeasibility: 1,
   focus: null,
   layout: "semantic",
+  render: "2d",
   camera: null,
 };
 
@@ -112,8 +115,15 @@ function cleanState(state: AtlasUrlState): AtlasUrlState {
       score >= 1 && score <= 10 && score * 2 === Math.round(score * 2) ? score : 1,
     focus: validId(state.focus),
     layout: state.layout === "connections" ? "connections" : "semantic",
+    render: state.render === "3d" ? "3d" : "2d",
     camera: formatCamera(state.camera) ? state.camera : null,
   };
+}
+
+function readRender(params: URLSearchParams, atlasHash: boolean): RenderMode {
+  if (params.get("d") === "2") return "2d";
+  if (params.get("d") === "3") return "3d";
+  return atlasHash && !params.has("d") ? "3d" : "2d";
 }
 
 function sameKinds(left: readonly GraphNodeKind[], right: readonly GraphNodeKind[]) {
@@ -129,7 +139,8 @@ export function decodeUrl(input: string | URL): AtlasUrlState {
   } catch {
     return { ...DEFAULT_URL_STATE, kinds: [...DEFAULT_KINDS] };
   }
-  const params = url.hash.startsWith("#?")
+  const atlasHash = url.hash.startsWith("#?");
+  const params = atlasHash
     ? new URLSearchParams(url.hash.slice(2))
     : new URLSearchParams();
   const view = CODE_VIEWS.get(params.get("v") ?? "") as AppView | undefined;
@@ -141,6 +152,7 @@ export function decodeUrl(input: string | URL): AtlasUrlState {
     minFeasibility: readScore(params.get("f")),
     focus: validId(params.get("x")),
     layout: params.get("l") === "c" ? "connections" : "semantic",
+    render: readRender(params, atlasHash),
     camera: parseCamera(params.get("c")),
   };
 }
@@ -162,6 +174,8 @@ export function encodeUrl(state: AtlasUrlState, base: string | URL): URL {
   if (clean.layout === "connections") params.set("l", "c");
   const camera = clean.view === "map" ? formatCamera(clean.camera) : null;
   if (camera) params.set("c", camera);
+  if (clean.render === "3d") params.set("d", "3");
+  else if (params.size > 0) params.set("d", "2");
   const encoded = params.toString();
   url.search = "";
   url.hash = encoded ? `?${encoded}` : priorHash;
@@ -215,8 +229,8 @@ export function useAtlasUrl() {
   const replace = useCallback((patch: UrlPatch) => update(patch, "replace"), [update]);
   const push = useCallback((patch: UrlPatch) => update(patch, "push"), [update]);
   const shareUrl = useCallback(
-    (camera: CameraView | null = null) =>
-      encodeUrl({ ...state, camera }, window.location.href).toString(),
+    (camera: CameraView | null = null, render: RenderMode = state.render) =>
+      encodeUrl({ ...state, camera, render }, window.location.href).toString(),
     [state],
   );
 

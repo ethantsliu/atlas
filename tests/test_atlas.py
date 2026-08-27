@@ -91,6 +91,7 @@ class BuildIdeasTests(unittest.TestCase):
         metadata, _ = paper_asset(bundle)
         core = public_core(payload, metadata)
 
+        self.assertEqual(bundle["schema_version"], 2)
         self.assertEqual(set(core["layout"]["positions"]), {"topic:a"})
         self.assertEqual(set(bundle["layout"]["positions"]), {"paper-1"})
         self.assertEqual(reconstruct_atlas(core, bundle), payload)
@@ -103,8 +104,58 @@ class BuildIdeasTests(unittest.TestCase):
         changed_time = {**payload, "meta": {"generated_at": "2027-01-01T00:00:00Z"}}
         self.assertEqual(paper_bundle(changed_time), bundle)
 
+    def test_lazy_order(self) -> None:
+        payload = {
+            "meta": {"generated_at": "2026-08-25T00:00:00Z"},
+            "topics": [],
+            "tricks": [],
+            "papers": [{"id": "paper-1", "title": "A Paper"}],
+            "ideas": [
+                {"id": "idea-lazy", "feasibility": {"score": 8.0}},
+                {"id": "idea-fit", "feasibility": {"score": 7.0}},
+            ],
+            "layout": {
+                "positions": {"paper-1": [0, 0, 0], "idea-fit": [1, 1, 1]},
+                "neighbors": {"paper-1": [], "idea-fit": []},
+                "node_clusters": {"paper-1": "c1", "idea-fit": "c1"},
+            },
+            "idea_layout": {
+                "positions": {"idea-lazy": [2, 2, 2]},
+            },
+        }
+        bundle = paper_bundle(payload)
+        metadata, _ = paper_asset(bundle)
+        core = public_core(payload, metadata)
+
+        rebuilt = reconstruct_atlas(core, bundle)
+
+        self.assertEqual(rebuilt, payload)
+        self.assertEqual([idea["id"] for idea in core["ideas"]], ["idea-fit"])
+        self.assertEqual([idea["id"] for idea in bundle["ideas"]], ["idea-lazy"])
+
 
 class PublicationOrderingTests(unittest.TestCase):
+    def test_privacy_preflight(self) -> None:
+        payload = make_payload("/data/readings/paper.json", "2026-08-25T00:00:00Z")
+        payload["ideas"] = [
+            {
+                "id": "unsafe",
+                "brief": {"title": "Contact author@example.org"},
+            }
+        ]
+
+        with (
+            patch.object(build_atlas, "stage_reading_assets") as stage_readings,
+            patch.object(build_atlas, "stage_papers") as stage_paper_bundle,
+            patch.object(build_atlas, "atomic_write_text") as write_text,
+            self.assertRaisesRegex(RuntimeError, "Atlas ideas.*unsafe text"),
+        ):
+            build_atlas.publish_atlas_payload(payload)
+
+        stage_readings.assert_not_called()
+        stage_paper_bundle.assert_not_called()
+        write_text.assert_not_called()
+
     def test_base_write(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

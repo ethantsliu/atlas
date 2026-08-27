@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { stageAtlas, type AtlasCore, type AtlasPreview } from "../lib/payload";
-import { fetchCore, fetchPapers } from "../lib/request";
+import { fetchCore } from "../lib/request";
 import type { Atlas } from "../types";
 
 type AtlasLoadState = {
@@ -103,6 +103,7 @@ export function useAtlas(): AtlasLoadState {
 
     async function loadBundle() {
       try {
+        const { fetchPapers } = await import("../lib/paper");
         const atlas = await fetchPapers(activeCore, controller.signal);
         if (controller.signal.aborted) return;
         setState((current) => ({

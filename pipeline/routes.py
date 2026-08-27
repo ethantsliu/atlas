@@ -16,6 +16,7 @@ ROUTE_MAGIC = b"ATLASRT1"
 ROUTE_COUNT = 8
 ROUTE_HEAD = 80
 ROUTE_PAIR = 4
+PAPER_SCHEMAS = {1, 2}
 
 
 def file_hash(path: Path) -> str:
@@ -56,7 +57,7 @@ def load_node_ids(path: Path) -> set[str]:
         not isinstance(core, dict)
         or not isinstance(paper_positions, dict)
         or asset.get("schema_version") != 1
-        or papers.get("schema_version") != 1
+        or papers.get("schema_version") not in PAPER_SCHEMAS
         or asset.get("sha256") != hashlib.sha256(content).hexdigest()
         or asset.get("bytes") != len(content)
         or asset.get("paper_count") != len(papers.get("papers", []))

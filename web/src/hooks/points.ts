@@ -19,12 +19,15 @@ import {
 import type { GraphNode } from "../types";
 import { makeGpuPick } from "./gpu";
 import type { Theme } from "./theme";
+import { bindChange } from "./control";
+import type { PickOrder } from "../lib/order";
 
-const HOVER_LIMIT = 100_000;
 const HOVER_WAIT = 120;
+const DENSE_HOVER_WAIT = 700;
 const META_LIMIT = 4;
+export const CLOUD_HOVER_LIMIT = 100_000;
 
-export type PointTip = { label: string; x: number; y: number };
+export type PointTip = { depth: number; label: string; x: number; y: number };
 
 type PointInput = {
   graphRef: GraphRef;
@@ -32,6 +35,7 @@ type PointInput = {
   active: boolean;
   theme: Theme;
   onPick: (pick: CloudPick) => void;
+  order: PickOrder;
 };
 type Claim = {
   committed: boolean;
@@ -49,22 +53,22 @@ type Hover = {
   x: number;
   y: number;
 };
+type Down = { x: number; y: number };
 type Ref<T> = { current: T };
 type PointRefs = {
   block: Ref<number>;
   claim: Ref<Claim | null>;
   hover: Ref<Hover | null>;
-  mute: Ref<boolean>;
   hidden: Ref<boolean>;
-  pick: Ref<(paper: CloudPick) => void>;
+  pick: Ref<(paper: CloudPick, depth: number) => void>;
   points: Ref<CloudSwarm | null>;
   request: Ref<number>;
   select: Ref<number>;
   target: Ref<Hover | null>;
 };
 
-function isMuted(refs: Pick<PointRefs, "hidden" | "mute">) {
-  return refs.hidden.current || refs.mute.current;
+function isHidden(refs: Pick<PointRefs, "hidden">) {
+  return refs.hidden.current;
 }
 
 function dropPoints(
@@ -114,6 +118,10 @@ function gpuHit(
 
 export function pickSize(pointer?: string): number {
   return pointer === "touch" ? 24 : 8;
+}
+
+export function hoverWait(count: number): number {
+  return count <= CLOUD_HOVER_LIMIT ? HOVER_WAIT : DENSE_HOVER_WAIT;
 }
 
 export function cacheMeta<T>(
@@ -182,7 +190,7 @@ export function pickBound(
   }
   claim.committed = true;
   claim.paper = paper;
-  refs.pick.current(paper);
+  refs.pick.current(paper, claim.distance);
 }
 
 export function clearHover(
@@ -200,19 +208,23 @@ export function cloudFront(
   node: GraphNode,
   distance: number,
 ): boolean {
-  if (!graph) return true;
+  return distance <= nodeDepth(graph, node);
+}
+
+export function nodeDepth(graph: GraphRef["current"], node: GraphNode): number {
+  if (!graph) return Number.POSITIVE_INFINITY;
   const paper = node.kind === "paper";
   const x = paper ? (node.sx ?? node.x) : node.x;
   const y = paper ? (node.sy ?? node.y) : node.y;
   const z = paper ? (node.sz ?? node.z) : node.z;
-  if (![x, y, z].every(Number.isFinite)) return true;
+  if (![x, y, z].every(Number.isFinite)) return Number.POSITIVE_INFINITY;
   const camera = graph.camera() as Camera;
   const depth = Math.hypot(
     camera.position.x - x!,
     camera.position.y - y!,
     camera.position.z - z!,
   );
-  return distance <= depth;
+  return depth;
 }
 
 function hoverAt(
@@ -222,10 +234,92 @@ function hoverAt(
   return { ...match, x: event.clientX, y: event.clientY };
 }
 
+function queueClaim(
+  input: PointInput,
+  refs: PointRefs,
+  setTip: (tip: PointTip | null) => void,
+  load: (index: number) => Promise<CloudPick | null>,
+  claim: Claim,
+  at: { x: number; y: number },
+) {
+  input.order.claim(1, claim.distance, () => {
+    const token = ++refs.select.current;
+    claim.committed = true;
+    setTip({ depth: claim.distance, label: "Loading Paper…", ...at });
+    void load(claim.index)
+      .then((paper) => {
+        if (
+          !paper ||
+          token !== refs.select.current ||
+          refs.claim.current !== claim ||
+          performance.now() < refs.block.current
+        ) {
+          return;
+        }
+        claim.paper = paper;
+        claim.pending = false;
+        setTip({
+          depth: claim.distance,
+          label: `Paper · ${paper.paper.title}`,
+          ...at,
+        });
+        refs.pick.current(paper, claim.distance);
+      })
+      .catch(() => {
+        if (token !== refs.select.current) return;
+        setTip({
+          depth: claim.distance,
+          label: "Paper details unavailable · select to retry",
+          ...at,
+        });
+      });
+  });
+}
+
+type PointEvents = {
+  choose: (event: MouseEvent) => void;
+  leave: () => void;
+  move: (event: PointerEvent) => void;
+  press: (event: PointerEvent) => void;
+  release: (event: MouseEvent | PointerEvent) => void;
+};
+
+function bindPoints(canvas: HTMLCanvasElement, events: PointEvents) {
+  canvas.addEventListener("pointermove", events.move);
+  canvas.addEventListener("pointerleave", events.leave);
+  canvas.addEventListener("pointerdown", events.press);
+  window.addEventListener("pointerup", events.release, true);
+  window.addEventListener("mouseup", events.release, true);
+  canvas.addEventListener("click", events.choose, true);
+  return () => {
+    canvas.removeEventListener("pointermove", events.move);
+    canvas.removeEventListener("pointerleave", events.leave);
+    canvas.removeEventListener("pointerdown", events.press);
+    window.removeEventListener("pointerup", events.release, true);
+    window.removeEventListener("mouseup", events.release, true);
+    canvas.removeEventListener("click", events.choose, true);
+  };
+}
+
+function validRelease(
+  start: Down | null,
+  event: MouseEvent | PointerEvent,
+  refs: Pick<PointRefs, "hidden">,
+): start is Down {
+  return Boolean(
+    start &&
+    !isHidden(refs) &&
+    (!("isPrimary" in event) || event.isPrimary) &&
+    event.button === 0 &&
+    Math.hypot(event.clientX - start.x, event.clientY - start.y) <= 5,
+  );
+}
+
 function mountPoints(
   input: PointInput,
   refs: PointRefs,
   setTip: (tip: PointTip | null) => void,
+  setProbing: (value: boolean) => void,
 ) {
   const graph = input.graphRef.current;
   const data = input.data;
@@ -245,12 +339,15 @@ function mountPoints(
   const load = (index: number) => loadPaper(data, cache, controller.signal, index);
   let timer: ReturnType<typeof setTimeout> | undefined;
   let moved: PointerEvent | null = null;
-
+  let down: Down | null = null;
+  let pressed = false;
   const show = (event: PointerEvent) => {
-    if (isMuted(refs) || performance.now() < refs.block.current) {
+    if (isHidden(refs) || performance.now() < refs.block.current) {
+      setProbing(false);
       return;
     }
     const match = hit(event);
+    setProbing(false);
     const token = ++refs.request.current;
     if (match.index == null) {
       clearHover(refs, setTip);
@@ -258,7 +355,7 @@ function mountPoints(
     }
     const index = match.index;
     refs.hover.current = hoverAt({ distance: match.distance, index }, event);
-    setTip({ label: "Loading Paper…", x: match.x, y: match.y });
+    setTip({ depth: match.distance, label: "Loading Paper…", x: match.x, y: match.y });
     void load(index)
       .then((paper) => {
         if (!paper || token !== refs.request.current) return;
@@ -267,11 +364,17 @@ function mountPoints(
           ...hoverAt({ distance: match.distance, index }, event),
           paper,
         };
-        setTip({ label: `Paper · ${paper.paper.title}`, x: match.x, y: match.y });
+        setTip({
+          depth: match.distance,
+          label: `Paper · ${paper.paper.title}`,
+          x: match.x,
+          y: match.y,
+        });
       })
       .catch(() => {
         if (token === refs.request.current) {
           setTip({
+            depth: match.distance,
             label: "Paper details unavailable · hover to retry",
             x: match.x,
             y: match.y,
@@ -279,14 +382,30 @@ function mountPoints(
         }
       });
   };
+  const stop = () => {
+    if (timer) clearTimeout(timer);
+    timer = undefined;
+    moved = null;
+    setProbing(false);
+    setTip(null);
+  };
+  const clear = () => {
+    stop();
+    clearHover(refs, setTip);
+  };
   const move = (event: PointerEvent) => {
-    if (isMuted(refs)) {
-      if (timer) clearTimeout(timer);
-      timer = undefined;
-      moved = null;
-      clearHover(refs, setTip);
+    if (pressed) {
+      if (down && Math.hypot(event.clientX - down.x, event.clientY - down.y) > 5) {
+        down = null;
+      }
+      clear();
       return;
     }
+    if (isHidden(refs)) {
+      clear();
+      return;
+    }
+    setProbing(data.loaded > CLOUD_HOVER_LIMIT);
     const prior = refs.target.current ?? refs.hover.current;
     if (prior && Math.hypot(event.clientX - prior.x, event.clientY - prior.y) > 10) {
       clearHover(refs, setTip);
@@ -296,44 +415,55 @@ function mountPoints(
     timer = setTimeout(() => {
       timer = undefined;
       if (moved) show(moved);
-    }, HOVER_WAIT);
+    }, hoverWait(data.loaded));
   };
   const leave = () => {
-    if (timer) clearTimeout(timer);
-    timer = undefined;
-    moved = null;
-    clearHover(refs, setTip);
+    down = null;
+    pressed = false;
+    clear();
+  };
+  const change = () => {
+    down = null;
+    clear();
   };
   const press = (event: PointerEvent) => {
+    input.order.begin(event.timeStamp);
     refs.claim.current = null;
     refs.select.current += 1;
-    if (isMuted(refs) || !event.isPrimary || event.button !== 0) {
+    stop();
+    if (isHidden(refs) || !event.isPrimary || event.button !== 0) {
+      down = null;
+      pressed = false;
       return;
     }
+    down = { x: event.clientX, y: event.clientY };
+    pressed = true;
+  };
+  const release = (event: MouseEvent | PointerEvent) => {
+    const start = down;
+    down = null;
+    pressed = false;
+    if (!validRelease(start, event, refs)) return;
     const hovered = refs.target.current ?? refs.hover.current;
-    const nearby =
-      hovered && Math.hypot(event.clientX - hovered.x, event.clientY - hovered.y) <= 10;
-    const match = nearby ? hovered : hit(event);
-    const index = match.index;
-    if (index == null) return;
+    const match = hit(event);
+    if (match.index == null) return;
     refs.claim.current = {
       committed: false,
       distance: match.distance,
-      index,
-      paper: nearby ? hovered.paper : undefined,
+      index: match.index,
+      paper: hovered?.index === match.index ? hovered.paper : undefined,
       pending: true,
-      x: event.clientX,
-      y: event.clientY,
+      ...start,
     };
+    pickBound(refs, event);
   };
-  const release = (event: MouseEvent | PointerEvent) => pickBound(refs, event);
   const choose = (event: MouseEvent) => {
     const claim = refs.claim.current;
     if (timer) clearTimeout(timer);
     timer = undefined;
     moved = null;
     if (
-      isMuted(refs) ||
+      isHidden(refs) ||
       (performance.now() < refs.block.current && !claim?.paper) ||
       !claim ||
       Math.hypot(event.clientX - claim.x, event.clientY - claim.y) > 5
@@ -345,58 +475,22 @@ function mountPoints(
     if (claim.paper) {
       if (!claim.committed) {
         claim.committed = true;
-        refs.pick.current(claim.paper);
+        refs.pick.current(claim.paper, claim.distance);
       }
       window.setTimeout(() => {
         if (refs.claim.current === claim) claim.pending = false;
       }, 0);
       return;
     }
-    const token = ++refs.select.current;
-    setTip({ label: "Loading Paper…", x: at.x, y: at.y });
-    void load(claim.index)
-      .then((paper) => {
-        if (
-          !paper ||
-          token !== refs.select.current ||
-          refs.claim.current !== claim ||
-          performance.now() < refs.block.current
-        ) {
-          return;
-        }
-        claim.committed = true;
-        claim.paper = paper;
-        claim.pending = false;
-        setTip({ label: `Paper · ${paper.paper.title}`, x: at.x, y: at.y });
-        refs.pick.current(paper);
-      })
-      .catch(() => {
-        if (token === refs.select.current) {
-          setTip({
-            label: "Paper details unavailable · select to retry",
-            x: at.x,
-            y: at.y,
-          });
-        }
-      });
+    queueClaim(input, refs, setTip, load, claim, at);
   };
-
-  if (data.scopes.length <= HOVER_LIMIT) canvas.addEventListener("pointermove", move);
-  canvas.addEventListener("pointerleave", leave);
-  canvas.addEventListener("pointerdown", press);
-  window.addEventListener("pointerup", release, true);
-  window.addEventListener("mouseup", release, true);
-  canvas.addEventListener("click", choose, true);
+  const dropChange = bindChange(graph.controls?.(), change);
+  const dropEvents = bindPoints(canvas, { choose, leave, move, press, release });
   return () => {
     if (timer) clearTimeout(timer);
     controller.abort();
-    if (data.scopes.length <= HOVER_LIMIT)
-      canvas.removeEventListener("pointermove", move);
-    canvas.removeEventListener("pointerleave", leave);
-    canvas.removeEventListener("pointerdown", press);
-    window.removeEventListener("pointerup", release, true);
-    window.removeEventListener("mouseup", release, true);
-    canvas.removeEventListener("click", choose, true);
+    dropEvents();
+    dropChange();
     picker.dispose();
     dropPoints(graph, points, refs, setTip);
   };
@@ -404,23 +498,25 @@ function mountPoints(
 
 export function usePoints(input: PointInput): {
   tip: PointTip | null;
+  probing: boolean;
   block: () => void;
   drop: () => void;
-  mute: (active: boolean) => void;
   take: (node?: GraphNode) => boolean;
 } {
   const [tip, setTip] = useState<PointTip | null>(null);
-  const pickRef = useRef(input.onPick);
+  const [probing, setProbing] = useState(false);
+  const pickRef = useRef<(paper: CloudPick, depth: number) => void>(() => {});
   const blockRef = useRef(0);
   const claimRef = useRef<Claim | null>(null);
   const hoverRef = useRef<Hover | null>(null);
-  const muteRef = useRef(false);
   const hiddenRef = useRef(!input.active);
   const pointsRef = useRef<CloudSwarm | null>(null);
   const requestRef = useRef(0);
   const selectRef = useRef(0);
   const targetRef = useRef<Hover | null>(null);
-  pickRef.current = input.onPick;
+  pickRef.current = (paper, depth) => {
+    input.order.claim(1, depth, () => input.onPick(paper));
+  };
   const block = useCallback(() => {
     blockRef.current = performance.now() + 180;
     hoverRef.current = null;
@@ -431,16 +527,6 @@ export function usePoints(input: PointInput): {
   }, []);
   const drop = useCallback(() => {
     claimRef.current = null;
-  }, []);
-  const mute = useCallback((active: boolean) => {
-    muteRef.current = active;
-    if (!active) return;
-    claimRef.current = null;
-    hoverRef.current = null;
-    targetRef.current = null;
-    requestRef.current += 1;
-    selectRef.current += 1;
-    setTip(null);
   }, []);
   const take = useCallback(
     (node?: GraphNode) => {
@@ -470,7 +556,6 @@ export function usePoints(input: PointInput): {
           claim: claimRef,
           hover: hoverRef,
           hidden: hiddenRef,
-          mute: muteRef,
           pick: pickRef,
           points: pointsRef,
           request: requestRef,
@@ -478,6 +563,7 @@ export function usePoints(input: PointInput): {
           target: targetRef,
         },
         setTip,
+        setProbing,
       ),
     [input.data, input.graphRef],
   );
@@ -487,5 +573,5 @@ export function usePoints(input: PointInput): {
   useEffect(() => {
     if (pointsRef.current) paintCloud(pointsRef.current, input.theme);
   }, [input.theme]);
-  return { tip, block, drop, mute, take };
+  return { tip, probing, block, drop, take };
 }

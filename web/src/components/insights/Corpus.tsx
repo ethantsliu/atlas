@@ -1,4 +1,4 @@
-import { Activity, CalendarRange, Grid3X3, Layers3, Target } from "lucide-react";
+import { Activity, CalendarRange, Grid3X3, Layers3, Orbit, Target } from "lucide-react";
 import {
   countSubstantiveReadings,
   getCoverageSnapshot,
@@ -181,6 +181,55 @@ export function TopicDistribution({ topics }: { topics: Taxon[] }) {
         label="Research-area paper-entry counts"
         columns={["Research area", "Paper entries"]}
         rows={topics.map((topic) => [topic.label, topic.paper_count])}
+      />
+    </article>
+  );
+}
+
+export function RegionDistribution({ atlas }: { atlas: Atlas }) {
+  const counts = new Map<string, number>();
+  for (const paper of atlas.papers) {
+    const region = atlas.layout?.node_clusters[paper.id];
+    if (region) counts.set(region, (counts.get(region) ?? 0) + 1);
+  }
+  const regions = (atlas.layout?.clusters ?? [])
+    .map((region) => ({ ...region, count: counts.get(region.id) ?? 0 }))
+    .filter((region) => region.count > 0)
+    .sort((left, right) => right.count - left.count || left.id.localeCompare(right.id));
+  const maximum = regions[0]?.count ?? 1;
+
+  return (
+    <article className="viz-card">
+      <VizHead
+        icon={<Orbit />}
+        title="Automatic semantic regions"
+        copy="Which paper neighborhoods emerge from MiniLM embeddings rather than the fixed research-area roots?"
+      />
+      <div className="bars">
+        {regions.map((region, index) => (
+          <div key={region.id}>
+            <span>{region.label}</span>
+            <i>
+              <em
+                style={{
+                  width: `${(region.count / maximum) * 100}%`,
+                  background: index < 3 ? "#76548c" : "#65836d",
+                }}
+              />
+            </i>
+            <b>{region.count}</b>
+          </div>
+        ))}
+      </div>
+      <small className="chart-note">
+        These {regions.length} coarse neighborhoods are rebuilt from embeddings. The 17
+        research areas remain stable navigation roots; a region label is descriptive,
+        not a claim that it is a new field.
+      </small>
+      <ChartDataTable
+        label="Automatically derived semantic-region paper counts"
+        columns={["Semantic region", "Paper entries"]}
+        rows={regions.map((region) => [region.label, region.count])}
       />
     </article>
   );

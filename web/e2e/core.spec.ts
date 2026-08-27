@@ -29,22 +29,40 @@ async function cloudSize() {
   return manifest.count;
 }
 
-type CloudTarget = { camera: string; title: string; url: string };
+type CloudTarget = {
+  camera: string;
+  point: readonly [number, number, number];
+  title: string;
+  url: string;
+};
 
 function cameraPart(value: number) {
   const rounded = Math.round(value * 10) / 10;
   return String(Object.is(rounded, -0) ? 0 : rounded);
 }
 
-function pointGap(cloud: Float32Array, candidate: number, foreground: Float32Array) {
+function screenGap(cloud: Float32Array, candidate: number, foreground: Float32Array) {
   const at = candidate * 3;
+  const aspect = 1.1;
+  const radius = 16;
+  const ndc = { x: 0.27, y: -0.21 };
+  const tangent = Math.tan((50 * Math.PI) / 360);
+  const distance = radius / tangent;
+  const target = {
+    x: cloud[at] - ndc.x * radius * aspect,
+    y: cloud[at + 1] - ndc.y * radius,
+    z: cloud[at + 2],
+  };
   let gap = Number.POSITIVE_INFINITY;
   const visit = (points: Float32Array, skip = -1) => {
     for (let other = 0; other < points.length / 3; other += 1) {
       if (other === skip) continue;
       const offset = other * 3;
-      const dx = cloud[at] - points[offset];
-      const dy = cloud[at + 1] - points[offset + 1];
+      const depth = target.z + distance - points[offset + 2];
+      if (depth <= 0) continue;
+      const scale = depth * tangent;
+      const dx = (points[offset] - target.x) / (scale * aspect) - ndc.x;
+      const dy = (points[offset + 1] - target.y) / scale - ndc.y;
       gap = Math.min(gap, dx * dx + dy * dy);
     }
   };
@@ -108,7 +126,7 @@ async function cloudTarget(): Promise<CloudTarget> {
   for (let sample = 0; sample < samples; sample += 1) {
     const local = Math.floor((sample * (shard.count - 1)) / Math.max(1, samples - 1));
     const candidate = start + local;
-    const gap = pointGap(positions, candidate, foreground);
+    const gap = screenGap(positions, candidate, foreground);
     if (gap > bestGap) {
       best = candidate;
       bestGap = gap;
@@ -125,7 +143,31 @@ async function cloudTarget(): Promise<CloudTarget> {
   const camera = `1_${cameraPart(positions[at])}_${cameraPart(
     positions[at + 1],
   )}_${cameraPart(positions[at + 2])}_16_0_0`;
-  return { camera, title: row[1], url: row[2] };
+  return {
+    camera,
+    point: [positions[at], positions[at + 1], positions[at + 2]],
+    title: row[1],
+    url: row[2],
+  };
+}
+
+function offsetCamera(target: CloudTarget, aspect: number) {
+  const radius = 16;
+  const intended = { x: 0.27, y: -0.21 };
+  const [x, y, z] = target.point;
+  const view = {
+    x: Number(cameraPart(x - intended.x * radius * aspect)),
+    y: Number(cameraPart(y - intended.y * radius)),
+    z: Number(cameraPart(z)),
+  };
+  const tangent = Math.tan((50 * Math.PI) / 360);
+  const depth = view.z + radius / tangent - z;
+  const ndc = {
+    x: (x - view.x) / (depth * tangent * aspect),
+    y: (y - view.y) / (depth * tangent),
+  };
+  const camera = `1_${view.x}_${view.y}_${view.z}_${radius}_0_0`;
+  return { camera, ndc };
 }
 
 function trackShard(page: Page): string[] {
@@ -139,6 +181,16 @@ function trackShard(page: Page): string[] {
 async function showFilters(page: Page) {
   const toggle = page.locator(".mobile-filter-toggle");
   if (await toggle.isVisible()) await toggle.click();
+}
+
+async function chooseTopic(page: Page) {
+  const picker = page.getByLabel("Choose a visible graph node");
+  if ((await picker.evaluate((element) => element.tagName)) === "SELECT") {
+    await picker.selectOption({ label: "Topic · pretraining" });
+    return;
+  }
+  await picker.fill("pretraining");
+  await page.getByRole("option", { name: /Topic\s+pretraining/i }).click();
 }
 
 async function loadMap(page: Page, path = "/#?k=tri") {
@@ -162,7 +214,7 @@ async function hoverNode(
   label: string,
   orbit = false,
 ): Promise<Locator> {
-  const tooltip = page.locator(".float-tooltip-kap");
+  const tooltips = page.locator(".core-tip:visible, .float-tooltip-kap:visible");
   const offsets = [0, -16, 16, -32, 32, -48, 48];
   const seen = new Set<string>();
   for (let view = 0; view < (orbit ? 3 : 1); view += 1) {
@@ -170,9 +222,10 @@ async function hoverNode(
       for (const x of offsets) {
         await page.mouse.move(box.x + box.width / 2 + x, box.y + box.height / 2 + y);
         await page.waitForTimeout(60);
-        const text = await tooltip.textContent();
-        if (text) seen.add(text);
-        if (text?.includes(label)) return tooltip;
+        const labels = await tooltips.allTextContents();
+        labels.forEach((text) => seen.add(text));
+        const tooltip = tooltips.filter({ hasText: label }).first();
+        if ((await tooltip.count()) > 0) return tooltip;
       }
     }
     const x = box.x + box.width / 2;
@@ -186,6 +239,44 @@ async function hoverNode(
   throw new Error(
     `Could not hover ${label}; bounds ${JSON.stringify(box)}; saw ${[...seen].join(", ")}`,
   );
+}
+
+async function otherNode(
+  page: Page,
+  box: { x: number; y: number; width: number; height: number },
+  blocked: string,
+  minDepth = Number.NEGATIVE_INFINITY,
+) {
+  const tips = page.locator(".core-tip:visible, .swarm-tip:visible");
+  for (const y of [0, -24, 24, -48, 48]) {
+    for (const x of [0, -24, 24, -48, 48]) {
+      const point = { x: box.x + box.width / 2 + x, y: box.y + box.height / 2 + y };
+      await page.mouse.move(point.x, point.y);
+      await page.waitForTimeout(350);
+      if ((await tips.allTextContents()).includes("Loading Paper…")) {
+        await expect
+          .poll(async () => (await tips.allTextContents()).includes("Loading Paper…"), {
+            timeout: 10_000,
+          })
+          .toBe(false);
+      }
+      const entry = (
+        await tips.evaluateAll((elements) =>
+          elements.map((element) => ({
+            depth: Number((element as HTMLElement).dataset.depth),
+            label: element.textContent ?? "",
+          })),
+        )
+      ).find(
+        ({ depth, label }) =>
+          /^(Topic|Trick|Paper|Idea) · /.test(label) &&
+          !label.includes(blocked) &&
+          depth > minDepth,
+      );
+      if (entry) return { ...point, ...entry };
+    }
+  }
+  throw new Error(`No nearer node appeared over ${blocked}`);
 }
 
 async function cloudPoint(
@@ -212,17 +303,6 @@ async function cloudPoint(
     }
   }
   throw new Error("No historical paper point accepted hover input");
-}
-
-async function clickCloud(page: Page, target: CloudTarget): Promise<{ title: string }> {
-  const graph = page.getByLabel("Interactive 3D research graph");
-  const box = await graph.boundingBox();
-  if (!box) throw new Error("Research graph has no bounds");
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await expect(
-    page.locator("#map-inspector").getByRole("heading", { name: target.title }),
-  ).toBeVisible({ timeout: 20_000 });
-  return { title: target.title };
 }
 
 async function watchCopy(page: Page) {
@@ -266,7 +346,7 @@ async function swarmPoint(
     for (const x of [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]) {
       const point = { x: box.x + box.width * x, y: box.y + box.height * y };
       await page.mouse.move(point.x, point.y);
-      await page.waitForTimeout(180);
+      await page.waitForTimeout(850);
       const label = (await tip.count()) ? await tip.textContent() : null;
       if (label?.startsWith("Paper · ") && (await cloud.count()) === 0) {
         return { ...point, title: label.slice("Paper · ".length) };
@@ -280,7 +360,7 @@ test("the initial map enables every lens", async ({ page }) => {
   const hits = trackShard(page);
   await loadMap(page, "/");
   await showFilters(page);
-  await fullNodes(page);
+  await expect(fullNodes(page)).resolves.toBe("3,999 visible graph nodes available.");
   await expect(page.getByRole("button", { name: /Paper\s+[,\d]+/ })).toHaveAttribute(
     "aria-pressed",
     "true",
@@ -289,7 +369,7 @@ test("the initial map enables every lens", async ({ page }) => {
 });
 
 test("history streams points without eager paper metadata", async ({ page }) => {
-  await loadMap(page, "/");
+  await loadMap(page, "/#?d=3");
   await showFilters(page);
   await fullNodes(page);
   const resources = await page.evaluate(() =>
@@ -357,26 +437,27 @@ test("hover labels a node and click keeps details in the inspector", async ({
   await loadMap(page);
   await showFilters(page);
   const fullState = await fullNodes(page);
-  const picker = page.getByLabel("Choose a visible graph node");
-  const topic = picker.locator("option").filter({ hasText: "Topic · pretraining" });
-  const topicId = await topic.getAttribute("value");
-  if (!topicId) throw new Error("Pretraining topic is unavailable");
-  await picker.selectOption(topicId);
+  await chooseTopic(page);
   await page.getByRole("button", { name: "Isolate connections" }).click();
   await expect(mapStatus(page)).not.toHaveText(fullState!);
   await page.waitForTimeout(2_500);
   await page.getByRole("button", { name: "Center selected" }).click();
 
   const graph = page.getByLabel(/Interactive (3D )?research graph/);
-  const box = await graph.boundingBox();
+  const box = await graph.locator("canvas").boundingBox();
   if (!box) throw new Error("Research graph has no bounds");
-  const tooltip = await hoverNode(page, box, "Topic · pretraining", true);
-  await expect(tooltip).toContainText("Topic · pretraining");
+  const entry = await otherNode(page, box, "\u0000");
+  const tooltip = page
+    .locator(".core-tip:visible, .swarm-tip:visible")
+    .filter({ hasText: entry.label })
+    .first();
+  await expect(tooltip).toContainText(entry.label);
   await expect(tooltip).toHaveCSS("font-family", /Baskerville/);
   await expect(tooltip).toHaveCSS("font-size", "14px");
   await page.mouse.down();
   await page.mouse.up();
-  await expect(page.getByRole("heading", { name: "pretraining" })).toBeVisible();
+  const title = entry.label.replace(/^\w+\s·\s/, "");
+  await expect(page.getByRole("heading", { name: title })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   const inspector = await page.locator("#map-inspector").boundingBox();
   if (!inspector) throw new Error("Node inspector has no bounds");
@@ -410,13 +491,10 @@ test("historical paper points open the inline inspector", async ({
   const target = size > 100_000 ? await cloudTarget() : null;
   if (target) await watchCopy(page);
   const links = target ? null : await cloudLinks();
-  await page.goto(target ? `/#?k=trpi&c=${target.camera}` : "/");
-  await expect(page.locator(".filters")).toContainText("historical arXiv records", {
+  await page.goto(target ? `/#?k=p&c=${target.camera}` : "/#?d=3");
+  await expect(page.locator(".filters")).toContainText("historical arXiv papers", {
     timeout: 20_000,
   });
-  await expect(page.locator(".filters")).toContainText(
-    "Click or tap a dot to inspect it",
-  );
   await page.waitForTimeout(2_500);
   if (target) await waitCamera(page, target.camera);
   const graph = page.getByLabel("Interactive 3D research graph");
@@ -435,7 +513,53 @@ test("historical paper points open the inline inspector", async ({
     await page.mouse.click(point.x, point.y);
     title = point.title;
   } else {
-    title = (await clickCloud(page, target)).title;
+    if (!beforeGraph) throw new Error("Research graph has no bounds");
+    const canvasBox = await graph.locator("canvas").boundingBox();
+    if (!canvasBox) throw new Error("Research graph canvas has no bounds");
+    const center = {
+      x: canvasBox.x + canvasBox.width / 2,
+      y: canvasBox.y + canvasBox.height / 2,
+    };
+    const tip = page.locator(".cloud-tip");
+    await page.mouse.move(center.x, center.y);
+    await expect(tip).toBeVisible({ timeout: 20_000 });
+    await expect(tip).not.toContainText("Loading Paper…", { timeout: 20_000 });
+    if ((await tip.textContent())?.includes("unavailable")) {
+      await page.mouse.move(2, 2);
+      await page.waitForTimeout(180);
+      await page.mouse.move(center.x, center.y);
+    }
+    await expect(tip).toContainText(`Paper · ${target.title}`, {
+      timeout: 20_000,
+    });
+
+    await page.mouse.down();
+    await page.mouse.move(center.x + 5, center.y + 3);
+    await expect(tip).toBeHidden();
+    await page.mouse.up();
+
+    const offset = offsetCamera(target, canvasBox.width / canvasBox.height);
+    await page.goto(`/?pick=offset#?k=p&c=${offset.camera}`);
+    await expect(page.locator(".filters .aside-copy")).toContainText(
+      `${size.toLocaleString()} historical arXiv papers`,
+      { timeout: 20_000 },
+    );
+    await waitCamera(page, offset.camera);
+    const offsetBox = await graph.locator("canvas").boundingBox();
+    if (!offsetBox) throw new Error("Research graph canvas has no bounds");
+    const point = {
+      x: offsetBox.x + ((offset.ndc.x + 1) * offsetBox.width) / 2,
+      y: offsetBox.y + ((1 - offset.ndc.y) * offsetBox.height) / 2,
+    };
+    await page.mouse.move(point.x, point.y);
+    await expect(tip).toContainText(`Paper · ${target.title}`, {
+      timeout: 20_000,
+    });
+    await page.mouse.click(point.x, point.y);
+    await expect(inspector.getByRole("heading", { name: target.title })).toBeVisible({
+      timeout: 20_000,
+    });
+    title = target.title;
   }
   await page.mouse.move(2, 2);
 
@@ -473,10 +597,115 @@ test("historical paper points open the inline inspector", async ({
   await expect(inspector.getByRole("heading", { name: title })).toBeVisible();
 
   const picker = page.getByLabel("Choose a visible graph node");
+  await page.getByRole("button", { name: /Topic\s+17/ }).click();
   await picker.fill("pretraining");
   await page.getByRole("option", { name: /Topic\s+pretraining/i }).click();
   await expect(inspector.getByRole("heading", { name: "pretraining" })).toBeVisible();
   await expect(inspector.getByRole("link", { name: "View on arXiv" })).toHaveCount(0);
+});
+
+test("the nearest visible layer wins at one exact pointer coordinate", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(90_000);
+  test.skip(
+    !["chrome", "safari"].includes(testInfo.project.name),
+    "Layered 3D picking is covered in Chromium and WebKit",
+  );
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1_440, height: 900 });
+  await watchCopy(page);
+  await loadMap(page, "/#?s=topic%3Aalignment&k=trpi");
+  const size = await cloudSize();
+  await expect(page.locator(".filters .aside-copy")).toContainText(
+    `${size.toLocaleString()} historical arXiv papers`,
+    { timeout: 20_000 },
+  );
+  await fullNodes(page);
+  const inspector = page.locator("#map-inspector");
+  await expect(inspector.getByRole("heading", { name: "alignment" })).toBeVisible();
+  await page.waitForTimeout(2_500);
+  await page.getByRole("button", { name: "Center selected" }).click();
+  await page.waitForTimeout(300);
+
+  const graph = page.getByLabel("Interactive 3D research graph");
+  const box = await graph.locator("canvas").boundingBox();
+  if (!box) throw new Error("Research graph has no bounds");
+  const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+  await page.getByRole("button", { name: "Copy a link to this atlas view" }).click();
+  const copied = await page.evaluate(
+    () => (window as typeof window & { __atlasCopied?: string }).__atlasCopied ?? "",
+  );
+  const camera = new URLSearchParams(new URL(copied).hash.replace(/^#\?/, "")).get("c");
+  const radius = Number(camera?.split("_")[4]);
+  expect(radius).toBeGreaterThan(0);
+  const rearDepth = radius / Math.tan((50 * Math.PI) / 360);
+
+  await page.mouse.move(point.x, point.y);
+  await page.waitForTimeout(820);
+  const tips = page.locator(".core-tip:visible, .swarm-tip:visible");
+  await expect(tips).toHaveCount(1, { timeout: 20_000 });
+  await expect(tips).not.toContainText("Loading Paper…", { timeout: 20_000 });
+  const front = await tips.evaluateAll((elements) =>
+    elements.map((element) => ({
+      depth: Number((element as HTMLElement).dataset.depth),
+      label: element.textContent ?? "",
+    })),
+  );
+  expect(front).toHaveLength(1);
+  expect(front[0].label).toMatch(/^Paper · /);
+  expect(front[0].depth).toBeLessThan(rearDepth);
+
+  const title = front[0].label.replace(/^Paper\s·\s/, "");
+  await page.mouse.click(point.x, point.y);
+  await expect(page.locator("#graph-selection")).toHaveText(
+    `Paper selected: ${title}`,
+    { timeout: 20_000 },
+  );
+  await expect(inspector.getByRole("heading", { name: title })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.locator("#graph-selection")).not.toHaveText(
+    "Topic selected: alignment",
+  );
+});
+
+test("core gestures reset depth settlement without paper handlers", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(90_000);
+  test.skip(
+    !["chrome", "safari"].includes(testInfo.project.name),
+    "Core gesture settlement is covered in Chromium and WebKit",
+  );
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1_440, height: 900 });
+  await loadMap(page, "/#?s=topic%3Apre-training&k=tri&l=c");
+  await expect(mapStatus(page)).toContainText("visible graph nodes available");
+  await page.waitForTimeout(2_500);
+  const graph = page.getByLabel("Interactive 3D research graph");
+  const box = await graph.locator("canvas").boundingBox();
+  if (!box) throw new Error("Research graph has no bounds");
+  const inspector = page.locator("#map-inspector");
+  await page.getByRole("button", { name: "Center selected" }).click();
+  await page.waitForTimeout(300);
+
+  const first = await otherNode(page, box, "\u0000");
+  expect(first.depth).toBeGreaterThan(0);
+  const firstTitle = first.label.replace(/^\w+\s·\s/, "");
+  await page.mouse.click(first.x, first.y);
+  await expect(inspector.getByRole("heading", { name: firstTitle })).toBeVisible();
+
+  await page.mouse.wheel(0, 1_200);
+  await page.waitForTimeout(300);
+  const second = await otherNode(page, box, firstTitle, first.depth + 0.1);
+  expect(second.depth).toBeGreaterThan(first.depth);
+  const title = second.label.replace(/^\w+\s·\s/, "");
+  await page.mouse.click(second.x, second.y);
+  await expect(inspector.getByRole("heading", { name: title })).toBeVisible({
+    timeout: 20_000,
+  });
 });
 
 test("touch opens a historical paper in the stacked inspector", async ({
@@ -488,7 +717,7 @@ test("touch opens a historical paper in the stacked inspector", async ({
   const target = await cloudTarget();
   await watchCopy(page);
   await page.goto(`/#?k=p&c=${target.camera}`);
-  await expect(page.locator(".filters")).toContainText("historical arXiv records", {
+  await expect(page.locator(".filters")).toContainText("historical arXiv papers", {
     timeout: 20_000,
   });
   await waitCamera(page, target.camera);
@@ -553,8 +782,7 @@ test("touch opens a historical paper in the stacked inspector", async ({
 test("foreground selection opens the stacked inspector", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone", "Stacked focus uses iPhone");
   await loadMap(page);
-  const picker = page.getByLabel("Choose a visible graph node");
-  await picker.selectOption({ label: "Topic · pretraining" });
+  await chooseTopic(page);
   const inspector = page.locator("#map-inspector");
   await expect(inspector).toBeFocused();
   await expect(inspector).toHaveAccessibleName("pretraining");
@@ -570,8 +798,8 @@ test("foreground paper points open the visible paper", async ({ page }, testInfo
     "Foreground point picking requires hosted 3D support",
   );
   await page.setViewportSize({ width: 1_440, height: 900 });
-  await page.goto("/");
-  await expect(page.locator(".filters")).toContainText("historical arXiv records", {
+  await page.goto("/#?d=3");
+  await expect(page.locator(".filters")).toContainText("historical arXiv papers", {
     timeout: 20_000,
   });
   await page.waitForTimeout(2_500);
@@ -608,27 +836,15 @@ test("2D hover and click use the same inline inspector", async ({ page }, testIn
       return Reflect.apply(original, this, [type, ...args]);
     } as typeof original;
   });
-  await loadMap(page);
+  await loadMap(page, "/#?d=2&k=tri");
   await showFilters(page);
   await page.getByRole("button", { name: /Paper\s+[,\d]+/ }).click();
   const picker = page.getByLabel("Choose a visible graph node");
   const filters = page.locator(".filters");
-  await expect(filters).toContainText("historical arXiv records");
-  const lensCount = await page.locator(".filters .kind-toggle").evaluateAll((toggles) =>
-    toggles.reduce((total, toggle) => {
-      if (toggle.getAttribute("aria-pressed") !== "true") return total;
-      const count = toggle.textContent?.match(/[\d,]+$/)?.[0] ?? "0";
-      return total + Number(count.replaceAll(",", ""));
-    }, 0),
-  );
-  const archiveText = await filters.locator(".aside-copy").textContent();
-  const archiveCount = Number(
-    archiveText?.match(/batches ([\d,]+) historical/)?.[1].replaceAll(",", ""),
-  );
-  const fullCount = lensCount - archiveCount;
-  const fullState = `${fullCount.toLocaleString()} visible graph nodes available.`;
-  await expect(mapStatus(page)).toHaveText(fullState, { timeout: 20_000 });
-  expect(archiveCount).toBeGreaterThan(0);
+  await expect(filters).toContainText("foreground papers");
+  const fullState = await fullNodes(page);
+  const fullCount = Number(fullState.match(/[\d,]+/)?.[0].replaceAll(",", ""));
+  expect(fullCount).toBe(3_999);
   await expect(page.locator(".graph-header")).toContainText(
     `${fullCount.toLocaleString()} nodes`,
   );
@@ -924,10 +1140,10 @@ test("context loss falls back to 2D", async ({ page }) => {
   if (await graph3d.count()) {
     await graph3d.locator("canvas").first().dispatchEvent("webglcontextlost");
     await expect(page.getByLabel("Interactive research graph")).toContainText(
-      "2D compatibility · semantic",
+      "2D overview · semantic frame",
     );
     await expect(page.locator(".graph-status")).toContainText(
-      "3D view paused. You’re in the 2D compatibility view.",
+      "3D stopped; using the 2D fallback.",
     );
     await page.getByRole("button", { name: "Retry 3D" }).click();
     const rebuilt = page.getByLabel("Interactive 3D research graph");

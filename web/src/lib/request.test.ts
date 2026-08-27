@@ -2,9 +2,11 @@ import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { makeAtlas, makeLayout } from "../test/fixtures";
 import type { Atlas } from "../types";
-import type { AtlasCore, PaperBundle } from "./payload";
+import { fetchPapers } from "./paper";
+import type { AtlasCore, LegacyPaperBundle, PaperBundle } from "./payload";
 import { basePath } from "./paths";
-import { fetchAtlas, fetchCore, fetchPapers } from "./request";
+import * as placement from "./place";
+import { fetchAtlas, fetchCore } from "./request";
 
 function splitAtlas(atlas: Atlas): {
   core: AtlasCore;
@@ -34,8 +36,10 @@ function splitAtlas(atlas: Atlas): {
     );
   }
   const bundle: PaperBundle = {
-    schema_version: 1,
+    schema_version: 2,
     papers,
+    ideas: [],
+    idea_layout: null,
     layout: paperLayout,
   };
   const bytes = new TextEncoder().encode(`${JSON.stringify(bundle)}\n`);
@@ -97,6 +101,34 @@ describe("atlas requests", () => {
     });
   });
 
+  it("reconstructs a cached core that references a schema v1 paper bundle", async () => {
+    const atlas = makeAtlas({ layout: makeLayout() });
+    const { core, bundle } = splitAtlas(atlas);
+    const legacy: LegacyPaperBundle = {
+      schema_version: 1,
+      papers: bundle.papers,
+      layout: bundle.layout,
+    };
+    const bytes = new TextEncoder().encode(`${JSON.stringify(legacy)}\n`);
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    const legacyCore: AtlasCore = {
+      ...core,
+      paper_asset: {
+        ...core.paper_asset,
+        path: `/data/papers/${digest}.json`,
+        sha256: digest,
+        bytes: bytes.byteLength,
+      },
+    };
+    const fetcher = vi.fn(
+      async () => new Response(bytes.buffer as ArrayBuffer),
+    ) as unknown as typeof fetch;
+
+    await expect(
+      fetchPapers(legacyCore, new AbortController().signal, fetcher),
+    ).resolves.toEqual(atlas);
+  });
+
   it("retains an eager compatibility request that reconstructs exact data", async () => {
     const atlas = makeAtlas({
       layout: makeLayout(),
@@ -132,6 +164,16 @@ describe("atlas requests", () => {
     await expect(
       fetchPapers(core, new AbortController().signal, fetcher),
     ).rejects.toThrow("byte length does not match");
+  });
+
+  it("screens derived placements after the full asset is merged", async () => {
+    const atlas = makeAtlas({ layout: makeLayout() });
+    const { core, fetcher } = splitFetcher(atlas);
+    vi.spyOn(placement, "placeError").mockReturnValueOnce("invalid idea placement");
+
+    await expect(
+      fetchPapers(core, new AbortController().signal, fetcher),
+    ).rejects.toThrow("invalid idea placement");
   });
 
   it("rejects same-length paper bytes with the wrong digest", async () => {

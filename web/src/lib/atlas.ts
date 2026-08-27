@@ -352,6 +352,7 @@ export function atlasValidationError(value: unknown): string | null {
     !Array.isArray(value.repos) ||
     !Array.isArray(value.ideas) ||
     (value.layout != null && !isRecord(value.layout)) ||
+    (value.idea_layout != null && !isRecord(value.idea_layout)) ||
     !isCoverage(value.coverage)
   ) {
     return "invalid top-level atlas contract";
@@ -368,7 +369,8 @@ export function atlasValidationError(value: unknown): string | null {
   );
   if (items) return items;
   if (value.layout != null) {
-    const scope = atlasScope(value as unknown as Atlas);
+    const typed = value as unknown as Atlas;
+    const scope = atlasScope(typed);
     const semanticError = layoutError(value.layout, scope);
     if (semanticError) return semanticError;
   }
