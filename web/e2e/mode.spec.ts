@@ -25,17 +25,13 @@ async function overview(page: Page, layout = "semantic") {
 }
 
 async function selectTopic(page: Page) {
-  await expect(page.locator(".filters")).toContainText("foreground papers", {
+  const label = "Choose a visible graph node";
+  const input = page.getByRole("combobox", { name: label }).and(page.locator("input"));
+  await expect(input).toHaveAttribute("placeholder", "Find a paper or node…", {
     timeout: 20_000,
   });
-  const picker = page.getByLabel("Choose a visible graph node");
-  await expect(picker).toBeVisible({ timeout: 20_000 });
-  if ((await picker.evaluate((element) => element.tagName)) === "SELECT") {
-    await picker.selectOption("topic:pre-training");
-  } else {
-    await picker.fill("pretraining");
-    await page.getByRole("option", { name: /Topic\s+pretraining/i }).click();
-  }
+  await input.fill("pretraining");
+  await page.getByRole("option", { name: /Topic\s+pretraining/i }).click();
   await expect(heading(page)).toBeVisible();
 }
 

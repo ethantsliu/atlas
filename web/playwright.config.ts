@@ -7,7 +7,7 @@ const testUrl = `http://127.0.0.1:${testPort}`;
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
-  workers: 2,
+  workers: process.env.CI ? 1 : 2,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   timeout: 45_000,
