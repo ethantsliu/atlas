@@ -209,6 +209,13 @@ class CorpusTests(unittest.TestCase):
             corpus.index("Dispatch validated promotion"),
             corpus.index("Acknowledge promotion"),
         )
+        retire = corpus[
+            corpus.index("- name: Retire stale shard assets") : corpus.index(
+                "- name: Enforce harvest result"
+            )
+        ]
+        self.assertIn("steps.prep.outputs.ready == 'true'", retire)
+        self.assertIn("steps.verify_promo.outcome == 'success'", retire)
         self.assertNotIn("schedule:", legacy)
         self.assertIn("group: arxiv-oai-corpus", legacy)
         self.assertIn("group: arxiv-oai-corpus", feed)
