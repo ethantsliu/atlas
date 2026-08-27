@@ -243,14 +243,19 @@ test("historical paper points open the inline inspector", async ({
   const tip = page.locator(".cloud-tip");
   await expect(tip).toHaveCSS("font-family", /Baskerville/);
   await expect(tip).toHaveCSS("font-size", "14px");
+  await page.mouse.move(point.x + 64, point.y + 64);
+  await page.waitForTimeout(200);
+  await page.mouse.move(point.x, point.y);
+  await expect(tip).toContainText("Paper · ", { timeout: 5_000 });
+  const clickTitle = (await tip.textContent())!.slice("Paper · ".length);
   await page.mouse.click(point.x, point.y);
   await page.mouse.move(2, 2);
 
   const inspector = page.getByLabel("Node inspector");
-  await expect(inspector.getByRole("heading", { name: point.title })).toBeVisible();
+  await expect(inspector.getByRole("heading", { name: clickTitle })).toBeVisible();
   await expect(inspector.getByRole("link", { name: "View on arXiv" })).toHaveAttribute(
     "href",
-    links.get(point.title) ?? "missing historical paper link",
+    links.get(clickTitle) ?? "missing historical paper link",
   );
   await expect(inspector.locator("time")).toHaveAttribute(
     "datetime",
