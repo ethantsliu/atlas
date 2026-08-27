@@ -238,7 +238,8 @@ class CorpusTests(unittest.TestCase):
             "steps.merge.outputs.promote == 'false'",
             "steps.prep.outcome == 'success'",
             "steps.acknowledge.outcome == 'success'",
-            ".pages_this_run > 0",
+            ".prior_page_count",
+            ".page_count > .prior_page_count",
             '.reason == "sealed"',
             '.reason == "page-limit"',
             '.reason == "time-limit"',
@@ -246,12 +247,18 @@ class CorpusTests(unittest.TestCase):
             ".pending == []",
             ".merged == []",
             ".active.generation == $result[0].generation",
+            "if ! jq -e",
+            "safely checkpointed",
             "gh workflow run corpus.yml",
             '-f pages="$CHAIN_PAGES"',
             '-f minutes="$CHAIN_MINUTES"',
         ):
             self.assertIn(guard, chain)
         self.assertNotIn('.reason == "token-expiring"', chain)
+        self.assertIn('CHAIN_PAGES: "5000"', chain)
+        self.assertIn('CHAIN_MINUTES: "300"', chain)
+        self.assertNotIn("inputs.pages", chain)
+        self.assertNotIn("inputs.minutes", chain)
         self.assertIn("actions: write", corpus)
         self.assertLess(
             corpus.index("- name: Publish release checkpoint"),
@@ -430,6 +437,7 @@ class CorpusTests(unittest.TestCase):
                 wall=lambda: NOW,
             )
             self.assertEqual(partial["status"], "partial")
+            self.assertEqual(partial["prior_page_count"], 0)
             client = FakeClient({"opaque": [final]})
             complete = run_corpus(
                 root,
@@ -440,6 +448,7 @@ class CorpusTests(unittest.TestCase):
             )
 
             self.assertEqual(complete["status"], "complete")
+            self.assertEqual(complete["prior_page_count"], 1)
             self.assertEqual(client.calls[0]["token"], "opaque")
 
     def test_token_reset(self) -> None:
@@ -455,11 +464,36 @@ class CorpusTests(unittest.TestCase):
 
             self.assertEqual(result["status"], "complete")
             self.assertEqual(result["pages_this_run"], 2)
+            self.assertEqual(result["prior_page_count"], 0)
             self.assertEqual(result["page_count"], 1)
             self.assertEqual(result["record_count"], 1)
             self.assertEqual(
                 [row["token"] for row in client.calls], [None, "stale", None]
             )
+
+    def test_reset_progress(self) -> None:
+        first = TestPage((paper("1"),), "stale", "2026-08-27T00:17:00Z")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run_corpus(
+                root,
+                FakeClient({None: [first]}),
+                max_pages=1,
+                max_minutes=5,
+                wall=lambda: NOW,
+            )
+            result = run_corpus(
+                root,
+                ResetClient(),
+                max_pages=1,
+                max_minutes=5,
+                wall=lambda: NOW,
+            )
+
+            self.assertEqual(result["status"], "partial")
+            self.assertEqual(result["pages_this_run"], 1)
+            self.assertEqual(result["prior_page_count"], 1)
+            self.assertEqual(result["page_count"], 1)
 
     def test_expiry(self) -> None:
         page = TestPage(

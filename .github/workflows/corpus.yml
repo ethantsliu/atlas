@@ -565,19 +565,29 @@ jobs:
             (steps.prep.outcome == 'success' &&
              steps.acknowledge.outcome == 'success'))
         env:
-          CHAIN_PAGES: ${{ inputs.pages || '5000' }}
-          CHAIN_MINUTES: ${{ inputs.minutes || '300' }}
+          CHAIN_PAGES: "5000"
+          CHAIN_MINUTES: "300"
         run: |
           test -s "$RUNNER_TEMP/corpus-result.json"
           jq -e '
-            (.pages_this_run | type == "number") and
-            .pages_this_run > 0 and
-            ((.status == "complete" and .reason == "sealed") or
-             (.status == "partial" and
-              (.reason == "page-limit" or .reason == "time-limit")))
+            (.status == "complete" or .status == "partial") and
+            (.reason | type == "string") and
+            (.generation | type == "string" and length > 0) and
+            (.pages_this_run | type == "number" and floor == . and . >= 0) and
+            (.prior_page_count | type == "number" and floor == . and . >= 0) and
+            (.page_count | type == "number" and floor == . and . >= 0)
           ' "$RUNNER_TEMP/corpus-result.json" >/dev/null
           if jq -e '.history.complete == true' "$CORPUS_ROOT/cursor.json" >/dev/null; then
             echo "Historical bootstrap is complete; scheduled synchronization remains active."
+            exit 0
+          fi
+          if ! jq -e '
+            (.status == "complete" and .reason == "sealed") or
+            (.status == "partial" and
+             (.reason == "page-limit" or .reason == "time-limit") and
+             .page_count > .prior_page_count)
+          ' "$RUNNER_TEMP/corpus-result.json" >/dev/null; then
+            echo "Historical bootstrap is safely checkpointed; a scheduled run will resume it."
             exit 0
           fi
           jq -e --slurpfile result "$RUNNER_TEMP/corpus-result.json" '

@@ -351,6 +351,7 @@ def run_corpus(
     completed = 0
     reason = "page-limit"
     result = read_state(root, generation)
+    prior_pages = result["page_count"] if result is not None else 0
     if token_expired(result, wall()):
         reset_stage(root, generation, result)
         result = None
@@ -379,6 +380,7 @@ def run_corpus(
                 "start": start,
                 "end": end,
                 "pages_this_run": completed,
+                "prior_page_count": prior_pages,
                 "page_count": result["page_count"],
                 "record_count": result["record_count"],
                 "watermark": cursor["watermark"],
@@ -395,6 +397,7 @@ def run_corpus(
         "start": start,
         "end": end,
         "pages_this_run": completed,
+        "prior_page_count": prior_pages,
         "page_count": result["page_count"] if result else 0,
         "record_count": result["record_count"] if result else 0,
         "watermark": result.get("watermark") if result else cursor["watermark"],
