@@ -64,6 +64,15 @@ export type CloudData = {
   positions: Float32Array;
   scopes: Uint8Array;
   ranges: CloudRange[];
+  loaded: number;
+  radius: number;
+};
+
+export type CloudStep = {
+  start: number;
+  count: number;
+  loaded: number;
+  total: number;
 };
 
 export type CloudPaper = {
@@ -88,6 +97,7 @@ const META = /^\d{4}-\d{2}\.json$/;
 const ROUTES = /^\d{4}-\d{2}\.routes$/;
 const ANCHORS = /^anchors\.json$/;
 const MAGIC = "ATLASPT1";
+const CLOUD_WINDOW = 5;
 
 export function cloudPath(asset: CloudAsset): string {
   return `/data/cloud/${asset.path}?sha=${asset.sha256}`;
@@ -351,7 +361,7 @@ async function pointShard(
   signal: AbortSignal,
   fetcher: typeof fetch,
   base?: string,
-): Promise<{ positions: Float32Array; scopes: Uint8Array }> {
+): Promise<{ positions: Float32Array; scopes: Uint8Array; radius: number }> {
   const response = await fetcher(basePath(cloudPath(shard.points), base), {
     signal,
     cache: "force-cache",
@@ -375,12 +385,20 @@ async function pointShard(
     throw new Error("Paper point shard has an invalid contract");
   }
   const positions = new Float32Array(count * 3);
+  let radius = 0;
   for (let index = 0; index < count * 3; index += 1) {
     const coordinate = view.getFloat32(12 + index * 4, true);
     if (!Number.isFinite(coordinate)) {
       throw new Error("Paper point shard is invalid");
     }
     positions[index] = coordinate;
+  }
+  for (let index = 0; index < count; index += 1) {
+    const offset = index * 3;
+    radius = Math.max(
+      radius,
+      Math.hypot(positions[offset], positions[offset + 1], positions[offset + 2]),
+    );
   }
   const scopes = new Uint8Array(bytes.slice(12 + count * 12));
   const scopeCounts = [0, 0, 0];
@@ -395,7 +413,147 @@ async function pointShard(
   ) {
     throw new Error("Paper point shard is invalid");
   }
-  return { positions, scopes };
+  return { positions, scopes, radius };
+}
+
+export function createCloud(manifest: CloudManifest): CloudData {
+  return {
+    positions: new Float32Array(manifest.count * 3),
+    scopes: new Uint8Array(manifest.count),
+    ranges: [],
+    loaded: 0,
+    radius: 0,
+  };
+}
+
+type ShardData = Awaited<ReturnType<typeof pointShard>>;
+type ShardResult = { ok: true; data: ShardData } | { ok: false; error: unknown };
+
+function abortLoad(signal: AbortSignal): void {
+  if (!signal.aborted) return;
+  throw signal.reason ?? new DOMException("Aborted", "AbortError");
+}
+
+export async function streamCloud(
+  manifest: CloudManifest,
+  data: CloudData,
+  signal: AbortSignal,
+  onStep?: (step: CloudStep) => void,
+  fetcher: typeof fetch = fetch,
+  base?: string,
+): Promise<CloudData> {
+  abortLoad(signal);
+  if (
+    data.positions.length !== manifest.count * 3 ||
+    data.scopes.length !== manifest.count ||
+    data.loaded !== 0 ||
+    data.ranges.length !== 0
+  ) {
+    throw new Error("Paper cloud target has an invalid shape");
+  }
+  const controller = new AbortController();
+  const forward = () => controller.abort(signal.reason);
+  signal.addEventListener("abort", forward, { once: true });
+  const results: (Promise<ShardResult> | undefined)[] = [];
+  const settles: (((result: ShardResult) => void) | undefined)[] = [];
+  for (const _shard of manifest.shards) {
+    results.push(
+      new Promise((resolve) => {
+        settles.push(resolve);
+      }),
+    );
+  }
+  let next = 0;
+  let committed = 0;
+  let stopped = false;
+  let failed = false;
+  let failure: unknown;
+  let windows: (() => void)[] = [];
+  const wake = () => {
+    const ready = windows;
+    windows = [];
+    ready.forEach((resolve) => resolve());
+  };
+  const waitSlot = async () => {
+    while (!stopped && next - committed >= CLOUD_WINDOW) {
+      await new Promise<void>((resolve) => windows.push(resolve));
+    }
+  };
+  const work = async () => {
+    while (!stopped) {
+      await waitSlot();
+      if (stopped || next >= manifest.shards.length) return;
+      const index = next++;
+      const shard = manifest.shards[index];
+      const result: ShardResult = await pointShard(
+        shard,
+        controller.signal,
+        fetcher,
+        base,
+      ).then(
+        (loaded) => ({ ok: true, data: loaded }),
+        (error: unknown) => ({ ok: false, error }),
+      );
+      settles[index]!(result);
+      settles[index] = undefined;
+      if (!result.ok || signal.aborted) {
+        if (!result.ok && !controller.signal.aborted) {
+          failed = true;
+          failure = result.error;
+        }
+        stopped = true;
+        controller.abort(result.ok ? signal.reason : result.error);
+        wake();
+      }
+    }
+  };
+  const workers = Array.from({ length: Math.min(4, manifest.shards.length) }, () =>
+    work(),
+  );
+  try {
+    for (let index = 0; index < manifest.shards.length; index += 1) {
+      const result = await results[index]!;
+      results[index] = undefined;
+      abortLoad(signal);
+      if (!result.ok) throw failed ? failure : result.error;
+      const loaded = result.data;
+      const shard = manifest.shards[index];
+      const start = data.loaded;
+      data.positions.set(loaded.positions, start * 3);
+      data.scopes.set(loaded.scopes, start);
+      data.ranges.push({
+        month: shard.month,
+        start,
+        count: loaded.scopes.length,
+        meta: shard.meta,
+        anchor_sha256: shard.anchor_sha256,
+        row_sha256: shard.row_sha256,
+        routes: shard.routes,
+      });
+      data.loaded += loaded.scopes.length;
+      data.radius = Math.max(data.radius, loaded.radius);
+      onStep?.({
+        start,
+        count: loaded.scopes.length,
+        loaded: data.loaded,
+        total: manifest.count,
+      });
+      abortLoad(signal);
+      committed = index + 1;
+      wake();
+    }
+    await Promise.all(workers);
+    if (data.loaded !== manifest.count) {
+      throw new Error("Paper cloud count drifted while loading");
+    }
+    return data;
+  } finally {
+    stopped = true;
+    controller.abort();
+    signal.removeEventListener("abort", forward);
+    wake();
+    void Promise.all(workers);
+  }
 }
 
 export async function loadCloud(
@@ -404,34 +562,8 @@ export async function loadCloud(
   fetcher: typeof fetch = fetch,
   base?: string,
 ): Promise<CloudData> {
-  const positions = new Float32Array(manifest.count * 3);
-  const scopes = new Uint8Array(manifest.count);
-  const ranges: CloudRange[] = [];
-  let next = 0;
-  for (let start = 0; start < manifest.shards.length; start += 4) {
-    const shards = manifest.shards.slice(start, start + 4);
-    const loaded = await Promise.all(
-      shards.map((shard) => pointShard(shard, signal, fetcher, base)),
-    );
-    for (const [index, shard] of shards.entries()) {
-      const data = loaded[index];
-      positions.set(data.positions, next * 3);
-      scopes.set(data.scopes, next);
-      ranges.push({
-        month: shard.month,
-        start: next,
-        count: data.scopes.length,
-        meta: shard.meta,
-        anchor_sha256: shard.anchor_sha256,
-        row_sha256: shard.row_sha256,
-        routes: shard.routes,
-      });
-      next += data.scopes.length;
-    }
-  }
-  if (next !== manifest.count)
-    throw new Error("Paper cloud count drifted while loading");
-  return { positions, scopes, ranges };
+  const data = createCloud(manifest);
+  return streamCloud(manifest, data, signal, undefined, fetcher, base);
 }
 
 export function cloudRange(data: CloudData, index: number): CloudRange | null {

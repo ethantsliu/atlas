@@ -143,7 +143,7 @@ test("historical paper loading can recover without resetting the map", async ({
   await expect(picker).toHaveAttribute("role", "combobox", { timeout: 20_000 });
   await picker.fill("pretraining");
   await page.getByRole("option", { name: /Topic\s+pretraining/i }).click();
-  const inspector = page.getByLabel("Node inspector");
+  const inspector = page.locator("#map-inspector");
   await expect(inspector.getByRole("heading", { name: "pretraining" })).toBeVisible();
 
   const graph = page.getByLabel(/Interactive (3D )?research graph/);
@@ -291,7 +291,11 @@ test("paper lens and arrow-key graph navigation stay concise", async ({ page }) 
   await graph.focus();
   await page.keyboard.press("ArrowRight");
   await expect(picker).not.toHaveValue("");
-  await expect(graph).toBeFocused();
+  if ((page.viewportSize()?.width ?? 1_440) <= 1_100) {
+    await expect(page.locator("#map-inspector")).toBeFocused();
+  } else {
+    await expect(graph).toBeFocused();
+  }
 });
 
 test("daily discovery proves intake coverage and preserves all relevant papers", async ({

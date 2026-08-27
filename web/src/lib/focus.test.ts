@@ -10,6 +10,8 @@ describe("focusCloud", () => {
       positions: new Float32Array([12, 13, 14]),
       scopes: new Uint8Array([0]),
       ranges: [],
+      loaded: 1,
+      radius: 23,
     };
     const pick: CloudPick = {
       index: 0,
@@ -43,6 +45,8 @@ describe("focusCloud", () => {
       positions: new Float32Array([1, 2, 3]),
       scopes: new Uint8Array([0]),
       ranges: [],
+      loaded: 1,
+      radius: 4,
     };
     const pick = {
       index: 0,

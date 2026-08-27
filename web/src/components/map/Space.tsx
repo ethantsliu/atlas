@@ -19,6 +19,7 @@ import { useMarks } from "../../hooks/marks";
 import { useSwarm, type SwarmTip } from "../../hooks/swarm";
 import type { Theme } from "../../hooks/theme";
 import { useView } from "../../hooks/view";
+import { useFly } from "../../hooks/fly";
 import { graphEndpointId, graphKey, largestGroup, splitPapers } from "../../lib/graph";
 import { showLink } from "../../lib/quality";
 import type { CameraView } from "../../lib/camera";
@@ -99,15 +100,12 @@ export function GraphSpace({
   const [coreHovered, setCoreHovered] = useState<GraphNode | null>(null);
   const [swarmHovered, setSwarmHovered] = useState<GraphNode | null>(null);
   const hovered = swarmHovered ?? coreHovered;
-  const quality = useQuality(
-    graph.nodes.length + (cloud?.scopes.length ?? 0),
-    width,
-    height,
-  );
+  const quality = useQuality(graph.nodes.length + (cloud?.loaded ?? 0), width, height);
   const engineReadyRef = useRef(false);
   const fitRef = useRef(!camera);
   const fitKeyRef = useRef<string>();
   const showView = useView(graphRef, camera, viewReady);
+  useFly(graphRef);
   const cloudOpenRef = useRef(cloudSelected);
   useEffect(() => {
     cloudOpenRef.current = cloudSelected;

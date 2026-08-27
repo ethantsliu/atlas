@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { clearHover, cloudFront, pickBound } from "./points";
+import { cacheMeta, clearHover, cloudFront, pickBound, pickSize } from "./points";
 
 const paper = {
   id: "2001.00001",
@@ -11,6 +11,22 @@ const paper = {
 const bound = { index: 4, paper };
 
 describe("paper point input", () => {
+  it("keeps dense points usable with touch-sized picking", () => {
+    expect(pickSize("mouse")).toBe(8);
+    expect(pickSize("touch")).toBe(24);
+  });
+
+  it("bounds metadata to four recently used shards", async () => {
+    const cache = new Map<string, Promise<number>>();
+    for (let index = 0; index < 5; index += 1) {
+      await cacheMeta(cache, `${index}`, async () => index);
+    }
+    cacheMeta(cache, "1", async () => 9);
+    cacheMeta(cache, "5", async () => 5);
+
+    expect([...cache.keys()]).toEqual(["2", "3", "4", "1", "5"].slice(-4));
+  });
+
   it("keeps the visually nearer layer", () => {
     const graph = {
       camera: () => ({ position: { x: 0, y: 0, z: 0 } }),

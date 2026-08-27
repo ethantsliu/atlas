@@ -12,6 +12,7 @@ export type CameraView = {
 
 const CAMERA_RE =
   /^1_(-?\d+(?:\.\d)?)_(-?\d+(?:\.\d)?)_(-?\d+(?:\.\d)?)_(\d+(?:\.\d)?)_(-?\d+)_(-?\d+)$/;
+export const CAMERA_EDGE = 4096;
 
 function finiteRange(value: number, low: number, high: number): boolean {
   return Number.isFinite(value) && value >= low && value <= high;
@@ -27,8 +28,8 @@ export function parseCamera(value: string | null): CameraView | null {
   if (!match) return null;
   const [x, y, z, radius, yaw, pitch] = match.slice(1).map(Number);
   if (
-    ![x, y, z].every((item) => finiteRange(item, -4096, 4096)) ||
-    !finiteRange(radius, 8, 4096) ||
+    ![x, y, z].every((item) => finiteRange(item, -CAMERA_EDGE, CAMERA_EDGE)) ||
+    !finiteRange(radius, 8, CAMERA_EDGE) ||
     !finiteRange(yaw, -180, 180) ||
     !finiteRange(pitch, -85, 85)
   ) {
@@ -58,8 +59,8 @@ export function formatCamera(view: CameraView | null): string | null {
   const yaw = Math.round(view.yaw);
   const pitch = Math.round(view.pitch);
   if (
-    ![x, y, z].every((item) => finiteRange(item, -4096, 4096)) ||
-    !finiteRange(radius, 8, 4096) ||
+    ![x, y, z].every((item) => finiteRange(item, -CAMERA_EDGE, CAMERA_EDGE)) ||
+    !finiteRange(radius, 8, CAMERA_EDGE) ||
     !finiteRange(yaw, -180, 180) ||
     !finiteRange(pitch, -85, 85)
   ) {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Raycaster, Vector2, type Camera, type Points } from "three";
+import { type Camera } from "three";
 import type { GraphRef } from "../components/map/Driver";
 import {
   cloudPaper,
@@ -9,13 +9,20 @@ import {
   type CloudPaper,
   type CloudPick,
 } from "../lib/cloud";
-import { hitRadius } from "../lib/ray";
-import { buildCloud } from "../lib/swarm";
+import {
+  buildCloud,
+  dropCloud,
+  growCloud,
+  paintCloud,
+  type CloudSwarm,
+} from "../lib/swarm";
 import type { GraphNode } from "../types";
+import { makeGpuPick } from "./gpu";
 import type { Theme } from "./theme";
 
 const HOVER_LIMIT = 100_000;
 const HOVER_WAIT = 120;
+const META_LIMIT = 4;
 
 export type PointTip = { label: string; x: number; y: number };
 
@@ -50,7 +57,7 @@ type PointRefs = {
   mute: Ref<boolean>;
   hidden: Ref<boolean>;
   pick: Ref<(paper: CloudPick) => void>;
-  points: Ref<Points | null>;
+  points: Ref<CloudSwarm | null>;
   request: Ref<number>;
   select: Ref<number>;
   target: Ref<Hover | null>;
@@ -62,11 +69,12 @@ function isMuted(refs: Pick<PointRefs, "hidden" | "mute">) {
 
 function dropPoints(
   graph: NonNullable<GraphRef["current"]>,
-  points: Points,
+  points: CloudSwarm,
   refs: PointRefs,
   setTip: (tip: PointTip | null) => void,
 ) {
   graph.scene().remove(points);
+  dropCloud(points);
   points.geometry.dispose();
   const materials = Array.isArray(points.material)
     ? points.material
@@ -81,33 +89,55 @@ function dropPoints(
   setTip(null);
 }
 
-function rayHit(
+function gpuHit(
   canvas: HTMLCanvasElement,
   graph: NonNullable<GraphRef["current"]>,
-  points: Points,
-  raycaster: Raycaster,
-  pointer: Vector2,
+  picker: ReturnType<typeof makeGpuPick>,
   event: PointerEvent | MouseEvent,
 ) {
   const rect = canvas.getBoundingClientRect();
-  pointer.set(
-    ((event.clientX - rect.left) / rect.width) * 2 - 1,
-    -((event.clientY - rect.top) / rect.height) * 2 + 1,
-  );
   const camera = graph.camera() as Camera;
-  const target = (graph.controls() as { target?: { x: number; y: number; z: number } })
-    .target;
-  raycaster.params.Points = {
-    threshold: hitRadius(camera, target, rect.height),
-  };
-  raycaster.setFromCamera(pointer, camera);
-  const match = raycaster.intersectObject(points, false)[0];
+  const match = picker.pick(
+    camera,
+    event.clientX,
+    event.clientY,
+    rect,
+    pickSize("pointerType" in event ? event.pointerType : undefined),
+  );
   return {
     distance: match?.distance ?? Number.POSITIVE_INFINITY,
-    index: typeof match?.index === "number" ? match.index : null,
+    index: match?.index ?? null,
     x: event.clientX - rect.left,
     y: event.clientY - rect.top,
   };
+}
+
+export function pickSize(pointer?: string): number {
+  return pointer === "touch" ? 24 : 8;
+}
+
+export function cacheMeta<T>(
+  cache: Map<string, Promise<T>>,
+  path: string,
+  load: () => Promise<T>,
+): Promise<T> {
+  const cached = cache.get(path);
+  if (cached) {
+    cache.delete(path);
+    cache.set(path, cached);
+    return cached;
+  }
+  const request = load();
+  cache.set(path, request);
+  while (cache.size > META_LIMIT) {
+    const oldest = cache.keys().next().value;
+    if (oldest === undefined) break;
+    cache.delete(oldest);
+  }
+  void request.catch(() => {
+    if (cache.get(path) === request) cache.delete(path);
+  });
+  return request;
 }
 
 async function loadPaper(
@@ -118,16 +148,13 @@ async function loadPaper(
 ) {
   const range = cloudRange(data, index);
   if (!range) return null;
-  let request = cache.get(range.meta.path);
-  if (!request) {
-    request = fetchCloudMeta(
+  const request = cacheMeta(cache, range.meta.path, () =>
+    fetchCloudMeta(
       range,
       signal,
       data.scopes.subarray(range.start, range.start + range.count),
-    );
-    cache.set(range.meta.path, request);
-    void request.catch(() => cache.delete(range.meta.path));
-  }
+    ),
+  );
   const paper = cloudPaper(await request, range, index);
   return paper ? { index, paper } : null;
 }
@@ -203,17 +230,18 @@ function mountPoints(
   const graph = input.graphRef.current;
   const data = input.data;
   if (!graph || !data || data.scopes.length === 0) return;
-  const points = buildCloud(data, input.theme);
+  const renderer = graph.renderer();
+  const points = buildCloud(data, input.theme, renderer);
+  growCloud(points, data);
   points.visible = input.active;
   refs.points.current = points;
   graph.scene().add(points);
-  const canvas = graph.renderer().domElement;
-  const raycaster = new Raycaster();
-  const pointer = new Vector2();
+  const canvas = renderer.domElement;
+  const picker = makeGpuPick(renderer, points, data.positions);
   const controller = new AbortController();
   const cache = new Map<string, Promise<CloudPaper[]>>();
   const hit = (event: PointerEvent | MouseEvent) =>
-    rayHit(canvas, graph, points, raycaster, pointer, event);
+    gpuHit(canvas, graph, picker, event);
   const load = (index: number) => loadPaper(data, cache, controller.signal, index);
   let timer: ReturnType<typeof setTimeout> | undefined;
   let moved: PointerEvent | null = null;
@@ -345,7 +373,7 @@ function mountPoints(
       .catch(() => {
         if (token === refs.select.current) {
           setTip({
-            label: "Paper details unavailable · click to retry",
+            label: "Paper details unavailable · select to retry",
             x: at.x,
             y: at.y,
           });
@@ -369,6 +397,7 @@ function mountPoints(
     window.removeEventListener("pointerup", release, true);
     window.removeEventListener("mouseup", release, true);
     canvas.removeEventListener("click", choose, true);
+    picker.dispose();
     dropPoints(graph, points, refs, setTip);
   };
 }
@@ -387,7 +416,7 @@ export function usePoints(input: PointInput): {
   const hoverRef = useRef<Hover | null>(null);
   const muteRef = useRef(false);
   const hiddenRef = useRef(!input.active);
-  const pointsRef = useRef<Points | null>(null);
+  const pointsRef = useRef<CloudSwarm | null>(null);
   const requestRef = useRef(0);
   const selectRef = useRef(0);
   const targetRef = useRef<Hover | null>(null);
@@ -450,7 +479,13 @@ export function usePoints(input: PointInput): {
         },
         setTip,
       ),
-    [input.data, input.graphRef, input.theme],
+    [input.data, input.graphRef],
   );
+  useEffect(() => {
+    if (pointsRef.current && input.data) growCloud(pointsRef.current, input.data);
+  }, [input.data?.loaded]);
+  useEffect(() => {
+    if (pointsRef.current) paintCloud(pointsRef.current, input.theme);
+  }, [input.theme]);
   return { tip, block, drop, mute, take };
 }

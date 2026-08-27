@@ -12,7 +12,7 @@ import { CloudState, PaperSheet, PaperState } from "../components/map/State";
 import type { Theme } from "../hooks/theme";
 import type { CameraView } from "../lib/camera";
 import { resolvePaper } from "../lib/filters";
-import { useCloud } from "../hooks/cloud";
+import { useCloud, type CloudLoad } from "../hooks/cloud";
 import { useFocus } from "../hooks/focus";
 
 type MapViewProps = {
@@ -28,6 +28,49 @@ type MapViewProps = {
   onReplace: (patch: Partial<AtlasUrlState>) => void;
   onPush: (patch: Partial<AtlasUrlState>) => void;
 };
+
+const RESET_MAP: Partial<AtlasUrlState> = {
+  kinds: [...ALL_NODE_KINDS],
+  focus: null,
+  minFeasibility: 1,
+  selected: null,
+  query: "",
+  layout: "semantic",
+};
+
+function showInspector(): void {
+  if (!window.matchMedia?.("(max-width: 1100px)").matches) return;
+  window.requestAnimationFrame(() => {
+    const inspector = document.getElementById("map-inspector");
+    if (!inspector) return;
+    inspector.focus({ preventScroll: true });
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    inspector.scrollIntoView({
+      behavior: reduced ? "auto" : "smooth",
+      block: "start",
+    });
+  });
+}
+
+function mapReady(
+  hasPapers: boolean,
+  semantic: boolean,
+  papersReady: boolean,
+  papersError: string | null,
+  history: CloudLoad,
+) {
+  const papersDone = !hasPapers || papersReady || Boolean(papersError);
+  const cloudDone =
+    !hasPapers ||
+    !semantic ||
+    (!history.loading && Boolean(history.data || history.error));
+  return {
+    camera:
+      papersDone &&
+      (!hasPapers || !semantic || Boolean(history.data?.loaded || history.error)),
+    view: papersDone && cloudDone,
+  };
+}
 
 export function MapView({
   atlas,
@@ -45,11 +88,13 @@ export function MapView({
   const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
   const kinds = useMemo(() => new Set(url.kinds), [url.kinds]);
   const history = useCloud(kinds.has("paper") && url.layout === "semantic");
-  const papersDone = !kinds.has("paper") || papersReady || Boolean(papersError);
-  const cloudDone =
-    !kinds.has("paper") ||
-    url.layout !== "semantic" ||
-    Boolean(history.data || history.error);
+  const ready = mapReady(
+    kinds.has("paper"),
+    url.layout === "semantic",
+    papersReady,
+    papersError,
+    history,
+  );
   const cloud = useFocus(atlas, history, Boolean(url.focus || url.query.trim()));
   const nextGraph = useMemo(
     () =>
@@ -66,6 +111,10 @@ export function MapView({
   const allNodes = useMemo(() => createGraphNodes(atlas, 1), [atlas]);
   const selected =
     graph.nodes.find((candidate) => candidate.id === url.selected) ?? null;
+
+  useEffect(() => {
+    if (cloud.pick || selected) showInspector();
+  }, [cloud.pick, selected]);
 
   useEffect(() => {
     if (!papersReady || !url.selected || selected) return;
@@ -127,14 +176,7 @@ export function MapView({
 
   function resetMap() {
     cloud.clear();
-    onReplace({
-      kinds: [...ALL_NODE_KINDS],
-      focus: null,
-      minFeasibility: 1,
-      selected: null,
-      query: "",
-      layout: "semantic",
-    });
+    onReplace(RESET_MAP);
   }
 
   return (
@@ -159,6 +201,7 @@ export function MapView({
         graph={cloud.focused ? (cloud.graph ?? { nodes: [], links: [] }) : graph}
         cloud={cloud.data}
         cloudHidden={cloud.hidden}
+        cloudLabel={cloud.pick?.paper.title ?? null}
         cloudSelected={Boolean(cloud.pick)}
         cloudMark={cloud.mark}
         selected={selected}
@@ -177,7 +220,8 @@ export function MapView({
         theme={theme}
         layout={url.layout}
         camera={url.camera}
-        viewReady={papersDone && cloudDone}
+        cameraReady={ready.camera}
+        viewReady={ready.view}
         shareUrl={shareUrl}
         onLayout={(layout) => onReplace({ layout })}
       />

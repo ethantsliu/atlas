@@ -3,6 +3,7 @@ import { SearchX } from "lucide-react";
 type ResultStatusProps = {
   count: number;
   label: string;
+  live?: boolean;
   plural?: string;
   query: string;
 };
@@ -18,13 +19,19 @@ function countLabel(count: number, label: string, plural?: string): string {
   return `${count.toLocaleString()} ${count === 1 ? label : (plural ?? `${label}s`)}`;
 }
 
-export function ResultStatus({ count, label, plural, query }: ResultStatusProps) {
+export function ResultStatus({
+  count,
+  label,
+  live = true,
+  plural,
+  query,
+}: ResultStatusProps) {
   const result = countLabel(count, label, plural);
   const search = query.trim();
 
   return (
     <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
-      {search ? `${result} match “${search}”.` : `${result} available.`}
+      {live ? (search ? `${result} match “${search}”.` : `${result} available.`) : ""}
     </p>
   );
 }

@@ -65,11 +65,13 @@ export function Inspector({
       <aside
         id="map-inspector"
         className="inspector panel empty"
-        aria-label="Node inspector"
+        aria-labelledby="map-inspector-title"
         tabIndex={-1}
       >
         <Sparkles size={28} />
-        <h2>{hasNodes ? "Follow a promising edge" : "No node to inspect"}</h2>
+        <h2 id="map-inspector-title">
+          {hasNodes ? "Follow a promising edge" : "No node to inspect"}
+        </h2>
         {hasNodes ? (
           <p>
             Select a node to see its evidence, related papers, and next actions.
@@ -94,7 +96,7 @@ export function Inspector({
     <aside
       id="map-inspector"
       className="inspector panel"
-      aria-label="Node inspector"
+      aria-labelledby="map-inspector-title"
       tabIndex={-1}
     >
       <button className="icon-close" onClick={onClose} aria-label="Close inspector">
@@ -102,7 +104,7 @@ export function Inspector({
       </button>
       <span className={`type-pill ${node.kind}`}>{labelOf(node.kind)}</span>
       {idea && <span className="type-pill brief-status">{ideaStage(idea)}</span>}
-      <h2>{node.label}</h2>
+      <h2 id="map-inspector-title">{node.label}</h2>
       {node.count != null && (
         <div className="big-stat">
           {node.count.toLocaleString()} <span>routed papers</span>

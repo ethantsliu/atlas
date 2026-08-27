@@ -220,7 +220,7 @@ async function clickCloud(page: Page, target: CloudTarget): Promise<{ title: str
   if (!box) throw new Error("Research graph has no bounds");
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await expect(
-    page.getByLabel("Node inspector").getByRole("heading", { name: target.title }),
+    page.locator("#map-inspector").getByRole("heading", { name: target.title }),
   ).toBeVisible({ timeout: 20_000 });
   return { title: target.title };
 }
@@ -378,7 +378,7 @@ test("hover labels a node and click keeps details in the inspector", async ({
   await page.mouse.up();
   await expect(page.getByRole("heading", { name: "pretraining" })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  const inspector = await page.getByLabel("Node inspector").boundingBox();
+  const inspector = await page.locator("#map-inspector").boundingBox();
   if (!inspector) throw new Error("Node inspector has no bounds");
   expect(inspector.x).toBeGreaterThanOrEqual(box.x + box.width - 2);
   expect(inspector.width).toBeGreaterThanOrEqual(280);
@@ -420,7 +420,7 @@ test("historical paper points open the inline inspector", async ({
   await page.waitForTimeout(2_500);
   if (target) await waitCamera(page, target.camera);
   const graph = page.getByLabel("Interactive 3D research graph");
-  const inspector = page.getByLabel("Node inspector");
+  const inspector = page.locator("#map-inspector");
   const beforeGraph = await graph.boundingBox();
   const beforePanel = await inspector.boundingBox();
   const fullState = await fullNodes(page);
@@ -440,6 +440,7 @@ test("historical paper points open the inline inspector", async ({
   await page.mouse.move(2, 2);
 
   await expect(inspector.getByRole("heading", { name: title })).toBeVisible();
+  await expect(page.locator("#graph-selection")).toHaveText(`Paper selected: ${title}`);
   expect(await graph.boundingBox()).toEqual(beforeGraph);
   expect(await inspector.boundingBox()).toEqual(beforePanel);
   await expect(inspector.getByRole("link", { name: "View on arXiv" })).toHaveAttribute(
@@ -493,11 +494,11 @@ test("touch opens a historical paper in the stacked inspector", async ({
   await waitCamera(page, target.camera);
 
   const graph = page.getByLabel("Interactive 3D research graph");
-  const inspector = page.getByLabel("Node inspector");
+  const inspector = page.locator("#map-inspector");
   const beforeGraph = await graph.boundingBox();
   if (!beforeGraph) throw new Error("Research graph has no bounds");
   await page.touchscreen.tap(
-    beforeGraph.x + beforeGraph.width / 2,
+    beforeGraph.x + beforeGraph.width / 2 + 10,
     beforeGraph.y + beforeGraph.height / 2,
   );
 
@@ -508,12 +509,29 @@ test("touch opens a historical paper in the stacked inspector", async ({
     "href",
     target.url,
   );
+  await expect(inspector).toHaveAccessibleName(target.title);
+  await expect(page.locator("#graph-selection")).toHaveText(
+    `Paper selected: ${target.title}`,
+  );
   await expect(page.getByRole("dialog")).toHaveCount(0);
   const afterGraph = await graph.boundingBox();
-  const panel = await inspector.boundingBox();
   expect(afterGraph?.x).toBe(beforeGraph.x);
   expect(afterGraph?.width).toBe(beforeGraph.width);
-  expect(panel?.y).toBeGreaterThanOrEqual(beforeGraph.y + beforeGraph.height - 2);
+  await expect
+    .poll(async () => (await inspector.boundingBox())?.y ?? Number.POSITIVE_INFINITY)
+    .toBeLessThan(testInfo.project.use.viewport?.height ?? 840);
+  await expect(inspector).toBeFocused();
+  expect(
+    await page.evaluate(() => {
+      const graph = document.querySelector(".graph-wrap");
+      const inspector = document.getElementById("map-inspector");
+      return Boolean(
+        graph &&
+        inspector &&
+        graph.compareDocumentPosition(inspector) & Node.DOCUMENT_POSITION_FOLLOWING,
+      );
+    }),
+  ).toBe(true);
   await expect
     .poll(() =>
       page.evaluate(
@@ -532,6 +550,19 @@ test("touch opens a historical paper in the stacked inspector", async ({
   await expect(inspector.getByRole("heading", { name: target.title })).toBeVisible();
 });
 
+test("foreground selection opens the stacked inspector", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "iphone", "Stacked focus uses iPhone");
+  await loadMap(page);
+  const picker = page.getByLabel("Choose a visible graph node");
+  await picker.selectOption({ label: "Topic · pretraining" });
+  const inspector = page.locator("#map-inspector");
+  await expect(inspector).toBeFocused();
+  await expect(inspector).toHaveAccessibleName("pretraining");
+  await expect
+    .poll(async () => (await inspector.boundingBox())?.y ?? Number.POSITIVE_INFINITY)
+    .toBeLessThan(testInfo.project.use.viewport?.height ?? 840);
+});
+
 test("foreground paper points open the visible paper", async ({ page }, testInfo) => {
   test.setTimeout(90_000);
   test.skip(
@@ -547,7 +578,7 @@ test("foreground paper points open the visible paper", async ({ page }, testInfo
 
   const graph = page.getByLabel("Interactive 3D research graph");
   const graphBox = await graph.boundingBox();
-  const panel = page.getByLabel("Node inspector");
+  const panel = page.locator("#map-inspector");
   const panelBox = await panel.boundingBox();
   const point = await swarmPoint(page);
   await page.waitForTimeout(400);
@@ -834,7 +865,7 @@ test("details panel resizes and returns to its default", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await loadMap(page);
   const separator = page.getByRole("separator", { name: "Resize details panel" });
-  const inspector = page.getByLabel("Node inspector");
+  const inspector = page.locator("#map-inspector");
   await expect(separator).toBeVisible();
   await expect(separator).toHaveAttribute("aria-valuenow", "330");
 
@@ -876,7 +907,7 @@ test("details panel resize control is hidden in stacked layouts", async ({ page 
   const separator = page.getByRole("separator", { name: "Resize details panel" });
   await separator.focus();
   await page.setViewportSize({ width: 1_100, height: 844 });
-  await expect(page.getByLabel("Node inspector")).toBeFocused();
+  await expect(page.locator("#map-inspector")).toBeFocused();
   await expect(
     page.getByRole("separator", { name: "Resize details panel", includeHidden: true }),
   ).toBeHidden();
@@ -884,7 +915,7 @@ test("details panel resize control is hidden in stacked layouts", async ({ page 
   await page.setViewportSize({ width: 1_101, height: 844 });
   await page.getByRole("button", { name: "Reset panel width" }).focus();
   await page.setViewportSize({ width: 1_100, height: 844 });
-  await expect(page.getByLabel("Node inspector")).toBeFocused();
+  await expect(page.locator("#map-inspector")).toBeFocused();
 });
 
 test("context loss falls back to 2D", async ({ page }) => {

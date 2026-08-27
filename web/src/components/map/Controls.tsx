@@ -32,8 +32,8 @@ export function GraphControls({
         <span>
           {count > 0
             ? mode === "3d"
-              ? "Arrow keys move · drag rotates · scroll/pinch zooms"
-              : "Arrow keys move · drag pans · scroll/pinch zooms"
+              ? "Arrow keys select nodes · drag rotates · scroll travels · pinch zooms"
+              : "Arrow keys select nodes · drag pans · scroll/pinch zooms"
             : "Adjust the active search or lenses"}
         </span>
       </div>

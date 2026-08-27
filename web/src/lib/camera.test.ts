@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   formatCamera,
   parseCamera,
@@ -7,6 +7,7 @@ import {
   type Camera3d,
   type CameraView,
 } from "./camera";
+import { fly3d } from "./flight";
 
 describe("camera links", () => {
   it("round trips a compact normalized view", () => {
@@ -86,5 +87,53 @@ describe("camera links", () => {
     expect(
       formatCamera({ target: [0, 0, 0], radius: 8 - 1e-12, yaw: 0, pitch: 0 }),
     ).toBe("1_0_0_0_8_0_0");
+  });
+
+  it("flies beyond the original target while preserving the orbit vector", () => {
+    const target = { x: 10, y: -20, z: 30 };
+    const camera = { position: { x: 10, y: -20, z: 130 }, fov: 50 };
+    const cameraPosition = vi.fn(
+      (position: Partial<typeof target>, lookAt?: typeof target) => {
+        Object.assign(camera.position, position);
+        Object.assign(target, lookAt);
+      },
+    );
+    const graph = {
+      camera: () => camera,
+      controls: () => ({ target }),
+      cameraPosition,
+    } as Camera3d;
+
+    expect(fly3d(graph, 0.4)).toBe(true);
+    expect(fly3d(graph, 0.4)).toBe(true);
+    expect(fly3d(graph, 0.4)).toBe(true);
+
+    expect(cameraPosition).toHaveBeenCalledTimes(3);
+    expect(target).toEqual({ x: 10, y: -20, z: -90 });
+    expect(camera.position).toEqual({ x: 10, y: -20, z: 10 });
+    expect(camera.position.z).toBeLessThan(30);
+    expect(camera.position.z - target.z).toBe(100);
+  });
+
+  it("rejects invalid flight and clips the shared target to URL bounds", () => {
+    const target = { x: 4_090, y: 0, z: 0 };
+    const camera = { position: { x: 4_000, y: 0, z: 0 }, fov: 50 };
+    const graph = {
+      camera: () => camera,
+      controls: () => ({ target }),
+      cameraPosition: (position: Partial<typeof target>, lookAt?: typeof target) => {
+        Object.assign(camera.position, position);
+        Object.assign(target, lookAt);
+      },
+    } as Camera3d;
+
+    expect(fly3d(undefined, 0.4)).toBe(false);
+    expect(fly3d(graph, Number.NaN)).toBe(false);
+    expect(fly3d(graph, 0)).toBe(false);
+    expect(fly3d(graph, -1)).toBe(true);
+    expect(target.x).toBe(4_000);
+    expect(fly3d(graph, 10)).toBe(true);
+    expect(target.x).toBe(4_096);
+    expect(read3d(graph)?.target[0]).toBe(4_096);
   });
 });

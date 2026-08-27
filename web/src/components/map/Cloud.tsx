@@ -24,14 +24,14 @@ export function CloudDetail({
     <aside
       id="map-inspector"
       className="inspector panel"
-      aria-label="Node inspector"
+      aria-labelledby="map-inspector-title"
       tabIndex={-1}
     >
       <button className="icon-close" onClick={onClose} aria-label="Close inspector">
         <X size={16} />
       </button>
       <span className="type-pill paper">Paper</span>
-      <h2>{paper.title}</h2>
+      <h2 id="map-inspector-title">{paper.title}</h2>
       <div className="confidence">
         <span>Published</span>
         <b>
@@ -49,7 +49,11 @@ export function CloudDetail({
         {focused ? "Unisolate connections" : "Isolate connections"}
       </button>
       {focused && (
-        <p className="cloud-relation" role={error ? "alert" : undefined}>
+        <p
+          className="cloud-relation"
+          role={error ? "alert" : "status"}
+          aria-live={error ? "assertive" : "polite"}
+        >
           {loading
             ? "Loading exact semantic anchors…"
             : (error ??

@@ -30,6 +30,7 @@ type GraphCanvasProps = {
   graph: GraphData;
   cloud: CloudData | null;
   cloudHidden: boolean;
+  cloudLabel: string | null;
   cloudSelected: boolean;
   cloudMark: CloudMark | null;
   selected: GraphNode | null;
@@ -44,6 +45,7 @@ type GraphCanvasProps = {
   shareUrl: (camera?: CameraView | null) => string;
   onLayout: (mode: LayoutMode) => void;
   camera: CameraView | null;
+  cameraReady: boolean;
   viewReady: boolean;
 };
 
@@ -62,9 +64,7 @@ function nodeCount(
 ): number {
   return (
     graph.nodes.length +
-    (mode === "3d"
-      ? (cloudHidden ? 0 : (cloud?.scopes.length ?? 0)) + (mark ? 1 : 0)
-      : 0)
+    (mode === "3d" ? (cloudHidden ? 0 : (cloud?.loaded ?? 0)) + (mark ? 1 : 0) : 0)
   );
 }
 
@@ -95,6 +95,7 @@ export function GraphCanvas({
   graph,
   cloud,
   cloudHidden,
+  cloudLabel,
   cloudSelected,
   cloudMark,
   selected,
@@ -109,6 +110,7 @@ export function GraphCanvas({
   shareUrl,
   onLayout,
   camera,
+  cameraReady,
   viewReady,
 }: GraphCanvasProps) {
   const { ref: containerRef, width, height } = useElementSize<HTMLElement>();
@@ -131,7 +133,12 @@ export function GraphCanvas({
 
   return (
     <>
-      <ResultStatus count={visibleCount} label="visible graph node" query={query} />
+      <ResultStatus
+        count={visibleCount}
+        label="visible graph node"
+        live={viewReady}
+        query={query}
+      />
       <section
         className="graph-wrap"
         ref={containerRef}
@@ -143,7 +150,7 @@ export function GraphCanvas({
           if (source) onChoose(source);
         }}
       >
-        <GraphHelp mode={mode} selected={selected} />
+        <GraphHelp cloudLabel={cloudLabel} mode={mode} selected={selected} />
         <GraphControls
           count={visibleCount}
           mode={mode}
@@ -166,7 +173,7 @@ export function GraphCanvas({
         </GraphControls>
         <WebglStatus status={status} onRetry={retry} />
 
-        {!hasContent && (
+        {!hasContent && viewReady && (
           <EmptyState
             title={
               query.trim()
@@ -205,7 +212,7 @@ export function GraphCanvas({
               theme={theme}
               layout={layout}
               camera={camera}
-              viewReady={viewReady}
+              viewReady={cameraReady}
               onChoose={(node) => {
                 onChoose(node);
                 containerRef.current?.focus({ preventScroll: true });

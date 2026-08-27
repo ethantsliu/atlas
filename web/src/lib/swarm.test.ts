@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildCloud, buildSwarm, markSwarm, swarmNode } from "./swarm";
+import {
+  buildCloud,
+  buildSwarm,
+  cloudOpacity,
+  cloudSize,
+  markSwarm,
+  swarmNode,
+} from "./swarm";
 import type { GraphNode } from "../types";
 
 function paper(id: string, x: number): GraphNode {
@@ -17,6 +24,17 @@ function paper(id: string, x: number): GraphNode {
 }
 
 describe("paper swarm", () => {
+  it("shrinks full-corpus points without sampling them", () => {
+    expect(cloudSize(99_999)).toBe(4.8);
+    expect(cloudSize(100_000)).toBe(2.8);
+    expect(cloudSize(1_000_000)).toBe(1.8);
+    expect(cloudSize(3_000_000)).toBe(1.2);
+    expect(cloudSize(5_000_000)).toBe(1);
+    expect(cloudOpacity(100_000)).toBe(0.78);
+    expect(cloudOpacity(1_000_000)).toBe(0.42);
+    expect(cloudOpacity(5_000_000)).toBe(0.24);
+  });
+
   it("batches positioned papers and marks active points", () => {
     const swarm = buildSwarm([paper("paper-1", 1), paper("paper-2", 4)], "light");
 
@@ -36,6 +54,8 @@ describe("paper swarm", () => {
         positions: new Float32Array([1, 2, 3, 4, 5, 6]),
         scopes: new Uint8Array([0, 2]),
         ranges: [],
+        loaded: 2,
+        radius: 9,
       },
       "dark",
     );

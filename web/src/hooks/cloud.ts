@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  createCloud,
   fetchCloud,
-  loadCloud,
+  streamCloud,
   type CloudData,
   type CloudManifest,
 } from "../lib/cloud";
@@ -36,20 +37,37 @@ export function useCloud(enabled: boolean): CloudLoad {
     const controller = new AbortController();
     setState({ ...EMPTY, loading: true });
     fetchCloud(controller.signal)
-      .then(async (manifest) => ({
-        manifest,
-        data: await loadCloud(manifest, controller.signal),
-      }))
-      .then(({ manifest, data }) => {
+      .then(async (manifest) => {
         if (controller.signal.aborted) return;
-        setState({ manifest, data, loading: false, error: null });
+        const data = createCloud(manifest);
+        setState({ manifest, data, loading: true, error: null });
+        await streamCloud(manifest, data, controller.signal, (step) => {
+          if (controller.signal.aborted) return;
+          setState((current) =>
+            current.data === data
+              ? {
+                  manifest,
+                  data,
+                  loading: step.loaded < step.total,
+                  error: null,
+                }
+              : current,
+          );
+        });
+        if (controller.signal.aborted) return;
+        setState((current) =>
+          current.data === data
+            ? { manifest, data, loading: false, error: null }
+            : current,
+        );
       })
       .catch((error: unknown) => {
         if (controller.signal.aborted) return;
-        setState({
-          ...EMPTY,
+        setState((current) => ({
+          ...current,
+          loading: false,
           error: error instanceof Error ? error.message : "Paper cloud failed",
-        });
+        }));
       });
     return () => controller.abort();
   }, [attempt, enabled]);
