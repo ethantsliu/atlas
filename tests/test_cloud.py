@@ -3,6 +3,7 @@ import hashlib
 import json
 import struct
 import tempfile
+import textwrap
 import unittest
 from datetime import date
 from pathlib import Path
@@ -172,6 +173,16 @@ class CloudTests(unittest.TestCase):
             workflow.index("python pipeline/cloud.py --check"),
             workflow.index("git add web/public/data/cloud"),
         )
+
+    def test_legacy_shell(self) -> None:
+        workflow = (ROOT / ".github/workflows/cloud.yml").read_text(encoding="utf-8")
+        section = workflow.split("- name: Normalize legacy corpus shards", 1)[1]
+        source = section.split("\n      - name:", 1)[0].split("run: |", 1)[1]
+        shell = textwrap.dedent(source)
+
+        self.assertIn("PYTHONPATH=pipeline python - <<'PY'", shell)
+        self.assertIn("\nfrom pathlib import Path\n", shell)
+        self.assertNotIn("python -c '", shell)
 
     def test_semantic_assets(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
