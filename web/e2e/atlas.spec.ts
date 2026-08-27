@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { fullNodes, mapStatus } from "./map";
 
 const viewports = [
   { width: 375, height: 812 },
@@ -14,36 +15,6 @@ async function scan(page: Page) {
     .withTags(["wcag2a", "wcag2aa"])
     .analyze();
   expect(results.violations).toEqual([]);
-}
-
-function mapStatus(page: Page) {
-  return page
-    .locator(".map-layout > p.sr-only[role=status]")
-    .filter({ hasText: /visible graph nodes/ });
-}
-
-async function fullNodes(page: Page) {
-  const paperLens = page.locator(".filters .kind-toggle").nth(2);
-  if ((await paperLens.getAttribute("aria-pressed")) === "true") {
-    await expect(page.locator(".filters")).toContainText("historical arXiv records", {
-      timeout: 20_000,
-    });
-  }
-  const toggles = page.locator(".filters .kind-toggle");
-  const counts = await Promise.all(
-    [0, 1, 2, 3].map(async (index) => {
-      const toggle = toggles.nth(index);
-      if ((await toggle.getAttribute("aria-pressed")) !== "true") return 0;
-      const text = await toggle.textContent();
-      return Number((text?.match(/[\d,]+$/)?.[0] ?? "0").replaceAll(",", ""));
-    }),
-  );
-  const total = counts.reduce((sum, count) => sum + count, 0).toLocaleString();
-  const expected = `${total} visible graph nodes available.`;
-  await expect(mapStatus(page)).toHaveText(expected, {
-    timeout: 20_000,
-  });
-  return expected;
 }
 
 for (const viewport of viewports) {
@@ -125,10 +96,11 @@ test("map remains usable without WebGL2", async ({ page }) => {
       return Reflect.apply(original, this, [type, ...args]);
     } as typeof original;
   });
-  await page.goto(corePath);
+  await page.goto("/");
 
   const graph = page.getByLabel("Interactive research graph");
   await expect(graph).toContainText("2D compatibility · semantic");
+  await fullNodes(page);
   await expect(graph.locator("canvas")).toBeVisible();
   await graph.focus();
   await page.keyboard.press("ArrowRight");

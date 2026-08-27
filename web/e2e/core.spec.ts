@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { fullNodes, mapStatus } from "./map";
 
 const shard = /\/data\/papers\/[a-f0-9]{64}\.json(?:\?.*)?$/;
 
@@ -30,37 +31,9 @@ function trackShard(page: Page): string[] {
   return hits;
 }
 
-function mapStatus(page: Page) {
-  return page
-    .locator(".map-layout > p.sr-only[role=status]")
-    .filter({ hasText: /visible graph nodes/ });
-}
-
 async function showFilters(page: Page) {
   const toggle = page.locator(".mobile-filter-toggle");
   if (await toggle.isVisible()) await toggle.click();
-}
-
-async function fullNodes(page: Page): Promise<string> {
-  const paperLens = page.locator(".filters .kind-toggle").nth(2);
-  if ((await paperLens.getAttribute("aria-pressed")) === "true") {
-    await expect(page.locator(".filters")).toContainText("historical arXiv records", {
-      timeout: 20_000,
-    });
-  }
-  const toggles = page.locator(".filters .kind-toggle");
-  const counts = await Promise.all(
-    [0, 1, 2, 3].map(async (index) => {
-      const toggle = toggles.nth(index);
-      if ((await toggle.getAttribute("aria-pressed")) !== "true") return 0;
-      const text = await toggle.textContent();
-      return Number((text?.match(/[\d,]+$/)?.[0] ?? "0").replaceAll(",", ""));
-    }),
-  );
-  const total = counts.reduce((sum, count) => sum + count, 0).toLocaleString();
-  const expected = `${total} visible graph nodes available.`;
-  await expect(mapStatus(page)).toHaveText(expected, { timeout: 20_000 });
-  return expected;
 }
 
 async function loadMap(page: Page, path = "/#?k=tri") {
