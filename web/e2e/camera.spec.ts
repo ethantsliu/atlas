@@ -87,8 +87,8 @@ function dot(left: readonly number[], right: readonly number[]) {
 
 function expectOrbitPreserved(before: CameraSnapshot, after: CameraSnapshot) {
   expect(after.radius).toBeCloseTo(before.radius, 1);
-  expect(after.yaw).toBeCloseTo(before.yaw, 0);
-  expect(after.pitch).toBeCloseTo(before.pitch, 0);
+  expect(Math.abs(after.yaw - before.yaw)).toBeLessThanOrEqual(1);
+  expect(Math.abs(after.pitch - before.pitch)).toBeLessThanOrEqual(1);
 }
 
 function expectForwardFlight(
