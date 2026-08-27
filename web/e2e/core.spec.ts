@@ -23,6 +23,111 @@ async function cloudLinks() {
   return links;
 }
 
+async function cloudSize() {
+  const root = join(process.cwd(), "public", "data", "cloud", "index.json");
+  const manifest = JSON.parse(await readFile(root, "utf8")) as { count: number };
+  return manifest.count;
+}
+
+type CloudTarget = { camera: string; title: string; url: string };
+
+function cameraPart(value: number) {
+  const rounded = Math.round(value * 10) / 10;
+  return String(Object.is(rounded, -0) ? 0 : rounded);
+}
+
+function pointGap(cloud: Float32Array, candidate: number, foreground: Float32Array) {
+  const at = candidate * 3;
+  let gap = Number.POSITIVE_INFINITY;
+  const visit = (points: Float32Array, skip = -1) => {
+    for (let other = 0; other < points.length / 3; other += 1) {
+      if (other === skip) continue;
+      const offset = other * 3;
+      const dx = cloud[at] - points[offset];
+      const dy = cloud[at + 1] - points[offset + 1];
+      gap = Math.min(gap, dx * dx + dy * dy);
+    }
+  };
+  visit(cloud, candidate);
+  visit(foreground);
+  return gap;
+}
+
+async function layoutPoints() {
+  const root = join(process.cwd(), "public", "data");
+  const core = JSON.parse(await readFile(join(root, "atlas.json"), "utf8")) as {
+    layout: { positions: Record<string, number[]> };
+    paper_asset: { path: string };
+  };
+  const paperPath = core.paper_asset.path.replace(/^\/data\//, "");
+  const papers = JSON.parse(await readFile(join(root, paperPath), "utf8")) as {
+    layout: { positions: Record<string, number[]> };
+  };
+  const rows = [
+    ...Object.values(core.layout.positions),
+    ...Object.values(papers.layout.positions),
+  ];
+  return Float32Array.from(rows.flatMap((row) => row.slice(0, 3)));
+}
+
+async function cloudTarget(): Promise<CloudTarget> {
+  const root = join(process.cwd(), "public", "data", "cloud");
+  const manifest = JSON.parse(await readFile(join(root, "index.json"), "utf8")) as {
+    count: number;
+    shards: {
+      count: number;
+      meta: { path: string };
+      points: { path: string };
+    }[];
+  };
+  const blocks = await Promise.all(
+    manifest.shards.map((shard) => readFile(join(root, shard.points.path))),
+  );
+  const foreground = await layoutPoints();
+  const positions = new Float32Array(manifest.count * 3);
+  let next = 0;
+  for (const [blockIndex, block] of blocks.entries()) {
+    const count = block.readUInt32LE(8);
+    if (count !== manifest.shards[blockIndex].count) {
+      throw new Error("Historical point shard count drifted");
+    }
+    for (let index = 0; index < count * 3; index += 1) {
+      positions[next * 3 + index] = block.readFloatLE(12 + index * 4);
+    }
+    next += count;
+  }
+  if (next !== manifest.count || manifest.shards.length === 0) {
+    throw new Error("Historical point manifest count drifted");
+  }
+
+  const shard = manifest.shards.at(-1)!;
+  const start = manifest.count - shard.count;
+  const samples = Math.min(128, shard.count);
+  let best = start;
+  let bestGap = -1;
+  for (let sample = 0; sample < samples; sample += 1) {
+    const local = Math.floor((sample * (shard.count - 1)) / Math.max(1, samples - 1));
+    const candidate = start + local;
+    const gap = pointGap(positions, candidate, foreground);
+    if (gap > bestGap) {
+      best = candidate;
+      bestGap = gap;
+    }
+  }
+
+  const local = best - start;
+  const metadata = JSON.parse(await readFile(join(root, shard.meta.path), "utf8")) as {
+    papers: string[][];
+  };
+  const row = metadata.papers[local];
+  if (!row?.[1] || !row[2]) throw new Error("Historical target metadata is missing");
+  const at = best * 3;
+  const camera = `1_${cameraPart(positions[at])}_${cameraPart(
+    positions[at + 1],
+  )}_${cameraPart(positions[at + 2])}_8_0_0`;
+  return { camera, title: row[1], url: row[2] };
+}
+
 function trackShard(page: Page): string[] {
   const hits: string[] = [];
   page.on("request", (request) => {
@@ -107,6 +212,51 @@ async function cloudPoint(
     }
   }
   throw new Error("No historical paper point accepted hover input");
+}
+
+async function clickCloud(page: Page, target: CloudTarget): Promise<{ title: string }> {
+  const graph = page.getByLabel("Interactive 3D research graph");
+  const box = await graph.boundingBox();
+  if (!box) throw new Error("Research graph has no bounds");
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(
+    page.getByLabel("Node inspector").getByRole("heading", { name: target.title }),
+  ).toBeVisible({ timeout: 20_000 });
+  return { title: target.title };
+}
+
+async function watchCopy(page: Page) {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: (value: string) => {
+          (window as typeof window & { __atlasCopied?: string }).__atlasCopied = value;
+          return Promise.resolve();
+        },
+      },
+    });
+  });
+}
+
+async function waitCamera(page: Page, camera: string) {
+  await expect
+    .poll(
+      async () => {
+        await page
+          .getByRole("button", { name: "Copy a link to this atlas view" })
+          .click();
+        const copied = await page.evaluate(
+          () =>
+            (window as typeof window & { __atlasCopied?: string }).__atlasCopied ?? "",
+        );
+        return copied
+          ? new URLSearchParams(new URL(copied).hash.replace(/^#\?/, "")).get("c")
+          : null;
+      },
+      { timeout: 20_000 },
+    )
+    .toBe(camera);
 }
 
 async function swarmPoint(
@@ -250,13 +400,16 @@ test("historical paper points open the inline inspector", async ({
     !["chrome", "safari"].includes(testInfo.project.name),
     "Historical point picking is covered in Chromium and WebKit",
   );
-  const links = await cloudLinks();
   await page.route(/\/data\/cloud\/\d{4}-\d{2}\.json(?:\?.*)?$/, async (route) => {
     await new Promise((resolve) => setTimeout(resolve, 900));
     await route.continue();
   });
   await page.setViewportSize({ width: 1_440, height: 900 });
-  await page.goto("/");
+  const size = await cloudSize();
+  const target = size > 100_000 ? await cloudTarget() : null;
+  if (target) await watchCopy(page);
+  const links = target ? null : await cloudLinks();
+  await page.goto(target ? `/#?k=trpi&c=${target.camera}` : "/");
   await expect(page.locator(".filters")).toContainText("historical arXiv records", {
     timeout: 20_000,
   });
@@ -264,32 +417,40 @@ test("historical paper points open the inline inspector", async ({
     "Click or tap a dot to inspect it",
   );
   await page.waitForTimeout(2_500);
+  if (target) await waitCamera(page, target.camera);
+  const graph = page.getByLabel("Interactive 3D research graph");
+  const inspector = page.getByLabel("Node inspector");
+  const beforeGraph = await graph.boundingBox();
+  const beforePanel = await inspector.boundingBox();
+  const fullState = await fullNodes(page);
 
-  const point = await cloudPoint(page);
-  const tip = page.locator(".cloud-tip");
-  await expect(tip).toHaveCSS("font-family", /Baskerville/);
-  await expect(tip).toHaveCSS("font-size", "14px");
-  await page.mouse.move(point.x + 64, point.y + 64);
-  await page.waitForTimeout(200);
-  const clickPoint = await cloudPoint(page);
-  await expect(tip).toContainText(`Paper · ${clickPoint.title}`);
-  await page.mouse.click(clickPoint.x, clickPoint.y);
+  let title: string;
+  if (!target) {
+    const point = await cloudPoint(page);
+    const tip = page.locator(".cloud-tip");
+    await expect(tip).toHaveCSS("font-family", /Baskerville/);
+    await expect(tip).toHaveCSS("font-size", "14px");
+    await expect(tip).toContainText(`Paper · ${point.title}`);
+    await page.mouse.click(point.x, point.y);
+    title = point.title;
+  } else {
+    title = (await clickCloud(page, target)).title;
+  }
   await page.mouse.move(2, 2);
 
-  const inspector = page.getByLabel("Node inspector");
-  await expect(
-    inspector.getByRole("heading", { name: clickPoint.title }),
-  ).toBeVisible();
+  await expect(inspector.getByRole("heading", { name: title })).toBeVisible();
+  expect(await graph.boundingBox()).toEqual(beforeGraph);
+  expect(await inspector.boundingBox()).toEqual(beforePanel);
   await expect(inspector.getByRole("link", { name: "View on arXiv" })).toHaveAttribute(
     "href",
-    links.get(clickPoint.title) ?? "missing historical paper link",
+    target?.url ?? links?.get(title) ?? "missing historical paper link",
   );
   await expect(inspector.locator("time")).toHaveAttribute(
     "datetime",
     /^\d{4}-\d{2}-\d{2}/,
   );
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  const graphBox = await page.getByLabel("Interactive 3D research graph").boundingBox();
+  const graphBox = await graph.boundingBox();
   const panelBox = await inspector.boundingBox();
   const isolate = page.getByRole("button", { name: "Isolate connections" });
   await expect(isolate).toBeEnabled();
@@ -302,21 +463,63 @@ test("historical paper points open the inline inspector", async ({
   });
   await expect(mapStatus(page)).toHaveText("9 visible graph nodes available.");
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  expect(await page.getByLabel("Interactive 3D research graph").boundingBox()).toEqual(
-    graphBox,
-  );
+  expect(await graph.boundingBox()).toEqual(graphBox);
   expect(await inspector.boundingBox()).toEqual(panelBox);
   await page.getByRole("button", { name: "Unisolate connections" }).click();
   await expect(isolate).toHaveAttribute("aria-pressed", "false");
-  await expect(
-    inspector.getByRole("heading", { name: clickPoint.title }),
-  ).toBeVisible();
+  await expect(mapStatus(page)).toHaveText(fullState);
+  await expect(inspector.getByRole("heading", { name: title })).toBeVisible();
 
   const picker = page.getByLabel("Choose a visible graph node");
   await picker.fill("pretraining");
   await page.getByRole("option", { name: /Topic\s+pretraining/i }).click();
   await expect(inspector.getByRole("heading", { name: "pretraining" })).toBeVisible();
   await expect(inspector.getByRole("link", { name: "View on arXiv" })).toHaveCount(0);
+});
+
+test("touch opens a historical paper in the stacked inspector", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(90_000);
+  test.skip(testInfo.project.name !== "iphone", "Dense touch picking uses iPhone");
+  test.skip((await cloudSize()) <= 100_000, "Dense cloud touch needs the full corpus");
+  const target = await cloudTarget();
+  await watchCopy(page);
+  await page.goto(`/#?k=trpi&c=${target.camera}`);
+  await expect(page.locator(".filters")).toContainText("historical arXiv records", {
+    timeout: 20_000,
+  });
+  await waitCamera(page, target.camera);
+
+  const graph = page.getByLabel("Interactive 3D research graph");
+  const inspector = page.getByLabel("Node inspector");
+  const beforeGraph = await graph.boundingBox();
+  if (!beforeGraph) throw new Error("Research graph has no bounds");
+  await page.touchscreen.tap(
+    beforeGraph.x + beforeGraph.width / 2,
+    beforeGraph.y + beforeGraph.height / 2,
+  );
+
+  await expect(inspector.getByRole("heading", { name: target.title })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(inspector.getByRole("link", { name: "View on arXiv" })).toHaveAttribute(
+    "href",
+    target.url,
+  );
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const afterGraph = await graph.boundingBox();
+  const panel = await inspector.boundingBox();
+  expect(afterGraph?.x).toBe(beforeGraph.x);
+  expect(afterGraph?.width).toBe(beforeGraph.width);
+  expect(panel?.y).toBeGreaterThanOrEqual(beforeGraph.y + beforeGraph.height - 2);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+      ),
+    )
+    .toBe(true);
 });
 
 test("foreground paper points open the visible paper", async ({ page }, testInfo) => {
@@ -419,6 +622,7 @@ test("2D hover and click use the same inline inspector", async ({ page }, testIn
 });
 
 test("copied view links include a camera snapshot", async ({ page, context }) => {
+  test.setTimeout(90_000);
   await page.emulateMedia({ reducedMotion: "reduce" });
   await context.addInitScript(() => {
     Object.defineProperty(navigator, "clipboard", {
@@ -447,10 +651,10 @@ test("copied view links include a camera snapshot", async ({ page, context }) =>
   const copied = await page.evaluate(
     () => (window as typeof window & { __atlasCopied?: string }).__atlasCopied ?? "",
   );
-  const camera = new URL(copied).hash
-    .match(/c=1_([^&]+)/)?.[1]
-    .split("_")
-    .map(Number);
+  const cameraValue = new URLSearchParams(new URL(copied).hash.replace(/^#\?/, "")).get(
+    "c",
+  );
+  const camera = cameraValue?.replace(/^1_/, "").split("_").map(Number);
   const selectedId = new URLSearchParams(
     new URL(page.url()).hash.replace(/^#\?/, ""),
   ).get("s");
@@ -466,6 +670,14 @@ test("copied view links include a camera snapshot", async ({ page, context }) =>
     new URLSearchParams(new URL(shared.url()).hash.replace(/^#\?/, "")).get("s"),
   ).toBe(selectedId);
   await expect(shared.getByLabel(/Interactive (3D )?research graph/)).toBeVisible();
+  await shared.waitForTimeout(500);
+  await shared.getByRole("button", { name: "Copy a link to this atlas view" }).click();
+  const restored = await shared.evaluate(
+    () => (window as typeof window & { __atlasCopied?: string }).__atlasCopied ?? "",
+  );
+  expect(new URLSearchParams(new URL(restored).hash.replace(/^#\?/, "")).get("c")).toBe(
+    cameraValue,
+  );
   await shared.close();
 });
 

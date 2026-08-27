@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import io
 import json
 import shutil
@@ -25,6 +26,7 @@ from corpus import (  # noqa: E402
     write_cursor,
 )
 from oai import OaiClient, OaiError  # noqa: E402
+from archive import read_shard, shard_bytes, write_manifest  # noqa: E402
 from archivecheck import validate_archive  # noqa: E402
 
 
@@ -661,6 +663,73 @@ class CorpusTests(unittest.TestCase):
             (archive / "2026-08.json.gz").write_bytes(b"tampered")
             with self.assertRaisesRegex(ValueError, "invalid"):
                 pack_root(root, base / "invalid.tar.gz")
+
+    def test_promo_scrub(self) -> None:
+        final = TestPage((full_paper("2608.00001"),), None, "2026-08-27T00:17:00Z")
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "corpus"
+            archive = root / "archive"
+            output = base / "public"
+            run_corpus(
+                root,
+                FakeClient({None: [final]}),
+                max_pages=1,
+                max_minutes=5,
+                wall=lambda: NOW,
+            )
+            merge_pending(root, archive, ROOT / "data/source/feed.json")
+            path = archive / "2026-08.json.gz"
+            forged = json.loads(gzip.decompress(path.read_bytes()))
+            forged["papers"][0]["abstract"] = (
+                "This increasedhttps://www.overleaf.com/project/"
+                "5e2b14694c5dc600017292e6 intercorrelation."
+            )
+            forged["papers"][0]["authors"] = ["Ada <ada@example.org>"]
+            forged["papers"][0]["comment"] = "https://twitter.com/private/status/1"
+            path.write_bytes(shard_bytes(forged))
+
+            plan = prep_release(archive, output)
+
+            paper = read_shard(output / plan["assets"][0])["papers"][0]
+            self.assertEqual(paper["abstract"], "This increased intercorrelation.")
+            self.assertEqual(paper["authors"], ["Ada"])
+            self.assertNotIn("comment", paper)
+
+    def test_dirty_restore(self) -> None:
+        final = TestPage((full_paper("2608.00001"),), None, "2026-08-27T00:17:00Z")
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            source = base / "source"
+            archive = source / "archive"
+            checkpoint = base / "checkpoint.tar.gz"
+            restored = base / "restored"
+            output = base / "public"
+            run_corpus(
+                source,
+                FakeClient({None: [final]}),
+                max_pages=1,
+                max_minutes=5,
+                wall=lambda: NOW,
+            )
+            merge_pending(source, archive, ROOT / "data/source/feed.json")
+            path = archive / "2026-08.json.gz"
+            forged = read_shard(path)
+            forged["papers"][0]["abstract"] = (
+                "Draft at https://www.overleaf.com/project/"
+                "5e2b14694c5dc600017292e6 before release."
+            )
+            forged["papers"][0]["authors"] = ["Ada <ada@example.org>"]
+            path.write_bytes(shard_bytes(forged))
+            write_manifest(archive)
+            pack_root(source, checkpoint)
+
+            unpack_root(checkpoint, restored)
+            plan = prep_release(restored / "archive", output)
+
+            paper = read_shard(output / plan["assets"][0])["papers"][0]
+            self.assertEqual(paper["abstract"], "Draft at before release.")
+            self.assertEqual(paper["authors"], ["Ada"])
 
     def test_ack_guard(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

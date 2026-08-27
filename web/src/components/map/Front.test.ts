@@ -23,10 +23,12 @@ describe("foreground overlap", () => {
     const choose = vi.fn();
     const block = vi.fn();
     const drop = vi.fn();
+    const take = vi.fn(() => false);
     const open = { current: true };
 
-    pickFront({ block, drop, take: () => false }, open, choose, node);
+    pickFront({ block, drop, take }, open, choose, node);
 
+    expect(take).toHaveBeenCalledWith(node);
     expect(choose).toHaveBeenCalledWith(node);
     expect(block).toHaveBeenCalledOnce();
     expect(drop).toHaveBeenCalledOnce();

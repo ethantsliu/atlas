@@ -9,7 +9,9 @@ import {
   type CloudPaper,
   type CloudPick,
 } from "../lib/cloud";
+import { hitRadius } from "../lib/ray";
 import { buildCloud } from "../lib/swarm";
+import type { GraphNode } from "../types";
 import type { Theme } from "./theme";
 
 const HOVER_LIMIT = 100_000;
@@ -26,13 +28,20 @@ type PointInput = {
 };
 type Claim = {
   committed: boolean;
+  distance: number;
   index: number;
   paper?: CloudPick;
   pending: boolean;
   x: number;
   y: number;
 };
-type Hover = { index: number; paper?: CloudPick; x: number; y: number };
+type Hover = {
+  distance: number;
+  index: number;
+  paper?: CloudPick;
+  x: number;
+  y: number;
+};
 type Ref<T> = { current: T };
 type PointRefs = {
   block: Ref<number>;
@@ -86,13 +95,16 @@ function rayHit(
     -((event.clientY - rect.top) / rect.height) * 2 + 1,
   );
   const camera = graph.camera() as Camera;
+  const target = (graph.controls() as { target?: { x: number; y: number; z: number } })
+    .target;
   raycaster.params.Points = {
-    threshold: Math.max(2.5, camera.position.length() / 180),
+    threshold: hitRadius(camera, target, rect.height),
   };
   raycaster.setFromCamera(pointer, camera);
-  const index = raycaster.intersectObject(points, false)[0]?.index;
+  const match = raycaster.intersectObject(points, false)[0];
   return {
-    index: typeof index === "number" ? index : null,
+    distance: match?.distance ?? Number.POSITIVE_INFINITY,
+    index: typeof match?.index === "number" ? match.index : null,
     x: event.clientX - rect.left,
     y: event.clientY - rect.top,
   };
@@ -108,7 +120,11 @@ async function loadPaper(
   if (!range) return null;
   let request = cache.get(range.meta.path);
   if (!request) {
-    request = fetchCloudMeta(range, signal);
+    request = fetchCloudMeta(
+      range,
+      signal,
+      data.scopes.subarray(range.start, range.start + range.count),
+    );
     cache.set(range.meta.path, request);
     void request.catch(() => cache.delete(range.meta.path));
   }
@@ -152,6 +168,33 @@ export function clearHover(
   setTip(null);
 }
 
+export function cloudFront(
+  graph: GraphRef["current"],
+  node: GraphNode,
+  distance: number,
+): boolean {
+  if (!graph) return true;
+  const paper = node.kind === "paper";
+  const x = paper ? (node.sx ?? node.x) : node.x;
+  const y = paper ? (node.sy ?? node.y) : node.y;
+  const z = paper ? (node.sz ?? node.z) : node.z;
+  if (![x, y, z].every(Number.isFinite)) return true;
+  const camera = graph.camera() as Camera;
+  const depth = Math.hypot(
+    camera.position.x - x!,
+    camera.position.y - y!,
+    camera.position.z - z!,
+  );
+  return distance <= depth;
+}
+
+function hoverAt(
+  match: { distance: number; index: number },
+  event: PointerEvent,
+): Hover {
+  return { ...match, x: event.clientX, y: event.clientY };
+}
+
 function mountPoints(
   input: PointInput,
   refs: PointRefs,
@@ -186,17 +229,15 @@ function mountPoints(
       return;
     }
     const index = match.index;
-    refs.hover.current = { index, x: event.clientX, y: event.clientY };
+    refs.hover.current = hoverAt({ distance: match.distance, index }, event);
     setTip({ label: "Loading Paper…", x: match.x, y: match.y });
     void load(index)
       .then((paper) => {
         if (!paper || token !== refs.request.current) return;
         if (refs.hover.current?.index === index) refs.hover.current.paper = paper;
         refs.target.current = {
-          index,
+          ...hoverAt({ distance: match.distance, index }, event),
           paper,
-          x: event.clientX,
-          y: event.clientY,
         };
         setTip({ label: `Paper · ${paper.paper.title}`, x: match.x, y: match.y });
       })
@@ -244,10 +285,12 @@ function mountPoints(
     const hovered = refs.target.current ?? refs.hover.current;
     const nearby =
       hovered && Math.hypot(event.clientX - hovered.x, event.clientY - hovered.y) <= 10;
-    const index = nearby ? hovered.index : hit(event).index;
+    const match = nearby ? hovered : hit(event);
+    const index = match.index;
     if (index == null) return;
     refs.claim.current = {
       committed: false,
+      distance: match.distance,
       index,
       paper: nearby ? hovered.paper : undefined,
       pending: true,
@@ -335,7 +378,7 @@ export function usePoints(input: PointInput): {
   block: () => void;
   drop: () => void;
   mute: (active: boolean) => void;
-  take: () => boolean;
+  take: (node?: GraphNode) => boolean;
 } {
   const [tip, setTip] = useState<PointTip | null>(null);
   const pickRef = useRef(input.onPick);
@@ -370,10 +413,14 @@ export function usePoints(input: PointInput): {
     selectRef.current += 1;
     setTip(null);
   }, []);
-  const take = useCallback(() => {
-    const claim = claimRef.current;
-    return Boolean(claim?.pending && claim.paper);
-  }, []);
+  const take = useCallback(
+    (node?: GraphNode) => {
+      const claim = claimRef.current;
+      if (!claim?.pending || !node) return Boolean(claim?.pending);
+      return cloudFront(input.graphRef.current, node, claim.distance);
+    },
+    [input.graphRef],
+  );
   useEffect(() => {
     hiddenRef.current = !input.active;
     if (pointsRef.current) pointsRef.current.visible = input.active;

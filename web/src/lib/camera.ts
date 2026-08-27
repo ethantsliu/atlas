@@ -42,23 +42,30 @@ export function parseCamera(value: string | null): CameraView | null {
   };
 }
 
+function roundOne(value: number): number {
+  return cleanZero(Math.round(value * 10) / 10);
+}
+
 function oneDecimal(value: number): string {
-  const clean = cleanZero(Math.round(value * 10) / 10);
+  const clean = roundOne(value);
   return Number.isInteger(clean) ? String(clean) : clean.toFixed(1);
 }
 
 export function formatCamera(view: CameraView | null): string | null {
   if (!view) return null;
-  const [x, y, z] = view.target;
+  const [x, y, z] = view.target.map(roundOne);
+  const radius = roundOne(view.radius);
+  const yaw = Math.round(view.yaw);
+  const pitch = Math.round(view.pitch);
   if (
     ![x, y, z].every((item) => finiteRange(item, -4096, 4096)) ||
-    !finiteRange(view.radius, 8, 4096) ||
-    !finiteRange(view.yaw, -180, 180) ||
-    !finiteRange(view.pitch, -85, 85)
+    !finiteRange(radius, 8, 4096) ||
+    !finiteRange(yaw, -180, 180) ||
+    !finiteRange(pitch, -85, 85)
   ) {
     return null;
   }
-  const value = `1_${oneDecimal(x)}_${oneDecimal(y)}_${oneDecimal(z)}_${oneDecimal(view.radius)}_${Math.round(view.yaw)}_${Math.round(view.pitch)}`;
+  const value = `1_${oneDecimal(x)}_${oneDecimal(y)}_${oneDecimal(z)}_${oneDecimal(radius)}_${yaw}_${pitch}`;
   return parseCamera(value) ? value : null;
 }
 

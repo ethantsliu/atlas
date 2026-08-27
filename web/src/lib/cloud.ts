@@ -88,8 +88,6 @@ const META = /^\d{4}-\d{2}\.json$/;
 const ROUTES = /^\d{4}-\d{2}\.routes$/;
 const ANCHORS = /^anchors\.json$/;
 const MAGIC = "ATLASPT1";
-const PUBLISHED = /^\d{4}-\d{2}-\d{2}(?:T[^\s]+)?$/;
-const SCOPES = new Set(["likely", "possible", "outside"]);
 
 export function cloudPath(asset: CloudAsset): string {
   return `/data/cloud/${asset.path}?sha=${asset.sha256}`;
@@ -280,49 +278,10 @@ export async function digestOf(bytes: ArrayBuffer): Promise<string> {
   ).join("");
 }
 
-function parseMeta(bytes: ArrayBuffer, range: CloudRange): CloudPaper[] {
-  let value: unknown;
-  try {
-    value = JSON.parse(new TextDecoder().decode(bytes));
-  } catch {
-    throw new Error("Paper metadata has an invalid shape");
-  }
-  if (
-    !isRecord(value) ||
-    value.schema_version !== 1 ||
-    value.month !== range.month ||
-    value.count !== range.count ||
-    !Array.isArray(value.papers) ||
-    value.papers.length !== range.count
-  ) {
-    throw new Error("Paper metadata has an invalid shape");
-  }
-  return value.papers.map((row) => {
-    if (
-      !Array.isArray(row) ||
-      row.length !== 5 ||
-      !row.every(isString) ||
-      !row[0] ||
-      !row[1].trim() ||
-      !/^https:\/\/arxiv\.org\/abs\//.test(row[2]) ||
-      !PUBLISHED.test(row[3]) ||
-      !SCOPES.has(row[4])
-    ) {
-      throw new Error("Paper metadata has an invalid shape");
-    }
-    return {
-      id: row[0],
-      title: row[1],
-      url: row[2],
-      published: row[3],
-      scope: row[4] as CloudPaper["scope"],
-    };
-  });
-}
-
 export async function fetchCloudMeta(
   range: CloudRange,
   signal: AbortSignal,
+  scopes?: Uint8Array,
   fetcher: typeof fetch = fetch,
   base?: string,
 ): Promise<CloudPaper[]> {
@@ -340,7 +299,8 @@ export async function fetchCloudMeta(
   ) {
     throw new Error("Paper metadata does not match its index");
   }
-  return parseMeta(bytes, range);
+  const { parseRows } = await import("./cloudrow");
+  return parseRows(bytes, range, scopes);
 }
 
 export function cloudPaper(
@@ -398,11 +358,24 @@ async function pointShard(
   }
   const positions = new Float32Array(count * 3);
   for (let index = 0; index < count * 3; index += 1) {
-    positions[index] = view.getFloat32(12 + index * 4, true);
+    const coordinate = view.getFloat32(12 + index * 4, true);
+    if (!Number.isFinite(coordinate)) {
+      throw new Error("Paper point shard is invalid");
+    }
+    positions[index] = coordinate;
   }
   const scopes = new Uint8Array(bytes.slice(12 + count * 12));
-  if (scopes.some((scope) => scope > 2)) {
-    throw new Error("Paper point shard contains an invalid scope");
+  const scopeCounts = [0, 0, 0];
+  for (const scope of scopes) {
+    if (scope > 2) throw new Error("Paper point shard is invalid");
+    scopeCounts[scope] += 1;
+  }
+  if (
+    scopeCounts[0] !== shard.counts.likely ||
+    scopeCounts[1] !== shard.counts.possible ||
+    scopeCounts[2] !== shard.counts.outside
+  ) {
+    throw new Error("Paper point shard is invalid");
   }
   return { positions, scopes };
 }

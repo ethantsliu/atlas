@@ -208,26 +208,31 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          base_sha=$(git rev-parse HEAD)
           git add web/public/data/cloud
           if git diff --cached --quiet; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git commit -m "Update semantic cloud from $ARCHIVE_TAG"
-          pushed=false
-          for attempt in 1 2 3; do
-            git pull --rebase origin main
-            if git push origin HEAD:main; then
-              pushed=true
-              break
-            fi
-          done
-          test "$pushed" = true
+          git fetch origin main
+          remote_sha=$(git rev-parse FETCH_HEAD)
+          if [ "$remote_sha" != "$base_sha" ]; then
+            echo "Main changed during cloud generation; restart cloud from the new base" >&2
+            exit 1
+          fi
+          if ! git push origin HEAD:main; then
+            echo "Main changed before cloud publication; restart cloud" >&2
+            exit 1
+          fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "changed=true" >> "$GITHUB_OUTPUT"
 
       - name: Deploy published cloud
         if: steps.publish.outputs.changed == 'true'
-        run: gh workflow run deploy.yml --ref main
+        run: >-
+          gh workflow run deploy.yml --ref main
+          -f expected_sha="${{ steps.publish.outputs.sha }}"
 
       - name: Enforce cloud result
         if: steps.build.outcome == 'failure'

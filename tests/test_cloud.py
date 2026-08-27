@@ -23,6 +23,7 @@ from cloud import (
     build_cloud,
     validate_cloud,
 )
+from cloudpub import validate_published_assets
 from cloudvec import row_hash
 from embed import EMBED_DIM, MODEL, MODEL_DIGEST
 from omit import ids_hash
@@ -58,6 +59,19 @@ def intake(papers: list[dict]) -> dict:
         "query": "submittedDate:[202001020000 TO 202001022359]",
         "papers": papers,
     }
+
+
+def replace_asset(output: Path, manifest: dict, key: str, content: bytes) -> None:
+    """Replace one test asset while keeping its manifest digest internally valid."""
+    row = manifest["shards"][0]
+    path = output / row[key]["path"]
+    path.write_bytes(content)
+    row[key] = {
+        "path": path.name,
+        "sha256": hashlib.sha256(content).hexdigest(),
+        "bytes": len(content),
+    }
+    (output / "index.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 
 def save_anchors(path: Path) -> np.ndarray:
@@ -157,9 +171,11 @@ class CloudTests(unittest.TestCase):
             "actions/cache/save@v4",
             "python pipeline/cloud.py --check",
             "git add web/public/data/cloud",
-            "git pull --rebase origin main",
+            "base_sha=$(git rev-parse HEAD)",
+            "git fetch origin main",
+            'if [ "$remote_sha" != "$base_sha" ]',
             "git push origin HEAD:main",
-            "gh workflow run deploy.yml --ref main",
+            '-f expected_sha="${{ steps.publish.outputs.sha }}"',
             "points.sha256",
             "meta.sha256",
             "routes.sha256",
@@ -169,6 +185,8 @@ class CloudTests(unittest.TestCase):
             self.assertIn(required, workflow)
         for forbidden in ("repository_dispatch:", "workflow_run:", "schedule:"):
             self.assertNotIn(forbidden, workflow)
+        self.assertNotIn("git pull --rebase", workflow)
+        self.assertEqual(workflow.count("gh workflow run deploy.yml"), 1)
         self.assertLess(
             workflow.index("python pipeline/cloud.py --check"),
             workflow.index("git add web/public/data/cloud"),
@@ -230,6 +248,25 @@ class CloudTests(unittest.TestCase):
             self.assertEqual(pairs[0, 0].tolist(), [0, 65535])
             self.assertEqual(pairs[1, 0].tolist(), [1, 65535])
             self.assertEqual(validate_cloud(archive, output), manifest)
+            self.assertEqual(validate_published_assets(output), manifest)
+
+            for name in (
+                "anchors.json",
+                "2020-01.bin",
+                "2020-01.json",
+                "2020-01.routes",
+            ):
+                path = output / name
+                original = path.read_bytes()
+                path.write_bytes(original + b"tampered")
+                with self.assertRaisesRegex(RuntimeError, "drifted"):
+                    validate_published_assets(output)
+                path.write_bytes(original)
+            orphan = output / "unpublished.bin"
+            orphan.write_bytes(b"not in the manifest")
+            with self.assertRaisesRegex(RuntimeError, "incomplete"):
+                validate_published_assets(output)
+            orphan.unlink()
 
             repeated = build_cloud(archive, anchors, cache, output, 2)
             self.assertEqual(repeated, manifest)
@@ -258,12 +295,87 @@ class CloudTests(unittest.TestCase):
             (output / "index.json").write_text(json.dumps(corrupted), encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "route contract drifted"):
                 validate_cloud(archive, output)
+            with self.assertRaisesRegex(RuntimeError, "route contract drifted"):
+                validate_published_assets(output)
 
             route_path.write_bytes(routes)
             (output / "index.json").write_text(json.dumps(cleaned), encoding="utf-8")
             (output / "2020-01.bin").write_bytes(b"tampered")
             with self.assertRaisesRegex(RuntimeError, "points drifted"):
                 validate_cloud(archive, output)
+
+    def test_row_corruption(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = root / "archive"
+            cache = root / "cache"
+            output = root / "cloud"
+            anchors = root / "anchors.npz"
+            source = [paper("2001.00001", "cs.LG"), paper("2001.00002", "math.AT")]
+            add_day(archive, date(2020, 1, 2), intake(source), RULES)
+            vectors = save_anchors(anchors)
+            payload = json.loads(
+                gzip.decompress((archive / "2020-01.json.gz").read_bytes())
+            )
+            rows = [(item["id"], archive_text(item)) for item in payload["papers"]]
+            cache.mkdir()
+            np.savez_compressed(
+                cache / "2020-01.npz",
+                ids=np.asarray([identifier for identifier, _ in rows]),
+                hashes=np.asarray([row_hash(*row) for row in rows]),
+                vectors=vectors[:2],
+                done=np.ones(2, dtype=bool),
+            )
+            manifest = build_cloud(archive, anchors, cache, output, 2)
+            points = (output / "2020-01.bin").read_bytes()
+            metadata = (output / "2020-01.json").read_bytes()
+
+            changed = bytearray(points)
+            struct.pack_into("<f", changed, 12, float("nan"))
+            corrupted = json.loads(json.dumps(manifest))
+            replace_asset(output, corrupted, "points", changed)
+            with self.assertRaisesRegex(RuntimeError, "point contract drifted"):
+                validate_cloud(archive, output)
+            with self.assertRaisesRegex(RuntimeError, "point contract drifted"):
+                validate_published_assets(output)
+
+            changed = bytearray(points)
+            changed[-1] = 3
+            corrupted = json.loads(json.dumps(manifest))
+            replace_asset(output, corrupted, "points", changed)
+            with self.assertRaisesRegex(RuntimeError, "point contract drifted"):
+                validate_cloud(archive, output)
+            with self.assertRaisesRegex(RuntimeError, "point contract drifted"):
+                validate_published_assets(output)
+
+            changed = bytearray(points)
+            scope_start = 12 + manifest["count"] * 12
+            changed[scope_start], changed[scope_start + 1] = (
+                changed[scope_start + 1],
+                changed[scope_start],
+            )
+            corrupted = json.loads(json.dumps(manifest))
+            replace_asset(output, corrupted, "points", changed)
+            with self.assertRaisesRegex(RuntimeError, "metadata coverage drifted"):
+                validate_cloud(archive, output)
+            with self.assertRaisesRegex(RuntimeError, "metadata coverage drifted"):
+                validate_published_assets(output)
+
+            changed_meta = json.loads(metadata)
+            left, right = changed_meta["papers"]
+            left[:4], right[:4] = right[:4], left[:4]
+            corrupted = json.loads(json.dumps(manifest))
+            replace_asset(
+                output,
+                corrupted,
+                "meta",
+                json.dumps(changed_meta, separators=(",", ":")).encode(),
+            )
+            replace_asset(output, corrupted, "points", points)
+            with self.assertRaisesRegex(RuntimeError, "metadata coverage drifted"):
+                validate_cloud(archive, output)
+            with self.assertRaisesRegex(RuntimeError, "metadata coverage drifted"):
+                validate_published_assets(output)
 
     def test_anchor_invalidation(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

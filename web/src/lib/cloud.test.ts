@@ -159,6 +159,28 @@ describe("paper cloud", () => {
     expect(isCloud(index)).toBe(false);
   });
 
+  it("rejects non-finite coordinates and scope count drift", async () => {
+    const invalidPoint = pointBytes();
+    new DataView(invalidPoint).setFloat32(12, Number.NaN, true);
+    await expect(
+      loadCloud(
+        manifest(invalidPoint),
+        new AbortController().signal,
+        (async () => new Response(invalidPoint)) as unknown as typeof fetch,
+      ),
+    ).rejects.toThrow("point shard is invalid");
+
+    const invalidScopes = pointBytes();
+    new Uint8Array(invalidScopes)[12 + 24 + 1] = 1;
+    await expect(
+      loadCloud(
+        manifest(invalidScopes),
+        new AbortController().signal,
+        (async () => new Response(invalidScopes)) as unknown as typeof fetch,
+      ),
+    ).rejects.toThrow("point shard is invalid");
+  });
+
   it("lazily validates metadata and resolves an aligned point", async () => {
     const meta = new TextEncoder().encode(
       JSON.stringify({
@@ -187,6 +209,9 @@ describe("paper cloud", () => {
       month: "2020-01",
       start: 10,
       count: 2,
+      row_sha256: createHash("sha256")
+        .update(JSON.stringify(["2001.00001", "2001.00002"]))
+        .digest("hex"),
       meta: {
         path: "2020-01.json",
         sha256: createHash("sha256").update(meta).digest("hex"),
@@ -199,6 +224,7 @@ describe("paper cloud", () => {
     const papers = await fetchCloudMeta(
       range,
       new AbortController().signal,
+      new Uint8Array([0, 2]),
       fetcher,
       "/atlas",
     );
@@ -209,6 +235,53 @@ describe("paper cloud", () => {
       `/atlas/data/cloud/2020-01.json?sha=${range.meta.sha256}`,
     );
     expect(request).toHaveBeenCalledTimes(1);
+
+    await expect(
+      fetchCloudMeta(
+        range,
+        new AbortController().signal,
+        new Uint8Array([2, 0]),
+        fetcher,
+      ),
+    ).rejects.toThrow("invalid shape");
+  });
+
+  it("rejects metadata row identity drift", async () => {
+    const meta = new TextEncoder().encode(
+      JSON.stringify({
+        schema_version: 1,
+        month: "2020-01",
+        count: 1,
+        papers: [
+          [
+            "2001.00001",
+            "First",
+            "https://arxiv.org/abs/2001.00001",
+            "2020-01-02",
+            "likely",
+          ],
+        ],
+      }),
+    );
+    const range: CloudRange = {
+      month: "2020-01",
+      start: 0,
+      count: 1,
+      row_sha256: "f".repeat(64),
+      meta: {
+        path: "2020-01.json",
+        sha256: createHash("sha256").update(meta).digest("hex"),
+        bytes: meta.byteLength,
+      },
+    };
+    await expect(
+      fetchCloudMeta(
+        range,
+        new AbortController().signal,
+        undefined,
+        (async () => new Response(meta)) as unknown as typeof fetch,
+      ),
+    ).rejects.toThrow("row identity");
   });
 
   it("loads one aligned exact-cosine anchor route", async () => {

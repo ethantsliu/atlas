@@ -16,6 +16,7 @@ from arxivid import valid_id
 from files import atomic_write_bytes, atomic_write_text
 from ontology import TOPICS, TRICKS
 from rank import rank_paper
+from scrub import scrub_author, scrub_text
 from titles import valid_title
 
 
@@ -91,6 +92,15 @@ def compact_paper(paper: dict) -> dict:
         result = {key: paper[key] for key in PUBLIC_FIELDS}
     except (KeyError, TypeError) as error:
         raise ValueError("Archive paper fields are incomplete") from error
+    for field in ("title", "abstract"):
+        if isinstance(result[field], str):
+            result[field] = scrub_text(result[field])
+    if isinstance(result["authors"], list) and all(
+        isinstance(author, str) for author in result["authors"]
+    ):
+        result["authors"] = [
+            cleaned for author in result["authors"] if (cleaned := scrub_author(author))
+        ]
     check_paper(result)
     return result
 
@@ -302,8 +312,7 @@ def clean_legacy(paper: dict) -> dict:
         if not isinstance(values, list):
             raise ValueError("Archive legacy paper text is invalid")
         result[field] = [clean_text(value) for value in values]
-    check_paper(result)
-    return result
+    return compact_paper(result)
 
 
 def public_paper(paper: object) -> dict:
@@ -428,15 +437,16 @@ def migrate_shard(path: Path) -> bool:
     """Rewrite the one known prior schema without losing public metadata."""
     payload = raw_shard(path)
     papers = payload["papers"]
-    if all(isinstance(paper, dict) and set(paper) == PUBLIC_KEYS for paper in papers):
-        check_rows(payload, path)
-        return False
     if not all(
         isinstance(paper, dict) and set(paper) in {PUBLIC_KEYS, LEGACY_KEYS}
         for paper in papers
     ):
         raise ValueError(f"Archive shard papers are invalid: {path.name}")
-    payload = {**payload, "papers": [clean_legacy(paper) for paper in papers]}
+    cleaned = [clean_legacy(paper) for paper in papers]
+    if cleaned == papers:
+        check_rows(payload, path)
+        return False
+    payload = {**payload, "papers": cleaned}
     check_rows(payload, path)
     write_shard(path.parent, payload)
     return True

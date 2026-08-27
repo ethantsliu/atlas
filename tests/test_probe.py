@@ -115,10 +115,15 @@ def fixture() -> tuple[FakeFetch, dict]:
 class ProbeTests(unittest.TestCase):
     def test_deploy_gate(self) -> None:
         workflow = (ROOT / ".github/workflows/deploy.yml").read_text(encoding="utf-8")
+        self.assertIn("ref: ${{ inputs.expected_sha || github.sha }}", workflow)
+        bind = workflow.index('if [ -n "$EXPECTED_SHA" ]')
+        cloud = workflow.index("python pipeline/cloudpub.py")
         check = workflow.index("make check PYTHON=python NPM=npm")
         upload = workflow.index("actions/upload-pages-artifact@v4")
         deploy = workflow.index("actions/deploy-pages@v4")
         probe = workflow.index("python3 pipeline/probe.py")
+        self.assertLess(bind, cloud)
+        self.assertLess(cloud, check)
         self.assertLess(check, upload)
         self.assertLess(upload, deploy)
         self.assertLess(deploy, probe)

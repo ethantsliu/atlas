@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Callable
 
+from archive import migrate_archive, write_manifest
+from archivecheck import validate_archive
 from files import atomic_write_text
 from harvest import (
     HISTORY_START,
@@ -32,7 +34,6 @@ from merge import merge_generation, read_generation
 from oai import OaiClient
 from rank import load_rules
 from resume import expiry_near, next_page, reset_stage, token_expired
-from archivecheck import validate_archive
 
 
 SCHEMA_VERSION = 1
@@ -292,6 +293,8 @@ def prep_release(archive: Path, output: Path, prior_path: Path | None = None) ->
     if output.exists() and any(output.iterdir()):
         raise ValueError("Corpus release staging directory is not empty")
     output.mkdir(parents=True, exist_ok=True)
+    if migrate_archive(archive):
+        write_manifest(archive)
     manifest = validate_archive(archive)
     prior = read_json(prior_path) if prior_path is not None else None
     old_paths = prior_paths(prior)
@@ -490,6 +493,9 @@ def unpack_root(archive: Path, root: Path) -> None:
         for member in members:
             safe_member(member)
         bundle.extractall(root, members=members)
+    archive_root = root / "archive"
+    if archive_root.exists() and migrate_archive(archive_root):
+        write_manifest(archive_root)
     check_root(root)
 
 

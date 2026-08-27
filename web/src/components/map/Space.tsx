@@ -18,9 +18,10 @@ import { usePixel } from "../../hooks/pixel";
 import { useMarks } from "../../hooks/marks";
 import { useSwarm, type SwarmTip } from "../../hooks/swarm";
 import type { Theme } from "../../hooks/theme";
+import { useView } from "../../hooks/view";
 import { graphEndpointId, graphKey, largestGroup, splitPapers } from "../../lib/graph";
 import { showLink } from "../../lib/quality";
-import { formatCamera, show3d, type CameraView } from "../../lib/camera";
+import type { CameraView } from "../../lib/camera";
 import { buildNode } from "../../lib/scene";
 import { labelOf } from "../../lib/text";
 import type { GraphData, GraphLink, GraphNode } from "../../types";
@@ -44,6 +45,7 @@ type SpaceProps = {
   theme: Theme;
   layout: LayoutMode;
   camera: CameraView | null;
+  viewReady: boolean;
   onChoose: (node: GraphNode) => void;
   onCloudPick: (pick: CloudPick) => void;
   onFocus: (nodeId: string) => void;
@@ -88,6 +90,7 @@ export function GraphSpace({
   theme,
   layout,
   camera,
+  viewReady,
   onChoose,
   onCloudPick,
   onFocus,
@@ -104,7 +107,7 @@ export function GraphSpace({
   const engineReadyRef = useRef(false);
   const fitRef = useRef(true);
   const fitKeyRef = useRef<string>();
-  const restoredRef = useRef<string | null>(null);
+  const showView = useView(graphRef, camera, viewReady);
   const cloudOpenRef = useRef(cloudSelected);
   useEffect(() => {
     cloudOpenRef.current = cloudSelected;
@@ -173,14 +176,6 @@ export function GraphSpace({
     }
   }, [graphRef, layout, simple, topology]);
 
-  useEffect(() => {
-    const key = formatCamera(camera);
-    if (!camera || !key || restoredRef.current === key || !graphRef.current) return;
-    restoredRef.current = key;
-    fitRef.current = false;
-    show3d(graphRef.current, camera);
-  }, [camera, graphRef]);
-
   const activeIds = useMemo(
     () => new Set([selected?.id, hovered?.id].filter(Boolean)),
     [hovered?.id, selected?.id],
@@ -219,6 +214,7 @@ export function GraphSpace({
           engineReadyRef.current = true;
         }}
         onEngineStop={() => {
+          showView();
           if (!fitRef.current) return;
           fitRef.current = false;
           const reduced = window.matchMedia?.(

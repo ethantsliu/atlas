@@ -107,7 +107,7 @@ class ArchiveTests(unittest.TestCase):
         )
 
         self.assertIn("github.com", payload["papers"][0]["abstract"])
-        self.assertIn("@university.edu", payload["papers"][0]["authors"][0])
+        self.assertEqual(payload["papers"][0]["authors"], ["Ada Researcher"])
 
     def test_public_boundary(self) -> None:
         unsafe = (
@@ -298,6 +298,14 @@ class ArchiveTests(unittest.TestCase):
                 date(2020, 1, 2), intake([paper("2001.00001")]), RULES
             )
             payload["papers"][0]["comment"] = "Prior public annotation"
+            payload["papers"][0]["abstract"] = (
+                "This increasedhttps://www.overleaf.com/project/"
+                "5e2b14694c5dc600017292e6 intercorrelation."
+            )
+            payload["papers"][0]["authors"] = [
+                "Ada Researcher",
+                "owner@example.org",
+            ]
             path = root / "2020-01.json.gz"
             path.write_bytes(shard_bytes(payload))
 
@@ -307,6 +315,11 @@ class ArchiveTests(unittest.TestCase):
             self.assertEqual(saved["counts"]["all"], 1)
             self.assertEqual(saved["papers"][0]["id"], "2001.00001")
             self.assertNotIn("comment", saved["papers"][0])
+            self.assertEqual(
+                saved["papers"][0]["abstract"],
+                "This increased intercorrelation.",
+            )
+            self.assertEqual(saved["papers"][0]["authors"], ["Ada Researcher"])
             self.assertEqual(migrate_archive(root), [])
 
     def test_known_legacy(self) -> None:

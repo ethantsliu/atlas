@@ -8,7 +8,7 @@ import { GraphCanvas } from "../components/map/Graph";
 import { Inspector } from "../components/map/Inspector";
 import { PanelResize } from "../components/map/Panel";
 import { MapFilters } from "../components/map/Filters";
-import { PaperSheet, PaperState } from "../components/map/State";
+import { CloudState, PaperSheet, PaperState } from "../components/map/State";
 import type { Theme } from "../hooks/theme";
 import type { CameraView } from "../lib/camera";
 import { resolvePaper } from "../lib/filters";
@@ -45,6 +45,11 @@ export function MapView({
   const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
   const kinds = useMemo(() => new Set(url.kinds), [url.kinds]);
   const history = useCloud(kinds.has("paper") && url.layout === "semantic");
+  const papersDone = !kinds.has("paper") || papersReady || Boolean(papersError);
+  const cloudDone =
+    !kinds.has("paper") ||
+    url.layout !== "semantic" ||
+    Boolean(history.data || history.error);
   const cloud = useFocus(atlas, history, Boolean(url.focus || url.query.trim()));
   const nextGraph = useMemo(
     () =>
@@ -135,6 +140,11 @@ export function MapView({
   return (
     <main className="map-layout">
       <PaperState loading={papersLoading} error={papersError} retry={onRetryPapers} />
+      <CloudState
+        loading={!papersLoading && !papersError && history.loading}
+        error={!papersLoading && !papersError ? history.error : null}
+        retry={history.retry}
+      />
       <MapFilters
         atlas={atlas}
         archiveCount={history.manifest?.count}
@@ -167,6 +177,7 @@ export function MapView({
         theme={theme}
         layout={url.layout}
         camera={url.camera}
+        viewReady={papersDone && cloudDone}
         shareUrl={shareUrl}
         onLayout={(layout) => onReplace({ layout })}
       />

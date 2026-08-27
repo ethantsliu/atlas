@@ -7,7 +7,20 @@ type LoadProps = {
   retry: () => void;
 };
 
-export function PaperState({ loading, error, retry }: LoadProps) {
+type NoticeProps = LoadProps & {
+  loadingText: string;
+  errorPrefix: string;
+  retryText: string;
+};
+
+function LoadNotice({
+  loading,
+  error,
+  retry,
+  loadingText,
+  errorPrefix,
+  retryText,
+}: NoticeProps) {
   if (!loading && !error) return null;
   return (
     <aside
@@ -17,13 +30,43 @@ export function PaperState({ loading, error, retry }: LoadProps) {
       aria-atomic="true"
       aria-busy={loading}
     >
-      <span>{error ? `Paper index unavailable: ${error}` : "Loading papers…"}</span>
+      <span>{error ? `${errorPrefix}: ${error}` : loadingText}</span>
       {error && (
-        <button type="button" onClick={retry}>
-          Retry papers
+        <button
+          type="button"
+          onClick={(event) => {
+            if (event.detail === 0) {
+              document.querySelector<HTMLElement>(".graph-wrap")?.focus();
+            }
+            retry();
+          }}
+        >
+          {retryText}
         </button>
       )}
     </aside>
+  );
+}
+
+export function PaperState(props: LoadProps) {
+  return (
+    <LoadNotice
+      {...props}
+      loadingText="Loading papers…"
+      errorPrefix="Paper index unavailable"
+      retryText="Retry papers"
+    />
+  );
+}
+
+export function CloudState(props: LoadProps) {
+  return (
+    <LoadNotice
+      {...props}
+      loadingText="Loading historical papers…"
+      errorPrefix="Historical papers unavailable"
+      retryText="Retry historical papers"
+    />
   );
 }
 

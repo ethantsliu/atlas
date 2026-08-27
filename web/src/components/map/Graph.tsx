@@ -44,6 +44,7 @@ type GraphCanvasProps = {
   shareUrl: (camera?: CameraView | null) => string;
   onLayout: (mode: LayoutMode) => void;
   camera: CameraView | null;
+  viewReady: boolean;
 };
 
 function selectedValue(graph: GraphData, selected: GraphNode | null): string {
@@ -67,6 +68,29 @@ function nodeCount(
   );
 }
 
+function arrowNode(
+  event: KeyboardEvent<HTMLElement>,
+  graph: GraphData,
+  graphRef: GraphRef,
+  selected: GraphNode | null,
+): GraphNode | null {
+  if (event.target !== event.currentTarget || !event.key.startsWith("Arrow")) {
+    return null;
+  }
+  event.preventDefault();
+  const projector = graphRef.current;
+  const projected = graph.nodes.map((node) => {
+    if (!projector || node.x == null || node.y == null || node.z == null) return node;
+    const point = projector.graph2ScreenCoords(node.x, node.y, node.z);
+    return { ...node, x: point.x, y: point.y };
+  });
+  const current = selected
+    ? (projected.find((node) => node.id === selected.id) ?? null)
+    : null;
+  const next = findNextNode(projected, current, event.key as ArrowKey);
+  return graph.nodes.find((node) => node.id === next?.id) ?? null;
+}
+
 export function GraphCanvas({
   graph,
   cloud,
@@ -85,6 +109,7 @@ export function GraphCanvas({
   shareUrl,
   onLayout,
   camera,
+  viewReady,
 }: GraphCanvasProps) {
   const { ref: containerRef, width, height } = useElementSize<HTMLElement>();
   const { mode, status, retry } = useWebgl(containerRef);
@@ -114,26 +139,7 @@ export function GraphCanvas({
         aria-describedby="graph-help"
         tabIndex={0}
         onKeyDown={(event: KeyboardEvent<HTMLElement>) => {
-          if (event.target !== event.currentTarget) return;
-          if (!event.key.startsWith("Arrow")) return;
-          event.preventDefault();
-          const projector = graphRef.current;
-          const projected = graph.nodes.map((node) => {
-            if (!projector || node.x == null || node.y == null || node.z == null) {
-              return node;
-            }
-            const point = projector.graph2ScreenCoords(node.x, node.y, node.z);
-            return { ...node, x: point.x, y: point.y };
-          });
-          const projectedSelection = selected
-            ? (projected.find((node) => node.id === selected.id) ?? null)
-            : null;
-          const next = findNextNode(
-            projected,
-            projectedSelection,
-            event.key as ArrowKey,
-          );
-          const source = graph.nodes.find((node) => node.id === next?.id);
+          const source = arrowNode(event, graph, graphRef, selected);
           if (source) onChoose(source);
         }}
       >
@@ -199,6 +205,7 @@ export function GraphCanvas({
               theme={theme}
               layout={layout}
               camera={camera}
+              viewReady={viewReady}
               onChoose={(node) => {
                 onChoose(node);
                 containerRef.current?.focus({ preventScroll: true });

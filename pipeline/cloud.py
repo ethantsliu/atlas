@@ -38,6 +38,7 @@ from routes import (
     route_bytes,
     row_digest,
 )
+from cloudaudit import MAGIC, SCOPES, meta_rows, point_rows, valid_asset
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,8 +46,6 @@ ARCHIVE_ROOT = ROOT / "data/cache/archive"
 ANCHOR_PATH = ROOT / "data/source/anchors.npz"
 CACHE_ROOT = ROOT / "data/cache/cloud"
 OUTPUT_ROOT = ROOT / "web/public/data/cloud"
-MAGIC = b"ATLASPT1"
-SCOPES = {"likely": 0, "possible": 1, "outside": 2}
 
 
 def parse_args() -> argparse.Namespace:
@@ -115,18 +114,6 @@ def asset_meta(path: Path) -> dict:
         "sha256": hashlib.sha256(content).hexdigest(),
         "bytes": len(content),
     }
-
-
-def valid_asset(path: Path, meta: object) -> bool:
-    """Verify one prior browser asset before incremental reuse."""
-    if not path.is_file() or not isinstance(meta, dict):
-        return False
-    content = path.read_bytes()
-    return (
-        meta.get("path") == path.name
-        and meta.get("bytes") == len(content)
-        and meta.get("sha256") == hashlib.sha256(content).hexdigest()
-    )
 
 
 def valid_row(output: Path, row: dict) -> bool:
@@ -352,9 +339,7 @@ def validate_month(
     if not valid_asset(output / row["routes"]["path"], row.get("routes")):
         raise RuntimeError(f"Archive cloud routes drifted: {month}")
     point_content = (output / row["points"]["path"]).read_bytes()
-    magic, count = struct.unpack("<8sI", point_content[:12])
-    if magic != MAGIC or count != row["count"] or len(point_content) != 12 + 13 * count:
-        raise RuntimeError(f"Archive cloud point contract drifted: {month}")
+    scopes = point_rows(point_content, row, month)
     omitted_ids = row.get("omitted_ids")
     omitted_counts = row.get("omitted_counts")
     if (
@@ -376,13 +361,15 @@ def validate_month(
         )
     ):
         raise RuntimeError(f"Archive cloud omission proof drifted: {month}")
-    meta = json.loads((output / row["meta"]["path"]).read_text(encoding="utf-8"))
-    kept_ids = [paper[0] for paper in meta.get("papers", [])]
+    kept_ids = meta_rows(
+        (output / row["meta"]["path"]).read_text(encoding="utf-8"),
+        row,
+        scopes,
+        month,
+    )
     expected_rows = row_digest(kept_ids)
     if (
-        meta.get("count") != row["count"]
-        or row.get("row_sha256") != expected_rows
-        or len(kept_ids) != row["count"]
+        len(kept_ids) != row["count"]
         or len(set(kept_ids) | set(omitted_ids)) != row["source_count"]
         or set(kept_ids).intersection(omitted_ids)
     ):

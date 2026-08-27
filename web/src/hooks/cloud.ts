@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   fetchCloud,
   loadCloud,
@@ -11,9 +11,12 @@ export type CloudLoad = {
   data: CloudData | null;
   loading: boolean;
   error: string | null;
+  retry: () => void;
 };
 
-const EMPTY: CloudLoad = {
+type CloudState = Omit<CloudLoad, "retry">;
+
+const EMPTY: CloudState = {
   manifest: null,
   data: null,
   loading: false,
@@ -21,7 +24,9 @@ const EMPTY: CloudLoad = {
 };
 
 export function useCloud(enabled: boolean): CloudLoad {
-  const [state, setState] = useState<CloudLoad>(EMPTY);
+  const [state, setState] = useState<CloudState>(EMPTY);
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt((value) => value + 1), []);
 
   useEffect(() => {
     if (!enabled) {
@@ -36,6 +41,7 @@ export function useCloud(enabled: boolean): CloudLoad {
         data: await loadCloud(manifest, controller.signal),
       }))
       .then(({ manifest, data }) => {
+        if (controller.signal.aborted) return;
         setState({ manifest, data, loading: false, error: null });
       })
       .catch((error: unknown) => {
@@ -46,7 +52,7 @@ export function useCloud(enabled: boolean): CloudLoad {
         });
       });
     return () => controller.abort();
-  }, [enabled]);
+  }, [attempt, enabled]);
 
-  return state;
+  return { ...state, retry };
 }

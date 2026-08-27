@@ -358,13 +358,14 @@ def merge_generation(
     """Convert one sealed harvest into cloud-compatible archive shards."""
     manifest = read_generation(harvest_root, generation)
     archive_root.mkdir(parents=True, exist_ok=True)
+    if migrate_archive(archive_root):
+        write_manifest(archive_root)
     prior = read_manifest(archive_root)
     recovering = merge_path(archive_root).exists()
     required = ledger_needed(archive_root)
     if not recovering:
         check_ledger(archive_root, prior)
     start_merge(archive_root, generation, required)
-    migrate_archive(archive_root)
     ledger = open_ledger(archive_root)
     with tempfile.TemporaryDirectory(dir=archive_root) as directory:
         database = open_store(Path(directory) / "events.sqlite")

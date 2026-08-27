@@ -107,6 +107,59 @@ test("map remains usable without WebGL2", async ({ page }) => {
   await expect(page.getByLabel("Choose a visible graph node")).not.toHaveValue("");
 });
 
+test("historical paper loading can recover without resetting the map", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  let attempts = 0;
+  let resumePapers = () => {};
+  const paperGate = new Promise<void>((resolve) => {
+    resumePapers = resolve;
+  });
+  await page.route(/\/data\/papers\/[a-f0-9]{64}\.json(?:\?.*)?$/, async (route) => {
+    await paperGate;
+    await route.continue();
+  });
+  await page.route(/\/data\/cloud\/index\.json(?:\?.*)?$/, async (route) => {
+    attempts += 1;
+    if (attempts === 1) {
+      await route.fulfill({ status: 503, body: "Unavailable" });
+      return;
+    }
+    await route.continue();
+  });
+
+  await page.goto("/");
+  const alert = page.getByRole("alert").filter({
+    hasText: "Historical papers unavailable: Paper cloud request failed (503)",
+  });
+  await expect(page.getByText("Loading papers…", { exact: true })).toBeVisible();
+  await expect(alert).toHaveCount(0);
+  resumePapers();
+  await expect(alert).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByLabel(/Interactive (3D )?research graph/)).toBeVisible();
+
+  const picker = page.getByLabel("Choose a visible graph node");
+  await expect(picker).toHaveAttribute("role", "combobox", { timeout: 20_000 });
+  await picker.fill("pretraining");
+  await page.getByRole("option", { name: /Topic\s+pretraining/i }).click();
+  const inspector = page.getByLabel("Node inspector");
+  await expect(inspector.getByRole("heading", { name: "pretraining" })).toBeVisible();
+
+  const graph = page.getByLabel(/Interactive (3D )?research graph/);
+  const retry = page.getByRole("button", { name: "Retry historical papers" });
+  await retry.focus();
+  await page.keyboard.press("Enter");
+  await expect(graph).toBeFocused();
+  await expect(alert).toHaveCount(0);
+  await expect(page.locator(".filters")).toContainText("historical arXiv records", {
+    timeout: 30_000,
+  });
+  expect(attempts).toBe(2);
+  await expect(graph).toBeFocused();
+  await expect(inspector.getByRole("heading", { name: "pretraining" })).toBeVisible();
+});
+
 test("dark mode follows the system and remembers a choice", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
   await page.goto(corePath);
@@ -131,6 +184,7 @@ test("dark mode follows the system and remembers a choice", async ({ page }) => 
 });
 
 test("connection isolation toggles back to the full map", async ({ page }) => {
+  test.setTimeout(90_000);
   await page.goto("/");
   const status = mapStatus(page);
   const fullState = await fullNodes(page);

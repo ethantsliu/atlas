@@ -365,7 +365,7 @@ class MergeTests(unittest.TestCase):
 
             saved = read_shard(root / "archive/2026-08.json.gz")["papers"][0]
             self.assertIn("github.com", saved["abstract"])
-            self.assertIn("@university.edu", saved["authors"][0])
+            self.assertEqual(saved["authors"], ["Ada Researcher"])
 
     def test_idempotent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

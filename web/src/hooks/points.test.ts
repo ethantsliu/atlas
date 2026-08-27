@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { clearHover, pickBound } from "./points";
+import { clearHover, cloudFront, pickBound } from "./points";
 
 const paper = {
   id: "2001.00001",
@@ -10,9 +10,19 @@ const paper = {
 };
 const bound = { index: 4, paper };
 
-describe("paper point hover", () => {
+describe("paper point input", () => {
+  it("keeps the visually nearer layer", () => {
+    const graph = {
+      camera: () => ({ position: { x: 0, y: 0, z: 0 } }),
+    } as never;
+    const node = { id: "topic", kind: "topic", x: 0, y: 0, z: 10 } as never;
+
+    expect(cloudFront(graph, node, 8)).toBe(true);
+    expect(cloudFront(graph, node, 12)).toBe(false);
+  });
+
   it("clears stale point identity before the next debounced lookup", () => {
-    const hover = { index: 3, x: 20, y: 40 };
+    const hover = { distance: 1, index: 3, x: 20, y: 40 };
     const target = { ...hover, paper: undefined };
     const refs = {
       hover: { current: hover },
@@ -37,6 +47,7 @@ describe("paper point hover", () => {
       claim: {
         current: {
           committed: false,
+          distance: 1,
           index: 4,
           pending: true,
           x: 10,
@@ -47,7 +58,9 @@ describe("paper point hover", () => {
       pick: { current: pick },
       request: { current: 0 },
       select: { current: 0 },
-      target: { current: { index: 3, paper: bound, x: 10, y: 10 } },
+      target: {
+        current: { distance: 1, index: 3, paper: bound, x: 10, y: 10 },
+      },
     };
     const event = {
       button: 0,
@@ -68,6 +81,7 @@ describe("paper point hover", () => {
       claim: {
         current: {
           committed: false,
+          distance: 1,
           index: 4,
           paper: bound,
           pending: true,
@@ -92,5 +106,66 @@ describe("paper point hover", () => {
     pickBound(refs, event);
 
     expect(pick).toHaveBeenCalledOnce();
+  });
+
+  it("commits a resolved point from a primary touch", () => {
+    const pick = vi.fn();
+    const refs = {
+      claim: {
+        current: {
+          committed: false,
+          distance: 1,
+          index: 4,
+          paper: bound,
+          pending: true,
+          x: 10,
+          y: 10,
+        },
+      },
+      pick: { current: pick },
+      target: { current: null },
+    };
+    const event = {
+      button: 0,
+      clientX: 10,
+      clientY: 10,
+      isPrimary: true,
+      pointerType: "touch",
+    } as PointerEvent;
+
+    pickBound(refs, event);
+
+    expect(pick).toHaveBeenCalledOnce();
+    expect(pick).toHaveBeenCalledWith(bound);
+  });
+
+  it("rejects a touch drag across the paper cloud", () => {
+    const pick = vi.fn();
+    const refs = {
+      claim: {
+        current: {
+          committed: false,
+          distance: 1,
+          index: 4,
+          paper: bound,
+          pending: true,
+          x: 10,
+          y: 10,
+        },
+      },
+      pick: { current: pick },
+      target: { current: null },
+    };
+    const event = {
+      button: 0,
+      clientX: 18,
+      clientY: 10,
+      isPrimary: true,
+      pointerType: "touch",
+    } as PointerEvent;
+
+    pickBound(refs, event);
+
+    expect(pick).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Raycaster, Vector2, type Camera } from "three";
 import type { GraphRef } from "../components/map/Driver";
+import { hitRadius } from "../lib/ray";
 import { buildSwarm, markSwarm, swarmNode } from "../lib/swarm";
 import type { GraphNode } from "../types";
 import type { Theme } from "./theme";
@@ -83,8 +84,11 @@ export function useSwarm(input: SwarmInput): {
         -((event.clientY - rect.top) / rect.height) * 2 + 1,
       );
       const camera = graph.camera() as Camera;
+      const target = (
+        graph.controls() as { target?: { x: number; y: number; z: number } }
+      ).target;
       raycaster.params.Points = {
-        threshold: Math.max(2.5, camera.position.length() / 180),
+        threshold: hitRadius(camera, target, rect.height),
       };
       raycaster.setFromCamera(pointer, camera);
       const match = raycaster.intersectObject(swarm, false)[0];

@@ -123,7 +123,11 @@ class ParallelTests(unittest.TestCase):
             "needs: [plan, points]",
             "overwrite: true",
             "timeout-minutes: 180",
-            "Cloud publish failed after three attempts",
+            "base_sha=$(git rev-parse HEAD)",
+            "git fetch origin main",
+            'if [ "$remote_sha" != "$base_sha" ]',
+            "restart cloud-all",
+            '-f expected_sha="${{ steps.publish.outputs.sha }}"',
         ):
             self.assertIn(required, workflow)
         self.assertLess(
@@ -132,6 +136,8 @@ class ParallelTests(unittest.TestCase):
         )
         self.assertIn("gh release view corpus-v2", serial)
         self.assertNotIn("--allow-shrink", workflow)
+        self.assertNotIn("git pull --rebase", workflow)
+        self.assertEqual(workflow.count("gh workflow run deploy.yml"), 1)
         self.assertNotIn("repository_dispatch:", serial)
         self.assertNotIn("workflow_run:", serial)
         self.assertNotIn("schedule:", serial)
