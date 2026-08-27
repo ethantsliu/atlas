@@ -374,10 +374,17 @@ jobs:
       - name: Dispatch validated promotion
         if: steps.merge.outputs.promote == 'true' && steps.prep.outputs.ready == 'true'
         run: |
+          index_sha=$(jq -r '.index_sha256' "$PROMO_ROOT/plan.json")
+          ready_sha=$(sha256sum "$PROMO_ROOT/cloud-ready.json" | awk '{print $1}')
           jq -n \
             --arg tag "$PROMOTED_TAG" \
+            --arg index_sha256 "$index_sha" \
+            --arg ready_sha256 "$ready_sha" \
             --slurpfile plan "$PROMO_ROOT/plan.json" \
-            '{event_type:"corpus-promoted",client_payload:{tag:$tag,months:$plan[0].months}}' \
+            '{event_type:"corpus-promoted",client_payload:{
+              tag:$tag,index_sha256:$index_sha256,ready_sha256:$ready_sha256,
+              months:$plan[0].months
+            }}' \
             > "$RUNNER_TEMP/corpus-dispatch.json"
           gh api --method POST \
             "repos/$GITHUB_REPOSITORY/dispatches" \
@@ -530,28 +537,6 @@ jobs:
               gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id"
             fi
           done < "$verify/assets.tsv"
-
-      - name: Retire stale shard assets
-        if: >-
-          always() &&
-          steps.prep.outputs.changed == 'true' &&
-          steps.prep.outputs.ready == 'true' &&
-          steps.verify_promo.outcome == 'success' &&
-          steps.acknowledge.outcome == 'success' &&
-          steps.checkpoint_release.outcome == 'success'
-        run: |
-          jq -r '.keep[]' "$PROMO_ROOT/plan.json" | sort -u > "$RUNNER_TEMP/corpus-keep.txt"
-          release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$PROMOTED_TAG" --jq .id)
-          gh api --paginate \
-            "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
-            --jq '.[] | [.id, .name] | @tsv' | while IFS=$'\t' read -r id name; do
-            if [[ ! "$name" =~ ^[0-9]{4}-[0-9]{2}-[0-9a-f]{16}\.json\.gz$ ]]; then
-              continue
-            fi
-            if ! grep -Fxq "$name" "$RUNNER_TEMP/corpus-keep.txt"; then
-              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id"
-            fi
-          done
 
       - name: Continue historical backfill
         if: >-

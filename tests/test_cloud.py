@@ -164,6 +164,7 @@ class CloudTests(unittest.TestCase):
         for required in (
             "tag=corpus-v1",
             "workflow_dispatch:",
+            "if: vars.ATLAS_LEGACY == 'true'",
             "gh release view corpus-v2",
             "corpus-v2 owns the published cloud",
             "(-[0-9a-f]{16})?",

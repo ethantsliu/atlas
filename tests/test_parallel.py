@@ -102,6 +102,16 @@ class ParallelTests(unittest.TestCase):
             "actions: write",
             "cloud-all only accepts the corpus-v2 release",
             "cloud-ready.json",
+            "DISPATCH_INDEX",
+            "DISPATCH_READY",
+            "Corpus dispatch must bind immutable index and readiness digests",
+            'index_name="index-${DISPATCH_INDEX:0:16}.json"',
+            'ready_name="ready-${DISPATCH_READY:0:16}.json"',
+            'if [ -n "$DISPATCH_INDEX" ] && [ "$index_sha" != "$DISPATCH_INDEX" ]',
+            'if [ -n "$DISPATCH_READY" ] && [ "$ready_sha" != "$DISPATCH_READY" ]',
+            "base: ${{ steps.plan.outputs.base }}",
+            'echo "base=$(git rev-parse HEAD)"',
+            "ref: ${{ needs.plan.outputs.base }}",
             ".history_complete == true",
             ".index_sha256 == $index_sha256",
             ".paper_count == $paper_count",
@@ -133,6 +143,14 @@ class ParallelTests(unittest.TestCase):
         self.assertLess(
             workflow.index("python pipeline/parallel.py join"),
             workflow.index("git add web/public/data/cloud"),
+        )
+        self.assertEqual(
+            workflow.count("ref: ${{ needs.plan.outputs.base }}"),
+            2,
+        )
+        self.assertLess(
+            workflow.index('echo "base=$(git rev-parse HEAD)"'),
+            workflow.index("ref: ${{ needs.plan.outputs.base }}"),
         )
         self.assertIn("gh release view corpus-v2", serial)
         self.assertNotIn("--allow-shrink", workflow)

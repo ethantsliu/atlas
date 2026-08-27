@@ -28,10 +28,14 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
       digest: ${{ steps.plan.outputs.digest }}
       tag: ${{ steps.plan.outputs.tag }}
+      base: ${{ steps.plan.outputs.base }}
     env:
       GH_TOKEN: ${{ github.token }}
       DISPATCH_TAG: ${{ github.event.client_payload.tag }}
+      DISPATCH_INDEX: ${{ github.event.client_payload.index_sha256 }}
+      DISPATCH_READY: ${{ github.event.client_payload.ready_sha256 }}
       INPUT_TAG: ${{ inputs.tag }}
+      EVENT_NAME: ${{ github.event_name }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -50,17 +54,53 @@ jobs:
             echo "cloud-all only accepts the corpus-v2 release" >&2
             exit 1
           fi
+          if [ "$EVENT_NAME" = repository_dispatch ] && \
+            { [ -z "$DISPATCH_INDEX" ] || [ -z "$DISPATCH_READY" ]; }; then
+            echo "Corpus dispatch must bind immutable index and readiness digests" >&2
+            exit 1
+          fi
           root="$RUNNER_TEMP/cloud-plan"
           mkdir -p "$root/archive"
+          index_name=index.json
+          ready_name=cloud-ready.json
+          if [ -n "$DISPATCH_INDEX" ]; then
+            if [[ ! "$DISPATCH_INDEX" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "Invalid dispatched corpus index digest" >&2
+              exit 1
+            fi
+            index_name="index-${DISPATCH_INDEX:0:16}.json"
+          fi
+          if [ -n "$DISPATCH_READY" ]; then
+            if [[ ! "$DISPATCH_READY" =~ ^[0-9a-f]{64}$ ]]; then
+              echo "Invalid dispatched readiness digest" >&2
+              exit 1
+            fi
+            ready_name="ready-${DISPATCH_READY:0:16}.json"
+          fi
           gh release download "$tag" \
-            --pattern index.json \
+            --pattern "$index_name" \
             --dir "$root/archive" \
             --clobber
+          if [ "$index_name" != index.json ]; then
+            mv "$root/archive/$index_name" "$root/archive/index.json"
+          fi
           gh release download "$tag" \
-            --pattern cloud-ready.json \
+            --pattern "$ready_name" \
             --dir "$root/archive" \
             --clobber
+          if [ "$ready_name" != cloud-ready.json ]; then
+            mv "$root/archive/$ready_name" "$root/archive/cloud-ready.json"
+          fi
           index_sha=$(sha256sum "$root/archive/index.json" | awk '{print $1}')
+          if [ -n "$DISPATCH_INDEX" ] && [ "$index_sha" != "$DISPATCH_INDEX" ]; then
+            echo "Dispatched corpus index digest drifted" >&2
+            exit 1
+          fi
+          ready_sha=$(sha256sum "$root/archive/cloud-ready.json" | awk '{print $1}')
+          if [ -n "$DISPATCH_READY" ] && [ "$ready_sha" != "$DISPATCH_READY" ]; then
+            echo "Dispatched readiness digest drifted" >&2
+            exit 1
+          fi
           paper_count=$(jq -r '.counts.all' "$root/archive/index.json")
           jq -e \
             --arg index_sha256 "$index_sha" \
@@ -84,6 +124,7 @@ jobs:
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "base=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
         with:
           name: cloud-plan
@@ -112,7 +153,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: main
+          ref: ${{ needs.plan.outputs.base }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -221,7 +262,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: main
+          ref: ${{ needs.plan.outputs.base }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"

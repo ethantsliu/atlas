@@ -159,6 +159,8 @@ class CorpusTests(unittest.TestCase):
             'pointer_name="pointer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${archive_digest:0:16}.json"',
             "awk -F '\\t' '$2 ~ /^pointer-",
             'event_type:"corpus-promoted"',
+            "index_sha256:$index_sha256",
+            "ready_sha256:$ready_sha256",
             "cloud-ready.json",
             "history_complete:true",
             "steps.prep.outputs.ready == 'true'",
@@ -211,15 +213,11 @@ class CorpusTests(unittest.TestCase):
             corpus.index("Dispatch validated promotion"),
             corpus.index("Acknowledge promotion"),
         )
-        retire = corpus[
-            corpus.index("- name: Retire stale shard assets") : corpus.index(
-                "- name: Enforce harvest result"
-            )
-        ]
-        self.assertIn("steps.prep.outputs.ready == 'true'", retire)
-        self.assertIn("steps.verify_promo.outcome == 'success'", retire)
+        self.assertNotIn("Retire stale shard assets", corpus)
+        self.assertNotIn("corpus-keep.txt", corpus)
         self.assertNotIn("schedule:", legacy)
         self.assertIn("group: arxiv-oai-corpus", legacy)
+        self.assertIn("if: vars.ATLAS_LEGACY == 'true'", legacy)
         self.assertIn("group: arxiv-oai-corpus", feed)
         self.assertIn('default: "corpus-v2"', discover)
 
