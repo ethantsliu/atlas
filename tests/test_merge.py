@@ -78,16 +78,20 @@ def seed_cloud(root: Path, archive: Path, papers: list[dict]) -> tuple[dict, Pat
     anchors = root / "anchors.npz"
     cache = root / "vectors"
     output = root / "cloud"
-    vectors = np.eye(2, EMBED_DIM, dtype=np.float32)
+    anchor_vectors = np.eye(8, EMBED_DIM, dtype=np.float32)
+    vectors = anchor_vectors[:2]
     np.savez_compressed(
         anchors,
         schema_version=1,
         model=MODEL,
         model_digest=MODEL_DIGEST,
         dimensions=EMBED_DIM,
-        ids=np.asarray(["left", "right"]),
-        vectors=vectors,
-        points=np.asarray([[10, 0, 0], [0, 20, 0]], dtype=np.float32),
+        ids=np.asarray([f"anchor-{index}" for index in range(8)]),
+        vectors=anchor_vectors,
+        points=np.asarray(
+            [[index * 10, index * 5, index * 2] for index in range(8)],
+            dtype=np.float32,
+        ),
     )
     rows = [(paper["id"], archive_text(paper)) for paper in papers]
     cache.mkdir()

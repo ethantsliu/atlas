@@ -27,6 +27,7 @@ from harvest import (
     read_state,
     state_path,
 )
+from events import check_ledger
 from merge import merge_generation, read_generation
 from oai import OaiClient
 from rank import load_rules
@@ -163,7 +164,7 @@ def plan_run(root: Path, now: datetime) -> tuple[dict, str, str | None, str | No
     history = cursor["history"]
     if not history["complete"]:
         history, generation, start, end = plan_history(
-            history, now.astimezone(timezone.utc).year
+            history, now.astimezone(timezone.utc).date()
         )
         cursor = {**cursor, "history": history}
     else:
@@ -181,9 +182,17 @@ def plan_run(root: Path, now: datetime) -> tuple[dict, str, str | None, str | No
     return cursor, generation, start, end
 
 
+def first_date(manifest: dict) -> str:
+    """Return the first server response as a conservative sync watermark."""
+    pages = manifest.get("pages")
+    if not isinstance(pages, list) or not pages or not isinstance(pages[0], dict):
+        raise ValueError("Corpus manifest has no first responseDate")
+    return clean_date(pages[0].get("response_date"))
+
+
 def finish_run(root: Path, cursor: dict, generation: str, manifest: dict) -> dict:
-    """Advance the official responseDate watermark after a sealed list."""
-    watermark = clean_date(manifest.get("watermark"))
+    """Advance an overlap-safe responseDate watermark after a sealed list."""
+    watermark = first_date(manifest)
     prior = cursor.get("watermark")
     if prior is not None and watermark < prior:
         raise ValueError("Corpus watermark moved backwards")
@@ -424,6 +433,8 @@ def check_root(root: Path) -> dict:
         read_generation(root, generation)
     archive = root / "archive"
     archive_report = validate_archive(archive) if archive.exists() else None
+    if archive_report is not None:
+        check_ledger(archive, archive_report)
     return {
         "cursor": cursor,
         "generations": generations,

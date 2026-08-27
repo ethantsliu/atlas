@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import ForceGraph2D, { type ForceGraphMethods } from "react-force-graph-2d";
 import type { Theme } from "../../hooks/theme";
 import { applyLayout, layoutTicks, type LayoutMode } from "../../hooks/layout";
 import { useQuality } from "../../hooks/quality";
-import { graphEndpointId } from "../../lib/graph";
+import { graphEndpointId, graphKey } from "../../lib/graph";
 import { showLink } from "../../lib/quality";
 import { formatCamera, show2d, type CameraView } from "../../lib/camera";
 import { labelOf } from "../../lib/text";
@@ -65,6 +65,7 @@ export function FallbackGraph({
   const restoredRef = useRef<string | null>(null);
   const quality = useQuality(graph.nodes.length, width, height);
   const simple = graph.nodes.length >= 1_000;
+  const topology = useMemo(() => graphKey(graph), [graph]);
   const activeIds = new Set(
     [selected?.id, hovered?.id].filter((id): id is string => Boolean(id)),
   );
@@ -72,7 +73,7 @@ export function FallbackGraph({
   useEffect(() => {
     if (!graphRef.current) return;
     applyLayout(graphRef.current, layout);
-  }, [graph.nodes, graphRef, layout, simple]);
+  }, [graphRef, layout, simple, topology]);
 
   useEffect(() => {
     const key = formatCamera(camera);

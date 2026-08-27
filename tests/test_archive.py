@@ -197,6 +197,86 @@ class ArchiveTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "public paper text"):
                 read_shard(path)
 
+    def test_nested_boundary(self) -> None:
+        payload = build_month(
+            date(2020, 1, 2),
+            intake(
+                [
+                    paper(
+                        "2001.00001",
+                        title=(
+                            "An agent uses retrieval and synthetic data for robust "
+                            "evaluation"
+                        ),
+                        categories=["cs.LG"],
+                    )
+                ]
+            ),
+            RULES,
+        )
+        nested = payload["papers"][0]
+        self.assertTrue(nested["topics"])
+        self.assertTrue(nested["tricks"])
+        attacks = (
+            ("relevance", "private_context", "/Users/alice/project"),
+            ("interest", "private_context", "local notes"),
+            ("relevance", "reasons", ["strong signals: @private_handle"]),
+            ("interest", "reasons", ["interest signals: file:///tmp/note"]),
+            ("topics", 0, {**nested["topics"][0], "private_context": "secret"}),
+            (
+                "tricks",
+                0,
+                {**nested["tricks"][0], "evidence": ["/home/alice/private"]},
+            ),
+            ("topics", 0, {**nested["topics"][0], "id": "private-project"}),
+        )
+        for field, key, value in attacks:
+            with self.subTest(field=field, key=key):
+                forged = json.loads(json.dumps(payload))
+                target = forged["papers"][0][field]
+                if isinstance(key, int):
+                    target[key] = value
+                else:
+                    target[key] = value
+                with tempfile.TemporaryDirectory() as directory:
+                    with self.assertRaisesRegex(ValueError, "public paper text"):
+                        write_shard(Path(directory), forged)
+
+    def test_nested_scores(self) -> None:
+        payload = build_month(
+            date(2020, 1, 2),
+            intake([paper("2001.00001", categories=["cs.LG"])]),
+            RULES,
+        )
+        attacks = (
+            ("relevance", "score", float("nan")),
+            ("relevance", "score", True),
+            ("interest", "score", 10.01),
+        )
+        for field, key, value in attacks:
+            with self.subTest(field=field, key=key, value=value):
+                forged = json.loads(json.dumps(payload))
+                forged["papers"][0][field][key] = value
+                with tempfile.TemporaryDirectory() as directory:
+                    with self.assertRaisesRegex(ValueError, "public paper text"):
+                        write_shard(Path(directory), forged)
+
+    def test_nested_shard(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            payload = build_month(
+                date(2020, 1, 2),
+                intake([paper("2001.00001", categories=["cs.LG"])]),
+                RULES,
+            )
+            path = write_shard(root, payload)
+            forged = json.loads(gzip.decompress(path.read_bytes()))
+            forged["papers"][0]["relevance"]["private_context"] = "/Users/alice/project"
+            path.write_bytes(shard_bytes(forged))
+
+            with self.assertRaisesRegex(ValueError, "public paper text"):
+                read_shard(path)
+
     def test_exact_counts(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

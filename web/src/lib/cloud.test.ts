@@ -9,6 +9,31 @@ import {
   type CloudManifest,
   type CloudRange,
 } from "./cloud";
+import { fetchRelation } from "./relation";
+
+function hexInto(bytes: ArrayBuffer, offset: number, value: string) {
+  new Uint8Array(bytes, offset, 32).set(Buffer.from(value, "hex"));
+}
+
+function routeBytes(anchor: string, row: string): ArrayBuffer {
+  const bytes = new ArrayBuffer(80 + 2 * 8 * 4);
+  const raw = new Uint8Array(bytes);
+  raw.set(new TextEncoder().encode("ATLASRT1"));
+  const view = new DataView(bytes);
+  view.setUint32(8, 2, true);
+  view.setUint16(12, 8, true);
+  view.setUint16(14, 8, true);
+  hexInto(bytes, 16, row);
+  hexInto(bytes, 48, anchor);
+  for (let paper = 0; paper < 2; paper += 1) {
+    for (let slot = 0; slot < 8; slot += 1) {
+      const offset = 80 + (paper * 8 + slot) * 4;
+      view.setUint16(offset, slot, true);
+      view.setUint16(offset + 2, 65_535 - slot, true);
+    }
+  }
+  return bytes;
+}
 
 function pointBytes(start = 1): ArrayBuffer {
   const bytes = new ArrayBuffer(12 + 2 * 13);
@@ -184,5 +209,68 @@ describe("paper cloud", () => {
       `/atlas/data/cloud/2020-01.json?sha=${range.meta.sha256}`,
     );
     expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads one aligned exact-cosine anchor route", async () => {
+    const anchorSha = "a".repeat(64);
+    const rowSha = "b".repeat(64);
+    const ids = Array.from({ length: 8 }, (_, index) => `topic:anchor-${index}`);
+    const anchorBytes = new TextEncoder().encode(
+      JSON.stringify({
+        schema_version: 1,
+        model: "all-minilm",
+        model_digest: "a".repeat(64),
+        anchor_sha256: anchorSha,
+        count: ids.length,
+        ids,
+      }),
+    );
+    const routes = routeBytes(anchorSha, rowSha);
+    const index = manifest(pointBytes());
+    index.relation = "anchor-cosine-top8-v1";
+    index.route_bytes = 4;
+    index.neighbor_count = 8;
+    index.anchor_count = 8;
+    index.anchor_sha256 = anchorSha;
+    index.anchors = {
+      path: "anchors.json",
+      sha256: createHash("sha256").update(anchorBytes).digest("hex"),
+      bytes: anchorBytes.byteLength,
+    };
+    index.shards[0].anchor_sha256 = anchorSha;
+    index.shards[0].row_sha256 = rowSha;
+    index.shards[0].routes = {
+      path: "2020-01.routes",
+      sha256: createHash("sha256").update(Buffer.from(routes)).digest("hex"),
+      bytes: routes.byteLength,
+    };
+    const range: CloudRange = {
+      month: "2020-01",
+      start: 0,
+      count: 2,
+      meta: index.shards[0].meta,
+      anchor_sha256: anchorSha,
+      row_sha256: rowSha,
+      routes: index.shards[0].routes,
+    };
+    const request = vi.fn(
+      async (input: RequestInfo | URL) =>
+        new Response(String(input).includes("anchors.json") ? anchorBytes : routes),
+    );
+
+    expect(isCloud(index)).toBe(true);
+    const relation = await fetchRelation(
+      index,
+      range,
+      1,
+      new AbortController().signal,
+      request as unknown as typeof fetch,
+      "/atlas",
+    );
+
+    expect(relation.neighbors.map((neighbor) => neighbor.id)).toEqual(ids);
+    expect(relation.neighbors[0].score).toBe(1);
+    expect(relation.neighbors[7].score).toBeLessThan(1);
+    expect(request).toHaveBeenCalledTimes(2);
   });
 });

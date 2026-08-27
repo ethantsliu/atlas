@@ -8,6 +8,7 @@ const paper = {
   published: "2020-01-01T00:00:00Z",
   scope: "likely" as const,
 };
+const bound = { index: 4, paper };
 
 describe("paper point hover", () => {
   it("clears stale point identity before the next debounced lookup", () => {
@@ -46,7 +47,7 @@ describe("paper point hover", () => {
       pick: { current: pick },
       request: { current: 0 },
       select: { current: 0 },
-      target: { current: { index: 3, paper, x: 10, y: 10 } },
+      target: { current: { index: 3, paper: bound, x: 10, y: 10 } },
     };
     const event = {
       button: 0,
@@ -68,7 +69,7 @@ describe("paper point hover", () => {
         current: {
           committed: false,
           index: 4,
-          paper,
+          paper: bound,
           pending: true,
           x: 10,
           y: 10,

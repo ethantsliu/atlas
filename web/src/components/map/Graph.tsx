@@ -7,8 +7,9 @@ import { findNextNode, type ArrowKey } from "../../lib/nav";
 import type { CameraView } from "../../lib/camera";
 import type { GraphData, GraphNode } from "../../types";
 import type { CloudData } from "../../lib/cloud";
-import type { CloudPaper } from "../../lib/cloud";
-import { GraphControls } from "./Controls";
+import type { CloudPick } from "../../lib/cloud";
+import type { CloudMark } from "../../lib/focus";
+import { GraphControls, type RenderMode } from "./Controls";
 import type { GraphRef } from "./Driver";
 import type { FallbackRef } from "./Fallback";
 import { WebglStatus } from "./Status";
@@ -28,10 +29,12 @@ const GraphSpace = lazy(() =>
 type GraphCanvasProps = {
   graph: GraphData;
   cloud: CloudData | null;
+  cloudHidden: boolean;
   cloudSelected: boolean;
+  cloudMark: CloudMark | null;
   selected: GraphNode | null;
   onChoose: (node: GraphNode) => void;
-  onCloudPick: (paper: CloudPaper) => void;
+  onCloudPick: (pick: CloudPick) => void;
   onFocus: (nodeId: string) => void;
   onClearSelection: () => void;
   onReset: () => void;
@@ -43,10 +46,33 @@ type GraphCanvasProps = {
   camera: CameraView | null;
 };
 
+function selectedValue(graph: GraphData, selected: GraphNode | null): string {
+  return graph.nodes.some((node) => node.id === selected?.id)
+    ? (selected?.id ?? "")
+    : "";
+}
+
+function nodeCount(
+  graph: GraphData,
+  cloud: CloudData | null,
+  cloudHidden: boolean,
+  mark: CloudMark | null,
+  mode: RenderMode,
+): number {
+  return (
+    graph.nodes.length +
+    (mode === "3d"
+      ? (cloudHidden ? 0 : (cloud?.scopes.length ?? 0)) + (mark ? 1 : 0)
+      : 0)
+  );
+}
+
 export function GraphCanvas({
   graph,
   cloud,
+  cloudHidden,
   cloudSelected,
+  cloudMark,
   selected,
   onChoose,
   onCloudPick,
@@ -64,11 +90,9 @@ export function GraphCanvas({
   const { mode, status, retry } = useWebgl(containerRef);
   const graphRef = useRef<GraphRef["current"]>();
   const fallbackRef = useRef<FallbackRef["current"]>();
-  const selectedId = graph.nodes.some((node) => node.id === selected?.id)
-    ? (selected?.id ?? "")
-    : "";
-  const visibleCount =
-    graph.nodes.length + (mode === "3d" ? (cloud?.scopes.length ?? 0) : 0);
+  const selectedId = selectedValue(graph, selected);
+  const visibleCount = nodeCount(graph, cloud, cloudHidden, cloudMark, mode);
+  const hasContent = visibleCount > 0;
 
   const resetView = useCallback(() => {
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -136,7 +160,7 @@ export function GraphCanvas({
         </GraphControls>
         <WebglStatus status={status} onRetry={retry} />
 
-        {graph.nodes.length === 0 && (
+        {!hasContent && (
           <EmptyState
             title={
               query.trim()
@@ -149,7 +173,7 @@ export function GraphCanvas({
           />
         )}
 
-        {mode === "3d" && graph.nodes.length > 0 && width > 0 && height > 0 && (
+        {mode === "3d" && hasContent && width > 0 && height > 0 && (
           <Suspense
             fallback={
               <p
@@ -165,7 +189,9 @@ export function GraphCanvas({
             <GraphSpace
               graph={graph}
               cloud={cloud}
+              cloudHidden={cloudHidden}
               cloudSelected={cloudSelected}
+              cloudMark={cloudMark}
               graphRef={graphRef}
               width={width}
               height={height}
@@ -184,7 +210,7 @@ export function GraphCanvas({
           </Suspense>
         )}
 
-        {mode === "2d" && graph.nodes.length > 0 && width > 0 && height > 0 && (
+        {mode === "2d" && hasContent && width > 0 && height > 0 && (
           <Suspense
             fallback={
               <p
@@ -216,7 +242,7 @@ export function GraphCanvas({
           </Suspense>
         )}
 
-        {graph.nodes.length > 0 && <GraphLegend />}
+        {hasContent && <GraphLegend />}
       </section>
     </>
   );

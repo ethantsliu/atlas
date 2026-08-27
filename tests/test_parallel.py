@@ -14,7 +14,12 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
 
 from archive import add_day  # noqa: E402
-from cloud import archive_text, build_cloud, load_cache, row_hash  # noqa: E402
+from cloud import (  # noqa: E402
+    ROUTE_COUNT,
+    archive_text,
+    build_cloud,
+)
+from cloudvec import load_cache, row_hash  # noqa: E402
 from embed import EMBED_DIM, MODEL, MODEL_DIGEST  # noqa: E402
 from parallel import build_part, join_parts, make_plan  # noqa: E402
 from rank import load_rules  # noqa: E402
@@ -52,18 +57,21 @@ def intake(rows: list[dict], day: str) -> dict:
 
 
 def save_anchors(path: Path) -> np.ndarray:
-    vectors = np.zeros((2, EMBED_DIM), dtype=np.float32)
-    vectors[0, 0] = 1
-    vectors[1, 1] = 1
+    vectors = np.zeros((ROUTE_COUNT, EMBED_DIM), dtype=np.float32)
+    for index in range(ROUTE_COUNT):
+        vectors[index, index] = 1
     np.savez_compressed(
         path,
         schema_version=1,
         model=MODEL,
         model_digest=MODEL_DIGEST,
         dimensions=EMBED_DIM,
-        ids=np.asarray(["left", "right"]),
+        ids=np.asarray([f"anchor:{index}" for index in range(ROUTE_COUNT)]),
         vectors=vectors,
-        points=np.asarray([[10, 0, 0], [0, 20, 0]], dtype=np.float32),
+        points=np.asarray(
+            [[index * 10, index * 5, index] for index in range(ROUTE_COUNT)],
+            dtype=np.float32,
+        ),
     )
     return vectors
 
@@ -105,6 +113,7 @@ class ParallelTests(unittest.TestCase):
             "python pipeline/parallel.py build",
             "python pipeline/parallel.py join",
             "--atlas web/public/data/atlas.json",
+            "--anchors data/source/anchors.npz",
             "--prior web/public/data/cloud",
             "actions/cache/save@v4",
             "cloud-part-${{ runner.os }}-${{ matrix.part }}-",
@@ -158,7 +167,7 @@ class ParallelTests(unittest.TestCase):
             rows = [paper("2002.00001", "2020-02-02")]
             add_day(archive, date(2020, 2, 2), intake(rows, "2020-02-02"), RULES)
             vectors = save_anchors(anchors)
-            plan = make_plan(archive, cloud, 2)
+            plan = make_plan(archive, cloud, 2, anchors=anchors)
             plan_path = root / "plan.json"
             plan_path.write_text(json.dumps(plan), encoding="utf-8")
             parts = root / "parts"
@@ -174,19 +183,22 @@ class ParallelTests(unittest.TestCase):
                 for path in output.iterdir():
                     shutil.copyfile(path, parts / path.name)
 
-            manifest = join_parts(archive, cloud, plan_path, parts)
+            manifest = join_parts(archive, cloud, plan_path, parts, anchors=anchors)
 
             self.assertEqual(manifest["count"], 2)
             self.assertEqual(
                 [row["month"] for row in manifest["shards"]], ["2020-01", "2020-02"]
             )
-            equal_plan = make_plan(archive, cloud, 16)
+            equal_plan = make_plan(archive, cloud, 16, anchors=anchors)
             equal_path = root / "equal.json"
             equal_path.write_text(json.dumps(equal_plan), encoding="utf-8")
             empty_parts = root / "empty-parts"
             empty_parts.mkdir()
             self.assertEqual(
-                join_parts(archive, cloud, equal_path, empty_parts)["source_count"], 2
+                join_parts(archive, cloud, equal_path, empty_parts, anchors=anchors)[
+                    "source_count"
+                ],
+                2,
             )
 
             smaller = root / "smaller"
@@ -196,24 +208,29 @@ class ParallelTests(unittest.TestCase):
                 intake([paper("2001.00001", "2020-01-02")], "2020-01-02"),
                 RULES,
             )
-            smaller_plan = make_plan(smaller, cloud, 16)
+            smaller_plan = make_plan(smaller, cloud, 16, anchors=anchors)
             smaller_path = root / "smaller.json"
             smaller_path.write_text(json.dumps(smaller_plan), encoding="utf-8")
             before = {path.name: path.read_bytes() for path in cloud.iterdir()}
             with self.assertRaisesRegex(ValueError, "Cloud source regression"):
-                join_parts(smaller, cloud, smaller_path, empty_parts)
+                join_parts(smaller, cloud, smaller_path, empty_parts, anchors=anchors)
             self.assertEqual(
                 {path.name: path.read_bytes() for path in cloud.iterdir()}, before
             )
             migrated = join_parts(
-                smaller, cloud, smaller_path, empty_parts, allow_shrink=True
+                smaller,
+                cloud,
+                smaller_path,
+                empty_parts,
+                allow_shrink=True,
+                anchors=anchors,
             )
             self.assertEqual(migrated["source_count"], 1)
 
-            repeated = make_plan(archive, cloud, 16)
+            repeated = make_plan(archive, cloud, 16, anchors=anchors)
             self.assertEqual(repeated["changed_count"], 1)
             (cloud / "index.json").write_text("{}", encoding="utf-8")
-            recovery = make_plan(archive, cloud, 16)
+            recovery = make_plan(archive, cloud, 16, anchors=anchors)
             self.assertEqual(recovery["changed_count"], 2)
 
     def test_missing_part(self) -> None:
@@ -247,7 +264,7 @@ class ParallelTests(unittest.TestCase):
                 RULES,
             )
             vectors = save_anchors(anchors)
-            plan = make_plan(archive, cloud, 1)
+            plan = make_plan(archive, cloud, 1, anchors=anchors)
             plan_path = root / "plan.json"
             plan_path.write_text(json.dumps(plan), encoding="utf-8")
             cache = root / "cache"
@@ -263,7 +280,7 @@ class ParallelTests(unittest.TestCase):
             before = {path.name: path.read_bytes() for path in sorted(cloud.iterdir())}
 
             with self.assertRaisesRegex(ValueError, "asset drifted"):
-                join_parts(archive, cloud, plan_path, parts)
+                join_parts(archive, cloud, plan_path, parts, anchors=anchors)
 
             after = {path.name: path.read_bytes() for path in sorted(cloud.iterdir())}
             self.assertEqual(after, before)
@@ -285,7 +302,7 @@ class ParallelTests(unittest.TestCase):
             seed_cache(archive, cache, "2020-01", vectors)
             build_cloud(archive, anchors, cache, cloud, 2)
             baseline = (cloud / "2020-01.bin").read_bytes()[24:36]
-            plan = make_plan(archive, cloud, 1, foreground)
+            plan = make_plan(archive, cloud, 1, foreground, anchors)
             plan_path = root / "plan.json"
             plan_path.write_text(json.dumps(plan), encoding="utf-8")
             parts = root / "parts"
@@ -293,7 +310,7 @@ class ParallelTests(unittest.TestCase):
                 archive, anchors, cache, parts, plan_path, 0, 2, "native", cloud
             )
 
-            manifest = join_parts(archive, cloud, plan_path, parts)
+            manifest = join_parts(archive, cloud, plan_path, parts, anchors=anchors)
 
             self.assertEqual(manifest["source_count"], 2)
             self.assertEqual(manifest["count"], 1)
@@ -305,7 +322,13 @@ class ParallelTests(unittest.TestCase):
             fragment["shards"][0]["omitted_count"] = 0
             (parts / "part-00.json").write_text(json.dumps(fragment), encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "omission proof"):
-                join_parts(archive, root / "bad-cloud", plan_path, parts)
+                join_parts(
+                    archive,
+                    root / "bad-cloud",
+                    plan_path,
+                    parts,
+                    anchors=anchors,
+                )
 
     def test_balance(self) -> None:
         source = {

@@ -16,7 +16,12 @@ type InspectorProps = {
   hasNodes: boolean;
   atlas: AtlasRead;
   focused: boolean;
+  cloudFocused: boolean;
+  cloudReady: boolean;
+  cloudLoading: boolean;
+  cloudError: string | null;
   onFocus: (id: string) => void;
+  onCloudFocus: () => void;
   onSelectNode: (id: string) => void;
   onClose: () => void;
   onOpenPaper: (paper: Paper) => void;
@@ -28,7 +33,12 @@ export function Inspector({
   hasNodes,
   atlas,
   focused,
+  cloudFocused,
+  cloudReady,
+  cloudLoading,
+  cloudError,
   onFocus,
+  onCloudFocus,
   onSelectNode,
   onClose,
   onOpenPaper,
@@ -38,7 +48,17 @@ export function Inspector({
     [atlas],
   );
   if (cloud) {
-    return <CloudDetail paper={cloud} onClose={onClose} />;
+    return (
+      <CloudDetail
+        paper={cloud}
+        focused={cloudFocused}
+        ready={cloudReady}
+        loading={cloudLoading}
+        error={cloudError}
+        onFocus={onCloudFocus}
+        onClose={onClose}
+      />
+    );
   }
   if (!node) {
     return (

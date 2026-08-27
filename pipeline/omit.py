@@ -100,6 +100,10 @@ def cloud_manifest(
     model: str,
     model_digest: str,
     model_revision: str,
+    anchor_sha256: str,
+    anchors: dict,
+    anchor_count: int,
+    neighbor_count: int,
 ) -> dict:
     """Assemble one count-reconciled physical-dedupe cloud manifest."""
     omitted_ids = [identifier for row in rows for identifier in row["omitted_ids"]]
@@ -111,6 +115,12 @@ def cloud_manifest(
         "model_revision": model_revision,
         "projection": "anchor-cosine-8-v1",
         "point_bytes": 13,
+        "relation": "anchor-cosine-top8-v1",
+        "route_bytes": 4,
+        "neighbor_count": neighbor_count,
+        "anchor_count": anchor_count,
+        "anchor_sha256": anchor_sha256,
+        "anchors": anchors,
         "source_count": sum(row["source_count"] for row in rows),
         "count": sum(row["count"] for row in rows),
         "counts": {
@@ -152,21 +162,43 @@ def reuse_bytes(
     identifiers: list[str],
     magic: bytes,
     source_sha: str | None,
-) -> bytes | None:
-    """Filter an aligned prior point buffer without moving retained papers."""
-    if source_sha is not None and row.get("source_sha256") != source_sha:
+    route_magic: bytes,
+    route_width: int,
+    anchor_sha256: str,
+) -> tuple[bytes, bytes] | None:
+    """Filter aligned prior point and route buffers by paper identity."""
+    if (source_sha is not None and row.get("source_sha256") != source_sha) or row.get(
+        "anchor_sha256"
+    ) != anchor_sha256:
         return None
     try:
         meta = json.loads((root / row["meta"]["path"]).read_text(encoding="utf-8"))
         content = (root / row["points"]["path"]).read_bytes()
+        routes = (root / row["routes"]["path"]).read_bytes()
         prior_ids = [paper[0] for paper in meta["papers"]]
         saved_magic, count = struct.unpack("<8sI", content[:12])
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError):
+        route_head = struct.unpack("<8sIHH32s32s", routes[:80])
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        KeyError,
+        TypeError,
+        ValueError,
+        struct.error,
+    ):
         return None
+    route_saved, route_count, neighbors, _anchors, _rows, anchor_digest = route_head
     if (
         saved_magic != magic
+        or route_saved != route_magic
         or count != len(prior_ids)
+        or route_count != count
+        or neighbors < 1
+        or route_width != neighbors * 4
         or len(content) != 12 + 13 * count
+        or len(routes) != 80 + route_width * count
+        or anchor_digest.hex() != anchor_sha256
         or len(set(prior_ids)) != count
     ):
         return None
@@ -181,7 +213,27 @@ def reuse_bytes(
     scopes = bytes(
         content[scope_start + indexes[identifier]] for identifier in identifiers
     )
-    return struct.pack("<8sI", magic, len(identifiers)) + positions + scopes
+    route_rows = b"".join(
+        routes[
+            80 + indexes[identifier] * route_width : 80
+            + (indexes[identifier] + 1) * route_width
+        ]
+        for identifier in identifiers
+    )
+    row_digest = hashlib.sha256(
+        json.dumps(identifiers, separators=(",", ":")).encode()
+    ).digest()
+    route_header = struct.pack(
+        "<8sIHH32s32s",
+        route_magic,
+        len(identifiers),
+        neighbors,
+        route_head[3],
+        row_digest,
+        bytes.fromhex(anchor_sha256),
+    )
+    points = struct.pack("<8sI", magic, len(identifiers)) + positions + scopes
+    return points, route_header + route_rows
 
 
 def read_cloud(path: Path) -> dict:

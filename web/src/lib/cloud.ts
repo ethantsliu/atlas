@@ -21,6 +21,9 @@ export type CloudShard = {
   omitted_sha256: string;
   points: CloudAsset;
   meta: CloudAsset;
+  anchor_sha256?: string;
+  row_sha256?: string;
+  routes?: CloudAsset;
 };
 
 export type CloudManifest = {
@@ -31,6 +34,12 @@ export type CloudManifest = {
   model_revision: string;
   projection: "anchor-cosine-8-v1";
   point_bytes: 13;
+  relation?: "anchor-cosine-top8-v1";
+  route_bytes?: 4;
+  neighbor_count?: 8;
+  anchor_count?: number;
+  anchor_sha256?: string;
+  anchors?: CloudAsset;
   source_count: number;
   count: number;
   counts: { likely: number; possible: number; outside: number };
@@ -46,6 +55,9 @@ export type CloudRange = {
   start: number;
   count: number;
   meta: CloudAsset;
+  anchor_sha256?: string;
+  row_sha256?: string;
+  routes?: CloudAsset;
 };
 
 export type CloudData = {
@@ -62,16 +74,24 @@ export type CloudPaper = {
   scope: "likely" | "possible" | "outside";
 };
 
+export type CloudPick = { index: number; paper: CloudPaper };
+
+export type CloudRelation = {
+  neighbors: { id: string; score: number }[];
+};
+
 const MONTH = /^\d{4}-\d{2}$/;
 const DIGEST = /^[0-9a-f]{64}$/;
 const REVISION = /^[0-9a-f]{40}$/;
 const POINT = /^\d{4}-\d{2}\.bin$/;
 const META = /^\d{4}-\d{2}\.json$/;
+const ROUTES = /^\d{4}-\d{2}\.routes$/;
+const ANCHORS = /^anchors\.json$/;
 const MAGIC = "ATLASPT1";
 const PUBLISHED = /^\d{4}-\d{2}-\d{2}(?:T[^\s]+)?$/;
 const SCOPES = new Set(["likely", "possible", "outside"]);
 
-function cloudPath(asset: CloudAsset): string {
+export function cloudPath(asset: CloudAsset): string {
   return `/data/cloud/${asset.path}?sha=${asset.sha256}`;
 }
 
@@ -115,6 +135,19 @@ function isShard(value: unknown): value is CloudShard {
     value.omitted_counts.possible +
     value.omitted_counts.outside;
   const omittedIds = Array.isArray(value.omitted_ids) ? value.omitted_ids : [];
+  const routeCount = isCount(value.count) ? value.count : 0;
+  const legacy =
+    value.anchor_sha256 === undefined &&
+    value.row_sha256 === undefined &&
+    value.routes === undefined;
+  const routed =
+    isString(value.anchor_sha256) &&
+    DIGEST.test(value.anchor_sha256) &&
+    isString(value.row_sha256) &&
+    DIGEST.test(value.row_sha256) &&
+    isAsset(value.routes, ROUTES) &&
+    value.routes.path === `${value.month}.routes` &&
+    value.routes.bytes === 80 + routeCount * 8 * 4;
   return (
     isString(value.month) &&
     MONTH.test(value.month) &&
@@ -148,7 +181,8 @@ function isShard(value: unknown): value is CloudShard {
     isAsset(value.points, POINT) &&
     value.points.path === `${value.month}.bin` &&
     isAsset(value.meta, META) &&
-    value.meta.path === `${value.month}.json`
+    value.meta.path === `${value.month}.json` &&
+    (legacy || routed)
   );
 }
 
@@ -179,6 +213,29 @@ export function isCloud(value: unknown): value is CloudManifest {
     return false;
   }
   const manifest = value as CloudManifest;
+  const legacy =
+    manifest.relation === undefined &&
+    manifest.route_bytes === undefined &&
+    manifest.neighbor_count === undefined &&
+    manifest.anchor_count === undefined &&
+    manifest.anchor_sha256 === undefined &&
+    manifest.anchors === undefined;
+  const routed =
+    manifest.relation === "anchor-cosine-top8-v1" &&
+    manifest.route_bytes === 4 &&
+    manifest.neighbor_count === 8 &&
+    isCount(manifest.anchor_count) &&
+    manifest.anchor_count > 0 &&
+    manifest.anchor_count <= 65_535 &&
+    isString(manifest.anchor_sha256) &&
+    DIGEST.test(manifest.anchor_sha256) &&
+    isAsset(manifest.anchors, ANCHORS) &&
+    manifest.anchors.path === "anchors.json" &&
+    manifest.shards.every(
+      (shard) =>
+        shard.anchor_sha256 === manifest.anchor_sha256 && Boolean(shard.routes),
+    );
+  if (!legacy && !routed) return false;
   const months = manifest.shards.map((shard) => shard.month);
   if (months.join() !== [...new Set(months)].sort().join()) return false;
   const total = manifest.shards.reduce((sum, shard) => sum + shard.count, 0);
@@ -216,7 +273,7 @@ export function isCloud(value: unknown): value is CloudManifest {
   );
 }
 
-async function digestOf(bytes: ArrayBuffer): Promise<string> {
+export async function digestOf(bytes: ArrayBuffer): Promise<string> {
   const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
   return Array.from(new Uint8Array(digest), (byte) =>
     byte.toString(16).padStart(2, "0"),
@@ -374,6 +431,9 @@ export async function loadCloud(
         start: next,
         count: data.scopes.length,
         meta: shard.meta,
+        anchor_sha256: shard.anchor_sha256,
+        row_sha256: shard.row_sha256,
+        routes: shard.routes,
       });
       next += data.scopes.length;
     }

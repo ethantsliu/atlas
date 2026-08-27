@@ -150,11 +150,17 @@ class CorpusTests(unittest.TestCase):
             'cron: "17 04,10,16,22 * * *"',
             "cancel-in-progress: false",
             "PROMOTED_TAG: corpus-v2",
-            'gh release upload "$PROMOTED_TAG" "$PROMO_ROOT/index.json" --clobber',
+            "MIN_READY: 50000",
+            'if [ "$paper_count" -gt "$MIN_READY" ]; then',
+            'swap_asset "$PROMO_ROOT/index.json" index.json index',
+            'swap_asset "$PROMO_ROOT/cloud-ready.json" cloud-ready.json ready',
+            'pointer_name="pointer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${archive_digest:0:16}.json"',
+            "awk -F '\\t' '$2 ~ /^pointer-",
             'event_type:"corpus-promoted"',
             "cloud-ready.json",
             "history_complete:true",
             "steps.prep.outputs.ready == 'true'",
+            "if: steps.merge.outputs.promote == 'true' && steps.prep.outputs.ready == 'true'",
             "actions/upload-artifact@v4",
             'name = f"checkpoint-{archive_hash[:16]}',
             "status=$(awk '/^HTTP/{code=$2} END{print code}' \"$probe\")",
@@ -169,10 +175,26 @@ class CorpusTests(unittest.TestCase):
         self.assertNotIn("--clobber || true", corpus)
         self.assertLess(
             corpus.index('gh release upload "$PROMOTED_TAG" "$PROMO_ROOT/$asset"'),
-            corpus.index('gh release upload "$PROMOTED_TAG" "$PROMO_ROOT/index.json"'),
+            corpus.index("swap_asset()"),
+        )
+        self.assertLess(
+            corpus.index('gh release upload "$PROMOTED_TAG" "$PROMO_ROOT/$recovery"'),
+            corpus.index('-f name="$stable"'),
+        )
+        self.assertNotIn(
+            'gh release upload "$PROMOTED_TAG" "$PROMO_ROOT/index.json" --clobber',
+            corpus,
+        )
+        self.assertNotIn(
+            'gh release upload "$PROMOTED_TAG" "$PROMO_ROOT/cloud-ready.json" --clobber',
+            corpus,
         )
         self.assertNotIn(
             'gh release upload "$CHECKPOINT_TAG" "$CHECKPOINT_ROOT/$name" --clobber',
+            corpus,
+        )
+        self.assertNotIn(
+            'gh release upload "$CHECKPOINT_TAG" "$CHECKPOINT_POINTER" --clobber',
             corpus,
         )
         self.assertLess(
@@ -271,7 +293,7 @@ class CorpusTests(unittest.TestCase):
             self.assertEqual(clock.value, 0)
             cursor = read_cursor(root)
             self.assertIsNone(cursor["active"])
-            self.assertEqual(cursor["watermark"], "2026-08-27T00:17:05Z")
+            self.assertEqual(cursor["watermark"], "2026-08-27T00:17:00Z")
             self.assertEqual(cursor["history"]["next_year"], 2006)
             self.assertFalse(cursor["history"]["complete"])
 
@@ -294,6 +316,57 @@ class CorpusTests(unittest.TestCase):
             self.assertEqual(result["start"], "2026-08-27")
             self.assertEqual(client.calls[0]["start"], "2026-08-27")
             self.assertIsNone(client.calls[0]["end"])
+
+    def test_midnight_overlap(self) -> None:
+        first = TestPage(
+            (full_paper("2608.00001"),),
+            "next",
+            "2026-08-27T23:59:59Z",
+            "2026-08-29T00:00:00Z",
+        )
+        final = TestPage((full_paper("2608.00002"),), None, "2026-08-28T00:00:05Z")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            seed_cursor(root, "2026-08-27T23:50:00Z")
+            partial = run_corpus(
+                root,
+                FakeClient({None: [first]}),
+                max_pages=1,
+                max_minutes=5,
+                wall=lambda: NOW,
+            )
+            self.assertEqual(partial["status"], "partial")
+            result = run_corpus(
+                root,
+                FakeClient({"next": [final]}),
+                max_pages=1,
+                max_minutes=5,
+                wall=lambda: NOW.replace(day=28),
+            )
+
+            self.assertEqual(result["watermark"], "2026-08-27T23:59:59Z")
+            archive = root / "archive"
+            merge_pending(root, archive, ROOT / "data/source/feed.json")
+            ack_pending(root, [result["generation"]])
+            client = FakeClient(
+                {
+                    None: [
+                        TestPage(
+                            (full_paper("2608.00003"),),
+                            None,
+                            "2026-08-28T00:01:00Z",
+                        )
+                    ]
+                }
+            )
+            run_corpus(
+                root,
+                client,
+                max_pages=1,
+                max_minutes=5,
+                wall=lambda: NOW.replace(day=28),
+            )
+            self.assertEqual(client.calls[0]["start"], "2026-08-27")
 
     def test_resume(self) -> None:
         first = TestPage(

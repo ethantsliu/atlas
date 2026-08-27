@@ -7,6 +7,7 @@ import {
   fetchCloudMeta,
   type CloudData,
   type CloudPaper,
+  type CloudPick,
 } from "../lib/cloud";
 import { buildCloud } from "../lib/swarm";
 import type { Theme } from "./theme";
@@ -19,29 +20,57 @@ export type PointTip = { label: string; x: number; y: number };
 type PointInput = {
   graphRef: GraphRef;
   data: CloudData | null;
+  active: boolean;
   theme: Theme;
-  onPick: (paper: CloudPaper) => void;
+  onPick: (pick: CloudPick) => void;
 };
 type Claim = {
   committed: boolean;
   index: number;
-  paper?: CloudPaper;
+  paper?: CloudPick;
   pending: boolean;
   x: number;
   y: number;
 };
-type Hover = { index: number; paper?: CloudPaper; x: number; y: number };
+type Hover = { index: number; paper?: CloudPick; x: number; y: number };
 type Ref<T> = { current: T };
 type PointRefs = {
   block: Ref<number>;
   claim: Ref<Claim | null>;
   hover: Ref<Hover | null>;
   mute: Ref<boolean>;
-  pick: Ref<(paper: CloudPaper) => void>;
+  hidden: Ref<boolean>;
+  pick: Ref<(paper: CloudPick) => void>;
+  points: Ref<Points | null>;
   request: Ref<number>;
   select: Ref<number>;
   target: Ref<Hover | null>;
 };
+
+function isMuted(refs: Pick<PointRefs, "hidden" | "mute">) {
+  return refs.hidden.current || refs.mute.current;
+}
+
+function dropPoints(
+  graph: NonNullable<GraphRef["current"]>,
+  points: Points,
+  refs: PointRefs,
+  setTip: (tip: PointTip | null) => void,
+) {
+  graph.scene().remove(points);
+  points.geometry.dispose();
+  const materials = Array.isArray(points.material)
+    ? points.material
+    : [points.material];
+  materials.forEach((material) => material.dispose());
+  refs.claim.current = null;
+  refs.hover.current = null;
+  refs.target.current = null;
+  refs.points.current = null;
+  refs.request.current += 1;
+  refs.select.current += 1;
+  setTip(null);
+}
 
 function rayHit(
   canvas: HTMLCanvasElement,
@@ -83,7 +112,8 @@ async function loadPaper(
     cache.set(range.meta.path, request);
     void request.catch(() => cache.delete(range.meta.path));
   }
-  return cloudPaper(await request, range, index);
+  const paper = cloudPaper(await request, range, index);
+  return paper ? { index, paper } : null;
 }
 
 export function pickBound(
@@ -131,6 +161,8 @@ function mountPoints(
   const data = input.data;
   if (!graph || !data || data.scopes.length === 0) return;
   const points = buildCloud(data, input.theme);
+  points.visible = input.active;
+  refs.points.current = points;
   graph.scene().add(points);
   const canvas = graph.renderer().domElement;
   const raycaster = new Raycaster();
@@ -144,7 +176,9 @@ function mountPoints(
   let moved: PointerEvent | null = null;
 
   const show = (event: PointerEvent) => {
-    if (refs.mute.current || performance.now() < refs.block.current) return;
+    if (isMuted(refs) || performance.now() < refs.block.current) {
+      return;
+    }
     const match = hit(event);
     const token = ++refs.request.current;
     if (match.index == null) {
@@ -164,7 +198,7 @@ function mountPoints(
           x: event.clientX,
           y: event.clientY,
         };
-        setTip({ label: `Paper · ${paper.title}`, x: match.x, y: match.y });
+        setTip({ label: `Paper · ${paper.paper.title}`, x: match.x, y: match.y });
       })
       .catch(() => {
         if (token === refs.request.current) {
@@ -177,7 +211,7 @@ function mountPoints(
       });
   };
   const move = (event: PointerEvent) => {
-    if (refs.mute.current) {
+    if (isMuted(refs)) {
       if (timer) clearTimeout(timer);
       timer = undefined;
       moved = null;
@@ -204,7 +238,9 @@ function mountPoints(
   const press = (event: PointerEvent) => {
     refs.claim.current = null;
     refs.select.current += 1;
-    if (refs.mute.current || !event.isPrimary || event.button !== 0) return;
+    if (isMuted(refs) || !event.isPrimary || event.button !== 0) {
+      return;
+    }
     const hovered = refs.target.current ?? refs.hover.current;
     const nearby =
       hovered && Math.hypot(event.clientX - hovered.x, event.clientY - hovered.y) <= 10;
@@ -226,7 +262,7 @@ function mountPoints(
     timer = undefined;
     moved = null;
     if (
-      refs.mute.current ||
+      isMuted(refs) ||
       (performance.now() < refs.block.current && !claim?.paper) ||
       !claim ||
       Math.hypot(event.clientX - claim.x, event.clientY - claim.y) > 5
@@ -260,7 +296,7 @@ function mountPoints(
         claim.committed = true;
         claim.paper = paper;
         claim.pending = false;
-        setTip({ label: `Paper · ${paper.title}`, x: at.x, y: at.y });
+        setTip({ label: `Paper · ${paper.paper.title}`, x: at.x, y: at.y });
         refs.pick.current(paper);
       })
       .catch(() => {
@@ -290,15 +326,7 @@ function mountPoints(
     window.removeEventListener("pointerup", release, true);
     window.removeEventListener("mouseup", release, true);
     canvas.removeEventListener("click", choose, true);
-    graph.scene().remove(points);
-    points.geometry.dispose();
-    points.material.dispose();
-    refs.claim.current = null;
-    refs.hover.current = null;
-    refs.target.current = null;
-    refs.request.current += 1;
-    refs.select.current += 1;
-    setTip(null);
+    dropPoints(graph, points, refs, setTip);
   };
 }
 
@@ -315,6 +343,8 @@ export function usePoints(input: PointInput): {
   const claimRef = useRef<Claim | null>(null);
   const hoverRef = useRef<Hover | null>(null);
   const muteRef = useRef(false);
+  const hiddenRef = useRef(!input.active);
+  const pointsRef = useRef<Points | null>(null);
   const requestRef = useRef(0);
   const selectRef = useRef(0);
   const targetRef = useRef<Hover | null>(null);
@@ -344,6 +374,17 @@ export function usePoints(input: PointInput): {
     const claim = claimRef.current;
     return Boolean(claim?.pending && claim.paper);
   }, []);
+  useEffect(() => {
+    hiddenRef.current = !input.active;
+    if (pointsRef.current) pointsRef.current.visible = input.active;
+    if (input.active) return;
+    claimRef.current = null;
+    hoverRef.current = null;
+    targetRef.current = null;
+    requestRef.current += 1;
+    selectRef.current += 1;
+    setTip(null);
+  }, [input.active]);
   useEffect(
     () =>
       mountPoints(
@@ -352,8 +393,10 @@ export function usePoints(input: PointInput): {
           block: blockRef,
           claim: claimRef,
           hover: hoverRef,
+          hidden: hiddenRef,
           mute: muteRef,
           pick: pickRef,
+          points: pointsRef,
           request: requestRef,
           select: selectRef,
           target: targetRef,

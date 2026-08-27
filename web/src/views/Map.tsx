@@ -13,7 +13,7 @@ import type { Theme } from "../hooks/theme";
 import type { CameraView } from "../lib/camera";
 import { resolvePaper } from "../lib/filters";
 import { useCloud } from "../hooks/cloud";
-import type { CloudPaper } from "../lib/cloud";
+import { useFocus } from "../hooks/focus";
 
 type MapViewProps = {
   atlas: AtlasRead;
@@ -43,10 +43,9 @@ export function MapView({
   onPush,
 }: MapViewProps) {
   const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
-  const [cloudPaper, setCloudPaper] = useState<CloudPaper | null>(null);
   const kinds = useMemo(() => new Set(url.kinds), [url.kinds]);
   const history = useCloud(kinds.has("paper") && url.layout === "semantic");
-  const visibleCloud = url.focus || url.query.trim() ? null : history.data;
+  const cloud = useFocus(atlas, history, Boolean(url.focus || url.query.trim()));
   const nextGraph = useMemo(
     () =>
       buildGraph(atlas, {
@@ -62,10 +61,6 @@ export function MapView({
   const allNodes = useMemo(() => createGraphNodes(atlas, 1), [atlas]);
   const selected =
     graph.nodes.find((candidate) => candidate.id === url.selected) ?? null;
-
-  useEffect(() => {
-    if (cloudPaper && !visibleCloud) setCloudPaper(null);
-  }, [cloudPaper, visibleCloud]);
 
   useEffect(() => {
     if (!papersReady || !url.selected || selected) return;
@@ -100,7 +95,7 @@ export function MapView({
   }
 
   function chooseNode(node: GraphNode) {
-    setCloudPaper(null);
+    cloud.clear();
     onReplace({ selected: node.id });
     if (node.kind !== "paper" && !papersReady) onNeedPapers();
   }
@@ -108,7 +103,7 @@ export function MapView({
   function chooseNodeId(nodeId: string) {
     const node = allNodes.find((candidate) => candidate.id === nodeId);
     if (!node) return;
-    setCloudPaper(null);
+    cloud.clear();
     const nextKinds = new Set(kinds);
     if (node.kind !== "paper") nextKinds.add(node.kind);
     onReplace({
@@ -121,11 +116,12 @@ export function MapView({
   }
 
   function toggleFocus(nodeId: string) {
+    cloud.clear();
     onPush({ focus: url.focus === nodeId ? null : nodeId });
   }
 
   function resetMap() {
-    setCloudPaper(null);
+    cloud.clear();
     onReplace({
       kinds: [...ALL_NODE_KINDS],
       focus: null,
@@ -150,18 +146,20 @@ export function MapView({
         onClearFocus={() => onPush({ focus: null })}
       />
       <GraphCanvas
-        graph={graph}
-        cloud={visibleCloud}
-        cloudSelected={Boolean(cloudPaper)}
+        graph={cloud.focused ? (cloud.graph ?? { nodes: [], links: [] }) : graph}
+        cloud={cloud.data}
+        cloudHidden={cloud.hidden}
+        cloudSelected={Boolean(cloud.pick)}
+        cloudMark={cloud.mark}
         selected={selected}
         onChoose={chooseNode}
-        onCloudPick={(paper) => {
-          setCloudPaper(paper);
+        onCloudPick={(pick) => {
+          cloud.choose(pick);
           onReplace({ selected: null, focus: null });
         }}
         onFocus={toggleFocus}
         onClearSelection={() => {
-          setCloudPaper(null);
+          cloud.clear();
           onReplace({ selected: null });
         }}
         onReset={resetMap}
@@ -175,14 +173,19 @@ export function MapView({
       <PanelResize />
       <Inspector
         node={selected}
-        cloud={cloudPaper}
+        cloud={cloud.pick?.paper ?? null}
         hasNodes={graph.nodes.length > 0}
         atlas={atlas}
         focused={url.focus === selected?.id}
+        cloudFocused={cloud.focused}
+        cloudReady={cloud.ready}
+        cloudLoading={cloud.loading}
+        cloudError={cloud.error}
         onFocus={toggleFocus}
+        onCloudFocus={cloud.toggle}
         onSelectNode={chooseNodeId}
         onClose={() => {
-          setCloudPaper(null);
+          cloud.clear();
           onReplace({ selected: null });
         }}
         onOpenPaper={setSelectedPaper}

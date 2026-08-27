@@ -85,6 +85,9 @@ jobs:
             point_sha=""
             meta_path=""
             meta_sha=""
+            route_path=""
+            route_sha=""
+            anchor_sha=""
             if [ -f web/public/data/cloud/index.json ]; then
               saved=$(jq -r --arg month "$month" \
                 '.shards[] | select(.month == $month) | .source_sha256 // empty' \
@@ -101,16 +104,29 @@ jobs:
               meta_sha=$(jq -r --arg month "$month" \
                 '.shards[] | select(.month == $month) | .meta.sha256 // empty' \
                 web/public/data/cloud/index.json)
+              route_path=$(jq -r --arg month "$month" \
+                '.shards[] | select(.month == $month) | .routes.path // empty' \
+                web/public/data/cloud/index.json)
+              route_sha=$(jq -r --arg month "$month" \
+                '.shards[] | select(.month == $month) | .routes.sha256 // empty' \
+                web/public/data/cloud/index.json)
+              anchor_sha=$(jq -r '.anchor_sha256 // empty' \
+                web/public/data/cloud/index.json)
             fi
             if [ "$saved" = "$digest" ] && \
+              [ "$anchor_sha" = "$(sha256sum data/source/anchors.npz | awk '{print $1}')" ] && \
               [ "$point_path" = "$month.bin" ] && \
               [ "$meta_path" = "$month.json" ] && \
+              [ "$route_path" = "$month.routes" ] && \
               [[ "$point_sha" =~ ^[0-9a-f]{64}$ ]] && \
               [[ "$meta_sha" =~ ^[0-9a-f]{64}$ ]] && \
+              [[ "$route_sha" =~ ^[0-9a-f]{64}$ ]] && \
               [ -f "web/public/data/cloud/$point_path" ] && \
-              [ -f "web/public/data/cloud/$meta_path" ]; then
+              [ -f "web/public/data/cloud/$meta_path" ] && \
+              [ -f "web/public/data/cloud/$route_path" ]; then
               if [ "$(sha256sum "web/public/data/cloud/$point_path" | awk '{print $1}')" = "$point_sha" ] && \
-                [ "$(sha256sum "web/public/data/cloud/$meta_path" | awk '{print $1}')" = "$meta_sha" ]; then
+                [ "$(sha256sum "web/public/data/cloud/$meta_path" | awk '{print $1}')" = "$meta_sha" ] && \
+                [ "$(sha256sum "web/public/data/cloud/$route_path" | awk '{print $1}')" = "$route_sha" ]; then
                 continue
               fi
             fi
@@ -118,7 +134,7 @@ jobs:
           done
           download="$RUNNER_TEMP/cloud-source"
           mkdir -p "$download"
-          if [ "$(wc -l < "$needed")" -gt 20 ]; then
+          if [ -s "$needed" ]; then
             gh release download "$ARCHIVE_TAG" \
               --pattern '*.json.gz' \
               --dir "$download" \
@@ -134,6 +150,30 @@ jobs:
             test "$(sha256sum "$download/$path" | awk '{print $1}')" = "$digest"
             mv "$download/$path" "$ARCHIVE_ROOT/$month.json.gz"
           done < "$needed"
+
+      - name: Normalize legacy corpus shards
+        run: |
+          needed="$RUNNER_TEMP/cloud-needed.tsv"
+          if [ -s "$needed" ]; then
+            download="$RUNNER_TEMP/cloud-source"
+            jq -r '.shards[] | [.month, .path, .sha256] | @tsv' \
+              "$ARCHIVE_ROOT/index.json" | while IFS=$'\t' read -r month path digest; do
+              target="$ARCHIVE_ROOT/$month.json.gz"
+              if [ ! -f "$target" ]; then
+                test -f "$download/$path"
+                test "$(sha256sum "$download/$path" | awk '{print $1}')" = "$digest"
+                mv "$download/$path" "$target"
+              fi
+              test "$(sha256sum "$target" | awk '{print $1}')" = "$digest"
+            done
+            PYTHONPATH=pipeline python -c '
+            from pathlib import Path
+            from archive import migrate_archive, write_manifest
+            root = Path("data/cache/archive")
+            migrate_archive(root)
+            write_manifest(root)
+            '
+          fi
 
       - name: Build semantic points
         id: build

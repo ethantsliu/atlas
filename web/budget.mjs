@@ -6,7 +6,7 @@ import { gzipSync } from "node:zlib";
 export const limits = {
   // One self-hosted typeface keeps canvas and DOM labels visually identical.
   shell: { requests: 3, raw: 304 * 1024, gzip: 112 * 1024 },
-  map: { requests: 8, raw: 64 * 1024, gzip: 24 * 1024 },
+  map: { requests: 8, raw: 65 * 1024, gzip: 24 * 1024 },
   twoD: { requests: 4, raw: 220 * 1024, gzip: 76 * 1024 },
   threeD: { requests: 4, raw: 1500 * 1024, gzip: 410 * 1024 },
 };

@@ -28,6 +28,17 @@ export function graphEndpointId(endpoint: string | GraphNode): string {
   return typeof endpoint === "string" ? endpoint : endpoint.id;
 }
 
+export function graphKey(graph: GraphData): string {
+  const nodes = graph.nodes.map((node) => node.id).join("\u0000");
+  const links = graph.links
+    .map(
+      (link) =>
+        `${graphEndpointId(link.source)}\u0001${graphEndpointId(link.target)}\u0001${link.kind}`,
+    )
+    .join("\u0000");
+  return `${nodes}\u0002${links}`;
+}
+
 export function splitPapers(graph: GraphData): {
   core: GraphData;
   papers: GraphNode[];
@@ -218,8 +229,33 @@ function filterNodeIds(graph: GraphData, nodeIds: ReadonlySet<string>): GraphDat
   };
 }
 
-function isolateGraph(graph: GraphData, centerId: string): GraphData {
-  const links = graph.links.filter((link) => endpointIds(link).includes(centerId));
+function linkKey(link: GraphLink): string {
+  const [source, target] = endpointIds(link).sort();
+  return `${source}\u0000${target}`;
+}
+
+function paperLinks(atlas: AtlasRead, graph: GraphData, centerId: string) {
+  const center = graph.nodes.find((node) => node.id === centerId);
+  if (center?.kind !== "paper") return [];
+  const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
+  return (atlas.layout?.neighbors[centerId] ?? [])
+    .filter((entry) => nodes.has(entry.id))
+    .slice(0, 6)
+    .map<GraphLink>((entry) => ({
+      source: centerId,
+      target: entry.id,
+      kind: nodes.get(entry.id)!.kind,
+    }));
+}
+
+function isolateGraph(
+  graph: GraphData,
+  centerId: string,
+  semantic: GraphLink[] = [],
+): GraphData {
+  const connected = graph.links.filter((link) => endpointIds(link).includes(centerId));
+  const keys = new Set(connected.map(linkKey));
+  const links = [...connected, ...semantic.filter((link) => !keys.has(linkKey(link)))];
   const ids = neighborIds(new Set([centerId]), links);
   return {
     nodes: graph.nodes.filter((node) => ids.has(node.id)),
@@ -229,6 +265,7 @@ function isolateGraph(graph: GraphData, centerId: string): GraphData {
 
 export function buildGraph(atlas: AtlasRead, filters: GraphFilters): GraphData {
   const nodes = createGraphNodes(atlas, filters.minFeasibility);
+  const complete = { nodes, links: createGraphLinks(atlas) };
   const normalizedQuery = filters.query.trim().toLocaleLowerCase();
   const enabledNodeIds = new Set(
     nodes
@@ -244,11 +281,19 @@ export function buildGraph(atlas: AtlasRead, filters: GraphFilters): GraphData {
       .map((node) => node.id),
   );
 
-  let graph = filterNodeIds({ nodes, links: createGraphLinks(atlas) }, enabledNodeIds);
-
+  const filtered = filterNodeIds(complete, enabledNodeIds);
   if (filters.focus) {
-    graph = isolateGraph(graph, filters.focus);
-  } else if (normalizedQuery) {
+    const center = nodes.find((node) => node.id === filters.focus);
+    const source = center?.kind === "paper" ? complete : filtered;
+    return isolateGraph(
+      source,
+      filters.focus,
+      paperLinks(atlas, source, filters.focus),
+    );
+  }
+
+  let graph = filtered;
+  if (normalizedQuery) {
     const matches = new Set(
       graph.nodes
         .filter((node) => node.label.toLocaleLowerCase().includes(normalizedQuery))

@@ -21,7 +21,12 @@ describe("Inspector", () => {
         hasNodes
         atlas={atlas}
         focused={false}
+        cloudFocused={false}
+        cloudReady={false}
+        cloudLoading={false}
+        cloudError={null}
         onFocus={vi.fn()}
+        onCloudFocus={vi.fn()}
         onSelectNode={vi.fn()}
         onClose={vi.fn()}
         onOpenPaper={vi.fn()}
@@ -46,7 +51,12 @@ describe("Inspector", () => {
         hasNodes
         atlas={atlas}
         focused={false}
+        cloudFocused={false}
+        cloudReady={false}
+        cloudLoading={false}
+        cloudError={null}
         onFocus={vi.fn()}
+        onCloudFocus={vi.fn()}
         onSelectNode={vi.fn()}
         onClose={vi.fn()}
         onOpenPaper={vi.fn()}
@@ -73,7 +83,12 @@ describe("Inspector", () => {
         hasNodes
         atlas={atlas}
         focused={false}
+        cloudFocused={false}
+        cloudReady={false}
+        cloudLoading={false}
+        cloudError={null}
         onFocus={vi.fn()}
+        onCloudFocus={vi.fn()}
         onSelectNode={vi.fn()}
         onClose={vi.fn()}
         onOpenPaper={vi.fn()}
@@ -85,7 +100,7 @@ describe("Inspector", () => {
     expect(html).not.toContain(">context<");
   });
 
-  it("shows a standalone historical paper without connection controls", () => {
+  it("gives a historical paper the same isolation control", () => {
     const html = renderToStaticMarkup(
       <Inspector
         node={null}
@@ -99,7 +114,12 @@ describe("Inspector", () => {
         hasNodes
         atlas={makeAtlas()}
         focused={false}
+        cloudFocused={false}
+        cloudReady
+        cloudLoading={false}
+        cloudError={null}
         onFocus={vi.fn()}
+        onCloudFocus={vi.fn()}
         onSelectNode={vi.fn()}
         onClose={vi.fn()}
         onOpenPaper={vi.fn()}
@@ -109,7 +129,8 @@ describe("Inspector", () => {
     expect(html).toContain("A Historical Paper");
     expect(html).toContain("2020-01-02");
     expect(html).toContain("View on arXiv");
-    expect(html).not.toContain("Isolate connections");
+    expect(html).toContain("Isolate connections");
+    expect(html).toContain('aria-pressed="false"');
     expect(html).not.toContain('role="dialog"');
   });
 });

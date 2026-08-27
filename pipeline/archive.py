@@ -6,6 +6,7 @@ from __future__ import annotations
 import gzip
 import hashlib
 import json
+import math
 import re
 import unicodedata
 from datetime import date, datetime
@@ -13,6 +14,7 @@ from pathlib import Path
 
 from arxivid import valid_id
 from files import atomic_write_bytes, atomic_write_text
+from ontology import TOPICS, TRICKS
 from rank import rank_paper
 from titles import valid_title
 
@@ -30,6 +32,17 @@ MAX_TITLE = 4_096
 MAX_ABSTRACT = 1_000_000
 MAX_AUTHOR = 4_096
 MAX_AUTHORS = 10_000
+MAX_META = 512
+RELEVANCE_KEYS = frozenset(
+    {"relevant", "score", "lane", "reasons", "strong_hits", "support_hits"}
+)
+INTEREST_KEYS = frozenset({"score", "reasons"})
+ROUTE_KEYS = frozenset({"id", "score", "evidence"})
+META_BLOCK = re.compile(
+    r"(?i)(?:private[_ -]?context|https?://|file://|www\.|"
+    r"@[a-z0-9_.-]+|(?:^|[\s\"'(])(?:/(?:users|home|tmp|private)/|"
+    r"~[/\\]|[a-z]:[/\\])|(?:localhost|127\.0\.0\.1))"
+)
 PUBLIC_FIELDS = (
     "id",
     "url",
@@ -108,12 +121,129 @@ def check_paper(paper: dict) -> None:
         or not valid_stamp(paper.get("published"))
         or not valid_stamp(paper.get("updated"))
         or paper.get("scope") not in SCOPES
-        or not isinstance(paper.get("relevance"), dict)
-        or not isinstance(paper.get("interest"), dict)
-        or not isinstance(paper.get("topics"), list)
-        or not isinstance(paper.get("tricks"), list)
+        or not valid_relevance(paper.get("relevance"))
+        or not valid_interest(paper.get("interest"))
+        or not valid_routes(paper.get("topics"), TOPICS)
+        or not valid_routes(paper.get("tricks"), TRICKS)
     ):
         raise ValueError("Archive public paper text is invalid")
+
+
+def valid_score(value: object) -> bool:
+    """Require one finite, single-decimal score on the public scale."""
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and 0 <= value <= 10
+        and round(float(value), 1) == value
+    )
+
+
+def meta_text(value: object) -> bool:
+    """Reject private locators from compact derived metadata."""
+    return (
+        isinstance(value, str)
+        and bool(value)
+        and safe_text(value, MAX_META)
+        and META_BLOCK.search(value) is None
+    )
+
+
+def meta_list(value: object, limit: int) -> bool:
+    """Require a short, unique list of safe derived strings."""
+    return (
+        isinstance(value, list)
+        and len(value) <= limit
+        and all(isinstance(item, str) for item in value)
+        and len(value) == len(set(value))
+        and all(meta_text(item) for item in value)
+    )
+
+
+def valid_relevance(value: object) -> bool:
+    """Validate the exact public relevance explanation contract."""
+    if value == {}:
+        return True
+    if not isinstance(value, dict) or set(value) != RELEVANCE_KEYS:
+        return False
+    lane = value.get("lane")
+    reasons = value.get("reasons")
+    if (
+        not isinstance(value.get("relevant"), bool)
+        or not valid_score(value.get("score"))
+        or lane not in {"core", "field", "math-stat", "adjacent"}
+        or not meta_list(reasons, 3)
+        or not meta_list(value.get("strong_hits"), 256)
+        or not meta_list(value.get("support_hits"), 256)
+    ):
+        return False
+    allowed = (
+        "core ML category",
+        "ML-intensive field category",
+        "strong signals: ",
+        "supporting signals: ",
+    )
+    if not all(
+        reason in allowed[:2] or reason.startswith(allowed[2:]) for reason in reasons
+    ):
+        return False
+    lane_reason = {
+        "core": "core ML category",
+        "field": "ML-intensive field category",
+    }.get(lane)
+    category_reasons = set(reasons) & set(allowed[:2])
+    return category_reasons == ({lane_reason} if lane_reason else set())
+
+
+def valid_interest(value: object) -> bool:
+    """Validate the exact public interest explanation contract."""
+    if value == {}:
+        return True
+    if not isinstance(value, dict) or set(value) != INTEREST_KEYS:
+        return False
+    reasons = value.get("reasons")
+    prefixes = (
+        "interest signals: ",
+        "priority topics: ",
+        "priority methods: ",
+    )
+    return (
+        valid_score(value.get("score"))
+        and meta_list(reasons, 3)
+        and all(reason.startswith(prefixes) for reason in reasons)
+    )
+
+
+def valid_routes(value: object, ontology: dict[str, list[str]]) -> bool:
+    """Validate exact, ontology-backed topic or technique routes."""
+    if not isinstance(value, list) or len(value) > 6:
+        return False
+    identifiers = []
+    for route in value:
+        if not isinstance(route, dict) or set(route) != ROUTE_KEYS:
+            return False
+        identifier = route.get("id")
+        score = route.get("score")
+        evidence = route.get("evidence")
+        phrases = ontology.get(identifier) if isinstance(identifier, str) else None
+        if (
+            phrases is None
+            or not isinstance(score, int)
+            or isinstance(score, bool)
+            or not 1 <= score <= len(phrases)
+            or not meta_list(evidence, 4)
+            or evidence != sorted(evidence)
+            or not set(evidence) <= set(phrases) | {identifier}
+            or score < len(evidence)
+            or score <= 4
+            and score != len(evidence)
+            or score > 4
+            and len(evidence) != 4
+        ):
+            return False
+        identifiers.append(identifier)
+    return len(identifiers) == len(set(identifiers))
 
 
 def text_list(value: object) -> bool:

@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
@@ -65,17 +66,32 @@ class FakeClient:
 class HarvestTests(unittest.TestCase):
     def test_history_plan(self) -> None:
         history = {"next_year": 2005, "through_year": None, "complete": False}
-        planned, generation, start, end = plan_history(history, 2026)
+        planned, generation, start, end = plan_history(history, date(2026, 8, 27))
         self.assertEqual(
             (generation, start, end),
             ("history-2005", "2005-09-16", "2005-12-31"),
         )
 
         planned = advance_history(planned, generation)
-        _, generation, start, end = plan_history(planned, 2026)
+        _, generation, start, end = plan_history(planned, date(2026, 8, 27))
         self.assertEqual(
             (generation, start, end),
             ("history-2006", "2006-01-01", "2006-12-31"),
+        )
+
+    def test_current_plan(self) -> None:
+        history = {"next_year": 2025, "through_year": 2026, "complete": False}
+        planned, generation, start, end = plan_history(history, date(2026, 8, 27))
+        self.assertEqual(
+            (generation, start, end),
+            ("history-2025", "2025-01-01", "2025-12-31"),
+        )
+
+        planned = advance_history(planned, generation)
+        _, generation, start, end = plan_history(planned, date(2026, 8, 27))
+        self.assertEqual(
+            (generation, start, end),
+            ("history-2026", "2026-01-01", "2026-08-27"),
         )
 
     def test_complete(self) -> None:
@@ -122,6 +138,22 @@ class HarvestTests(unittest.TestCase):
             self.assertNotIn("topics", saved["records"][0])
             self.assertNotIn("tricks", saved["records"][0])
             self.assertNotIn("scope", saved["records"][0])
+
+    def test_unique_ids(self) -> None:
+        page = TestPage(
+            (record("A"), record("A"), record("B")),
+            None,
+            "2026-08-26T20:00:00Z",
+            cursor=0,
+            total=3,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(ValueError, "identifier"):
+                run_harvest(root, "duplicates", FakeClient({None: [page]}))
+            self.assertFalse((stage_path(root, "duplicates") / "index.json").exists())
+            with self.assertRaisesRegex(ValueError, "identifier"):
+                check_stage(root, "duplicates")
 
     def test_incomplete_total(self) -> None:
         page = TestPage(

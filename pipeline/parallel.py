@@ -12,11 +12,17 @@ from pathlib import Path
 
 from archive import read_manifest, read_shard
 from cloud import (
+    ANCHOR_PATH,
     MAGIC,
     MODEL_REVISION,
+    ROUTE_COUNT,
+    ROUTE_MAGIC,
+    ROUTE_PAIR,
     SCOPES,
+    anchor_bytes,
     embed_records,
     load_anchors,
+    load_node_ids,
     valid_asset,
     validate_cloud,
     write_month,
@@ -121,6 +127,8 @@ def read_plan(path: Path) -> dict:
         or plan["changed_count"] > plan["source_count"]
         or not isinstance(plan.get("foreground_sha256"), str)
         or not DIGEST.fullmatch(plan["foreground_sha256"])
+        or not isinstance(plan.get("anchor_sha256"), str)
+        or not DIGEST.fullmatch(plan["anchor_sha256"])
         or not isinstance(foreground, dict)
         or any(
             not isinstance(month, str)
@@ -165,23 +173,30 @@ def read_plan(path: Path) -> dict:
 
 
 def row_changed(
-    row: dict, prior: dict | None, output: Path, foreground: set[str]
+    row: dict,
+    prior: dict | None,
+    output: Path,
+    foreground: set[str],
+    anchor_sha256: str,
 ) -> bool:
     """Return whether one source month needs new browser assets."""
     if (
         not isinstance(prior, dict)
         or prior.get("source_sha256") != row.get("sha256")
+        or prior.get("anchor_sha256") != anchor_sha256
         or prior.get("foreground_sha256") != ids_hash(foreground)
     ):
         return True
     try:
         point_path = output / prior["points"]["path"]
         meta_path = output / prior["meta"]["path"]
+        route_path = output / prior["routes"]["path"]
     except (KeyError, TypeError):
         return True
     return not (
         valid_asset(point_path, prior.get("points"))
         and valid_asset(meta_path, prior.get("meta"))
+        and valid_asset(route_path, prior.get("routes"))
     )
 
 
@@ -190,6 +205,8 @@ def make_plan(
     output: Path,
     limit: int,
     foreground: dict[str, set[str]] | None = None,
+    anchors: Path = ANCHOR_PATH,
+    node_ids: set[str] | None = None,
 ) -> dict:
     """Balance changed months without splitting any monthly cache."""
     if not 1 <= limit <= 32:
@@ -197,6 +214,8 @@ def make_plan(
     source = read_manifest(archive)
     foreground = foreground or {}
     rows = source_rows(source)
+    anchor_sha256 = file_hash(anchors)
+    load_anchors(anchors, node_ids)
     try:
         prior = read_cloud(output / "index.json")
     except RuntimeError:
@@ -210,6 +229,7 @@ def make_plan(
             prior_rows.get(row.get("month")),
             output,
             foreground.get(row["month"], set()),
+            anchor_sha256,
         )
     ]
     total = min(limit, len(changed))
@@ -227,6 +247,7 @@ def make_plan(
         "source_count": source["counts"]["all"],
         "changed_count": sum(row["counts"]["all"] for row in changed),
         "foreground_sha256": foreground_hash(foreground),
+        "anchor_sha256": anchor_sha256,
         "foreground": {
             month: sorted(identifiers)
             for month, identifiers in sorted(foreground.items())
@@ -250,6 +271,8 @@ def build_part(
     plan = read_plan(plan_path)
     if file_hash(archive / "index.json") != plan["source_sha256"]:
         raise ValueError("Cloud partition source changed after planning")
+    if file_hash(anchors) != plan["anchor_sha256"]:
+        raise ValueError("Cloud partition anchors changed after planning")
     try:
         part = plan["partitions"][part_id]
     except IndexError as error:
@@ -291,10 +314,22 @@ def build_part(
             [paper["id"] for paper in papers],
             MAGIC,
             row["sha256"],
+            ROUTE_MAGIC,
+            ROUTE_COUNT * ROUTE_PAIR,
+            plan["anchor_sha256"],
         )
         if reused is not None:
             shards.append(
-                write_reused(month, row["sha256"], papers, reused, output, coverage)
+                write_reused(
+                    month,
+                    row["sha256"],
+                    papers,
+                    reused[0],
+                    reused[1],
+                    plan["anchor_sha256"],
+                    output,
+                    coverage,
+                )
             )
             continue
         records = [(paper["id"], archive_text(paper)) for paper in papers]
@@ -306,6 +341,7 @@ def build_part(
                 papers,
                 vectors,
                 anchor_rows,
+                plan["anchor_sha256"],
                 output,
                 coverage,
             )
@@ -313,6 +349,7 @@ def build_part(
     fragment = {
         "schema_version": 1,
         "source_sha256": plan["source_sha256"],
+        "anchor_sha256": plan["anchor_sha256"],
         "part": part_id,
         "count": sum(row["count"] for row in shards),
         "shards": shards,
@@ -337,6 +374,7 @@ def read_parts(root: Path, plan: dict) -> dict[str, tuple[dict, Path]]:
         if (
             value.get("schema_version") != 1
             or value.get("source_sha256") != plan["source_sha256"]
+            or value.get("anchor_sha256") != plan["anchor_sha256"]
             or part not in expected
             or part in found
             or not isinstance(value.get("shards"), list)
@@ -382,7 +420,7 @@ def cloud_floor(output: Path, cloud: dict) -> int:
             "omitted_count", -1
         ) or any(
             not valid_asset(output / row.get(key, {}).get("path", ""), row.get(key))
-            for key in ("points", "meta")
+            for key in ("points", "meta", "routes")
         ):
             return 0
     return count
@@ -394,11 +432,16 @@ def join_parts(
     plan_path: Path,
     parts: Path,
     allow_shrink: bool = False,
+    anchors: Path = ANCHOR_PATH,
+    node_ids: set[str] | None = None,
 ) -> dict:
     """Publish one manifest only after every worker fragment validates."""
     plan = read_plan(plan_path)
     if file_hash(archive / "index.json") != plan["source_sha256"]:
         raise ValueError("Cloud join source changed after planning")
+    if file_hash(anchors) != plan["anchor_sha256"]:
+        raise ValueError("Cloud join anchors changed after planning")
+    anchor_rows = load_anchors(anchors, node_ids)
     source = read_manifest(archive)
     source_list = source_rows(source)
     foreground = {month: set(ids) for month, ids in plan["foreground"].items()}
@@ -427,31 +470,49 @@ def join_parts(
             if (
                 not isinstance(row, dict)
                 or row.get("source_sha256") != source_row["sha256"]
+                or row.get("anchor_sha256") != plan["anchor_sha256"]
                 or row.get("source_count") != source_row["counts"]["all"]
                 or row.get("foreground_sha256")
                 != ids_hash(foreground.get(month, set()))
             ):
                 raise ValueError(f"Cloud join is missing {month}")
-            for key in ("points", "meta"):
+            for key in ("points", "meta", "routes"):
                 meta = row.get(key)
                 path = root / meta.get("path", "") if isinstance(meta, dict) else root
                 if not valid_asset(path, meta):
                     raise ValueError(f"Cloud join asset drifted: {month}")
                 atomic_write_bytes(stage / path.name, path.read_bytes())
             ordered.append(row)
+        anchor_content = anchor_bytes(anchor_rows[0], plan["anchor_sha256"])
         manifest = cloud_manifest(
-            ordered, foreground, MODEL, MODEL_DIGEST, MODEL_REVISION
+            ordered,
+            foreground,
+            MODEL,
+            MODEL_DIGEST,
+            MODEL_REVISION,
+            plan["anchor_sha256"],
+            {
+                "path": "anchors.json",
+                "sha256": hashlib.sha256(anchor_content).hexdigest(),
+                "bytes": len(anchor_content),
+            },
+            len(anchor_rows[0]),
+            ROUTE_COUNT,
         )
+        atomic_write_bytes(stage / "anchors.json", anchor_content)
         atomic_write_text(
             stage / "index.json",
             json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         )
-        result = validate_cloud(archive, stage, foreground)
+        result = validate_cloud(archive, stage, foreground, node_ids)
         output.mkdir(parents=True, exist_ok=True)
         for row in ordered:
-            for key in ("points", "meta"):
+            for key in ("points", "meta", "routes"):
                 name = row[key]["path"]
                 atomic_write_bytes(output / name, (stage / name).read_bytes())
+        atomic_write_bytes(
+            output / "anchors.json", (stage / "anchors.json").read_bytes()
+        )
         atomic_write_bytes(output / "index.json", (stage / "index.json").read_bytes())
     return result
 
@@ -466,6 +527,7 @@ def parse_args() -> argparse.Namespace:
     plan.add_argument("--output", type=Path, required=True)
     plan.add_argument("--parts", type=int, default=16)
     plan.add_argument("--atlas", type=Path, required=True)
+    plan.add_argument("--anchors", type=Path, default=ANCHOR_PATH)
     build = commands.add_parser("build")
     build.add_argument("--archive", type=Path, required=True)
     build.add_argument("--anchors", type=Path, required=True)
@@ -481,6 +543,8 @@ def parse_args() -> argparse.Namespace:
     join.add_argument("--cloud", type=Path, required=True)
     join.add_argument("--plan", type=Path, required=True)
     join.add_argument("--parts", type=Path, required=True)
+    join.add_argument("--anchors", type=Path, default=ANCHOR_PATH)
+    join.add_argument("--atlas", type=Path, required=True)
     join.add_argument("--allow-shrink", action="store_true")
     return parser.parse_args()
 
@@ -490,7 +554,12 @@ def main() -> None:
     args = parse_args()
     if args.command == "plan":
         plan = make_plan(
-            args.archive, args.cloud, args.parts, load_foreground(args.atlas)
+            args.archive,
+            args.cloud,
+            args.parts,
+            load_foreground(args.atlas),
+            args.anchors,
+            load_node_ids(args.atlas),
         )
         atomic_write_text(args.output, json.dumps(plan, indent=2) + "\n")
         print(json.dumps(plan, separators=(",", ":")))
@@ -514,6 +583,8 @@ def main() -> None:
             args.plan,
             args.parts,
             args.allow_shrink,
+            args.anchors,
+            load_node_ids(args.atlas),
         )
         print(json.dumps({"count": result["count"]}, separators=(",", ":")))
 

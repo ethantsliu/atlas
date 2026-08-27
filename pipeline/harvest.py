@@ -121,16 +121,19 @@ def check_history(value: object) -> dict:
     return value
 
 
-def plan_history(history: dict, current_year: int) -> tuple[dict, str, str, str]:
+def plan_history(history: dict, day: date) -> tuple[dict, str, str, str]:
     """Plan one deterministic annual OAI datestamp window."""
     history = check_history(history)
-    through = history["through_year"] or current_year
+    if not isinstance(day, date) or isinstance(day, datetime):
+        raise ValueError("Corpus history day is invalid")
+    through = history["through_year"] or day.year
     year = history["next_year"]
     if year > through:
         raise ValueError("Corpus history cursor advanced beyond its horizon")
     planned = {**history, "through_year": through}
     start = HISTORY_FIRST if year == HISTORY_START else f"{year:04d}-01-01"
-    return planned, f"history-{year}", start, f"{year:04d}-12-31"
+    end = day.isoformat() if year == day.year else f"{year:04d}-12-31"
+    return planned, f"history-{year}", start, end
 
 
 def advance_history(history: dict, generation: str) -> dict:
@@ -266,7 +269,9 @@ def save_page(
     records = list(page.records)
     if not all(isinstance(record, dict) for record in records):
         raise ValueError("OAI page records must be objects")
-    if any(not record.get("id") for record in records):
+    if any(
+        not isinstance(record.get("id"), str) or not record["id"] for record in records
+    ):
         raise ValueError("OAI page record is missing its identifier")
     tombstones = sum(record.get("deleted") is True for record in records)
     cursor = getattr(page, "cursor", None)
@@ -309,7 +314,7 @@ def check_page(
     generation: str,
     index: int,
     row: object,
-) -> tuple[int, int, str, int | None, int | None, str | None]:
+) -> tuple[int, int, str, int | None, int | None, str | None, tuple[str, ...]]:
     """Verify one staged page and return its reconciled totals."""
     expected_path = f"pages/{index:08d}.json.gz"
     if (
@@ -337,7 +342,10 @@ def check_page(
         or not isinstance(records, list)
     ):
         raise ValueError(f"Harvest page contract is invalid: {path.name}")
-    if not all(isinstance(record, dict) and record.get("id") for record in records):
+    if not all(
+        isinstance(record, dict) and isinstance(record.get("id"), str) and record["id"]
+        for record in records
+    ):
         raise ValueError(f"Harvest page records are invalid: {path.name}")
     tombstones = sum(record.get("deleted") is True for record in records)
     if len(records) != row.get("records"):
@@ -363,12 +371,13 @@ def check_page(
         cursor,
         total,
         token_hash,
+        tuple(record["id"] for record in records),
     )
 
 
 def sum_page(summary: dict, checked: tuple) -> dict:
     """Fold one verified page into source-order completeness totals."""
-    records, tombstones, response_date, cursor, total, token_hash = checked
+    records, tombstones, response_date, cursor, total, token_hash, identifiers = checked
     if cursor is not None and cursor != summary["records"]:
         raise ValueError("Harvest page cursor did not advance continuously")
     source_total = summary["source_total"]
@@ -383,6 +392,9 @@ def sum_page(summary: dict, checked: tuple) -> dict:
         if token_hash in token_hashes:
             raise ValueError("Harvest resumption token repeated")
         token_hashes = token_hashes | {token_hash}
+    page_ids = set(identifiers)
+    if len(page_ids) != len(identifiers) or summary["ids"] & page_ids:
+        raise ValueError("Harvest generation repeats a record identifier")
     watermark = summary["watermark"]
     if watermark is not None and response_date < watermark:
         raise ValueError("Harvest page response dates are not monotonic")
@@ -392,6 +404,7 @@ def sum_page(summary: dict, checked: tuple) -> dict:
         "watermark": response_date,
         "source_total": source_total,
         "token_hashes": token_hashes,
+        "ids": summary["ids"] | page_ids,
     }
 
 
@@ -417,7 +430,10 @@ def check_end(state: dict, summary: dict) -> None:
         if has_hash and last_hash is not None:
             raise ValueError("Complete harvest checkpoint retains a page token")
         source_total = summary["source_total"]
-        if source_total is not None and summary["records"] != source_total:
+        unique = len(summary["ids"])
+        if unique != summary["records"]:
+            raise ValueError("Completed harvest record identifiers are not unique")
+        if source_total is not None and unique != source_total:
             raise ValueError("Completed harvest does not match its source total")
     elif state.get("next_token") is not None and has_hash:
         expected = hashlib.sha256(state["next_token"].encode()).hexdigest()
@@ -436,6 +452,7 @@ def check_stage(root: Path, generation: str) -> dict:
         "watermark": None,
         "source_total": None,
         "token_hashes": set(),
+        "ids": set(),
     }
     for index, row in enumerate(state["pages"]):
         summary = sum_page(summary, check_page(root, generation, index, row))

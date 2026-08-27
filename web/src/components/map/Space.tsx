@@ -18,21 +18,25 @@ import { usePixel } from "../../hooks/pixel";
 import { useMarks } from "../../hooks/marks";
 import { useSwarm, type SwarmTip } from "../../hooks/swarm";
 import type { Theme } from "../../hooks/theme";
-import { graphEndpointId, largestGroup, splitPapers } from "../../lib/graph";
+import { graphEndpointId, graphKey, largestGroup, splitPapers } from "../../lib/graph";
 import { showLink } from "../../lib/quality";
 import { formatCamera, show3d, type CameraView } from "../../lib/camera";
 import { buildNode } from "../../lib/scene";
 import { labelOf } from "../../lib/text";
 import type { GraphData, GraphLink, GraphNode } from "../../types";
-import type { CloudData, CloudPaper } from "../../lib/cloud";
+import type { CloudData, CloudPick } from "../../lib/cloud";
+import type { CloudMark } from "../../lib/focus";
 import { usePoints, type PointTip } from "../../hooks/points";
 import type { GraphRef } from "./Driver";
 import { pickFront } from "./Front";
+import { RouteMark } from "./Route";
 
 type SpaceProps = {
   graph: GraphData;
   cloud: CloudData | null;
+  cloudHidden: boolean;
   cloudSelected: boolean;
+  cloudMark: CloudMark | null;
   graphRef: GraphRef;
   width: number;
   height: number;
@@ -41,7 +45,7 @@ type SpaceProps = {
   layout: LayoutMode;
   camera: CameraView | null;
   onChoose: (node: GraphNode) => void;
-  onCloudPick: (paper: CloudPaper) => void;
+  onCloudPick: (pick: CloudPick) => void;
   onFocus: (nodeId: string) => void;
   onClear: () => void;
 };
@@ -74,7 +78,9 @@ function PointTips({ tip, cloud }: { tip: SwarmTip | null; cloud: PointTip | nul
 export function GraphSpace({
   graph,
   cloud,
+  cloudHidden,
   cloudSelected,
+  cloudMark,
   graphRef,
   width,
   height,
@@ -108,14 +114,7 @@ export function GraphSpace({
   const sceneGraph = showSwarm ? split.core : graph;
   const swarmNodes = showSwarm ? split.papers : [];
   const coreIds = useMemo(() => largestGroup(sceneGraph), [sceneGraph]);
-  const topology = useMemo(
-    () =>
-      sceneGraph.nodes
-        .map((node) => node.id)
-        .sort()
-        .join("\u0000"),
-    [sceneGraph.nodes],
-  );
+  const topology = useMemo(() => graphKey(sceneGraph), [sceneGraph]);
   const simple = graph.nodes.length >= 1_000;
   const makeNode = useCallback(
     (node: GraphNode) => buildNode(node, theme, quality.geometryDetail, simple),
@@ -125,10 +124,11 @@ export function GraphSpace({
   const cloudHit = usePoints({
     graphRef,
     data: layout === "semantic" ? cloud : null,
+    active: !cloudHidden,
     theme,
-    onPick: (paper) => {
+    onPick: (pick) => {
       cloudOpenRef.current = true;
-      onCloudPick(paper);
+      onCloudPick(pick);
     },
   });
   useMarks({
@@ -164,14 +164,14 @@ export function GraphSpace({
     if (fitKeyRef.current === topology) return;
     fitKeyRef.current = topology;
     fitRef.current = true;
-  }, [camera, selected, topology]);
+  }, [camera, topology]);
 
   useEffect(() => {
     if (graphRef.current) {
       applyLayout(graphRef.current, layout, engineReadyRef.current);
       graphRef.current.refresh();
     }
-  }, [graph.nodes, graphRef, layout, simple]);
+  }, [graphRef, layout, simple, topology]);
 
   useEffect(() => {
     const key = formatCamera(camera);
@@ -243,6 +243,7 @@ export function GraphSpace({
         }}
       />
       <PointTips tip={tip} cloud={cloudHit.tip} />
+      <RouteMark graphRef={graphRef} mark={cloudMark} theme={theme} />
     </>
   );
 }

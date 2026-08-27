@@ -29,9 +29,17 @@ test("2D and non-map routes cannot reach the 3D entry", () => {
   const profile = loadProfile();
   const { manifest, keys } = profile;
   const mapDynamic = manifest[keys.mapKey].dynamicImports ?? [];
-  assert.deepEqual(new Set(mapDynamic), new Set([keys.fallbackKey, keys.spaceKey]));
+  const relationKey = mapDynamic.find(
+    (key) => manifest[key].src === "src/lib/relation.ts",
+  );
+  assert.ok(relationKey);
+  assert.deepEqual(
+    new Set(mapDynamic),
+    new Set([keys.fallbackKey, keys.spaceKey, relationKey]),
+  );
   assert.equal(manifest[keys.fallbackKey].isDynamicEntry, true);
   assert.equal(manifest[keys.spaceKey].isDynamicEntry, true);
+  assert.equal(manifest[relationKey].isDynamicEntry, true);
 
   const threeDEntry = manifest[keys.spaceKey].file;
   const forcedTwoD = routeAssets(profile, [
@@ -40,6 +48,7 @@ test("2D and non-map routes cannot reach the 3D entry", () => {
     keys.fallbackKey,
   ]);
   assert.equal(forcedTwoD.has(threeDEntry), false);
+  assert.equal(forcedTwoD.has(manifest[relationKey].file), false);
 
   for (const key of keys.nonMapKeys) {
     const assets = routeAssets(profile, [keys.shellKey, key]);

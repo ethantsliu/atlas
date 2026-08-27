@@ -1,12 +1,25 @@
-import { ChevronRight, X } from "lucide-react";
+import { ChevronRight, CircleDot, X } from "lucide-react";
 import type { CloudPaper } from "../../lib/cloud";
 
 type CloudProps = {
   paper: CloudPaper;
+  focused: boolean;
+  ready: boolean;
+  loading: boolean;
+  error: string | null;
+  onFocus: () => void;
   onClose: () => void;
 };
 
-export function CloudDetail({ paper, onClose }: CloudProps) {
+export function CloudDetail({
+  paper,
+  focused,
+  ready,
+  loading,
+  error,
+  onFocus,
+  onClose,
+}: CloudProps) {
   return (
     <aside
       id="map-inspector"
@@ -25,6 +38,24 @@ export function CloudDetail({ paper, onClose }: CloudProps) {
           <time dateTime={paper.published}>{paper.published.slice(0, 10)}</time>
         </b>
       </div>
+      <button
+        className="focus-button"
+        type="button"
+        aria-pressed={focused}
+        disabled={!ready}
+        onClick={onFocus}
+      >
+        <CircleDot size={15} />
+        {focused ? "Unisolate connections" : "Isolate connections"}
+      </button>
+      {focused && (
+        <p className="cloud-relation" role={error ? "alert" : undefined}>
+          {loading
+            ? "Loading exact semantic anchors…"
+            : (error ??
+              "Exact MiniLM cosine anchors in the pinned embedding space; not citations.")}
+        </p>
+      )}
       <a
         className="focus-button cloud-source"
         href={paper.url}

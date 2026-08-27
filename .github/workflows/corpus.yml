@@ -33,6 +33,7 @@ jobs:
       CORPUS_ARCHIVE: data/cache/corpus/archive
       CHECKPOINT_TAG: oai-corpus-v1
       PROMOTED_TAG: corpus-v2
+      MIN_READY: 50000
     steps:
       - uses: actions/checkout@v6
         with:
@@ -64,10 +65,22 @@ jobs:
             echo "Could not inspect corpus checkpoint release" >&2
             exit 1
           fi
+          release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$CHECKPOINT_TAG" --jq .id)
+          gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
+            --jq '.[] | [.created_at, .name] | @tsv' \
+            | awk -F '\t' '$2 ~ /^pointer-[0-9]+-[0-9]+-[0-9a-f]{16}\.json$/ {print}' \
+            | sort -r > "$RUNNER_TEMP/checkpoint-pointers.tsv"
+          pointer=$(awk -F '\t' 'NR == 1 {print $2}' \
+            "$RUNNER_TEMP/checkpoint-pointers.tsv")
+          if [ -z "$pointer" ]; then
+            echo "Checkpoint release has no complete pointer; starting from a clean state."
+            exit 0
+          fi
           gh release download "$CHECKPOINT_TAG" \
-            --pattern checkpoint.json \
+            --pattern "$pointer" \
             --dir "$RUNNER_TEMP/corpus-parts"
-          cp "$RUNNER_TEMP/corpus-parts/checkpoint.json" "$PRIOR_POINTER"
+          cp "$RUNNER_TEMP/corpus-parts/$pointer" "$PRIOR_POINTER"
           jq -e '
             .schema_version == 1 and
             (.archive_sha256 | test("^[0-9a-f]{64}$")) and
@@ -179,12 +192,17 @@ jobs:
           if [ "$(jq -r '.history.complete' "$CORPUS_ROOT/cursor.json")" = "true" ]; then
             index_sha=$(sha256sum "$PROMO_ROOT/index.json" | awk '{print $1}')
             paper_count=$(jq -r '.counts.all' "$PROMO_ROOT/index.json")
-            jq -n \
-              --arg index_sha256 "$index_sha" \
-              --argjson paper_count "$paper_count" \
-              '{schema_version:1,history_complete:true,index_sha256:$index_sha256,paper_count:$paper_count}' \
-              > "$PROMO_ROOT/cloud-ready.json"
-            echo "ready=true" >> "$GITHUB_OUTPUT"
+            if [ "$paper_count" -gt "$MIN_READY" ]; then
+              jq -n \
+                --arg index_sha256 "$index_sha" \
+                --argjson paper_count "$paper_count" \
+                '{schema_version:1,history_complete:true,index_sha256:$index_sha256,paper_count:$paper_count}' \
+                > "$PROMO_ROOT/cloud-ready.json"
+              echo "ready=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "Completed history has only $paper_count papers; readiness requires more than $MIN_READY." >&2
+              echo "ready=false" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "ready=false" >> "$GITHUB_OUTPUT"
           fi
@@ -206,7 +224,7 @@ jobs:
           PY
 
       - name: Publish promoted shards
-        if: steps.merge.outputs.promote == 'true'
+        if: steps.merge.outputs.promote == 'true' && steps.prep.outputs.ready == 'true'
         run: |
           gh release view "$PROMOTED_TAG" >/dev/null 2>&1 || \
             gh release create "$PROMOTED_TAG" \
@@ -215,7 +233,7 @@ jobs:
           release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$PROMOTED_TAG" --jq .id)
           gh api --paginate \
             "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
-            --jq '.[] | [.name, (.digest // "")] | @tsv' > "$RUNNER_TEMP/promo-assets.tsv"
+            --jq '.[] | [.name, (.digest // ""), .id] | @tsv' > "$RUNNER_TEMP/promo-assets.tsv"
           mkdir -p "$RUNNER_TEMP/promo-existing"
           jq -r '.assets[]' "$PROMO_ROOT/plan.json" | while read -r asset; do
             digest=$(jq -r --arg path "$asset" \
@@ -238,13 +256,69 @@ jobs:
             fi
             gh release upload "$PROMOTED_TAG" "$PROMO_ROOT/$asset"
           done
-          gh release upload "$PROMOTED_TAG" "$PROMO_ROOT/index.json" --clobber
+          swap_asset() {
+            local source="$1" stable="$2" stem="$3"
+            local digest recovery api_digest stable_digest candidate
+            local stable_id prior_digest candidate_id
+            digest=$(sha256sum "$source" | awk '{print $1}')
+            recovery="${stem}-${digest:0:16}.json"
+            cp "$source" "$PROMO_ROOT/$recovery"
+            api_digest=$(awk -F '\t' -v name="$recovery" \
+              '$1 == name {print $2; exit}' "$RUNNER_TEMP/promo-assets.tsv")
+            if [ -n "$api_digest" ] && [ "$api_digest" != "sha256:$digest" ]; then
+              echo "Recovery asset collides with different content: $recovery" >&2
+              exit 1
+            fi
+            if grep -q "^$recovery"$'\t' "$RUNNER_TEMP/promo-assets.tsv"; then
+              if [ -z "$api_digest" ]; then
+                gh release download "$PROMOTED_TAG" \
+                  --pattern "$recovery" \
+                  --dir "$RUNNER_TEMP/promo-existing"
+                test "$(sha256sum "$RUNNER_TEMP/promo-existing/$recovery" | awk '{print $1}')" = \
+                  "$digest"
+              fi
+            else
+              gh release upload "$PROMOTED_TAG" "$PROMO_ROOT/$recovery"
+            fi
+            stable_digest=$(awk -F '\t' -v name="$stable" \
+              '$1 == name {print $2; exit}' "$RUNNER_TEMP/promo-assets.tsv")
+            if [ "$stable_digest" = "sha256:$digest" ]; then
+              return
+            fi
+            candidate="next-${stem}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${digest:0:16}.json"
+            cp "$source" "$PROMO_ROOT/$candidate"
+            if ! grep -q "^$candidate"$'\t' "$RUNNER_TEMP/promo-assets.tsv"; then
+              gh release upload "$PROMOTED_TAG" "$PROMO_ROOT/$candidate"
+            fi
+            gh api --paginate \
+              "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
+              --jq '.[] | [.name, (.digest // ""), .id] | @tsv' \
+              > "$RUNNER_TEMP/promo-swap.tsv"
+            stable_id=$(awk -F '\t' -v name="$stable" \
+              '$1 == name {print $3; exit}' "$RUNNER_TEMP/promo-swap.tsv")
+            if [ -n "$stable_id" ]; then
+              prior_digest=$(awk -F '\t' -v name="$stable" \
+                '$1 == name {print $2; exit}' "$RUNNER_TEMP/promo-swap.tsv" \
+                | sed 's/^sha256://')
+              prior_digest="${prior_digest:-unknown}"
+              gh api --method PATCH \
+                "repos/$GITHUB_REPOSITORY/releases/assets/$stable_id" \
+                -f name="old-${stem}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${prior_digest:0:16}.json" >/dev/null
+            fi
+            candidate_id=$(awk -F '\t' -v name="$candidate" \
+              '$1 == name {print $3; exit}' "$RUNNER_TEMP/promo-swap.tsv")
+            test -n "$candidate_id"
+            gh api --method PATCH \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$candidate_id" \
+              -f name="$stable" >/dev/null
+          }
+          swap_asset "$PROMO_ROOT/index.json" index.json index
           if [ "${{ steps.prep.outputs.ready }}" = "true" ]; then
-            gh release upload "$PROMOTED_TAG" "$PROMO_ROOT/cloud-ready.json" --clobber
+            swap_asset "$PROMO_ROOT/cloud-ready.json" cloud-ready.json ready
           fi
 
       - name: Verify promoted release
-        if: steps.merge.outputs.promote == 'true'
+        if: steps.merge.outputs.promote == 'true' && steps.prep.outputs.ready == 'true'
         run: |
           verify="$RUNNER_TEMP/corpus-verify"
           mkdir -p "$verify"
@@ -254,12 +328,22 @@ jobs:
             --clobber
           test "$(sha256sum "$verify/index.json" | awk '{print $1}')" = \
             "$(jq -r '.index_sha256' "$PROMO_ROOT/plan.json")"
+          index_digest=$(jq -r '.index_sha256' "$PROMO_ROOT/plan.json")
+          gh release download "$PROMOTED_TAG" \
+            --pattern "index-${index_digest:0:16}.json" \
+            --dir "$verify"
+          cmp "$verify/index.json" "$verify/index-${index_digest:0:16}.json"
           if [ "${{ steps.prep.outputs.ready }}" = "true" ]; then
+            ready_digest=$(sha256sum "$PROMO_ROOT/cloud-ready.json" | awk '{print $1}')
             gh release download "$PROMOTED_TAG" \
               --pattern cloud-ready.json \
               --dir "$verify" \
               --clobber
             cmp "$PROMO_ROOT/cloud-ready.json" "$verify/cloud-ready.json"
+            gh release download "$PROMOTED_TAG" \
+              --pattern "ready-${ready_digest:0:16}.json" \
+              --dir "$verify"
+            cmp "$verify/cloud-ready.json" "$verify/ready-${ready_digest:0:16}.json"
           fi
           release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$PROMOTED_TAG" --jq .id)
           gh api --paginate \
@@ -408,14 +492,16 @@ jobs:
             fi
             gh release upload "$CHECKPOINT_TAG" "$CHECKPOINT_ROOT/$name"
           done
-          gh release upload "$CHECKPOINT_TAG" "$CHECKPOINT_POINTER" --clobber
+          archive_digest=$(jq -r '.archive_sha256' "$CHECKPOINT_POINTER")
+          pointer_name="pointer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${archive_digest:0:16}.json"
+          cp "$CHECKPOINT_POINTER" "$CHECKPOINT_ROOT/$pointer_name"
+          gh release upload "$CHECKPOINT_TAG" "$CHECKPOINT_ROOT/$pointer_name"
           verify="$RUNNER_TEMP/checkpoint-verify"
           mkdir -p "$verify"
           gh release download "$CHECKPOINT_TAG" \
-            --pattern checkpoint.json \
-            --dir "$verify" \
-            --clobber
-          cmp "$CHECKPOINT_POINTER" "$verify/checkpoint.json"
+            --pattern "$pointer_name" \
+            --dir "$verify"
+          cmp "$CHECKPOINT_POINTER" "$verify/$pointer_name"
           release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$CHECKPOINT_TAG" --jq .id)
           gh api --paginate \
             "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \

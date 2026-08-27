@@ -286,9 +286,28 @@ test("historical paper points open the inline inspector", async ({
     /^\d{4}-\d{2}-\d{2}/,
   );
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Isolate connections" })).toHaveCount(
-    0,
+  const graphBox = await page.getByLabel("Interactive 3D research graph").boundingBox();
+  const panelBox = await inspector.boundingBox();
+  const isolate = page.getByRole("button", { name: "Isolate connections" });
+  await expect(isolate).toBeEnabled();
+  await isolate.click();
+  await expect(
+    page.getByRole("button", { name: "Unisolate connections" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(inspector).toContainText("Exact MiniLM cosine anchors", {
+    timeout: 20_000,
+  });
+  await expect(mapStatus(page)).toHaveText("9 visible graph nodes available.");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(await page.getByLabel("Interactive 3D research graph").boundingBox()).toEqual(
+    graphBox,
   );
+  expect(await inspector.boundingBox()).toEqual(panelBox);
+  await page.getByRole("button", { name: "Unisolate connections" }).click();
+  await expect(isolate).toHaveAttribute("aria-pressed", "false");
+  await expect(
+    inspector.getByRole("heading", { name: clickPoint.title }),
+  ).toBeVisible();
 
   const picker = page.getByLabel("Choose a visible graph node");
   await picker.fill("pretraining");
@@ -310,15 +329,21 @@ test("foreground paper points open the visible paper", async ({ page }, testInfo
   });
   await page.waitForTimeout(2_500);
 
+  const graph = page.getByLabel("Interactive 3D research graph");
+  const graphBox = await graph.boundingBox();
+  const panel = page.getByLabel("Node inspector");
+  const panelBox = await panel.boundingBox();
   const point = await swarmPoint(page);
   await page.waitForTimeout(400);
   await expect(page.locator(".cloud-tip")).toHaveCount(0);
   await page.mouse.click(point.x, point.y);
 
-  const inspector = page.getByLabel("Node inspector");
+  const inspector = panel;
   await expect(inspector.getByRole("heading", { name: point.title })).toBeVisible();
   await expect(inspector.getByRole("button", { name: "Open paper" })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(await graph.boundingBox()).toEqual(graphBox);
+  expect(await inspector.boundingBox()).toEqual(panelBox);
 });
 
 test("2D hover and click use the same inline inspector", async ({ page }, testInfo) => {

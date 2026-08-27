@@ -3,6 +3,7 @@ import {
   ALL_NODE_KINDS,
   buildGraph,
   graphEndpointId,
+  graphKey,
   largestGroup,
   splitPapers,
   stableGraph,
@@ -80,6 +81,28 @@ describe("buildGraph", () => {
     expect(new Set(graph.nodes.map((node) => node.id))).toEqual(
       new Set(["idea-high", "paper-1", "topic:alignment", "trick:variance-control"]),
     );
+  });
+
+  it("keeps paper routes and exact semantic neighbors across disabled lenses", () => {
+    const atlas = makeAtlas({ layout: makeLayout() });
+    const graph = buildGraph(atlas, {
+      kinds: new Set<GraphNodeKind>(["paper"]),
+      focus: "paper-1",
+      query: "",
+      minFeasibility: 1,
+    });
+    const ids = new Set(graph.nodes.map((node) => node.id));
+
+    expect(ids).toContain("topic:alignment");
+    expect(ids).toContain("trick:variance-control");
+    expect(ids).toContain("paper-2");
+    expect(
+      graph.links.every((link) =>
+        [graphEndpointId(link.source), graphEndpointId(link.target)].includes(
+          "paper-1",
+        ),
+      ),
+    ).toBe(true);
   });
 
   it("matches labels case-insensitively and includes direct neighbors", () => {
@@ -322,5 +345,24 @@ describe("stableGraph", () => {
 
     expect(retained).toBe(node);
     expect(retained?.x).toBe(999);
+  });
+});
+
+describe("graphKey", () => {
+  it("ignores renderer endpoint mutation but detects structural changes", () => {
+    const graph = buildGraph(makeAtlas(), {
+      kinds: allKinds(),
+      focus: null,
+      query: "",
+      minFeasibility: 1,
+    });
+    const before = graphKey(graph);
+    const link = graph.links[0];
+    link.source = graph.nodes.find((node) => node.id === graphEndpointId(link.source))!;
+    link.target = graph.nodes.find((node) => node.id === graphEndpointId(link.target))!;
+
+    expect(graphKey(graph)).toBe(before);
+    graph.links.pop();
+    expect(graphKey(graph)).not.toBe(before);
   });
 });

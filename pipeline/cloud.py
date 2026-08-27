@@ -6,15 +6,14 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import struct
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
 
 from archive import read_manifest, read_shard
-from embed import EMBED_DIM, MODEL, MODEL_DIGEST, embed_batch, verify_model
+from cloudvec import MODEL_REVISION, embed_records, row_hash as row_hash, worker_count
+from embed import MODEL, MODEL_DIGEST
 from files import atomic_write_bytes, atomic_write_text
 from omit import (
     archive_text,
@@ -26,6 +25,19 @@ from omit import (
     read_cloud,
     reuse_bytes,
 )
+from routes import (
+    ROUTE_COUNT,
+    ROUTE_MAGIC,
+    ROUTE_PAIR,
+    anchor_bytes,
+    check_routes,
+    file_hash,
+    load_anchors,
+    load_node_ids,
+    project_points,
+    route_bytes,
+    row_digest,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,9 +47,6 @@ CACHE_ROOT = ROOT / "data/cache/cloud"
 OUTPUT_ROOT = ROOT / "web/public/data/cloud"
 MAGIC = b"ATLASPT1"
 SCOPES = {"likely": 0, "possible": 1, "outside": 2}
-MODEL_ID = "sentence-transformers/all-MiniLM-L6-v2"
-MODEL_REVISION = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"
-_NATIVE = None
 
 
 def parse_args() -> argparse.Namespace:
@@ -57,200 +66,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--workers",
         type=int,
-        default=max(1, int(os.getenv("ATLAS_EMBED_WORKERS", "1"))),
+        default=worker_count(),
     )
     return parser.parse_args()
 
 
-def row_hash(identifier: str, text: str) -> str:
-    """Bind one reusable vector to its paper text and pinned model."""
-    body = json.dumps(
-        {
-            "schema": "archive-vector-v1",
-            "model": MODEL,
-            "digest": MODEL_DIGEST,
-            "native_model": MODEL_ID,
-            "native_revision": MODEL_REVISION,
-            "id": identifier,
-            "text": text,
-        },
-        ensure_ascii=False,
-        separators=(",", ":"),
-    ).encode()
-    return hashlib.sha256(body).hexdigest()
-
-
-def load_anchors(path: Path) -> tuple[np.ndarray, np.ndarray]:
-    """Load normalized vectors and fixed coordinates from a portable bundle."""
-    with np.load(path) as bundle:
-        vectors = np.asarray(bundle["vectors"], dtype=np.float32)
-        points = np.asarray(bundle["points"], dtype=np.float32)
-        model = str(bundle["model"])
-        digest = str(bundle["model_digest"])
-        dimensions = int(bundle["dimensions"])
-    if (
-        vectors.ndim != 2
-        or vectors.shape[1] != EMBED_DIM
-        or points.shape != (len(vectors), 3)
-        or model != MODEL
-        or digest != MODEL_DIGEST
-        or dimensions != EMBED_DIM
-        or not np.isfinite(vectors).all()
-        or not np.isfinite(points).all()
-    ):
-        raise RuntimeError("Archive semantic anchors are invalid")
-    norms = np.linalg.norm(vectors, axis=1, keepdims=True)
-    if np.any(norms == 0):
-        raise RuntimeError("Archive semantic anchors contain zero vectors")
-    return vectors / norms, points
-
-
-def load_cache(
-    path: Path, records: list[tuple[str, str]], hashes: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
-    """Reuse unchanged rows from a resumable monthly vector cache."""
-    vectors = np.zeros((len(records), EMBED_DIM), dtype=np.float32)
-    done = np.zeros(len(records), dtype=bool)
-    if not path.exists():
-        return vectors, done
-    try:
-        with np.load(path) as cached:
-            ids = np.asarray(cached["ids"]).astype(str)
-            saved_hashes = np.asarray(cached["hashes"]).astype(str)
-            saved = np.asarray(cached["vectors"], dtype=np.float32)
-        if len(ids) != len(saved_hashes) or saved.shape != (len(ids), EMBED_DIM):
-            return vectors, done
-        indexes = {identifier: index for index, identifier in enumerate(ids)}
-        for index, (identifier, _) in enumerate(records):
-            saved_index = indexes.get(identifier)
-            if (
-                saved_index is not None
-                and saved_hashes[saved_index] == hashes[index]
-                and np.isfinite(saved[saved_index]).all()
-                and np.linalg.norm(saved[saved_index]) > 0
-            ):
-                vectors[index] = saved[saved_index]
-                done[index] = True
-    except (OSError, ValueError, KeyError):
-        pass
-    return vectors, done
-
-
-def save_cache(
-    path: Path,
-    records: list[tuple[str, str]],
-    hashes: np.ndarray,
-    vectors: np.ndarray,
-    done: np.ndarray,
-) -> None:
-    """Checkpoint a monthly embedding batch atomically."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(".tmp.npz")
-    np.savez(
-        temporary,
-        ids=np.asarray([identifier for identifier, _ in records]),
-        hashes=hashes,
-        vectors=vectors,
-        done=done,
-    )
-    temporary.replace(path)
-
-
-def native_batch(texts: list[str]) -> np.ndarray:
-    """Embed a large batch with the exact upstream MiniLM revision."""
-    global _NATIVE
-    if _NATIVE is None:
-        try:
-            from sentence_transformers import SentenceTransformer
-        except ImportError as error:
-            raise RuntimeError("Native archive embedding requires cloud.txt") from error
-        _NATIVE = SentenceTransformer(MODEL_ID, revision=MODEL_REVISION)
-    return np.asarray(
-        _NATIVE.encode(
-            texts,
-            batch_size=256,
-            show_progress_bar=False,
-            normalize_embeddings=True,
-        ),
-        dtype=np.float32,
-    )
-
-
-def embed_records(
-    month: str,
-    records: list[tuple[str, str]],
-    root: Path,
-    batch_size: int,
-    workers: int = 1,
-    provider: str = "native",
-) -> np.ndarray:
-    """Embed one month with a row-addressable resumable checkpoint."""
-    path = root / f"{month}.npz"
-    hashes = np.asarray([row_hash(*record) for record in records])
-    vectors, done = load_cache(path, records, hashes)
-    pending = np.flatnonzero(~done)
-    if len(pending) and provider == "ollama":
-        verify_model()
-    batches = [
-        pending[start : start + batch_size]
-        for start in range(0, len(pending), batch_size)
-    ]
-
-    def embed_rows(indexes: np.ndarray) -> np.ndarray:
-        texts = [records[int(index)][1] for index in indexes]
-        if provider == "native":
-            return native_batch(texts)
-        return np.asarray(embed_batch(texts), dtype=np.float32)
-
-    def save_result(indexes: np.ndarray, result: np.ndarray) -> None:
-        if result.shape != (len(indexes), EMBED_DIM):
-            raise RuntimeError("Archive embedding batch has an invalid shape")
-        vectors[indexes] = result
-        done[indexes] = True
-        save_cache(path, records, hashes, vectors, done)
-        print(
-            f"Embedded {month}: {int(done.sum()):,}/{len(records):,}",
-            flush=True,
-        )
-
-    if provider == "native":
-        for indexes in batches:
-            save_result(indexes, embed_rows(indexes))
-    else:
-        with ThreadPoolExecutor(max_workers=workers) as executor:
-            for indexes, result in zip(
-                batches, executor.map(embed_rows, batches), strict=True
-            ):
-                save_result(indexes, result)
-    return vectors
-
-
-def project_points(
-    vectors: np.ndarray,
-    anchors: np.ndarray,
-    points: np.ndarray,
-    neighbors: int = 8,
-) -> np.ndarray:
-    """Interpolate fixed anchor coordinates from exact cosine neighbors."""
-    if len(vectors) == 0:
-        return np.empty((0, 3), dtype=np.float32)
-    norms = np.linalg.norm(vectors, axis=1, keepdims=True)
-    if np.any(norms == 0):
-        raise RuntimeError("Archive embeddings contain zero vectors")
-    normalized = vectors / norms
-    output = np.empty((len(vectors), 3), dtype=np.float32)
-    count = min(neighbors, len(anchors))
-    for start in range(0, len(vectors), 1024):
-        stop = min(start + 1024, len(vectors))
-        scores = normalized[start:stop] @ anchors.T
-        indexes = np.argpartition(scores, -count, axis=1)[:, -count:]
-        near = np.take_along_axis(scores, indexes, axis=1)
-        weights = np.exp((near - near.max(axis=1, keepdims=True)) * 18)
-        weights /= weights.sum(axis=1, keepdims=True)
-        output[start:stop] = np.sum(points[indexes] * weights[..., None], axis=1)
-    if not np.isfinite(output).all():
-        raise RuntimeError("Archive semantic projection is invalid")
-    return output
+def write_anchors(output: Path, ids: np.ndarray, anchor_sha256: str) -> dict:
+    """Publish and describe one digest-bound anchor identity asset."""
+    path = output / "anchors.json"
+    atomic_write_bytes(path, anchor_bytes(ids, anchor_sha256))
+    return asset_meta(path)
 
 
 def point_bytes(points: np.ndarray, papers: list[dict]) -> bytes:
@@ -304,31 +129,59 @@ def valid_asset(path: Path, meta: object) -> bool:
     )
 
 
+def valid_row(output: Path, row: dict) -> bool:
+    """Verify every row-addressed browser asset."""
+    for key in ("points", "meta", "routes"):
+        meta = row.get(key)
+        path = output / meta.get("path", "") if isinstance(meta, dict) else output
+        if not valid_asset(path, meta):
+            return False
+    return True
+
+
 def write_month(
     month: str,
     source_sha: str,
     papers: list[dict],
     vectors: np.ndarray,
-    anchors: tuple[np.ndarray, np.ndarray],
+    anchors: tuple[np.ndarray, np.ndarray, np.ndarray],
+    anchor_sha256: str,
     output: Path,
     coverage: dict | None = None,
 ) -> dict:
-    """Publish one aligned point and metadata pair."""
-    points = project_points(vectors, *anchors)
+    """Publish one aligned point, metadata, and anchor-route set."""
+    anchor_ids, anchor_vectors, anchor_points = anchors
+    points, indexes, scores = project_points(
+        vectors, anchor_vectors, anchor_points, ROUTE_COUNT
+    )
     point_path = output / f"{month}.bin"
     meta_path = output / f"{month}.json"
+    route_path = output / f"{month}.routes"
     atomic_write_bytes(point_path, point_bytes(points, papers))
     atomic_write_bytes(meta_path, meta_bytes(month, papers))
+    atomic_write_bytes(
+        route_path,
+        route_bytes(
+            indexes,
+            scores,
+            [paper["id"] for paper in papers],
+            len(anchor_ids),
+            anchor_sha256,
+        ),
+    )
     counts = {
         scope: sum(paper["scope"] == scope for paper in papers) for scope in SCOPES
     }
     row = {
         "month": month,
         "source_sha256": source_sha,
+        "anchor_sha256": anchor_sha256,
+        "row_sha256": row_digest([paper["id"] for paper in papers]),
         "count": len(papers),
         "counts": counts,
         "points": asset_meta(point_path),
         "meta": asset_meta(meta_path),
+        "routes": asset_meta(route_path),
     }
     if coverage is not None:
         row.update(coverage)
@@ -339,24 +192,31 @@ def write_reused(
     month: str,
     source_sha: str,
     papers: list[dict],
-    content: bytes,
+    point_content: bytes,
+    route_content: bytes,
+    anchor_sha256: str,
     output: Path,
     coverage: dict,
 ) -> dict:
-    """Publish filtered prior coordinates with current aligned metadata."""
+    """Publish filtered prior coordinates and routes with current metadata."""
     point_path = output / f"{month}.bin"
     meta_path = output / f"{month}.json"
-    atomic_write_bytes(point_path, content)
+    route_path = output / f"{month}.routes"
+    atomic_write_bytes(point_path, point_content)
     atomic_write_bytes(meta_path, meta_bytes(month, papers))
+    atomic_write_bytes(route_path, route_content)
     return {
         "month": month,
         "source_sha256": source_sha,
+        "anchor_sha256": anchor_sha256,
+        "row_sha256": row_digest([paper["id"] for paper in papers]),
         "count": len(papers),
         "counts": {
             scope: sum(paper["scope"] == scope for paper in papers) for scope in SCOPES
         },
         "points": asset_meta(point_path),
         "meta": asset_meta(meta_path),
+        "routes": asset_meta(route_path),
         **coverage,
     }
 
@@ -371,6 +231,7 @@ def build_cloud(
     provider: str = "native",
     foreground: dict[str, set[str]] | None = None,
     prior_root: Path | None = None,
+    node_ids: set[str] | None = None,
 ) -> dict:
     """Incrementally build every locally available changed archive month."""
     source = read_manifest(archive)
@@ -380,7 +241,10 @@ def build_cloud(
     prior_root = prior_root or output
     prior = read_cloud(prior_root / "index.json")
     shards = {row["month"]: row for row in prior["shards"]}
-    anchors = load_anchors(anchor_path)
+    anchor_sha256 = file_hash(anchor_path)
+    anchors = load_anchors(anchor_path, node_ids)
+    output.mkdir(parents=True, exist_ok=True)
+    anchor_asset = write_anchors(output, anchors[0], anchor_sha256)
     for path in sorted(archive.glob("????-??.json.gz")):
         month = path.name.removesuffix(".json.gz")
         source_row = source_rows.get(month)
@@ -394,13 +258,10 @@ def build_cloud(
         if (
             prior_row
             and prior_row.get("source_sha256") == source_sha
+            and prior_row.get("anchor_sha256") == anchor_sha256
             and prior_row.get("foreground_sha256") == ids_hash(month_foreground)
         ):
-            point_path = output / prior_row["points"]["path"]
-            meta_path = output / prior_row["meta"]["path"]
-            if valid_asset(point_path, prior_row.get("points")) and valid_asset(
-                meta_path, prior_row.get("meta")
-            ):
+            if valid_row(output, prior_row):
                 continue
         payload = read_shard(path)
         papers, coverage = cloud_cover(payload["papers"], month_foreground)
@@ -410,16 +271,33 @@ def build_cloud(
             [paper["id"] for paper in papers],
             MAGIC,
             None if preserve_prior else source_sha,
+            ROUTE_MAGIC,
+            ROUTE_COUNT * ROUTE_PAIR,
+            anchor_sha256,
         )
         if reused is not None:
             shards[month] = write_reused(
-                month, source_sha, papers, reused, output, coverage
+                month,
+                source_sha,
+                papers,
+                reused[0],
+                reused[1],
+                anchor_sha256,
+                output,
+                coverage,
             )
             continue
         records = [(paper["id"], archive_text(paper)) for paper in papers]
         vectors = embed_records(month, records, cache, batch_size, workers, provider)
         shards[month] = write_month(
-            month, source_sha, papers, vectors, anchors, output, coverage
+            month,
+            source_sha,
+            papers,
+            vectors,
+            anchors,
+            anchor_sha256,
+            output,
+            coverage,
         )
     missing = []
     for month, source_row in source_rows.items():
@@ -427,17 +305,24 @@ def build_cloud(
         if row is None or row.get("source_sha256") != source_row.get("sha256"):
             missing.append(month)
             continue
-        if not valid_asset(output / row["points"]["path"], row.get("points")):
-            missing.append(month)
-            continue
-        if not valid_asset(output / row["meta"]["path"], row.get("meta")):
+        if not valid_row(output, row):
             missing.append(month)
     if missing:
         raise RuntimeError(
             f"Archive point shards are missing: {', '.join(sorted(missing))}"
         )
     ordered = [shards[month] for month in sorted(source_rows)]
-    manifest = cloud_manifest(ordered, foreground, MODEL, MODEL_DIGEST, MODEL_REVISION)
+    manifest = cloud_manifest(
+        ordered,
+        foreground,
+        MODEL,
+        MODEL_DIGEST,
+        MODEL_REVISION,
+        anchor_sha256,
+        anchor_asset,
+        len(anchors[0]),
+        ROUTE_COUNT,
+    )
     atomic_write_text(
         output / "index.json",
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
@@ -451,15 +336,21 @@ def validate_month(
     source_row: dict,
     row: dict,
     candidates: set[str],
+    anchor_sha256: str,
+    anchor_count: int,
 ) -> None:
     """Validate one aligned physical-dedupe month and its omission proof."""
     month = source_row["month"]
     if row.get("source_sha256") != source_row.get("sha256"):
         raise RuntimeError(f"Archive cloud source drifted: {month}")
+    if row.get("anchor_sha256") != anchor_sha256:
+        raise RuntimeError(f"Archive cloud anchors drifted: {month}")
     if not valid_asset(output / row["points"]["path"], row.get("points")):
         raise RuntimeError(f"Archive cloud points drifted: {month}")
     if not valid_asset(output / row["meta"]["path"], row.get("meta")):
         raise RuntimeError(f"Archive cloud metadata drifted: {month}")
+    if not valid_asset(output / row["routes"]["path"], row.get("routes")):
+        raise RuntimeError(f"Archive cloud routes drifted: {month}")
     point_content = (output / row["points"]["path"]).read_bytes()
     magic, count = struct.unpack("<8sI", point_content[:12])
     if magic != MAGIC or count != row["count"] or len(point_content) != 12 + 13 * count:
@@ -487,13 +378,26 @@ def validate_month(
         raise RuntimeError(f"Archive cloud omission proof drifted: {month}")
     meta = json.loads((output / row["meta"]["path"]).read_text(encoding="utf-8"))
     kept_ids = [paper[0] for paper in meta.get("papers", [])]
+    expected_rows = row_digest(kept_ids)
     if (
         meta.get("count") != row["count"]
+        or row.get("row_sha256") != expected_rows
         or len(kept_ids) != row["count"]
         or len(set(kept_ids) | set(omitted_ids)) != row["source_count"]
         or set(kept_ids).intersection(omitted_ids)
     ):
         raise RuntimeError(f"Archive cloud metadata coverage drifted: {month}")
+    routes = (output / row["routes"]["path"]).read_bytes()
+    try:
+        check_routes(
+            routes,
+            row["count"],
+            expected_rows,
+            anchor_count,
+            anchor_sha256,
+        )
+    except ValueError as error:
+        raise RuntimeError(f"Archive cloud route contract drifted: {month}") from error
     source_path = archive / source_row["path"]
     if source_path.is_file():
         expected = sorted(
@@ -509,11 +413,51 @@ def validate_cloud(
     archive: Path,
     output: Path,
     foreground: dict[str, set[str]] | None = None,
+    node_ids: set[str] | None = None,
 ) -> dict:
     """Require exact source coverage and self-verifying browser assets."""
     source = read_manifest(archive)
     foreground = foreground or {}
     cloud = read_cloud(output / "index.json")
+    anchor_meta = cloud.get("anchors")
+    anchor_path = (
+        output / anchor_meta.get("path", "")
+        if isinstance(anchor_meta, dict)
+        else output
+    )
+    if not valid_asset(anchor_path, anchor_meta):
+        raise RuntimeError("Archive cloud anchor identities drifted")
+    try:
+        anchor_data = json.loads(anchor_path.read_text(encoding="utf-8"))
+        anchor_ids = anchor_data["ids"]
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError) as error:
+        raise RuntimeError("Archive cloud anchor identities drifted") from error
+    anchor_sha256 = cloud.get("anchor_sha256")
+    anchor_count = cloud.get("anchor_count")
+    if (
+        cloud.get("relation") != "anchor-cosine-top8-v1"
+        or cloud.get("route_bytes") != ROUTE_PAIR
+        or cloud.get("neighbor_count") != ROUTE_COUNT
+        or not isinstance(anchor_sha256, str)
+        or len(anchor_sha256) != 64
+        or anchor_data.get("schema_version") != 1
+        or anchor_data.get("model") != MODEL
+        or anchor_data.get("model_digest") != MODEL_DIGEST
+        or anchor_data.get("anchor_sha256") != anchor_sha256
+        or not isinstance(anchor_count, int)
+        or isinstance(anchor_count, bool)
+        or not ROUTE_COUNT <= anchor_count <= 65535
+        or anchor_data.get("count") != anchor_count
+        or not isinstance(anchor_ids, list)
+        or len(anchor_ids) != anchor_count
+        or len(set(anchor_ids)) != anchor_count
+        or any(
+            not isinstance(identifier, str) or not identifier
+            for identifier in anchor_ids
+        )
+        or (node_ids is not None and set(anchor_ids) != node_ids)
+    ):
+        raise RuntimeError("Archive cloud anchor identities drifted")
     source_rows = {row["month"]: row for row in source["shards"]}
     cloud_rows = {row["month"]: row for row in cloud["shards"]}
     if list(source_rows) != sorted(source_rows) or list(cloud_rows) != sorted(
@@ -524,7 +468,13 @@ def validate_cloud(
         raise RuntimeError("Archive cloud does not exactly cover its source")
     for month, row in cloud_rows.items():
         validate_month(
-            archive, output, source_rows[month], row, foreground.get(month, set())
+            archive,
+            output,
+            source_rows[month],
+            row,
+            foreground.get(month, set()),
+            anchor_sha256,
+            anchor_count,
         )
     all_omitted = [
         identifier for row in cloud_rows.values() for identifier in row["omitted_ids"]
@@ -565,7 +515,10 @@ def main() -> None:
         raise SystemExit("--workers must be positive")
     if args.check:
         manifest = validate_cloud(
-            args.archive, args.output, load_foreground(args.atlas)
+            args.archive,
+            args.output,
+            load_foreground(args.atlas),
+            load_node_ids(args.atlas),
         )
         print(f"Validated {manifest['count']:,} historical semantic points")
     else:
@@ -579,6 +532,7 @@ def main() -> None:
             args.provider,
             load_foreground(args.atlas),
             args.prior,
+            load_node_ids(args.atlas),
         )
         print(f"Published {manifest['count']:,} historical semantic points")
 

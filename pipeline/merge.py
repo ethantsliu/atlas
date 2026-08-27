@@ -8,7 +8,6 @@ import json
 import sqlite3
 import tempfile
 import unicodedata
-from datetime import date, datetime, timezone
 from pathlib import Path
 
 from arxivid import paper_id
@@ -25,6 +24,18 @@ from archive import (
     write_shard,
 )
 from harvest import read_page, read_state, stage_path
+from events import (
+    check_ledger,
+    event_stamp,
+    filter_events,
+    finish_merge,
+    iso_date,
+    ledger_needed,
+    merge_path,
+    open_ledger,
+    save_events,
+    start_merge,
+)
 
 
 PAPER_FIELDS = (
@@ -38,36 +49,6 @@ PAPER_FIELDS = (
     "published",
     "updated",
 )
-LEDGER_NAME = "events.sqlite"
-
-
-def iso_date(value: object, field: str) -> str:
-    """Normalize one ISO day or timezone-aware timestamp."""
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"OAI record is missing {field}")
-    text = value.strip()
-    if len(text) == 10:
-        try:
-            return date.fromisoformat(text).isoformat()
-        except ValueError as error:
-            raise ValueError(f"OAI record has invalid {field}") from error
-    try:
-        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError as error:
-        raise ValueError(f"OAI record has invalid {field}") from error
-    if parsed.tzinfo is None:
-        raise ValueError(f"OAI record {field} lacks a timezone")
-    return (
-        parsed.astimezone(timezone.utc)
-        .isoformat(timespec="seconds")
-        .replace("+00:00", "Z")
-    )
-
-
-def event_stamp(value: object) -> str:
-    """Normalize source ordering to one lexically comparable UTC form."""
-    text = iso_date(value, "datestamp")
-    return f"{text}T00:00:00Z" if len(text) == 10 else text
 
 
 def clean_list(value: object, field: str) -> list[str]:
@@ -241,81 +222,6 @@ def fill_store(
         raise ValueError("OAI generation record totals are invalid")
 
 
-def open_ledger(root: Path) -> sqlite3.Connection:
-    """Open the durable source-order ledger retained in corpus checkpoints."""
-    try:
-        database = sqlite3.connect(root / LEDGER_NAME)
-        database.execute(
-            """CREATE TABLE IF NOT EXISTS events (
-            id TEXT PRIMARY KEY,
-            stamp TEXT NOT NULL,
-            deleted INTEGER NOT NULL,
-            month TEXT
-            )"""
-        )
-        database.execute(
-            """CREATE TABLE IF NOT EXISTS meta (
-            key TEXT PRIMARY KEY,
-            value TEXT NOT NULL
-            )"""
-        )
-        database.execute("INSERT OR IGNORE INTO meta VALUES ('schema_version', '1')")
-        version = database.execute(
-            "SELECT value FROM meta WHERE key='schema_version'"
-        ).fetchone()
-        if version != ("1",):
-            raise ValueError("Archive event ledger version is invalid")
-        return database
-    except sqlite3.DatabaseError as error:
-        raise ValueError("Archive event ledger is invalid") from error
-
-
-def seed_ledger(database: sqlite3.Connection, root: Path) -> None:
-    """Bootstrap source ordering from public rows when no ledger exists."""
-    if database.execute("SELECT 1 FROM events LIMIT 1").fetchone() is not None:
-        return
-    for path in sorted(root.glob("????-??.json.gz")):
-        for paper in read_shard(path)["papers"]:
-            database.execute(
-                "INSERT INTO events VALUES (?, ?, 0, ?)",
-                (
-                    paper["id"],
-                    event_stamp(iso_date(paper["updated"], "updated")[:10]),
-                    path.name[:7],
-                ),
-            )
-    database.commit()
-
-
-def filter_events(database: sqlite3.Connection, ledger: sqlite3.Connection) -> None:
-    """Discard source events older than the durable per-paper watermark."""
-    stale = []
-    for identifier, stamp in database.execute(
-        "SELECT id, stamp FROM events ORDER BY id"
-    ):
-        prior = ledger.execute(
-            "SELECT stamp FROM events WHERE id=?", (identifier,)
-        ).fetchone()
-        if prior is not None and stamp < prior[0]:
-            stale.append(identifier)
-    database.executemany("DELETE FROM events WHERE id=?", [(row,) for row in stale])
-    database.commit()
-
-
-def save_events(database: sqlite3.Connection, ledger: sqlite3.Connection) -> None:
-    """Advance durable watermarks after every archive mutation succeeds."""
-    ledger.executemany(
-        """INSERT INTO events VALUES (?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          stamp=excluded.stamp, deleted=excluded.deleted, month=excluded.month
-        WHERE excluded.stamp >= events.stamp""",
-        database.execute(
-            "SELECT id, stamp, deleted, month FROM events ORDER BY id"
-        ).fetchall(),
-    )
-    ledger.commit()
-
-
 def active_months(database: sqlite3.Connection) -> list[str]:
     """Return publication months changed by active OAI records."""
     return [
@@ -340,20 +246,23 @@ def find_moves(root: Path, routes: dict[str, str]) -> tuple[set[str], set[str]]:
     """Find active identifiers that must leave an older month shard."""
     moved: set[str] = set()
     months: set[str] = set()
-    seen: set[str] = set()
+    locations: dict[str, set[str]] = {}
     for path in sorted(root.glob("????-??.json.gz")):
         month = path.name.removesuffix(".json.gz")
         for paper in read_shard(path)["papers"]:
             identifier = paper.get("id")
             if not isinstance(identifier, str) or not identifier:
                 raise ValueError("Archive paper ID is invalid")
-            if identifier in seen:
-                raise ValueError("Archive paper IDs are duplicated across months")
-            seen.add(identifier)
-            target = routes.get(identifier)
-            if target is not None and target != month:
+            locations.setdefault(identifier, set()).add(month)
+    for identifier, found in locations.items():
+        target = routes.get(identifier)
+        if len(found) > 1 and (target is None or target not in found):
+            raise ValueError("Archive paper IDs are duplicated across months")
+        if target is not None:
+            old = found - {target}
+            if old:
                 moved.add(identifier)
-                months.add(month)
+                months.update(old)
     return moved, months
 
 
@@ -449,18 +358,22 @@ def merge_generation(
     """Convert one sealed harvest into cloud-compatible archive shards."""
     manifest = read_generation(harvest_root, generation)
     archive_root.mkdir(parents=True, exist_ok=True)
+    prior = read_manifest(archive_root)
+    recovering = merge_path(archive_root).exists()
+    required = ledger_needed(archive_root)
+    if not recovering:
+        check_ledger(archive_root, prior)
+    start_merge(archive_root, generation, required)
     migrate_archive(archive_root)
     ledger = open_ledger(archive_root)
     with tempfile.TemporaryDirectory(dir=archive_root) as directory:
         database = open_store(Path(directory) / "events.sqlite")
         try:
             fill_store(database, harvest_root, generation, manifest, rules)
-            seed_ledger(ledger, archive_root)
             filter_events(database, ledger)
             routes = active_routes(database)
             months = active_months(database)
             tombstones = tombstone_ids(database)
-            prior = read_manifest(archive_root)
             check_remote(archive_root, prior, months, tombstones)
             moved, old_months = find_moves(archive_root, routes)
             removals = tombstones | moved
@@ -479,8 +392,11 @@ def merge_generation(
                     removals,
                     rules,
                 )
+            result = write_manifest(archive_root)
             save_events(database, ledger)
+            check_ledger(archive_root, result, active=True)
         finally:
             database.close()
             ledger.close()
-    return write_manifest(archive_root)
+    finish_merge(archive_root)
+    return result
