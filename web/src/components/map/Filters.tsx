@@ -72,7 +72,7 @@ export function MapFilters({
       >
         <p className="aside-copy">
           {archiveCount
-            ? `The paper lens batches ${archiveCount.toLocaleString()} historical arXiv records into one semantic swarm; reviewed collection papers remain interactive foreground nodes.`
+            ? `The paper lens batches ${archiveCount.toLocaleString()} historical arXiv records into one semantic swarm. Click or tap a dot to inspect it; reviewed collection papers remain interactive foreground nodes.`
             : `Mix research areas with reusable techniques, paper-grounded ideas, and the ${atlas.meta.paper_count.toLocaleString()}-entry reviewed collection.`}
         </p>
 

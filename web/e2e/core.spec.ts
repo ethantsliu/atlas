@@ -260,6 +260,9 @@ test("historical paper points open the inline inspector", async ({
   await expect(page.locator(".filters")).toContainText("historical arXiv records", {
     timeout: 20_000,
   });
+  await expect(page.locator(".filters")).toContainText(
+    "Click or tap a dot to inspect it",
+  );
   await page.waitForTimeout(2_500);
 
   const point = await cloudPoint(page);
