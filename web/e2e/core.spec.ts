@@ -1138,9 +1138,11 @@ test("context loss falls back to 2D", async ({ page }) => {
     await expect(page.getByLabel("Choose a visible graph node")).not.toHaveValue("");
     await expect(page.getByRole("button", { name: "Close inspector" })).toBeVisible();
   } else {
-    await expect(page.locator(".graph-status")).toContainText(
-      "3D unavailable; using the 2D fallback.",
-    );
+    await expect(
+      page.locator(".graph-status").filter({
+        hasText: "3D unavailable; using the 2D fallback.",
+      }),
+    ).toBeVisible();
     await expect(
       page.getByLabel("Interactive research graph").locator("canvas:not(.cloud-plane)"),
     ).toBeVisible();
