@@ -95,6 +95,8 @@ class ParallelTests(unittest.TestCase):
         serial = (ROOT / ".github/workflows/cloud.yml").read_text()
 
         for required in (
+            'cron: "47 11 * * *"',
+            "github.event_name == 'schedule'",
             "max-parallel: 16",
             "fail-fast: false",
             "contents: read",
@@ -112,6 +114,9 @@ class ParallelTests(unittest.TestCase):
             'echo "base=$(git rev-parse HEAD)"',
             "ref: ${{ needs.plan.outputs.base }}",
             ".history_complete == true",
+            "MIN_CLOUD: 1000000",
+            '"$paper_count" -lt "$MIN_CLOUD"',
+            "daily cloud reconciliation has no work",
             ".index_sha256 == $index_sha256",
             ".paper_count == $paper_count",
             "month must have exactly one source row",

@@ -19,7 +19,7 @@ function heading(page: Page) {
 async function overview(page: Page, layout = "semantic") {
   const graph = page.getByLabel("Interactive research graph", { exact: true });
   await expect(graph).toContainText(`2D overview · ${layout}`, { timeout: 20_000 });
-  await expect(graph.locator("canvas")).toBeVisible();
+  await expect(graph.locator("canvas:not(.cloud-plane)")).toBeVisible();
   await expect(dimension(page, "2D")).toHaveAttribute("aria-pressed", "true");
   return graph;
 }
@@ -92,7 +92,7 @@ async function touchPoint(canvas: Locator) {
   });
 }
 
-test("3D code and cloud stay lazy until opt-in while foreground state survives", async ({
+test("both dimensions share one cloud while 3D code stays lazy", async ({
   page,
 }, testInfo) => {
   test.setTimeout(90_000);
@@ -106,7 +106,10 @@ test("3D code and cloud stay lazy until opt-in while foreground state survives",
   await trick.click();
   await expect(trick).toHaveAttribute("aria-pressed", "false");
 
-  expect(requests.some((url) => /\/data\/cloud\//.test(url))).toBe(false);
+  await expect
+    .poll(() => requests.some((url) => /\/data\/cloud\/index\.json/.test(url)))
+    .toBe(true);
+  await completeCloud(page);
   expect(
     requests.some((url) =>
       /(?:\/src\/components\/map\/Space\.tsx|\/assets\/Space-[\w-]+\.js)/.test(url),
@@ -119,9 +122,6 @@ test("3D code and cloud stay lazy until opt-in while foreground state survives",
   ).toBeVisible({
     timeout: 20_000,
   });
-  await expect
-    .poll(() => requests.some((url) => /\/data\/cloud\/index\.json/.test(url)))
-    .toBe(true);
   await expect
     .poll(() =>
       requests.some((url) =>
@@ -180,7 +180,7 @@ test("explicit 2D supports a centered touch selection", async ({ page }, testInf
   await page.getByRole("button", { name: "Close inspector" }).click();
   await expect(heading(page)).toHaveCount(0);
 
-  const canvas = graph.locator("canvas");
+  const canvas = graph.locator("canvas:not(.cloud-plane)");
   let point: { x: number; y: number } | null = null;
   await expect
     .poll(

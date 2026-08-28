@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
 import sys
 import tempfile
@@ -19,8 +20,10 @@ from harvest import (  # noqa: E402
     read_state,
     run_harvest,
     stage_path,
+    write_state,
 )
 from oai import OaiError, Page, parse_page  # noqa: E402
+from stage import scrub_stage  # noqa: E402
 
 
 def record(identifier: str, *, deleted: bool = False) -> dict:
@@ -138,6 +141,54 @@ class HarvestTests(unittest.TestCase):
             self.assertNotIn("topics", saved["records"][0])
             self.assertNotIn("tricks", saved["records"][0])
             self.assertNotIn("scope", saved["records"][0])
+
+    def test_checkpoint_privacy(self) -> None:
+        unsafe = record("2608.00001")
+        unsafe["abstract"] = (
+            "Contact author@example.edu at "
+            "https://www.overleaf.com/project/5e2b14694c5dc600017292e6 "
+            "or read /Users/alice/private/draft.tex."
+        )
+        unsafe["authors"] = ["Ada <ada@example.edu>"]
+        page = TestPage((unsafe,), None, "2026-08-26T20:00:00Z")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run_harvest(root, "private", FakeClient({None: [page]}))
+            content = gzip.decompress(
+                (stage_path(root, "private") / "pages/00000000.json.gz").read_bytes()
+            )
+
+        self.assertNotIn(b"example.edu", content)
+        self.assertNotIn(b"overleaf.com/project", content)
+        self.assertNotIn(b"/Users/", content)
+
+    def test_checkpoint_migration(self) -> None:
+        page = TestPage((record("2608.00001"),), None, "2026-08-26T20:00:00Z")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run_harvest(root, "legacy", FakeClient({None: [page]}))
+            path = stage_path(root, "legacy") / "pages/00000000.json.gz"
+            payload = json.loads(gzip.decompress(path.read_bytes()))
+            payload["records"][0]["abstract"] = (
+                "Email author@example.edu or open /Users/alice/private/draft.tex."
+            )
+            content = gzip.compress(
+                json.dumps(payload, separators=(",", ":")).encode(), mtime=0
+            )
+            path.write_bytes(content)
+            state = read_state(root, "legacy")
+            state["pages"][0].update(
+                sha256=hashlib.sha256(content).hexdigest(), bytes=len(content)
+            )
+            write_state(root, "legacy", state)
+
+            with self.assertRaisesRegex(ValueError, "privacy-safe"):
+                check_stage(root, "legacy")
+            self.assertTrue(scrub_stage(root, "legacy"))
+            cleaned = gzip.decompress(path.read_bytes())
+
+        self.assertNotIn(b"example.edu", cleaned)
+        self.assertNotIn(b"/Users/", cleaned)
 
     def test_unique_ids(self) -> None:
         page = TestPage(

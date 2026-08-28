@@ -34,6 +34,7 @@ from merge import merge_generation, read_generation
 from oai import OaiClient
 from rank import load_rules
 from resume import expiry_near, next_page, reset_stage, token_expired
+from stage import scrub_stage
 
 
 SCHEMA_VERSION = 1
@@ -407,8 +408,8 @@ def run_corpus(
     }
 
 
-def check_root(root: Path) -> dict:
-    """Validate the cursor and every staged generation."""
+def check_root(root: Path, *, archive: bool = True) -> dict:
+    """Validate corpus state, optionally including the durable archive."""
     cursor = check_cursor(read_cursor(root))
     stage = root / "stage"
     generations = []
@@ -437,10 +438,12 @@ def check_root(root: Path) -> dict:
         if state is None or state["status"] != "complete":
             raise ValueError("Corpus pending generation is not complete")
         read_generation(root, generation)
-    archive = root / "archive"
-    archive_report = validate_archive(archive) if archive.exists() else None
+    archive_root = root / "archive"
+    archive_report = (
+        validate_archive(archive_root) if archive and archive_root.exists() else None
+    )
     if archive_report is not None:
-        check_ledger(archive, archive_report)
+        check_ledger(archive_root, archive_report)
     return {
         "cursor": cursor,
         "generations": generations,
@@ -496,7 +499,20 @@ def unpack_root(archive: Path, root: Path) -> None:
     archive_root = root / "archive"
     if archive_root.exists() and migrate_archive(archive_root):
         write_manifest(archive_root)
+    scrub_stages(root)
     check_root(root)
+
+
+def scrub_stages(root: Path) -> list[str]:
+    """Migrate every restored OAI stage before public checkpointing."""
+    stage = root / "stage"
+    if not stage.is_dir():
+        return []
+    return [
+        path.name
+        for path in sorted(stage.iterdir())
+        if path.is_dir() and scrub_stage(root, path.name)
+    ]
 
 
 def parse_args() -> argparse.Namespace:
@@ -509,6 +525,11 @@ def parse_args() -> argparse.Namespace:
     run.add_argument("--max-minutes", type=float, default=300)
     check = commands.add_parser("check", help="validate a checkpoint")
     check.add_argument("--root", type=Path, default=DEFAULT_ROOT)
+    check.add_argument(
+        "--stage-only",
+        action="store_true",
+        help="validate the cursor and staged OAI pages without rescanning the archive",
+    )
     pack = commands.add_parser("pack", help="package a checkpoint")
     pack.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     pack.add_argument("--archive", type=Path, required=True)
@@ -541,7 +562,11 @@ def main() -> None:
         )
         print(json.dumps(result, sort_keys=True))
     elif args.command == "check":
-        print(json.dumps(check_root(args.root), sort_keys=True))
+        print(
+            json.dumps(
+                check_root(args.root, archive=not args.stage_only), sort_keys=True
+            )
+        )
     elif args.command == "pack":
         pack_root(args.root, args.archive)
     elif args.command == "unpack":

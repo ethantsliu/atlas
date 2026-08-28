@@ -6,6 +6,7 @@ from pipeline.scrub import (
     scrub_contact,
     scrub_paper,
     scrub_text,
+    scrub_tree,
 )
 
 
@@ -183,6 +184,21 @@ class ScrubTests(unittest.TestCase):
         paper = {"authors": ["Ada <ada@example.edu>", None]}
 
         self.assertEqual(scrub_paper(paper)["authors"], ["Ada", None])
+
+    def test_checkpoint_tree(self) -> None:
+        value = {
+            "abstract": (
+                "Email author@example.edu or open "
+                "https://www.overleaf.com/project/5e2b14694c5dc600017292e6."
+            ),
+            "nested": ["Read /Users/alice/private/draft.tex"],
+        }
+
+        cleaned = scrub_tree(value)
+
+        self.assertNotIn("example.edu", str(cleaned))
+        self.assertNotIn("overleaf.com/project", str(cleaned))
+        self.assertNotIn("/Users/", str(cleaned))
 
 
 if __name__ == "__main__":

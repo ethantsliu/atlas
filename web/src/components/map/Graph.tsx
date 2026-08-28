@@ -2,8 +2,8 @@ import {
   lazy,
   Suspense,
   useCallback,
-  useEffect,
   useRef,
+  useState,
   type KeyboardEvent,
 } from "react";
 import { layoutTime, type LayoutMode } from "../../hooks/layout";
@@ -53,7 +53,6 @@ type GraphCanvasProps = {
   shareUrl: (camera?: CameraView | null, render?: RenderMode) => string;
   onLayout: (mode: LayoutMode) => void;
   onRender: (mode: RenderMode) => void;
-  onMode: (mode: RenderMode) => void;
   camera: CameraView | null;
   cameraReady: boolean;
   viewReady: boolean;
@@ -70,11 +69,12 @@ function nodeCount(
   cloud: CloudData | null,
   cloudHidden: boolean,
   mark: CloudMark | null,
-  mode: RenderMode,
+  cloudReady: boolean,
 ): number {
   return (
     graph.nodes.length +
-    (mode === "3d" ? (cloudHidden ? 0 : (cloud?.loaded ?? 0)) + (mark ? 1 : 0) : 0)
+    (cloudReady && !cloudHidden ? (cloud?.loaded ?? 0) : 0) +
+    (cloudReady && mark ? 1 : 0)
   );
 }
 
@@ -121,7 +121,6 @@ export function GraphCanvas({
   shareUrl,
   onLayout,
   onRender,
-  onMode,
   camera,
   cameraReady,
   viewReady,
@@ -130,12 +129,11 @@ export function GraphCanvas({
   const { mode, status, retry } = useWebgl(containerRef, render);
   const graphRef = useRef<GraphRef["current"]>();
   const fallbackRef = useRef<FallbackRef["current"]>();
+  const [planeReady, setPlaneReady] = useState(false);
   const selectedId = selectedValue(graph, selected);
-  const visibleCount = nodeCount(graph, cloud, cloudHidden, cloudMark, mode);
+  const cloudReady = mode === "3d" || planeReady;
+  const visibleCount = nodeCount(graph, cloud, cloudHidden, cloudMark, cloudReady);
   const hasContent = visibleCount > 0;
-
-  useEffect(() => onMode(mode), [mode, onMode]);
-
   const resetView = useCallback(() => {
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const duration = layoutTime(Boolean(reduced), 700);
@@ -190,7 +188,6 @@ export function GraphCanvas({
           />
         </GraphControls>
         <WebglStatus status={status} requested={render} onRetry={retry} />
-
         {!hasContent && viewReady && (
           <EmptyState
             title={
@@ -203,7 +200,6 @@ export function GraphCanvas({
             onReset={onReset}
           />
         )}
-
         {mode === "3d" && hasContent && width > 0 && height > 0 && (
           <Suspense
             fallback={
@@ -241,7 +237,6 @@ export function GraphCanvas({
             />
           </Suspense>
         )}
-
         {mode === "2d" && hasContent && width > 0 && height > 0 && (
           <Suspense
             fallback={
@@ -257,6 +252,9 @@ export function GraphCanvas({
           >
             <GraphFallback
               graph={graph}
+              cloud={cloud}
+              cloudHidden={cloudHidden}
+              cloudMark={cloudMark}
               graphRef={fallbackRef}
               width={width}
               height={height}
@@ -268,6 +266,8 @@ export function GraphCanvas({
                 onChoose(node);
                 containerRef.current?.focus({ preventScroll: true });
               }}
+              onCloudPick={onCloudPick}
+              onPlane={setPlaneReady}
               onFocus={onFocus}
               onClear={onClearSelection}
             />

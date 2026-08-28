@@ -125,10 +125,8 @@ export function MapView({
   onPush,
 }: MapViewProps) {
   const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null);
-  const [activeMode, setActiveMode] = useState<RenderMode>("2d");
   const kinds = useMemo(() => new Set(url.kinds), [url.kinds]);
-  const cloudEnabled =
-    activeMode === "3d" && kinds.has("paper") && url.layout === "semantic";
+  const cloudEnabled = kinds.has("paper") && url.layout === "semantic";
   const history = useCloud(cloudEnabled);
   const ready = mapReady(
     kinds.has("paper"),
@@ -210,7 +208,7 @@ export function MapView({
       />
       <MapFilters
         atlas={atlas}
-        archiveCount={activeMode === "3d" ? history.manifest?.count : undefined}
+        archiveCount={history.manifest?.count}
         kinds={kinds}
         focus={url.focus}
         minFeasibility={url.minFeasibility}
@@ -247,7 +245,6 @@ export function MapView({
         shareUrl={shareUrl}
         onLayout={(layout) => onReplace({ layout })}
         onRender={(render) => onPush({ render })}
-        onMode={setActiveMode}
       />
       <PanelResize />
       <Inspector

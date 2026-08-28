@@ -14,6 +14,7 @@ from typing import Protocol
 
 from files import atomic_write_bytes, atomic_write_text
 from oai import PREFIX, OaiError
+from scrub import scrub_tree
 
 
 SCHEMA_VERSION = 1
@@ -266,7 +267,7 @@ def save_page(
 ) -> dict:
     """Atomically stage one complete page before advancing its token."""
     response_date = page_date(page)
-    records = list(page.records)
+    records = [scrub_tree(record) for record in page.records]
     if not all(isinstance(record, dict) for record in records):
         raise ValueError("OAI page records must be objects")
     if any(
@@ -347,6 +348,8 @@ def check_page(
         for record in records
     ):
         raise ValueError(f"Harvest page records are invalid: {path.name}")
+    if scrub_tree(records) != records:
+        raise ValueError(f"Harvest page records are not privacy-safe: {path.name}")
     tombstones = sum(record.get("deleted") is True for record in records)
     if len(records) != row.get("records"):
         raise ValueError(f"Harvest page counts are invalid: {path.name}")

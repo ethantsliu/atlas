@@ -10,10 +10,7 @@ export async function fullNodes(page: Page): Promise<string> {
   const filters = page.locator(".filters");
   const paperLens = filters.locator(".kind-toggle").nth(2);
   const paperOn = (await paperLens.getAttribute("aria-pressed")) === "true";
-  const is3d =
-    (await page.getByLabel("Interactive 3D research graph", { exact: true }).count()) >
-    0;
-  if (paperOn && is3d) {
+  if (paperOn) {
     await expect(filters).toContainText("historical arXiv papers", {
       timeout: 20_000,
     });

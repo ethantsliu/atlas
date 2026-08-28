@@ -34,7 +34,7 @@ jobs:
       CORPUS_ARCHIVE: data/cache/corpus/archive
       CHECKPOINT_TAG: oai-corpus-v1
       PROMOTED_TAG: corpus-v2
-      MIN_READY: 50000
+      MIN_READY: 1000000
     steps:
       - uses: actions/checkout@v6
         with:
@@ -136,7 +136,9 @@ jobs:
         id: checkpoint
         continue-on-error: true
         if: always() && steps.harvest.outcome != 'skipped'
-        run: python pipeline/corpus.py check --root "$CORPUS_ROOT"
+        # Restore and package perform full archive validation. This bounded check
+        # authenticates the new stage without rescanning 1M+ durable rows.
+        run: python pipeline/corpus.py check --root "$CORPUS_ROOT" --stage-only
 
       - name: Read prior promoted index
         if: steps.checkpoint.outcome == 'success'
@@ -201,7 +203,7 @@ jobs:
           if [ "$(jq -r '.history.complete' "$CORPUS_ROOT/cursor.json")" = "true" ]; then
             index_sha=$(sha256sum "$PROMO_ROOT/index.json" | awk '{print $1}')
             paper_count=$(jq -r '.counts.all' "$PROMO_ROOT/index.json")
-            if [ "$paper_count" -gt "$MIN_READY" ]; then
+            if [ "$paper_count" -ge "$MIN_READY" ]; then
               jq -n \
                 --arg index_sha256 "$index_sha" \
                 --argjson paper_count "$paper_count" \
@@ -209,7 +211,7 @@ jobs:
                 > "$PROMO_ROOT/cloud-ready.json"
               echo "ready=true" >> "$GITHUB_OUTPUT"
             else
-              echo "Completed history has only $paper_count papers; readiness requires more than $MIN_READY." >&2
+              echo "Completed history has only $paper_count papers; readiness requires at least $MIN_READY." >&2
               echo "ready=false" >> "$GITHUB_OUTPUT"
             fi
           else
@@ -484,7 +486,7 @@ jobs:
             ${{ runner.temp }}/corpus-merge.json
             ${{ runner.temp }}/corpus-promo.json
           compression-level: 0
-          retention-days: 14
+          retention-days: 1
           if-no-files-found: error
 
       - name: Publish release checkpoint

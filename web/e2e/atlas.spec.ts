@@ -109,8 +109,8 @@ test("map remains usable without WebGL2", async ({ page }) => {
   const graph = page.getByLabel("Interactive research graph");
   await expect(graph).toContainText("2D overview · semantic");
   await expect(mapStatus(page)).toHaveText("3,999 visible graph nodes available.");
-  expect(cloudRequests).toBe(0);
-  await expect(graph.locator("canvas")).toBeVisible();
+  expect(cloudRequests).toBe(1);
+  await expect(graph.locator("canvas:not(.cloud-plane)")).toBeVisible();
   await graph.focus();
   await page.keyboard.press("ArrowRight");
   await expect(page.getByLabel("Choose a visible graph node")).not.toHaveValue("");
@@ -280,7 +280,7 @@ test("paper lens and arrow-key graph navigation stay concise", async ({ page }) 
 
   const graph = page.getByLabel(/Interactive (3D )?research graph/);
   const picker = page.getByLabel("Choose a visible graph node");
-  await expect(graph.locator("canvas")).toBeVisible();
+  await expect(graph.locator("canvas:not(.cloud-plane)")).toBeVisible();
   await expect(page.getByRole("button", { name: /Reset (3D )?view/ })).toBeVisible();
   await expect(graph).toContainText(/drag (rotates|pans)/);
   let selected: string;

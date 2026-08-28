@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type Camera } from "three";
-import type { GraphRef } from "../components/map/Driver";
+import type { GraphApi } from "../components/map/Driver";
 import {
   cloudPaper,
   cloudRange,
@@ -21,22 +21,34 @@ import { makeGpuPick } from "./gpu";
 import type { Theme } from "./theme";
 import { bindChange } from "./control";
 import type { PickOrder } from "../lib/order";
-
 const HOVER_WAIT = 120;
 const DENSE_HOVER_WAIT = 700;
 const META_LIMIT = 4;
 export const CLOUD_HOVER_LIMIT = 100_000;
-
 export type PointTip = { depth: number; label: string; x: number; y: number };
 
 type PointInput = {
-  graphRef: GraphRef;
+  graphRef: PointRef;
+  canvas?: HTMLCanvasElement | null;
+  hit?: (event: PointerEvent | MouseEvent, canvas: HTMLCanvasElement) => PointHit;
   data: CloudData | null;
   active: boolean;
   theme: Theme;
   onPick: (pick: CloudPick) => void;
   order: PickOrder;
 };
+export type PointHit = {
+  distance: number;
+  index: number | null;
+  x: number;
+  y: number;
+};
+
+export type PointApi = Pick<GraphApi, "camera" | "renderer" | "scene"> & {
+  controls?: GraphApi["controls"];
+};
+
+export type PointRef = { current: PointApi | undefined };
 type Claim = {
   committed: boolean;
   distance: number;
@@ -72,7 +84,7 @@ function isHidden(refs: Pick<PointRefs, "hidden">) {
 }
 
 function dropPoints(
-  graph: NonNullable<GraphRef["current"]>,
+  graph: PointApi,
   points: CloudSwarm,
   refs: PointRefs,
   setTip: (tip: PointTip | null) => void,
@@ -95,7 +107,7 @@ function dropPoints(
 
 function gpuHit(
   canvas: HTMLCanvasElement,
-  graph: NonNullable<GraphRef["current"]>,
+  graph: PointApi,
   picker: ReturnType<typeof makeGpuPick>,
   event: PointerEvent | MouseEvent,
 ) {
@@ -211,14 +223,17 @@ export function clearHover(
 }
 
 export function cloudFront(
-  graph: GraphRef["current"],
+  graph: PointRef["current"],
   node: GraphNode,
   distance: number,
 ): boolean {
   return distance <= nodeDepth(graph, node);
 }
 
-export function nodeDepth(graph: GraphRef["current"], node: GraphNode): number {
+export function nodeDepth(
+  graph: Pick<GraphApi, "camera"> | undefined,
+  node: GraphNode,
+): number {
   if (!graph) return Number.POSITIVE_INFINITY;
   const paper = node.kind === "paper";
   const x = paper ? (node.sx ?? node.x) : node.x;
@@ -337,12 +352,12 @@ function mountPoints(
   points.visible = input.active;
   refs.points.current = points;
   graph.scene().add(points);
-  const canvas = renderer.domElement;
-  const picker = makeGpuPick(renderer, points, data.positions);
+  const canvas = input.canvas ?? renderer.domElement;
+  const picker = input.hit ? null : makeGpuPick(renderer, points, data.positions);
   const controller = new AbortController();
   const cache = new Map<string, Promise<CloudPaper[]>>();
   const hit = (event: PointerEvent | MouseEvent) =>
-    gpuHit(canvas, graph, picker, event);
+    input.hit?.(event, canvas) ?? gpuHit(canvas, graph, picker!, event);
   const load = (index: number) => loadPaper(data, cache, controller.signal, index);
   let timer: ReturnType<typeof setTimeout> | undefined;
   let moved: PointerEvent | null = null;
@@ -498,7 +513,7 @@ function mountPoints(
     controller.abort();
     dropEvents();
     dropChange();
-    picker.dispose();
+    picker?.dispose();
     dropPoints(graph, points, refs, setTip);
   };
 }
@@ -572,7 +587,7 @@ export function usePoints(input: PointInput): {
         setTip,
         setProbing,
       ),
-    [input.data, input.graphRef],
+    [input.canvas, input.data, input.graphRef],
   );
   useEffect(() => {
     if (pointsRef.current && input.data) growCloud(pointsRef.current, input.data);

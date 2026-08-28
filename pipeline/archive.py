@@ -127,6 +127,7 @@ def check_paper(paper: dict) -> None:
         or not valid_interest(paper.get("interest"))
         or not valid_routes(paper.get("topics"), TOPICS)
         or not valid_routes(paper.get("tricks"), TRICKS)
+        or scrub_paper(paper) != paper
     ):
         raise ValueError("Archive public paper text is invalid")
 

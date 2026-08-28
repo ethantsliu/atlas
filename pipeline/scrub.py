@@ -160,6 +160,27 @@ def scrub_author(value: str) -> str:
     return scrub_email(value, ALL_EMAIL)
 
 
+def scrub_all(value: str) -> str:
+    """Remove every email and protected locator from public source text."""
+    normalized = unicodedata.normalize("NFKC", value)
+    return (
+        scrub_email(value, ALL_EMAIL)
+        if ALL_EMAIL.search(normalized)
+        else scrub_text(value)
+    )
+
+
+def scrub_tree(value: object) -> object:
+    """Recursively scrub strings before durable public checkpointing."""
+    if isinstance(value, str):
+        return scrub_all(value)
+    if isinstance(value, list):
+        return [scrub_tree(item) for item in value]
+    if isinstance(value, dict):
+        return {key: scrub_tree(item) for key, item in value.items()}
+    return value
+
+
 def scrub_authors(values: list[object]) -> list[object]:
     """Scrub string members while preserving invalid members for validation."""
     result: list[object] = []
@@ -200,7 +221,7 @@ def scrub_paper(value: dict) -> dict:
     result = {**value}
     for field in ("title", "abstract"):
         if isinstance(result.get(field), str):
-            result[field] = scrub_text(result[field])
+            result[field] = scrub_all(result[field])
     if isinstance(result.get("comment"), str):
         result["comment"] = scrub_contact(result["comment"])
     authors = result.get("authors")

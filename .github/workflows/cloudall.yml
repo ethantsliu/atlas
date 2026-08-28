@@ -3,6 +3,8 @@ name: cloud-all
 on:
   repository_dispatch:
     types: [corpus-promoted]
+  schedule:
+    - cron: "47 11 * * *"
   workflow_dispatch:
     inputs:
       tag:
@@ -19,6 +21,7 @@ jobs:
   plan:
     if: >-
       (github.event_name == 'repository_dispatch' && github.event.client_payload.tag == 'corpus-v2') ||
+      github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' && (inputs.tag == 'corpus-v2' || inputs.tag == ''))
     permissions:
       contents: read
@@ -31,6 +34,7 @@ jobs:
       base: ${{ steps.plan.outputs.base }}
     env:
       GH_TOKEN: ${{ github.token }}
+      MIN_CLOUD: 1000000
       DISPATCH_TAG: ${{ github.event.client_payload.tag }}
       DISPATCH_INDEX: ${{ github.event.client_payload.index_sha256 }}
       DISPATCH_READY: ${{ github.event.client_payload.ready_sha256 }}
@@ -53,6 +57,14 @@ jobs:
           if [ "$tag" != "corpus-v2" ]; then
             echo "cloud-all only accepts the corpus-v2 release" >&2
             exit 1
+          fi
+          if [ "$EVENT_NAME" = schedule ] && ! gh release view "$tag" >/dev/null 2>&1; then
+            echo "No promoted corpus release exists yet; daily cloud reconciliation has no work."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "matrix=[]" >> "$GITHUB_OUTPUT"
+            echo "tag=$tag" >> "$GITHUB_OUTPUT"
+            echo "base=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           if [ "$EVENT_NAME" = repository_dispatch ] && \
             { [ -z "$DISPATCH_INDEX" ] || [ -z "$DISPATCH_READY" ]; }; then
@@ -102,6 +114,10 @@ jobs:
             exit 1
           fi
           paper_count=$(jq -r '.counts.all' "$root/archive/index.json")
+          if ! [[ "$paper_count" =~ ^[0-9]+$ ]] || [ "$paper_count" -lt "$MIN_CLOUD" ]; then
+            echo "Full-history cloud requires at least $MIN_CLOUD papers; release has $paper_count" >&2
+            exit 1
+          fi
           jq -e \
             --arg index_sha256 "$index_sha" \
             --argjson paper_count "$paper_count" '
@@ -126,6 +142,7 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "base=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v4
+        if: steps.plan.outputs.changed == 'true'
         with:
           name: cloud-plan
           path: ${{ runner.temp }}/cloud-plan

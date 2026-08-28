@@ -63,7 +63,7 @@ test("compatibility mode skips the 3D runtime", async ({ page }) => {
 
   await page.goto("/#?k=tri");
   await expect(
-    page.getByLabel("Interactive research graph").locator("canvas"),
+    page.getByLabel("Interactive research graph").locator("canvas:not(.cloud-plane)"),
   ).toBeVisible();
   expect(
     requests.some((url) => /(?:\/Fallback\.tsx|\/Fallback-[\w-]+\.js)/.test(url)),

@@ -280,7 +280,7 @@ test("WebKit accumulates fractional trackpad deltas and keeps pinch zoom native"
   await expect(graph).toBeVisible({ timeout: 20_000 });
   await expect.poll(() => copyCamera(page), { timeout: 20_000 }).toBe(view);
   const initial = cameraSnapshot(view);
-  const canvas = graph.locator("canvas");
+  const canvas = graph.locator("canvas:not(.cloud-plane)");
 
   for (let step = 0; step < 8; step += 1) {
     await canvas.dispatchEvent("wheel", { deltaY: -7.5, deltaMode: 0 });

@@ -26,7 +26,7 @@ from corpus import (  # noqa: E402
     write_cursor,
 )
 from oai import OaiClient, OaiError  # noqa: E402
-from archive import read_shard, shard_bytes, write_manifest  # noqa: E402
+from archive import read_shard, shard_bytes  # noqa: E402
 from archivecheck import validate_archive  # noqa: E402
 
 
@@ -152,8 +152,9 @@ class CorpusTests(unittest.TestCase):
             'cron: "17 04,10,16,22 * * *"',
             "cancel-in-progress: false",
             "PROMOTED_TAG: corpus-v2",
-            "MIN_READY: 50000",
-            'if [ "$paper_count" -gt "$MIN_READY" ]; then',
+            "MIN_READY: 1000000",
+            'if [ "$paper_count" -ge "$MIN_READY" ]; then',
+            'python pipeline/corpus.py check --root "$CORPUS_ROOT" --stage-only',
             'swap_asset "$PROMO_ROOT/index.json" index.json index',
             'swap_asset "$PROMO_ROOT/cloud-ready.json" cloud-ready.json ready',
             'pointer_name="pointer-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${archive_digest:0:16}.json"',
@@ -230,7 +231,9 @@ class CorpusTests(unittest.TestCase):
         self.assertNotIn("schedule:", legacy)
         self.assertIn("group: arxiv-oai-corpus", legacy)
         self.assertIn("if: vars.ATLAS_LEGACY == 'true'", legacy)
-        self.assertIn("group: arxiv-oai-corpus", feed)
+        self.assertIn("group: arxiv-daily-feed", feed)
+        self.assertNotIn("group: arxiv-oai-corpus", feed)
+        self.assertIn("retention-days: 1", corpus)
         self.assertIn('default: "corpus-v2"', discover)
 
     def test_backfill_chain(self) -> None:
@@ -597,6 +600,19 @@ class CorpusTests(unittest.TestCase):
             self.assertEqual(report["cursor"]["watermark"], "2026-08-27T00:17:00Z")
             self.assertEqual(report["generations"][0]["records"], 1)
 
+    def test_stage_check(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = root / "archive"
+            archive.mkdir(parents=True)
+            (archive / "index.json").write_text("{}")
+
+            report = check_root(root, archive=False)
+
+            self.assertIsNone(report["archive"])
+            with self.assertRaises(ValueError):
+                check_root(root)
+
     def test_window_archive(self) -> None:
         first = TestPage(
             (paper("1"),),
@@ -709,7 +725,14 @@ class CorpusTests(unittest.TestCase):
             self.assertNotIn("comment", paper)
 
     def test_dirty_restore(self) -> None:
-        final = TestPage((full_paper("2608.00001"),), None, "2026-08-27T00:17:00Z")
+        unsafe = full_paper("2608.00001")
+        unsafe["abstract"] = (
+            "Draft at https://www.overleaf.com/project/"
+            "5e2b14694c5dc600017292e6 or email author@example.org "
+            "before release."
+        )
+        unsafe["authors"] = ["Ada <ada@example.org>"]
+        final = TestPage((unsafe,), None, "2026-08-27T00:17:00Z")
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
             source = base / "source"
@@ -725,22 +748,23 @@ class CorpusTests(unittest.TestCase):
                 wall=lambda: NOW,
             )
             merge_pending(source, archive, ROOT / "data/source/feed.json")
-            path = archive / "2026-08.json.gz"
-            forged = read_shard(path)
-            forged["papers"][0]["abstract"] = (
-                "Draft at https://www.overleaf.com/project/"
-                "5e2b14694c5dc600017292e6 before release."
-            )
-            forged["papers"][0]["authors"] = ["Ada <ada@example.org>"]
-            path.write_bytes(shard_bytes(forged))
-            write_manifest(archive)
             pack_root(source, checkpoint)
+
+            with tarfile.open(checkpoint, "r:gz") as bundle:
+                members = [
+                    bundle.extractfile(member).read()
+                    for member in bundle.getmembers()
+                    if member.isfile() and member.name.endswith(".json.gz")
+                ]
+            public = b"".join(gzip.decompress(content) for content in members)
+            self.assertNotIn(b"example.org", public)
+            self.assertNotIn(b"overleaf.com/project", public)
 
             unpack_root(checkpoint, restored)
             plan = prep_release(restored / "archive", output)
 
             paper = read_shard(output / plan["assets"][0])["papers"][0]
-            self.assertEqual(paper["abstract"], "Draft at before release.")
+            self.assertEqual(paper["abstract"], "Draft at or email before release.")
             self.assertEqual(paper["authors"], ["Ada"])
 
     def test_ack_guard(self) -> None:

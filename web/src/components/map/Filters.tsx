@@ -72,7 +72,7 @@ export function MapFilters({
       >
         <p className="aside-copy">
           {archiveCount
-            ? `${archiveCount.toLocaleString()} historical arXiv papers form the 3D swarm; foreground papers remain inspectable nodes.`
+            ? `${archiveCount.toLocaleString()} historical arXiv papers form the semantic swarm; foreground papers remain inspectable nodes.`
             : `${atlas.meta.paper_count.toLocaleString()} foreground papers join research areas, techniques, and ideas.`}
         </p>
 
