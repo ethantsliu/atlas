@@ -93,6 +93,8 @@ def compact_paper(paper: dict) -> dict:
     except (KeyError, TypeError) as error:
         raise ValueError("Archive paper fields are incomplete") from error
     result = scrub_paper(result)
+    if not result.get("title") and valid_id(result.get("id")):
+        result["title"] = f"arXiv {result['id']}"
     check_paper(result)
     return result
 

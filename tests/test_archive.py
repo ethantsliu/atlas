@@ -109,6 +109,15 @@ class ArchiveTests(unittest.TestCase):
         self.assertIn("github.com", payload["papers"][0]["abstract"])
         self.assertEqual(payload["papers"][0]["authors"], ["Ada Researcher"])
 
+    def test_redacted_title(self) -> None:
+        payload = build_month(
+            date(2020, 1, 2),
+            intake([paper("2001.00001", title="contact@university.edu")]),
+            RULES,
+        )
+
+        self.assertEqual(payload["papers"][0]["title"], "arXiv 2001.00001")
+
     def test_public_boundary(self) -> None:
         unsafe = (
             {"id": "private-paper"},
