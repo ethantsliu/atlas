@@ -184,11 +184,12 @@ async function showFilters(page: Page) {
 }
 
 async function chooseTopic(page: Page) {
-  const picker = page.getByLabel("Choose a visible graph node");
-  if ((await picker.evaluate((element) => element.tagName)) === "SELECT") {
-    await picker.selectOption({ label: "Topic · pretraining" });
-    return;
-  }
+  const picker = page
+    .getByRole("combobox", { name: "Choose a visible graph node" })
+    .and(page.locator("input"));
+  await expect(picker).toHaveAttribute("placeholder", "Find a paper or node…", {
+    timeout: 20_000,
+  });
   await picker.fill("pretraining");
   await page.getByRole("option", { name: /Topic\s+pretraining/i }).click();
 }
