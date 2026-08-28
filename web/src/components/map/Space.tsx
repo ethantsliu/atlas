@@ -57,6 +57,11 @@ type FrameTimer = {
   set: (callback: () => void, delay: number) => number;
 };
 
+type FrameLoop = {
+  cancel: (frame: number) => void;
+  request: (callback: () => void) => number;
+};
+
 export type FrameIdle = {
   dispose: () => void;
   engineStop: (delay?: number) => void;
@@ -71,12 +76,17 @@ export function makeFrameIdle(
     clear: (value) => window.clearTimeout(value),
     set: (callback, delay) => window.setTimeout(callback, delay),
   },
+  loop: FrameLoop = {
+    cancel: (value) => window.cancelAnimationFrame(value),
+    request: (callback) => window.requestAnimationFrame(callback),
+  },
 ): FrameIdle {
   const canvas = graph.renderer().domElement;
   const controls = graph.controls();
   let running = true;
   let paused = false;
   let pending = 0;
+  let probeFrame = 0;
   const cancel = () => {
     if (pending) timer.clear(pending);
     pending = 0;
@@ -105,10 +115,14 @@ export function makeFrameIdle(
     rest();
   };
   const probe = () => {
+    if (probeFrame) return;
     const cloud = graph.scene?.().getObjectByName("archive-cloud") as
       CloudSwarm | undefined;
     if (cloud) moveCloud(cloud);
     touch();
+    probeFrame = loop.request(() => {
+      probeFrame = 0;
+    });
   };
   const engineTick = () => {
     running = true;
@@ -130,6 +144,8 @@ export function makeFrameIdle(
   return {
     dispose: () => {
       cancel();
+      if (probeFrame) loop.cancel(probeFrame);
+      probeFrame = 0;
       controls.removeEventListener?.("start", press);
       controls.removeEventListener?.("change", touch);
       controls.removeEventListener?.("end", release);

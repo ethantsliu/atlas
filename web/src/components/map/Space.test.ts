@@ -30,12 +30,21 @@ function setup() {
   const pauseAnimation = vi.fn();
   const resumeAnimation = vi.fn();
   const pending = new Map<number, Pending>();
+  const frames = new Map<number, () => void>();
   let next = 1;
   const timer = {
     clear: (id: number) => pending.delete(id),
     set: (callback: () => void, delay: number) => {
       const id = next++;
       pending.set(id, { callback, delay });
+      return id;
+    },
+  };
+  const loop = {
+    cancel: (id: number) => frames.delete(id),
+    request: (callback: () => void) => {
+      const id = next++;
+      frames.set(id, callback);
       return id;
     },
   };
@@ -47,11 +56,17 @@ function setup() {
       resumeAnimation,
     },
     timer,
+    loop,
   );
   const flush = () => {
     const jobs = [...pending.values()];
     pending.clear();
     jobs.forEach(({ callback }) => callback());
+  };
+  const flushFrames = () => {
+    const jobs = [...frames.values()];
+    frames.clear();
+    jobs.forEach((callback) => callback());
   };
   return {
     canvas,
@@ -63,6 +78,8 @@ function setup() {
     pending,
     resumeAnimation,
     flush,
+    flushFrames,
+    frames,
   };
 }
 
@@ -89,6 +106,10 @@ describe("3D idle frames", () => {
 
     run.emitCanvas("pointermove");
     run.emitCanvas("pointermove");
+    expect(run.frames.size).toBe(1);
+    expect(run.resumeAnimation).toHaveBeenCalledOnce();
+    expect(run.pending.size).toBe(1);
+    run.flushFrames();
     expect(run.resumeAnimation).toHaveBeenCalledOnce();
     expect(run.pending.size).toBe(1);
 
@@ -106,6 +127,7 @@ describe("3D idle frames", () => {
     run.emitControl("start");
     expect(run.resumeAnimation).toHaveBeenCalledOnce();
     expect(run.pending.size).toBe(0);
+    expect(run.frames.size).toBe(0);
   });
 
   it("does not pause an active simulation after stale pointer activity", () => {
@@ -116,7 +138,19 @@ describe("3D idle frames", () => {
 
     run.idle.engineTick();
     expect(run.pending.size).toBe(0);
+    run.flushFrames();
     run.flush();
     expect(run.pauseAnimation).not.toHaveBeenCalled();
+  });
+
+  it("cancels a queued pointer probe on disposal", () => {
+    const run = setup();
+
+    run.emitCanvas("pointermove");
+    expect(run.frames.size).toBe(1);
+    run.idle.dispose();
+    expect(run.frames.size).toBe(0);
+    run.flushFrames();
+    expect(run.resumeAnimation).not.toHaveBeenCalled();
   });
 });
