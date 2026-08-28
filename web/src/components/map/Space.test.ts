@@ -2,7 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("react-force-graph-3d", () => ({ default: () => null }));
 
-import { FRAME_IDLE_WAIT, makeFrameIdle } from "./Space";
+const cloudMocks = vi.hoisted(() => ({
+  moveCloud: vi.fn(),
+  restCloud: vi.fn(),
+}));
+
+vi.mock("../../lib/swarm", async () => ({
+  ...(await vi.importActual<typeof import("../../lib/swarm")>("../../lib/swarm")),
+  ...cloudMocks,
+}));
+
+import { FRAME_IDLE_WAIT, makeFrameIdle, stopCloud, tickCloud } from "./Space";
 
 type Pending = { callback: () => void; delay: number };
 
@@ -67,6 +77,24 @@ function setup() {
 }
 
 describe("3D idle frames", () => {
+  it("uses motion density until the engine stops", () => {
+    const cloud = { name: "archive-cloud" };
+    const find = () => cloud;
+    const graph = {
+      scene: () => ({ getObjectByName: find }),
+    };
+
+    tickCloud(graph as never);
+    tickCloud(graph as never);
+    expect(cloudMocks.moveCloud).toHaveBeenCalledTimes(2);
+    expect(cloudMocks.moveCloud).toHaveBeenLastCalledWith(cloud);
+    expect(cloudMocks.restCloud).not.toHaveBeenCalled();
+
+    stopCloud(graph as never);
+    expect(cloudMocks.restCloud).toHaveBeenCalledOnce();
+    expect(cloudMocks.restCloud).toHaveBeenCalledWith(cloud);
+  });
+
   it("pauses only after the engine stops and the idle delay expires", () => {
     const run = setup();
 

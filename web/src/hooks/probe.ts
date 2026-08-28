@@ -1,6 +1,6 @@
 import type { CloudPick } from "../lib/cloud";
 import type { PickOrder } from "../lib/order";
-import type { CloudSwarm } from "../lib/swarm";
+import { CLOUD_REST_MS, type CloudSwarm } from "../lib/swarm";
 
 export type PointTip = { depth: number; label: string; x: number; y: number };
 
@@ -48,6 +48,7 @@ export type PointMatch = {
 
 type PointHit<Event extends MouseEvent | PointerEvent> = (
   event: Event,
+  pointer?: string,
 ) => Promise<PointMatch>;
 
 type PointLoad = (index: number) => Promise<CloudPick | null>;
@@ -58,10 +59,12 @@ type ClickInput = {
   hit: PointHit<MouseEvent>;
   load: PointLoad;
   order: PickOrder;
+  pointer?: string;
   refs: PointRefs;
   setTip: (tip: PointTip | null) => void;
   start: { x: number; y: number };
   token: number;
+  tries?: number;
 };
 
 type ShowInput = {
@@ -91,7 +94,6 @@ export function pickBound(
   if (
     !claim ||
     claim.committed ||
-    ("isPrimary" in event && !event.isPrimary) ||
     event.button !== 0 ||
     !paper ||
     Math.hypot(event.clientX - claim.x, event.clientY - claim.y) > 5
@@ -263,6 +265,15 @@ function claimPoint(args: ClickInput, match: PointMatch): void {
 
 export function choosePoint(args: ClickInput): void {
   const { canvas, event, hit, refs, token } = args;
+  if (refs.points.current?.userData?.moving) {
+    const tries = args.tries ?? 0;
+    if (tries >= 4) return;
+    window.setTimeout(() => {
+      if (token !== refs.select.current || isHidden(refs)) return;
+      choosePoint({ ...args, tries: tries + 1 });
+    }, CLOUD_REST_MS + 20);
+    return;
+  }
   const cached = refs.target.current;
   if (reuseHit(cached, event)) {
     const rect = canvas.getBoundingClientRect();
@@ -275,7 +286,7 @@ export function choosePoint(args: ClickInput): void {
     });
     return;
   }
-  void hit(event)
+  void hit(event, args.pointer)
     .then((match) => claimPoint(args, match))
     .catch(() => {
       if (token === refs.select.current) refs.claim.current = null;

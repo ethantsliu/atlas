@@ -1127,9 +1127,11 @@ test("context loss falls back to 2D", async ({ page }) => {
     await expect(page.getByLabel("Interactive research graph")).toContainText(
       "2D overview · semantic frame",
     );
-    await expect(page.locator(".graph-status")).toContainText(
-      "3D stopped; using the 2D fallback.",
-    );
+    await expect(
+      page.locator(".graph-status").filter({
+        hasText: "3D stopped; using the 2D fallback.",
+      }),
+    ).toBeVisible();
     await page.getByRole("button", { name: "Retry 3D" }).click();
     const rebuilt = page.getByLabel("Interactive 3D research graph");
     await expect(rebuilt.locator("canvas:not(.cloud-plane)")).toBeVisible();

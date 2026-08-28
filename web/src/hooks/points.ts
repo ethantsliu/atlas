@@ -56,7 +56,7 @@ export type PointApi = Pick<GraphApi, "camera" | "renderer" | "scene"> & {
 };
 
 export type PointRef = { current: PointApi | undefined };
-type Down = { x: number; y: number };
+type Down = { pointer?: string; x: number; y: number };
 
 function dropPoints(
   graph: PointApi,
@@ -86,6 +86,7 @@ async function gpuHit(
   picker: ReturnType<typeof makeGpuPick>,
   event: PointerEvent | MouseEvent,
   depth?: PointInput["depth"],
+  pointer?: string,
 ) {
   const rect = canvas.getBoundingClientRect();
   const camera = graph.camera() as Camera;
@@ -94,7 +95,7 @@ async function gpuHit(
     event.clientX,
     event.clientY,
     rect,
-    pickSize("pointerType" in event ? event.pointerType : undefined),
+    pickSize(pointer ?? ("pointerType" in event ? event.pointerType : undefined)),
   );
   return {
     distance:
@@ -257,8 +258,8 @@ function mountPoints(
   const picker = makeGpuPick(renderer, points, data.positions);
   const controller = new AbortController();
   const cache = new Map<string, Promise<CloudPaper[]>>();
-  const hit = (event: PointerEvent | MouseEvent) =>
-    gpuHit(canvas, graph, picker, event, input.depth);
+  const hit = (event: PointerEvent | MouseEvent, pointer?: string) =>
+    gpuHit(canvas, graph, picker, event, input.depth, pointer);
   const load = (index: number) => loadPaper(data, cache, controller.signal, index);
   let timer: ReturnType<typeof setTimeout> | undefined;
   let moved: PointerEvent | null = null;
@@ -305,13 +306,10 @@ function mountPoints(
   };
   const leave = () => {
     down = null;
-    released = null;
     pressed = false;
     clear();
   };
   const change = () => {
-    down = null;
-    released = null;
     refs.claim.current = null;
     refs.select.current += 1;
     clear();
@@ -328,7 +326,11 @@ function mountPoints(
       pressed = false;
       return;
     }
-    down = { x: event.clientX, y: event.clientY };
+    down = {
+      pointer: event.pointerType,
+      x: event.clientX,
+      y: event.clientY,
+    };
     pressed = true;
   };
   const release = (event: MouseEvent | PointerEvent) => {
@@ -357,6 +359,7 @@ function mountPoints(
       hit,
       load,
       order: input.order,
+      pointer: start.pointer,
       refs,
       setTip,
       start,

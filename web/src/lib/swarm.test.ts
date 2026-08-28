@@ -10,6 +10,7 @@ import {
   lodIds,
   markSwarm,
   moveCloud,
+  motionTone,
   restCloud,
   swarmNode,
 } from "./swarm";
@@ -47,6 +48,14 @@ describe("paper swarm", () => {
     expect(cloudLod(3_150_000)).toBe(100_000);
     expect([...lodIds(10, 4)]).toEqual([1, 3, 6, 8]);
     expect([...lodIds(10, 4)]).toEqual([...lodIds(10, 4)]);
+  });
+
+  it("caps motion-only density compensation", () => {
+    expect(motionTone(80_000)).toEqual({ opacity: 0.96, size: 4.8 });
+    expect(motionTone(3_151_000).size).toBeCloseTo(2.64);
+    expect(motionTone(3_151_000).opacity).toBeCloseTo(0.495);
+    expect(motionTone(3_151_000).size / cloudSize(3_151_000)).toBeLessThanOrEqual(2.2);
+    expect(motionTone(3_151_000).opacity).toBeLessThanOrEqual(0.72);
   });
 
   it("batches positioned papers and marks active points", () => {
@@ -87,6 +96,8 @@ describe("paper swarm", () => {
     moveCloud(cloud);
     expect(cloud.userData.moving).toBe(true);
     expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.coarse);
+    expect(cloud.material.uniforms.pointSize.value).toBe(4.8);
+    expect(cloud.material.uniforms.pointOpacity.value).toBe(0.96);
     restCloud(cloud);
     expect(cloud.userData.moving).toBe(false);
     expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.full);
@@ -162,10 +173,14 @@ describe("paper swarm", () => {
       moveCloud(cloud);
       expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.coarse);
       expect(cloud.geometry.drawRange.count).toBe(100_000);
+      expect(cloud.material.uniforms.pointSize.value).toBeCloseTo(2.64);
+      expect(cloud.material.uniforms.pointOpacity.value).toBeCloseTo(0.495);
 
       restCloud(cloud);
       expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.full);
       expect(cloud.geometry.drawRange.count).toBe(count);
+      expect(cloud.material.uniforms.pointSize.value).toBe(1.2);
+      expect(cloud.material.uniforms.pointOpacity.value).toBe(0.3);
     } finally {
       dropCloud(cloud);
       cloud.geometry.dispose();

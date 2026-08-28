@@ -31,12 +31,29 @@ import type { GraphData, GraphLink, GraphNode } from "../../types";
 import type { CloudData, CloudPick } from "../../lib/cloud";
 import type { CloudMark } from "../../lib/focus";
 import { nodeDepth, usePoints, type PointTip } from "../../hooks/points";
-import type { GraphRef } from "./Driver";
+import type { GraphApi, GraphRef } from "./Driver";
 import { pickFront } from "./Front";
 import { RouteMark } from "./Route";
 import { frontRank, makeOrder } from "../../lib/order";
+import { moveCloud, restCloud, type CloudSwarm } from "../../lib/swarm";
 
 export const FRAME_IDLE_WAIT = 240;
+
+type CloudGraph = Pick<GraphApi, "scene">;
+
+function sceneCloud(graph: CloudGraph | undefined): CloudSwarm | null {
+  return (graph?.scene().getObjectByName("archive-cloud") as CloudSwarm) ?? null;
+}
+
+export function tickCloud(graph: CloudGraph | undefined): void {
+  const cloud = sceneCloud(graph);
+  if (cloud) moveCloud(cloud);
+}
+
+export function stopCloud(graph: CloudGraph | undefined): void {
+  const cloud = sceneCloud(graph);
+  if (cloud) restCloud(cloud);
+}
 
 type FrameControl = {
   addEventListener?: (type: string, listener: () => void) => void;
@@ -400,11 +417,13 @@ export function GraphSpace({
         enableNodeDrag={false}
         onEngineTick={() => {
           engineReadyRef.current = true;
+          tickCloud(graphRef.current);
           frameRef.current?.engineTick();
         }}
-        onEngineStop={() =>
-          stopFrames(frameRef, graphRef, camera, fitRef, showView, coreIds)
-        }
+        onEngineStop={() => {
+          stopCloud(graphRef.current);
+          stopFrames(frameRef, graphRef, camera, fitRef, showView, coreIds);
+        }}
         onNodeClick={(node) => {
           order.claim(3, nodeDepth(graphRef.current, node), () =>
             pickFront(cloudHit, cloudOpenRef, onChoose, node),

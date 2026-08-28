@@ -145,6 +145,7 @@ function showCloud(points: CloudSwarm, coarse: boolean): void {
     points.geometry.setAttribute("position", position);
   }
   points.geometry.setDrawRange(0, coarse ? store.coarseLoaded : store.loaded);
+  setTone(points, coarse);
 }
 
 export function moveCloud(points: CloudSwarm, after?: () => void): void {
@@ -236,6 +237,32 @@ export function cloudOpacity(count: number): number {
   if (count >= 250_000) return 0.6;
   if (count >= 100_000) return 0.78;
   return 0.96;
+}
+
+export type CloudTone = { opacity: number; size: number };
+
+export function cloudTone(count: number): CloudTone {
+  return { opacity: cloudOpacity(count), size: cloudSize(count) };
+}
+
+export function motionTone(count: number): CloudTone {
+  const base = cloudTone(count);
+  const sample = Math.max(1, cloudLod(count));
+  const density = Math.max(1, count / sample);
+  const sizeScale = Math.min(2.2, density ** 0.25);
+  const alphaScale = Math.min(1.65, density ** 0.15);
+  return {
+    opacity: Math.min(Math.max(base.opacity, 0.72), base.opacity * alphaScale),
+    size: Math.min(Math.max(base.size, 3.4), base.size * sizeScale),
+  };
+}
+
+function setTone(points: CloudSwarm, moving: boolean): void {
+  const tone = moving
+    ? motionTone(points.userData.data.scopes.length)
+    : cloudTone(points.userData.data.scopes.length);
+  points.material.uniforms.pointOpacity.value = tone.opacity;
+  points.material.uniforms.pointSize.value = tone.size;
 }
 
 export function swarmNodes(nodes: GraphNode[]): GraphNode[] {

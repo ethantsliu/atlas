@@ -74,6 +74,22 @@ class ArchiveTests(unittest.TestCase):
         self.assertEqual(possible["scope"], "possible")
         self.assertEqual(outside["scope"], "outside")
 
+    def test_cross_list(self) -> None:
+        ranked = scope_paper(
+            paper(
+                "2001.00004",
+                categories=["physics.optics", "cs.LG"],
+                primary_category="physics.optics",
+            ),
+            RULES,
+        )
+
+        self.assertEqual(ranked["scope"], "likely")
+        self.assertTrue(ranked["relevance"]["relevant"])
+        self.assertEqual(ranked["relevance"]["lane"], "core")
+        self.assertEqual(ranked["categories"], ["physics.optics", "cs.LG"])
+        self.assertEqual(ranked["primary_category"], "physics.optics")
+
     def test_month_complete(self) -> None:
         payload = build_month(
             date(2020, 1, 2),
