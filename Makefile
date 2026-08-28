@@ -1,7 +1,7 @@
 PYTHON ?= python3
 NPM ?= npm
 
-.PHONY: enrich feed rescore promote archive archive-check anchors cloud data layout refresh-data generated-freshness db-migrate db-sync db-dry python-check test web-build web-budget web-e2e format-check validate check
+.PHONY: enrich feed rescore promote archive archive-check anchors cloud data layout refresh-data generated-freshness db-migrate db-sync db-dry python-check test web-build web-budget web-e2e format-check validate check-base check
 
 enrich:
 	$(PYTHON) pipeline/arxiv.py --resume --max-batches 0
@@ -79,11 +79,13 @@ format-check:
 validate:
 	$(PYTHON) pipeline/validate.py
 
-check: generated-freshness
+check-base: generated-freshness
 	$(MAKE) python-check
 	$(MAKE) test
 	$(MAKE) web-build
 	$(MAKE) web-budget
-	$(MAKE) web-e2e
 	$(MAKE) format-check
 	$(MAKE) validate
+
+check: check-base
+	$(MAKE) web-e2e

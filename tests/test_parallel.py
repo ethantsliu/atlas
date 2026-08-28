@@ -99,7 +99,6 @@ class ParallelTests(unittest.TestCase):
             "fail-fast: false",
             "contents: read",
             "contents: write",
-            "actions: write",
             "cloud-all only accepts the corpus-v2 release",
             "cloud-ready.json",
             "DISPATCH_INDEX",
@@ -137,7 +136,7 @@ class ParallelTests(unittest.TestCase):
             "git fetch origin main",
             'if [ "$remote_sha" != "$base_sha" ]',
             "restart cloud-all",
-            '-f expected_sha="${{ steps.publish.outputs.sha }}"',
+            "actions: write",
         ):
             self.assertIn(required, workflow)
         self.assertLess(
@@ -155,7 +154,12 @@ class ParallelTests(unittest.TestCase):
         self.assertIn("gh release view corpus-v2", serial)
         self.assertNotIn("--allow-shrink", workflow)
         self.assertNotIn("git pull --rebase", workflow)
-        self.assertEqual(workflow.count("gh workflow run deploy.yml"), 1)
+        self.assertNotIn("gh workflow run deploy.yml", workflow)
+        self.assertEqual(workflow.count("gh workflow run check.yml"), 1)
+        self.assertLess(
+            workflow.index("git push origin HEAD:main"),
+            workflow.index("gh workflow run check.yml"),
+        )
         self.assertNotIn("repository_dispatch:", serial)
         self.assertNotIn("workflow_run:", serial)
         self.assertNotIn("schedule:", serial)

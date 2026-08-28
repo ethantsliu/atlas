@@ -1,52 +1,60 @@
 name: deploy
 
 on:
-  push:
+  workflow_run:
+    workflows: ["check"]
+    types: [completed]
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      expected_sha:
-        description: "Exact release commit requested by a publisher"
-        required: false
-        type: string
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
 
 jobs:
   build:
-    if: github.event_name == 'workflow_dispatch' || vars.ATLAS_DEPLOY == 'true'
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      (github.event.workflow_run.event == 'push' ||
+      github.event.workflow_run.event == 'workflow_dispatch') &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      vars.ATLAS_DEPLOY == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: release
+      cancel-in-progress: true
+    permissions:
+      contents: read
+    outputs:
+      certified_sha: ${{ steps.bind.outputs.sha }}
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.expected_sha || github.sha }}
-      - name: Bind requested release commit
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 1
+      - id: bind
+        name: Bind successful check and reject stale main
         env:
-          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          CERTIFIED_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
+          set -euo pipefail
+          [[ "$CERTIFIED_SHA" =~ ^[0-9a-f]{40}$ ]]
           checked_sha=$(git rev-parse HEAD)
-          if [ -n "$EXPECTED_SHA" ] && [ "$checked_sha" != "$EXPECTED_SHA" ]; then
-            echo "Requested release $EXPECTED_SHA, but checkout resolved $checked_sha" >&2
-            exit 1
-          fi
+          remote=$(git ls-remote --exit-code origin refs/heads/main)
+          current_sha=$(printf '%s\n' "$remote" | awk '$2 == "refs/heads/main" { print $1 }')
+          [[ "$current_sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$checked_sha" = "$CERTIFIED_SHA"
+          test "$current_sha" = "$CERTIFIED_SHA"
+          echo "sha=$CERTIFIED_SHA" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: "22"
           cache: npm
           cache-dependency-path: web/package-lock.json
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
-      - id: pages
-        uses: actions/configure-pages@v5
       - name: Select base path
         env:
           CUSTOM_BASE: ${{ vars.ATLAS_BASE_PATH }}
@@ -56,18 +64,24 @@ jobs:
           else
             echo "ATLAS_BASE_PATH=/${GITHUB_REPOSITORY#*/}/" >> "$GITHUB_ENV"
           fi
-      - name: Install release checks
+      - name: Install release build dependencies
         run: |
-          python -m pip install -r dev.txt
-          npm --prefix web ci
-          npx --prefix web playwright install --with-deps chromium firefox webkit
-      - name: Verify exact release commit
-        run: |
-          python pipeline/cloudpub.py
-          make check PYTHON=python NPM=npm
+          python -m pip install -r requirements.txt
+          npm ci --prefix web
+      - name: Build certified release
         env:
           VITE_ATLAS_API_URL: ${{ vars.ATLAS_API_URL }}
           VITE_ATLAS_KEY: ${{ vars.ATLAS_KEY }}
+        run: |
+          python pipeline/cloudpub.py
+          npm --prefix web run build
+      - name: Reject stale corpus sync
+        env:
+          CERTIFIED_SHA: ${{ steps.bind.outputs.sha }}
+        run: |
+          set -euo pipefail
+          current_sha=$(git ls-remote --exit-code origin refs/heads/main | awk '$2 == "refs/heads/main" { print $1 }')
+          test "$current_sha" = "$CERTIFIED_SHA"
       - name: Sync hosted corpus
         env:
           ATLAS_DATABASE_URL: ${{ secrets.ATLAS_DATABASE_URL }}
@@ -82,14 +96,33 @@ jobs:
           path: web/dist
 
   publish:
-    if: github.event_name == 'workflow_dispatch' || vars.ATLAS_DEPLOY == 'true'
     runs-on: ubuntu-latest
     needs: build
+    timeout-minutes: 15
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.build.outputs.certified_sha }}
+          fetch-depth: 1
+      - uses: actions/configure-pages@v5
+      - name: Reject a release made stale during build
+        env:
+          CERTIFIED_SHA: ${{ needs.build.outputs.certified_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$CERTIFIED_SHA"
+          current_sha=$(git ls-remote --exit-code origin refs/heads/main | awk '$2 == "refs/heads/main" { print $1 }')
+          test "$current_sha" = "$CERTIFIED_SHA"
       - name: Deploy public atlas
         id: deployment
         uses: actions/deploy-pages@v4

@@ -224,6 +224,7 @@ class CloudTests(unittest.TestCase):
             "tag=corpus-v1",
             "workflow_dispatch:",
             "if: vars.ATLAS_LEGACY == 'true'",
+            "actions: write",
             "gh release view corpus-v2",
             "corpus-v2 owns the published cloud",
             "(-[0-9a-f]{16})?",
@@ -235,7 +236,6 @@ class CloudTests(unittest.TestCase):
             "git fetch origin main",
             'if [ "$remote_sha" != "$base_sha" ]',
             "git push origin HEAD:main",
-            '-f expected_sha="${{ steps.publish.outputs.sha }}"',
             "points.sha256",
             "meta.sha256",
             "routes.sha256",
@@ -246,7 +246,12 @@ class CloudTests(unittest.TestCase):
         for forbidden in ("repository_dispatch:", "workflow_run:", "schedule:"):
             self.assertNotIn(forbidden, workflow)
         self.assertNotIn("git pull --rebase", workflow)
-        self.assertEqual(workflow.count("gh workflow run deploy.yml"), 1)
+        self.assertNotIn("gh workflow run deploy.yml", workflow)
+        self.assertEqual(workflow.count("gh workflow run check.yml"), 1)
+        self.assertLess(
+            workflow.index("git push origin HEAD:main"),
+            workflow.index("gh workflow run check.yml"),
+        )
         self.assertLess(
             workflow.index("python pipeline/cloud.py --check"),
             workflow.index("git add web/public/data/cloud"),

@@ -2,14 +2,22 @@ name: check
 
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: check-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  test:
+  quality:
+    name: quality
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -23,6 +31,75 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: python -m pip install -r dev.txt
       - run: npm ci --prefix web
-      - run: npx --prefix web playwright install --with-deps chromium firefox webkit
-      - name: Verify committed artifacts and test
-        run: make check PYTHON=python NPM=npm
+      - name: Verify data, code, units, build, budgets, and format
+        run: make check-base PYTHON=python NPM=npm
+
+  e2e:
+    name: e2e · ${{ matrix.target.project }} · ${{ matrix.group.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 15
+      matrix:
+        target:
+          - project: chrome
+            engine: chromium
+          - project: firefox
+            engine: firefox
+          - project: safari
+            engine: webkit
+          - project: android
+            engine: chromium
+          - project: iphone
+            engine: webkit
+        group:
+          - name: atlas
+            specs: e2e/atlas.spec.ts
+          - name: core
+            specs: e2e/core.spec.ts
+          - name: ui
+            specs: >-
+              e2e/camera.spec.ts e2e/dual.spec.ts e2e/focus.spec.ts
+              e2e/lazy.spec.ts e2e/mode.spec.ts
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci --prefix web
+      - name: Install ${{ matrix.target.engine }}
+        working-directory: web
+        run: npx playwright install --with-deps ${{ matrix.target.engine }}
+      - name: Run ${{ matrix.target.project }} · ${{ matrix.group.name }}
+        working-directory: web
+        env:
+          CI: "true"
+        run: >-
+          npx playwright test ${{ matrix.group.specs }}
+          --project=${{ matrix.target.project }} --workers=1
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: traces-${{ matrix.target.project }}-${{ matrix.group.name }}
+          path: web/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  test:
+    name: test
+    if: always()
+    needs: [quality, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require every check shard
+        env:
+          QUALITY: ${{ needs.quality.result }}
+          E2E: ${{ needs.e2e.result }}
+        run: |
+          test "$QUALITY" = success
+          test "$E2E" = success

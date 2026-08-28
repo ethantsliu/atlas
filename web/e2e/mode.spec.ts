@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const desktop = new Set(["chrome", "safari"]);
 const touch = new Set(["android", "iphone"]);
@@ -57,6 +57,27 @@ async function completeCloud(page: Page) {
       .locator(".map-layout > p.sr-only[role=status]")
       .filter({ hasText: /visible graph nodes/ }),
   ).toHaveText(expected, { timeout: 30_000 });
+}
+
+async function centerPixel(canvas: Locator) {
+  return canvas.evaluate(async (element: HTMLCanvasElement) => {
+    const context = element.getContext("2d");
+    if (!context) return [];
+    const read = () =>
+      Array.from(
+        context.getImageData(
+          Math.floor(element.width / 2),
+          Math.floor(element.height / 2),
+          1,
+          1,
+        ).data,
+      );
+    const first = read();
+    await new Promise<void>((done) => requestAnimationFrame(() => done()));
+    await new Promise<void>((done) => requestAnimationFrame(() => done()));
+    const second = read();
+    return first.every((value, index) => value === second[index]) ? second : [];
+  });
 }
 
 test("3D code and cloud stay lazy until opt-in while foreground state survives", async ({
@@ -143,16 +164,15 @@ test("explicit 2D supports a centered touch selection", async ({ page }, testInf
   await page.goto("/#?d=2&k=t&s=topic%3Apre-training&x=topic%3Apre-training");
   const graph = await overview(page);
   await expect(heading(page)).toBeVisible();
-  await page.waitForTimeout(2_500);
   await page.getByRole("button", { name: "Center selected" }).click();
   await page.getByRole("button", { name: "Close inspector" }).click();
   await expect(heading(page)).toHaveCount(0);
 
   const canvas = graph.locator("canvas");
-  await canvas.scrollIntoViewIfNeeded();
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error("2D canvas has no bounds");
-  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+  await expect
+    .poll(() => centerPixel(canvas), { timeout: 20_000 })
+    .toEqual([118, 91, 145, 255]);
+  await canvas.tap();
   await expect(heading(page)).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
