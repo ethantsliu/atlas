@@ -15,6 +15,13 @@ function sortNodes(nodes: GraphNode[]): GraphNode[] {
   return [...nodes].sort((left, right) => left.label.localeCompare(right.label));
 }
 
+function matchRank(node: GraphNode, term: string): number {
+  const label = node.label.toLocaleLowerCase();
+  if (label === term) return 0;
+  if (label.startsWith(term)) return 1;
+  return 2;
+}
+
 function matchNodes(nodes: GraphNode[], query: string): GraphNode[] {
   const term = query.trim().toLocaleLowerCase();
   if (!term) return nodes.slice(0, RESULT_MAX);
@@ -22,6 +29,7 @@ function matchNodes(nodes: GraphNode[], query: string): GraphNode[] {
     .filter((node) =>
       `${labelOf(node.kind)} ${node.label}`.toLocaleLowerCase().includes(term),
     )
+    .sort((left, right) => matchRank(left, term) - matchRank(right, term))
     .slice(0, RESULT_MAX);
 }
 
