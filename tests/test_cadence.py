@@ -25,7 +25,15 @@ class SweepPolicyTests(unittest.TestCase):
 
     def test_history_stage(self) -> None:
         self.assertIn("2019", self.sweep)
-        self.assertIn("2026", self.sweep)
+        self.assertIn(
+            "through_year: ${{ steps.range.outputs.through_year }}", self.sweep
+        )
+        self.assertIn(
+            '--end-year "${{ steps.range.outputs.through_year }}"', self.sweep
+        )
+        self.assertIn('--end-year "$THROUGH_YEAR"', self.sweep)
+        self.assertNotIn("--end-year 2026", self.sweep)
+        self.assertNotIn("coverage_through_year:2026", self.sweep)
         self.assertIn("actions/upload-artifact@v4", self.sweep)
         self.assertRegex(self.sweep, r"retention-days:\s*[1-9][0-9]*")
 

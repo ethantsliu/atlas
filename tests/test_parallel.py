@@ -116,7 +116,7 @@ class ParallelTests(unittest.TestCase):
             'echo "base=$(git rev-parse HEAD)"',
             "ref: ${{ needs.plan.outputs.base }}",
             ".snapshot_complete == true",
-            '(.history_complete | type == "boolean")',
+            ".history_complete == true",
             ".coverage_through_year",
             ".coverage_through_day",
             '(has("coverage_through_day") | not)',
@@ -218,6 +218,7 @@ class ParallelTests(unittest.TestCase):
 
         self.assertTrue(accepted({}))
         self.assertTrue(accepted({"coverage_through_day": "2026-08-28"}))
+        self.assertFalse(accepted({"history_complete": False}))
         self.assertFalse(accepted({"coverage_through_day": None}))
         self.assertFalse(accepted({"coverage_through_day": "2026-02-31"}))
         self.assertFalse(accepted({"coverage_through_day": "2025-08-28"}))
