@@ -70,11 +70,13 @@ jobs:
           npm ci --prefix web
       - name: Build certified release
         env:
+          CERTIFIED_SHA: ${{ steps.bind.outputs.sha }}
           VITE_ATLAS_API_URL: ${{ vars.ATLAS_API_URL }}
           VITE_ATLAS_KEY: ${{ vars.ATLAS_KEY }}
         run: |
           python pipeline/cloudpub.py
           npm --prefix web run build
+          printf '{"schema_version":1,"sha":"%s"}\n' "$CERTIFIED_SHA" > web/dist/release.json
       - name: Reject stale corpus sync
         env:
           CERTIFIED_SHA: ${{ steps.bind.outputs.sha }}
@@ -128,7 +130,8 @@ jobs:
         uses: actions/deploy-pages@v4
       - name: Probe anonymous release
         env:
+          CERTIFIED_SHA: ${{ needs.build.outputs.certified_sha }}
           PAGE_URL: ${{ steps.deployment.outputs.page_url }}
         run: |
           site_url="${PAGE_URL/#http:/https:}"
-          python3 pipeline/probe.py --base-url "$site_url" --attempts 5 --delay 5
+          python3 pipeline/probe.py --base-url "$site_url" --attempts 5 --delay 5 --expected-sha "$CERTIFIED_SHA"

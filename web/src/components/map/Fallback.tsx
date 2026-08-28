@@ -31,6 +31,10 @@ function nodeSize(node: GraphNode): number {
   return Math.max(3.2, Math.sqrt(node.val) * 2.4);
 }
 
+export function pickRadius(value: number, scale: number): number {
+  return Math.max(8 / Math.max(scale, Number.EPSILON), Math.sqrt(value) * 3);
+}
+
 function drawNode(node: GraphNode, context: CanvasRenderingContext2D, size: number) {
   const x = node.x!;
   const y = node.y!;
@@ -121,16 +125,10 @@ export function FallbackGraph({
           context.stroke();
         }
       }}
-      nodePointerAreaPaint={(node, color, context) => {
+      nodePointerAreaPaint={(node, color, context, scale) => {
         context.fillStyle = color;
         context.beginPath();
-        context.arc(
-          node.x!,
-          node.y!,
-          Math.max(8, Math.sqrt(node.val) * 3),
-          0,
-          2 * Math.PI,
-        );
+        context.arc(node.x!, node.y!, pickRadius(node.val, scale), 0, 2 * Math.PI);
         context.fill();
       }}
       onNodeClick={onChoose}

@@ -171,10 +171,18 @@ jobs:
           else
             echo "promote=false" >> "$GITHUB_OUTPUT"
           fi
+          history_complete=$(jq -r '.history.complete' "$CORPUS_ROOT/cursor.json")
+          if [ "$history_complete" != "true" ] && [ "$history_complete" != "false" ]; then
+            echo "Corpus cursor has an invalid history completion state." >&2
+            exit 1
+          fi
+          echo "history_complete=$history_complete" >> "$GITHUB_OUTPUT"
 
       - name: Prepare atomic promotion
         id: prep
-        if: steps.merge.outputs.promote == 'true'
+        if: >-
+          steps.merge.outputs.promote == 'true' &&
+          steps.merge.outputs.history_complete == 'true'
         run: |
           args=(
             --archive "$CORPUS_ARCHIVE"
@@ -209,7 +217,9 @@ jobs:
           fi
 
       - name: Validate promoted corpus
-        if: steps.merge.outputs.promote == 'true'
+        if: >-
+          steps.merge.outputs.promote == 'true' &&
+          steps.merge.outputs.history_complete == 'true'
         run: |
           python -m unittest tests.test_merge tests.test_corpus -v
           python - <<'PY'
@@ -225,7 +235,10 @@ jobs:
           PY
 
       - name: Publish promoted shards
-        if: steps.merge.outputs.promote == 'true' && steps.prep.outputs.ready == 'true'
+        if: >-
+          steps.merge.outputs.promote == 'true' &&
+          steps.merge.outputs.history_complete == 'true' &&
+          steps.prep.outputs.ready == 'true'
         run: |
           gh release view "$PROMOTED_TAG" >/dev/null 2>&1 || \
             gh release create "$PROMOTED_TAG" \
@@ -320,7 +333,10 @@ jobs:
 
       - name: Verify promoted release
         id: verify_promo
-        if: steps.merge.outputs.promote == 'true' && steps.prep.outputs.ready == 'true'
+        if: >-
+          steps.merge.outputs.promote == 'true' &&
+          steps.merge.outputs.history_complete == 'true' &&
+          steps.prep.outputs.ready == 'true'
         run: |
           verify="$RUNNER_TEMP/corpus-verify"
           mkdir -p "$verify"
@@ -372,7 +388,10 @@ jobs:
           done
 
       - name: Dispatch validated promotion
-        if: steps.merge.outputs.promote == 'true' && steps.prep.outputs.ready == 'true'
+        if: >-
+          steps.merge.outputs.promote == 'true' &&
+          steps.merge.outputs.history_complete == 'true' &&
+          steps.prep.outputs.ready == 'true'
         run: |
           index_sha=$(jq -r '.index_sha256' "$PROMO_ROOT/plan.json")
           ready_sha=$(sha256sum "$PROMO_ROOT/cloud-ready.json" | awk '{print $1}')
@@ -547,7 +566,10 @@ jobs:
           steps.package.outcome == 'success' &&
           steps.checkpoint_release.outcome == 'success' &&
           (steps.merge.outputs.promote == 'false' ||
-            (steps.prep.outcome == 'success' &&
+            (steps.merge.outputs.history_complete == 'false' &&
+             steps.acknowledge.outcome == 'success') ||
+            (steps.merge.outputs.history_complete == 'true' &&
+             steps.prep.outcome == 'success' &&
              steps.acknowledge.outcome == 'success'))
         env:
           CHAIN_PAGES: "5000"

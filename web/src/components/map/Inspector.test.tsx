@@ -41,6 +41,33 @@ describe("Inspector", () => {
     );
   });
 
+  it("keeps the global unisolate action for the currently inspected node", () => {
+    const atlas = makeAtlas();
+    const node = createGraphNodes(atlas, 1)[0];
+    const html = renderToStaticMarkup(
+      <Inspector
+        node={node}
+        cloud={null}
+        hasNodes
+        atlas={atlas}
+        focused
+        cloudFocused={false}
+        cloudReady={false}
+        cloudLoading={false}
+        cloudError={null}
+        onFocus={vi.fn()}
+        onCloudFocus={vi.fn()}
+        onSelectNode={vi.fn()}
+        onClose={vi.fn()}
+        onOpenPaper={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("Unisolate connections");
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).not.toContain(">Isolate connections<");
+  });
+
   it("labels an automatic screening idea and exposes its caveat", () => {
     const atlas = makeAtlas();
     const idea = createGraphNodes(atlas, 1).find((node) => node.kind === "idea")!;

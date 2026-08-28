@@ -8,7 +8,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "pipeline"))
 
-from probe import Fetched, ProbeError, parse_base, probe_many, run_probe  # noqa: E402
+from probe import (  # noqa: E402
+    PAPER_LIMIT,
+    Fetched,
+    ProbeError,
+    parse_base,
+    probe_many,
+    run_probe,
+)
 
 
 def encoded(value: object) -> bytes:
@@ -30,6 +37,7 @@ class FakeFetch:
 
 def fixture() -> tuple[FakeFetch, dict]:
     base = "https://example.org/atlas/"
+    release_sha = "1" * 40
     reading = encoded({"stable_id": "arxiv:1", "reading_depth": "verified"})
     bundle = {
         "schema_version": 1,
@@ -86,6 +94,14 @@ def fixture() -> tuple[FakeFetch, dict]:
         ],
     }
     responses = {
+        base + "release.json": (
+            "application/json",
+            encoded({"schema_version": 1, "sha": release_sha}),
+        ),
+        base + f"release.json?sha={release_sha}": (
+            "application/json",
+            encoded({"schema_version": 1, "sha": release_sha}),
+        ),
         base: (
             "text/html",
             b'<div id="root"></div><script type="module" src="/atlas/assets/app.js"></script>',
@@ -113,6 +129,9 @@ def fixture() -> tuple[FakeFetch, dict]:
 
 
 class ProbeTests(unittest.TestCase):
+    def test_paper_limit(self) -> None:
+        self.assertEqual(PAPER_LIMIT, 10_000_000)
+
     def test_deploy_gate(self) -> None:
         workflow = (ROOT / ".github/workflows/deploy.yml").read_text(encoding="utf-8")
         self.assertIn("workflow_run:", workflow)
@@ -127,13 +146,17 @@ class ProbeTests(unittest.TestCase):
         self.assertNotIn("make check", workflow)
         bind = workflow.index("Bind successful check and reject stale main")
         cloud = workflow.index("python pipeline/cloudpub.py")
+        marker = workflow.index("web/dist/release.json")
         stale_sync = workflow.index("Reject stale corpus sync")
         sync = workflow.index("python pipeline/sync.py --corpus-only")
         upload = workflow.index("actions/upload-pages-artifact@v4")
         stale_publish = workflow.index("Reject a release made stale during build")
         deploy = workflow.index("actions/deploy-pages@v4")
         probe = workflow.index("python3 pipeline/probe.py")
+        self.assertIn('--expected-sha "$CERTIFIED_SHA"', workflow)
         self.assertLess(bind, cloud)
+        self.assertLess(cloud, marker)
+        self.assertLess(marker, stale_sync)
         self.assertLess(cloud, stale_sync)
         self.assertLess(stale_sync, sync)
         self.assertLess(sync, upload)
@@ -150,13 +173,33 @@ class ProbeTests(unittest.TestCase):
     def test_complete_release(self) -> None:
         fetcher, core = fixture()
         report = run_probe("https://example.org/atlas", fetcher)
+        self.assertEqual(report["release_sha"], "1" * 40)
         self.assertEqual(report["paper_asset"], core["paper_asset"]["path"])
         self.assertEqual(report["paper_count"], 1)
         self.assertTrue(report["reading"].endswith("aaa-bbb.json"))
         self.assertTrue(report["feed"].endswith("2026-08-24.json"))
         self.assertEqual(report["cloud_count"], 2)
         self.assertEqual(len(report["cloud_assets"]), 2)
-        self.assertEqual(len(fetcher.requests), 10)
+        self.assertEqual(len(fetcher.requests), 11)
+
+    def test_exact_release(self) -> None:
+        fetcher, _ = fixture()
+        report = run_probe("https://example.org/atlas", fetcher, "1" * 40)
+        self.assertEqual(report["release_sha"], "1" * 40)
+        self.assertEqual(
+            fetcher.requests[0],
+            "https://example.org/atlas/release.json?sha=" + "1" * 40,
+        )
+
+    def test_stale_release(self) -> None:
+        fetcher, _ = fixture()
+        url = "https://example.org/atlas/release.json?sha=" + "1" * 40
+        fetcher.responses[url] = (
+            "application/json",
+            encoded({"schema_version": 1, "sha": "2" * 40}),
+        )
+        with self.assertRaisesRegex(ProbeError, "certified SHA"):
+            run_probe("https://example.org/atlas", fetcher, "1" * 40)
 
     def test_bad_digest(self) -> None:
         fetcher, _ = fixture()
@@ -244,7 +287,7 @@ class ProbeTests(unittest.TestCase):
 
         report = probe_many("https://example.org/atlas/", 2, 0, flaky)
         self.assertEqual(report["paper_count"], 1)
-        self.assertEqual(calls, 11)
+        self.assertEqual(calls, 12)
 
     def test_local_base(self) -> None:
         self.assertEqual(

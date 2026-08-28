@@ -15,6 +15,7 @@ import { resolvePaper } from "../lib/filters";
 import { useCloud, type CloudLoad } from "../hooks/cloud";
 import { useFocus } from "../hooks/focus";
 import type { RenderMode } from "../hooks/webgl";
+import "../hit.css";
 
 type MapViewProps = {
   atlas: AtlasRead;
@@ -190,6 +191,10 @@ export function MapView({
     onPush({ focus: url.focus === nodeId ? null : nodeId });
   }
 
+  function togglePanel(nodeId: string) {
+    toggleFocus(url.focus ?? nodeId);
+  }
+
   function resetMap() {
     cloud.clear();
     onReplace(RESET_MAP);
@@ -250,12 +255,12 @@ export function MapView({
         cloud={cloud.pick?.paper ?? null}
         hasNodes={graph.nodes.length > 0}
         atlas={atlas}
-        focused={url.focus === selected?.id}
+        focused={Boolean(url.focus)}
         cloudFocused={cloud.focused}
         cloudReady={cloud.ready}
         cloudLoading={cloud.loading}
         cloudError={cloud.error}
-        onFocus={toggleFocus}
+        onFocus={togglePanel}
         onCloudFocus={cloud.toggle}
         onSelectNode={chooseNodeId}
         onClose={() => {

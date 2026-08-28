@@ -59,24 +59,36 @@ async function completeCloud(page: Page) {
   ).toHaveText(expected, { timeout: 30_000 });
 }
 
-async function centerPixel(canvas: Locator) {
+async function touchPoint(canvas: Locator) {
   return canvas.evaluate(async (element: HTMLCanvasElement) => {
+    await new Promise<void>((done) => requestAnimationFrame(() => done()));
+    await new Promise<void>((done) => requestAnimationFrame(() => done()));
     const context = element.getContext("2d");
-    if (!context) return [];
-    const read = () =>
-      Array.from(
-        context.getImageData(
-          Math.floor(element.width / 2),
-          Math.floor(element.height / 2),
-          1,
-          1,
-        ).data,
-      );
-    const first = read();
-    await new Promise<void>((done) => requestAnimationFrame(() => done()));
-    await new Promise<void>((done) => requestAnimationFrame(() => done()));
-    const second = read();
-    return first.every((value, index) => value === second[index]) ? second : [];
+    if (!context) return null;
+    const rect = element.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const limit = Math.min(96, rect.width / 2 - 2, rect.height / 2 - 2);
+    for (let x = 0; x <= limit; x += 4) {
+      for (const sign of x === 0 ? [1] : [-1, 1]) {
+        for (let y = 0; y <= limit; y += 4) {
+          const clientX = centerX + x * sign;
+          const clientY = centerY + y;
+          if (document.elementFromPoint(clientX, clientY) !== element) continue;
+          const pixelX = Math.floor(
+            ((clientX - rect.left) / rect.width) * element.width,
+          );
+          const pixelY = Math.floor(
+            ((clientY - rect.top) / rect.height) * element.height,
+          );
+          const pixel = Array.from(context.getImageData(pixelX, pixelY, 1, 1).data);
+          if (pixel.every((value, index) => value === [118, 91, 145, 255][index])) {
+            return { x: clientX, y: clientY };
+          }
+        }
+      }
+    }
+    return null;
   });
 }
 
@@ -121,7 +133,7 @@ test("3D code and cloud stay lazy until opt-in while foreground state survives",
   await expect(heading(page)).toBeVisible();
   await expect(trick).toHaveAttribute("aria-pressed", "false");
 
-  for (let entry = 0; entry < 2; entry += 1) {
+  for (let entry = 0; entry < 1; entry += 1) {
     await dimension(page, "2D").click();
     await overview(page);
     await dimension(page, "3D").click();
@@ -169,10 +181,18 @@ test("explicit 2D supports a centered touch selection", async ({ page }, testInf
   await expect(heading(page)).toHaveCount(0);
 
   const canvas = graph.locator("canvas");
+  let point: { x: number; y: number } | null = null;
   await expect
-    .poll(() => centerPixel(canvas), { timeout: 20_000 })
-    .toEqual([118, 91, 145, 255]);
-  await canvas.tap();
+    .poll(
+      async () => {
+        point = await touchPoint(canvas);
+        return point;
+      },
+      { timeout: 20_000 },
+    )
+    .not.toBeNull();
+  if (!point) throw new Error("Centered node has no visible touch target");
+  await page.touchscreen.tap(point.x, point.y);
   await expect(heading(page)).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });

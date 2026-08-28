@@ -124,6 +124,13 @@ export function hoverWait(count: number): number {
   return count <= CLOUD_HOVER_LIMIT ? HOVER_WAIT : DENSE_HOVER_WAIT;
 }
 
+export function hoverMoved(
+  hover: Pick<Hover, "x" | "y"> | null,
+  event: Pick<PointerEvent, "clientX" | "clientY">,
+): boolean {
+  return Boolean(hover && (event.clientX !== hover.x || event.clientY !== hover.y));
+}
+
 export function cacheMeta<T>(
   cache: Map<string, Promise<T>>,
   path: string,
@@ -407,7 +414,7 @@ function mountPoints(
     }
     setProbing(data.loaded > CLOUD_HOVER_LIMIT);
     const prior = refs.target.current ?? refs.hover.current;
-    if (prior && Math.hypot(event.clientX - prior.x, event.clientY - prior.y) > 10) {
+    if (hoverMoved(prior, event)) {
       clearHover(refs, setTip);
     }
     moved = event;

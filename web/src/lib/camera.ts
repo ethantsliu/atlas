@@ -156,6 +156,32 @@ export function show2d(
   graph.zoom(height / (2 * view.radius), duration);
 }
 
+export function pad2d(view: CameraView, height: number, pixels: number): CameraView {
+  if (height <= 0 || pixels <= 0) return view;
+  const shift = (pixels * 2 * view.radius) / height;
+  return {
+    ...view,
+    target: [view.target[0], view.target[1] - shift, view.target[2]],
+  };
+}
+
+export function pad3d(view: CameraView, height: number, pixels: number): CameraView {
+  if (height <= 0 || pixels <= 0) return view;
+  const yaw = (view.yaw * Math.PI) / 180;
+  const pitch = (view.pitch * Math.PI) / 180;
+  const shift = (pixels * 2 * view.radius) / height;
+  const up: CameraPoint = [
+    -Math.sin(yaw) * Math.sin(pitch),
+    Math.cos(pitch),
+    -Math.cos(yaw) * Math.sin(pitch),
+  ];
+  const [x, y, z] = view.target;
+  return {
+    ...view,
+    target: [x + shift * up[0], y + shift * up[1], z + shift * up[2]],
+  };
+}
+
 export function nodeCamera(view: CameraView, node: GraphNode): CameraView | null {
   if (![node.x, node.y, node.z ?? 0].every(Number.isFinite)) return null;
   return {

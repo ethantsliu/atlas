@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   formatCamera,
+  pad2d,
+  pad3d,
   parseCamera,
   read3d,
   show3d,
@@ -87,6 +89,51 @@ describe("camera links", () => {
     expect(
       formatCamera({ target: [0, 0, 0], radius: 8 - 1e-12, yaw: 0, pitch: 0 }),
     ).toBe("1_0_0_0_8_0_0");
+  });
+
+  it("reserves screen space above a centered 2D target", () => {
+    const view: CameraView = {
+      target: [10, 20, 0],
+      radius: 100,
+      yaw: 0,
+      pitch: 0,
+    };
+
+    expect(pad2d(view, 400, 40)).toEqual({
+      ...view,
+      target: [10, 0, 0],
+    });
+    expect(pad2d(view, 400, 0)).toBe(view);
+  });
+
+  it("reserves screen space along the 3D camera up vector", () => {
+    const view: CameraView = {
+      target: [10, 20, 30],
+      radius: 100,
+      yaw: 0,
+      pitch: 0,
+    };
+
+    expect(pad3d(view, 400, 40)).toEqual({
+      ...view,
+      target: [10, 40, 30],
+    });
+    expect(pad3d(view, 0, 40)).toBe(view);
+    expect(pad3d(view, 400, 0)).toBe(view);
+  });
+
+  it("rotates the 3D padding with the camera", () => {
+    const view: CameraView = {
+      target: [10, 20, 30],
+      radius: 100,
+      yaw: 90,
+      pitch: 30,
+    };
+    const padded = pad3d(view, 400, 40);
+
+    expect(padded.target[0]).toBeCloseTo(0);
+    expect(padded.target[1]).toBeCloseTo(20 + 10 * Math.sqrt(3));
+    expect(padded.target[2]).toBeCloseTo(30);
   });
 
   it("flies beyond the original target while preserving the orbit vector", () => {

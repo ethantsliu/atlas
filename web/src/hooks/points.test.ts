@@ -3,6 +3,7 @@ import {
   cacheMeta,
   clearHover,
   cloudFront,
+  hoverMoved,
   hoverWait,
   pickBound,
   pickSize,
@@ -26,6 +27,14 @@ describe("paper point input", () => {
   it("requires a stable dwell before probing a dense cloud", () => {
     expect(hoverWait(100_000)).toBe(120);
     expect(hoverWait(100_001)).toBe(700);
+  });
+
+  it("hides a stale dense-cloud label after meaningful pointer movement", () => {
+    const hover = { x: 20, y: 40 };
+
+    expect(hoverMoved(hover, { clientX: 20, clientY: 40 })).toBe(false);
+    expect(hoverMoved(hover, { clientX: 21, clientY: 40 })).toBe(true);
+    expect(hoverMoved(null, { clientX: 40, clientY: 40 })).toBe(false);
   });
 
   it("bounds metadata to four recently used shards", async () => {

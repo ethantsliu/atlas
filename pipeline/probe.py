@@ -18,7 +18,7 @@ from typing import Callable
 
 HTML_LIMIT = 2_000_000
 CORE_LIMIT = 2_000_000
-PAPER_LIMIT = 8_000_000
+PAPER_LIMIT = 10_000_000
 DETAIL_LIMIT = 8_000_000
 FEED_LIMIT = 20_000_000
 SCRIPT_LIMIT = 5_000_000
@@ -28,6 +28,7 @@ USER_AGENT = "atlas-probe/1.0"
 CLOUD_MAGIC = b"ATLASPT1"
 MONTH = re.compile(r"^\d{4}-(?:0[1-9]|1[0-2])$")
 DIGEST = re.compile(r"^[0-9a-f]{64}$")
+RELEASE_SHA = re.compile(r"^[0-9a-f]{40}$")
 
 
 class ProbeError(RuntimeError):
@@ -83,7 +84,13 @@ def parse_base(value: str) -> str:
     return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, path, "", ""))
 
 
-def scoped_url(base: str, target: str, *, data: bool = False) -> str:
+def scoped_url(
+    base: str,
+    target: str,
+    *,
+    data: bool = False,
+    query: bool = False,
+) -> str:
     """Resolve a same-deployment URL and reject path or origin escapes."""
     if not isinstance(target, str) or not target:
         raise ProbeError("Asset URL is missing")
@@ -96,7 +103,7 @@ def scoped_url(base: str, target: str, *, data: bool = False) -> str:
     if (
         parts.scheme != base_parts.scheme
         or parts.netloc != base_parts.netloc
-        or parts.query
+        or (parts.query and not query)
         or parts.fragment
         or not parts.path.startswith(base_parts.path)
     ):
@@ -123,13 +130,43 @@ def fetch_url(url: str, limit: int) -> Fetched:
     return result
 
 
-def get_asset(base: str, url: str, limit: int, fetcher: Fetcher) -> Fetched:
+def get_asset(
+    base: str,
+    url: str,
+    limit: int,
+    fetcher: Fetcher,
+    *,
+    query: bool = False,
+) -> Fetched:
     """Require a successful response that remains inside the deployment."""
     result = fetcher(url, limit)
-    final = scoped_url(base, result.url)
+    final = scoped_url(base, result.url, query=query)
     if final != result.url or not 200 <= result.status < 300:
         raise ProbeError(f"Asset request failed ({result.status}): {url}")
     return result
+
+
+def check_release(base: str, expected: str | None, fetcher: Fetcher) -> str:
+    """Verify the deployed release marker, cache-busted by its exact SHA."""
+    if expected is not None and RELEASE_SHA.fullmatch(expected) is None:
+        raise ProbeError("Expected release SHA is invalid")
+    marker_url = scoped_url(base, "/release.json", data=True)
+    if expected is not None:
+        marker_url = f"{marker_url}?sha={expected}"
+    marker = json_body(
+        get_asset(base, marker_url, 1_000, fetcher, query=expected is not None),
+        "Release marker",
+    )
+    if (
+        not isinstance(marker, dict)
+        or marker.get("schema_version") != 1
+        or not isinstance(marker.get("sha"), str)
+        or RELEASE_SHA.fullmatch(marker["sha"]) is None
+    ):
+        raise ProbeError("Release marker has an unsupported shape")
+    if expected is not None and marker["sha"] != expected:
+        raise ProbeError("Release marker does not match the certified SHA")
+    return marker["sha"]
 
 
 def json_body(result: Fetched, label: str) -> object:
@@ -317,9 +354,14 @@ def check_cloud(base: str, fetcher: Fetcher) -> tuple[dict, list[str]]:
     return cloud, [check_point(base, row, fetcher) for row in boundary]
 
 
-def run_probe(base: str, fetcher: Fetcher = fetch_url) -> dict:
+def run_probe(
+    base: str,
+    fetcher: Fetcher = fetch_url,
+    expected_sha: str | None = None,
+) -> dict:
     """Run every anonymous live-release check and return a compact report."""
     root = parse_base(base)
+    release_sha = check_release(root, expected_sha, fetcher)
     script = check_html(root, fetcher)
     core, bundle = check_core(root, fetcher)
     reading = check_reading(root, bundle, fetcher)
@@ -327,6 +369,7 @@ def run_probe(base: str, fetcher: Fetcher = fetch_url) -> dict:
     cloud, cloud_assets = check_cloud(root, fetcher)
     return {
         "site": root,
+        "release_sha": release_sha,
         "script": script,
         "paper_asset": core["paper_asset"]["path"],
         "paper_count": len(bundle["papers"]),
@@ -342,6 +385,7 @@ def probe_many(
     attempts: int,
     delay: float,
     fetcher: Fetcher = fetch_url,
+    expected_sha: str | None = None,
 ) -> dict:
     """Retry a live check briefly to tolerate deployment propagation."""
     if not 1 <= attempts <= 10 or not 0 <= delay <= 30:
@@ -349,7 +393,7 @@ def probe_many(
     last: ProbeError | None = None
     for attempt in range(attempts):
         try:
-            return run_probe(base, fetcher)
+            return run_probe(base, fetcher, expected_sha)
         except ProbeError as error:
             last = error
             if attempt + 1 < attempts:
@@ -363,9 +407,15 @@ def main() -> None:
     parser.add_argument("--base-url", required=True)
     parser.add_argument("--attempts", type=int, default=1)
     parser.add_argument("--delay", type=float, default=0)
+    parser.add_argument("--expected-sha")
     args = parser.parse_args()
     try:
-        report = probe_many(args.base_url, args.attempts, args.delay)
+        report = probe_many(
+            args.base_url,
+            args.attempts,
+            args.delay,
+            expected_sha=args.expected_sha,
+        )
     except ProbeError as error:
         raise SystemExit(f"Live atlas probe failed: {error}") from error
     print(json.dumps(report, sort_keys=True))
