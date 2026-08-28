@@ -11,6 +11,7 @@ type PendingEffect = {
 
 const swarmMocks = vi.hoisted(() => ({
   CLOUD_REST_MS: 160,
+  bindCloud: vi.fn(() => vi.fn()),
   buildCloud: vi.fn(),
   dropCloud: vi.fn(),
   growCloud: vi.fn(),

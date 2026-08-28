@@ -84,10 +84,17 @@ type CloudStore = {
   frame: number;
   full: BufferAttribute;
   gl: WebGL2RenderingContext | null;
+  held: boolean;
   loaded: number;
   moving: boolean;
   rest: ReturnType<typeof setTimeout> | null;
+  settling: boolean;
   view: Float64Array | null;
+};
+
+type CloudControl = {
+  addEventListener?: (type: string, listener: () => void) => void;
+  removeEventListener?: (type: string, listener: () => void) => void;
 };
 
 export type CloudSwarm = Points<BufferGeometry, ShaderMaterial> & {
@@ -97,6 +104,8 @@ export type CloudSwarm = Points<BufferGeometry, ShaderMaterial> & {
 export const CLOUD_BATCH = 65_536;
 export const CLOUD_LOD_MAX = 100_000;
 export const CLOUD_REST_MS = 160;
+export const CLOUD_SETTLE_MS = 280;
+export const CLOUD_VIEW_EPS = 1e-6;
 
 export function cloudLod(count: number): number {
   if (count <= CLOUD_LOD_MAX) return Math.max(0, count);
@@ -148,22 +157,83 @@ function showCloud(points: CloudSwarm, coarse: boolean): void {
   setTone(points, coarse);
 }
 
+function clearRest(store: CloudStore): void {
+  if (store.rest) clearTimeout(store.rest);
+  store.rest = null;
+}
+
+function armRest(points: CloudSwarm): void {
+  const store = points.userData;
+  clearRest(store);
+  if (store.held) return;
+  const delay = store.settling ? CLOUD_SETTLE_MS : CLOUD_REST_MS;
+  store.rest = setTimeout(() => restCloud(points), delay);
+}
+
+export function holdCloud(points: CloudSwarm): void {
+  const store = points.userData;
+  store.held = true;
+  store.settling = false;
+  clearRest(store);
+  if (store.moving) showCloud(points, true);
+}
+
+export function releaseCloud(points: CloudSwarm): void {
+  const store = points.userData;
+  store.held = false;
+  store.settling = true;
+  if (!store.moving) return;
+  armRest(points);
+}
+
+export function bindCloud(
+  points: CloudSwarm,
+  control: CloudControl | null | undefined,
+  target?: EventTarget | null,
+): () => void {
+  const pointers = new Set<number>();
+  const hold = () => holdCloud(points);
+  const release = () => {
+    if (pointers.size === 0) releaseCloud(points);
+  };
+  const press = (event: Event) => {
+    pointers.add((event as PointerEvent).pointerId);
+    holdCloud(points);
+  };
+  const lift = (event: Event) => {
+    pointers.delete((event as PointerEvent).pointerId);
+    release();
+  };
+  control?.addEventListener?.("start", hold);
+  control?.addEventListener?.("end", release);
+  target?.addEventListener("pointerdown", press);
+  target?.addEventListener("pointerup", lift);
+  target?.addEventListener("pointercancel", lift);
+  return () => {
+    control?.removeEventListener?.("start", hold);
+    control?.removeEventListener?.("end", release);
+    target?.removeEventListener("pointerdown", press);
+    target?.removeEventListener("pointerup", lift);
+    target?.removeEventListener("pointercancel", lift);
+  };
+}
+
 export function moveCloud(points: CloudSwarm, after?: () => void): void {
   const store = points.userData;
   store.moving = true;
   if (after) store.after = after;
   showCloud(points, true);
-  if (store.rest) clearTimeout(store.rest);
-  store.rest = setTimeout(() => restCloud(points), CLOUD_REST_MS);
+  armRest(points);
 }
 
 export function restCloud(points: CloudSwarm): void {
   const store = points.userData;
+  clearRest(store);
+  if (store.held) return;
   const after = store.after;
-  if (store.rest) clearTimeout(store.rest);
   store.after = null;
-  store.rest = null;
   store.moving = false;
+  store.settling = false;
   showCloud(points, false);
   after?.();
 }
@@ -171,19 +241,24 @@ export function restCloud(points: CloudSwarm): void {
 function viewMoved(store: CloudStore, camera: Camera): boolean {
   const world = camera.matrixWorld.elements;
   const projection = camera.projectionMatrix.elements;
-  const values = store.view ?? new Float64Array(world.length + projection.length);
-  let changed = false;
+  if (!store.view) {
+    store.view = new Float64Array([...world, ...projection]);
+    return false;
+  }
+  const values = store.view;
+  let drift = 0;
   for (let index = 0; index < world.length; index += 1) {
-    if (values[index] !== world[index]) changed = store.view !== null;
-    values[index] = world[index];
+    const delta = values[index] - world[index];
+    drift += delta * delta;
   }
   for (let index = 0; index < projection.length; index += 1) {
     const target = world.length + index;
-    if (values[target] !== projection[index]) changed = store.view !== null;
-    values[target] = projection[index];
+    const delta = values[target] - projection[index];
+    drift += delta * delta;
   }
-  store.view = values;
-  return changed;
+  values.set(world);
+  values.set(projection, world.length);
+  return drift > CLOUD_VIEW_EPS;
 }
 
 function swarmMaterial(pointSize: number): ShaderMaterial {
@@ -394,9 +469,11 @@ export function buildCloud(
     frame: 0,
     full,
     gl,
+    held: false,
     loaded: renderer ? 0 : data.loaded,
     moving: false,
     rest: null,
+    settling: false,
     view: null,
   };
   if (!renderer && data.loaded > 0) fillLod(points.userData, 0, data.loaded);

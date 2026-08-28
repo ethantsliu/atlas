@@ -10,6 +10,7 @@ import {
   type CloudPick,
 } from "../lib/cloud";
 import {
+  bindCloud,
   buildCloud,
   dropCloud,
   growCloud,
@@ -251,6 +252,7 @@ function mountPoints(
         renderer.render(graph.scene(), graph.camera() as Camera);
       };
   const points = buildCloud(data, input.theme, renderer, redraw);
+  const dropControl = bindCloud(points, graph.controls?.(), renderer.domElement);
   growCloud(points, data);
   points.visible = input.active;
   refs.points.current = points;
@@ -383,6 +385,7 @@ function mountPoints(
   return () => {
     if (timer) clearTimeout(timer);
     controller.abort();
+    dropControl();
     dropEvents();
     dropChange();
     picker.dispose();

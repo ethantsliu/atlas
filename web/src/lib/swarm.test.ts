@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { PerspectiveCamera } from "three";
 import {
+  bindCloud,
   buildCloud,
   buildSwarm,
+  CLOUD_REST_MS,
+  CLOUD_SETTLE_MS,
+  CLOUD_VIEW_EPS,
   cloudLod,
   cloudOpacity,
   cloudSize,
@@ -152,6 +156,156 @@ describe("paper swarm", () => {
     dropCloud(cloud);
     cloud.geometry.dispose();
     cloud.material.dispose();
+  });
+
+  it("ignores sub-threshold camera damping", () => {
+    const cloud = buildCloud(
+      {
+        positions: new Float32Array([1, 2, 3, 4, 5, 6]),
+        scopes: new Uint8Array(2),
+        ranges: [],
+        loaded: 2,
+        radius: 9,
+      },
+      "light",
+    );
+    const camera = new PerspectiveCamera();
+    camera.updateMatrixWorld();
+    const render = () =>
+      cloud.onBeforeRender(
+        {} as never,
+        {} as never,
+        camera,
+        cloud.geometry,
+        cloud.material,
+        {} as never,
+      );
+    try {
+      render();
+      for (const offset of [0.0002, -0.0002, 0.0004, -0.0004]) {
+        camera.position.x = offset;
+        camera.updateMatrixWorld();
+        render();
+        expect(cloud.userData.moving).toBe(false);
+      }
+
+      camera.position.x = Math.sqrt(CLOUD_VIEW_EPS) * 2;
+      camera.updateMatrixWorld();
+      render();
+      expect(cloud.userData.moving).toBe(true);
+      expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.coarse);
+    } finally {
+      dropCloud(cloud);
+      cloud.geometry.dispose();
+      cloud.material.dispose();
+    }
+  });
+
+  it("holds one motion level until gesture damping settles", () => {
+    vi.useFakeTimers();
+    const redraw = vi.fn();
+    const listeners = new Map<string, Set<() => void>>();
+    const control = {
+      addEventListener: (type: string, listener: () => void) => {
+        const group = listeners.get(type) ?? new Set();
+        group.add(listener);
+        listeners.set(type, group);
+      },
+      removeEventListener: (type: string, listener: () => void) => {
+        listeners.get(type)?.delete(listener);
+      },
+    };
+    const emit = (type: string) =>
+      listeners.get(type)?.forEach((listener) => listener());
+    const pointer = (type: string, id: number) => {
+      const event = new Event(type);
+      Object.defineProperty(event, "pointerId", { value: id });
+      target.dispatchEvent(event);
+    };
+    const points = buildCloud(
+      {
+        positions: new Float32Array([1, 2, 3, 4, 5, 6]),
+        scopes: new Uint8Array(2),
+        ranges: [],
+        loaded: 2,
+        radius: 9,
+      },
+      "light",
+      undefined,
+      redraw,
+    );
+    const target = new EventTarget();
+    const drop = bindCloud(points, control, target);
+    try {
+      emit("start");
+      emit("end");
+      expect(points.userData.moving).toBe(false);
+      expect(points.geometry.getAttribute("position")).toBe(points.userData.full);
+
+      moveCloud(points, redraw);
+      vi.advanceTimersByTime(CLOUD_REST_MS);
+      expect(points.userData.moving).toBe(true);
+      expect(points.geometry.getAttribute("position")).toBe(points.userData.coarse);
+      vi.advanceTimersByTime(CLOUD_SETTLE_MS - CLOUD_REST_MS);
+      expect(points.userData.moving).toBe(false);
+      expect(points.geometry.getAttribute("position")).toBe(points.userData.full);
+      redraw.mockClear();
+
+      emit("start");
+      moveCloud(points, redraw);
+      vi.advanceTimersByTime(CLOUD_SETTLE_MS * 2);
+      expect(points.userData.moving).toBe(true);
+      expect(points.geometry.getAttribute("position")).toBe(points.userData.coarse);
+      expect(redraw).not.toHaveBeenCalled();
+
+      emit("end");
+      vi.advanceTimersByTime(CLOUD_SETTLE_MS - 1);
+      expect(points.geometry.getAttribute("position")).toBe(points.userData.coarse);
+      emit("start");
+      vi.advanceTimersByTime(CLOUD_SETTLE_MS - 1);
+      expect(points.geometry.getAttribute("position")).toBe(points.userData.coarse);
+
+      emit("end");
+      vi.advanceTimersByTime(CLOUD_SETTLE_MS - 1);
+      expect(points.geometry.getAttribute("position")).toBe(points.userData.coarse);
+
+      vi.advanceTimersByTime(1);
+      expect(points.userData.moving).toBe(false);
+      expect(points.geometry.getAttribute("position")).toBe(points.userData.full);
+      expect(redraw).toHaveBeenCalledOnce();
+      vi.advanceTimersByTime(CLOUD_SETTLE_MS * 2);
+      expect(redraw).toHaveBeenCalledOnce();
+
+      emit("start");
+      pointer("pointerdown", 1);
+      emit("start");
+      pointer("pointerdown", 2);
+      moveCloud(points, redraw);
+      pointer("pointercancel", 1);
+      emit("end");
+      vi.advanceTimersByTime(CLOUD_SETTLE_MS * 2);
+      expect(points.userData.moving).toBe(true);
+      pointer("pointerup", 2);
+      emit("end");
+      vi.advanceTimersByTime(CLOUD_SETTLE_MS);
+      expect(points.userData.moving).toBe(false);
+
+      emit("start");
+      pointer("pointerdown", 3);
+      moveCloud(points, redraw);
+      pointer("pointercancel", 3);
+      emit("end");
+      vi.advanceTimersByTime(CLOUD_SETTLE_MS);
+      expect(points.userData.moving).toBe(false);
+    } finally {
+      drop();
+      expect(listeners.get("start")).toHaveLength(0);
+      expect(listeners.get("end")).toHaveLength(0);
+      dropCloud(points);
+      points.geometry.dispose();
+      points.material.dispose();
+      vi.useRealTimers();
+    }
   });
 
   it("restores every one of 3.1M points after motion", () => {
