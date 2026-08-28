@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { has3d } from "./capability";
 import { fullNodes, mapStatus } from "./map";
 
 const viewports = [
@@ -139,6 +140,9 @@ test("historical paper loading can recover without resetting the map", async ({
   });
 
   await page.goto(cloudPath);
+  const available = await has3d(page);
+  if (!available) resumePapers();
+  test.skip(!available, "Historical recovery requires WebGL2");
   const alert = page.getByRole("alert").filter({
     hasText: "Historical papers unavailable: Paper cloud request failed (503)",
   });

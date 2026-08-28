@@ -61,7 +61,7 @@ describe("pick order", () => {
     expect(archive).not.toHaveBeenCalled();
 
     order.begin(2);
-    order.claim(1, 2, archive);
+    order.claim(1, 7, archive);
     order.settle();
     expect(archive).toHaveBeenCalledOnce();
   });

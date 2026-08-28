@@ -140,9 +140,10 @@ test("explicit 2D supports a centered touch selection", async ({ page }, testInf
   test.setTimeout(90_000);
   test.skip(!touch.has(testInfo.project.name), "Touch projects cover canvas selection");
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#?d=2&k=t&s=topic%3Apre-training");
+  await page.goto("/#?d=2&k=t&s=topic%3Apre-training&x=topic%3Apre-training");
   const graph = await overview(page);
   await expect(heading(page)).toBeVisible();
+  await page.waitForTimeout(2_500);
   await page.getByRole("button", { name: "Center selected" }).click();
   await page.getByRole("button", { name: "Close inspector" }).click();
   await expect(heading(page)).toHaveCount(0);

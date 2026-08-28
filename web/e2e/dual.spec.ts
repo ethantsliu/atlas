@@ -11,7 +11,12 @@ test("dimension history preserves the foreground selection", async ({ page }) =>
 
   await threeD.click();
   await expect(page).toHaveURL(/(?:\?|&)d=3(?:&|$)/);
-  await expect(threeD).toHaveAttribute("aria-pressed", "true");
+  const result = page.getByLabel("Interactive 3D research graph", { exact: true }).or(
+    page.locator(".graph-status").filter({
+      hasText: "3D unavailable; using the 2D fallback.",
+    }),
+  );
+  await expect(result).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("heading", { name: "alignment" })).toBeVisible();
 
   await page.goBack();

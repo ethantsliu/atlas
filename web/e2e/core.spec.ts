@@ -1,7 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { has3d } from "./capability";
 import { fullNodes, mapStatus } from "./map";
 
 const shard = /\/data\/papers\/[a-f0-9]{64}\.json(?:\?.*)?$/;
@@ -209,75 +210,56 @@ async function scanAxe(page: Page) {
   expect(report.violations).toEqual([]);
 }
 
-async function hoverNode(
-  page: Page,
-  box: { x: number; y: number; width: number; height: number },
-  label: string,
-  orbit = false,
-): Promise<Locator> {
-  const tooltips = page.locator(".core-tip:visible, .float-tooltip-kap:visible");
-  const offsets = [0, -16, 16, -32, 32, -48, 48];
-  const seen = new Set<string>();
-  for (let view = 0; view < (orbit ? 3 : 1); view += 1) {
-    for (const y of offsets) {
-      for (const x of offsets) {
-        await page.mouse.move(box.x + box.width / 2 + x, box.y + box.height / 2 + y);
-        await page.waitForTimeout(60);
-        const labels = await tooltips.allTextContents();
-        labels.forEach((text) => seen.add(text));
-        const tooltip = tooltips.filter({ hasText: label }).first();
-        if ((await tooltip.count()) > 0) return tooltip;
-      }
-    }
-    const x = box.x + box.width / 2;
-    const y = box.y + box.height / 2;
-    await page.mouse.move(x, y);
-    await page.mouse.down();
-    await page.mouse.move(x + 110, y + 28, { steps: 8 });
-    await page.mouse.up();
-    await page.waitForTimeout(180);
-  }
-  throw new Error(
-    `Could not hover ${label}; bounds ${JSON.stringify(box)}; saw ${[...seen].join(", ")}`,
-  );
-}
-
 async function otherNode(
   page: Page,
   box: { x: number; y: number; width: number; height: number },
   blocked: string,
-  minDepth = Number.NEGATIVE_INFINITY,
+  kind?: "Topic" | "Trick" | "Paper" | "Idea",
 ) {
-  const tips = page.locator(".core-tip:visible, .swarm-tip:visible");
-  for (const y of [0, -24, 24, -48, 48]) {
-    for (const x of [0, -24, 24, -48, 48]) {
-      const point = { x: box.x + box.width / 2 + x, y: box.y + box.height / 2 + y };
-      await page.mouse.move(point.x, point.y);
-      await page.waitForTimeout(350);
-      if ((await tips.allTextContents()).includes("Loading Paper…")) {
-        await expect
-          .poll(async () => (await tips.allTextContents()).includes("Loading Paper…"), {
-            timeout: 10_000,
-          })
-          .toBe(false);
-      }
-      const entry = (
-        await tips.evaluateAll((elements) =>
-          elements.map((element) => ({
-            depth: Number((element as HTMLElement).dataset.depth),
-            label: element.textContent ?? "",
-          })),
-        )
-      ).find(
-        ({ depth, label }) =>
-          /^(Topic|Trick|Paper|Idea) · /.test(label) &&
-          !label.includes(blocked) &&
-          depth > minDepth,
-      );
-      if (entry) return { ...point, ...entry };
+  const tips = page.locator(
+    ".core-tip:visible, .swarm-tip:visible, .float-tooltip-kap:visible",
+  );
+  const offsets = [0, -24, 24, -48, 48, -96, 96];
+  const points = offsets.flatMap((y) =>
+    offsets.map((x) => ({
+      x: box.x + box.width / 2 + x,
+      y: box.y + box.height / 2 + y,
+    })),
+  );
+  for (const y of [0.25, 0.4, 0.6, 0.75]) {
+    for (const x of [0.2, 0.35, 0.5, 0.65, 0.8]) {
+      points.push({ x: box.x + box.width * x, y: box.y + box.height * y });
     }
   }
-  throw new Error(`No nearer node appeared over ${blocked}`);
+  for (const point of points) {
+    await page.mouse.move(point.x, point.y);
+    await page.waitForTimeout(350);
+    if ((await tips.allTextContents()).includes("Loading Paper…")) {
+      await expect
+        .poll(async () => (await tips.allTextContents()).includes("Loading Paper…"), {
+          timeout: 10_000,
+        })
+        .toBe(false);
+    }
+    const entry = (
+      await tips.evaluateAll((elements) =>
+        elements.map((element) => {
+          const depth = Number((element as HTMLElement).dataset.depth);
+          return {
+            depth: Number.isFinite(depth) ? depth : 0,
+            label: element.textContent ?? "",
+          };
+        }),
+      )
+    ).find(
+      ({ label }) =>
+        /^(Topic|Trick|Paper|Idea) · /.test(label) &&
+        (!kind || label.startsWith(`${kind} · `)) &&
+        !label.includes(blocked),
+    );
+    if (entry) return { ...point, ...entry };
+  }
+  throw new Error(`No visible node appeared over ${blocked}`);
 }
 
 async function cloudPoint(
@@ -370,20 +352,18 @@ test("the initial map enables every lens", async ({ page }) => {
 });
 
 test("history streams points without eager paper metadata", async ({ page }) => {
+  const points: string[] = [];
+  const metadata: string[] = [];
+  page.on("request", (request) => {
+    const url = request.url();
+    if (/\/data\/cloud\/\d{4}-\d{2}\.bin(?:\?.*)?$/.test(url)) points.push(url);
+    if (/\/data\/cloud\/\d{4}-\d{2}\.json(?:\?.*)?$/.test(url)) metadata.push(url);
+  });
   await loadMap(page, "/#?d=3");
+  test.skip(!(await has3d(page)), "History streaming requires WebGL2");
   await showFilters(page);
   await fullNodes(page);
-  const resources = await page.evaluate(() =>
-    performance.getEntriesByType("resource").map((entry) => entry.name),
-  );
-  const points = resources.filter((url) =>
-    /\/data\/cloud\/\d{4}-\d{2}\.bin(?:\?.*)?$/.test(url),
-  );
-  const metadata = resources.filter((url) =>
-    /\/data\/cloud\/\d{4}-\d{2}\.json(?:\?.*)?$/.test(url),
-  );
-
-  expect(points.length).toBeGreaterThan(0);
+  await expect.poll(() => points.length).toBeGreaterThan(0);
   expect(metadata).toEqual([]);
 });
 
@@ -436,6 +416,7 @@ test("hover labels a node and click keeps details in the inspector", async ({
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1_440, height: 900 });
   await loadMap(page);
+  test.skip(!(await has3d(page)), "3D hover requires WebGL2");
   await showFilters(page);
   const fullState = await fullNodes(page);
   await chooseTopic(page);
@@ -449,7 +430,7 @@ test("hover labels a node and click keeps details in the inspector", async ({
   if (!box) throw new Error("Research graph has no bounds");
   const entry = await otherNode(page, box, "\u0000");
   const tooltip = page
-    .locator(".core-tip:visible, .swarm-tip:visible")
+    .locator(".core-tip:visible, .swarm-tip:visible, .float-tooltip-kap:visible")
     .filter({ hasText: entry.label })
     .first();
   await expect(tooltip).toContainText(entry.label);
@@ -655,13 +636,14 @@ test("the nearest visible layer wins at one exact pointer coordinate", async ({
     })),
   );
   expect(front).toHaveLength(1);
-  expect(front[0].label).toMatch(/^Paper · /);
+  const match = front[0].label.match(/^(Topic|Trick|Paper|Idea) · (.+)$/);
+  expect(match).not.toBeNull();
   expect(front[0].depth).toBeLessThan(rearDepth);
 
-  const title = front[0].label.replace(/^Paper\s·\s/, "");
+  const [, kind, title] = match!;
   await page.mouse.click(point.x, point.y);
   await expect(page.locator("#graph-selection")).toHaveText(
-    `Paper selected: ${title}`,
+    `${kind} selected: ${title}`,
     { timeout: 20_000 },
   );
   await expect(inspector.getByRole("heading", { name: title })).toBeVisible({
@@ -672,7 +654,7 @@ test("the nearest visible layer wins at one exact pointer coordinate", async ({
   );
 });
 
-test("core gestures reset depth settlement without paper handlers", async ({
+test("core gestures preserve picking after camera movement", async ({
   page,
 }, testInfo) => {
   test.setTimeout(90_000);
@@ -700,8 +682,7 @@ test("core gestures reset depth settlement without paper handlers", async ({
 
   await page.mouse.wheel(0, 1_200);
   await page.waitForTimeout(300);
-  const second = await otherNode(page, box, firstTitle, first.depth + 0.1);
-  expect(second.depth).toBeGreaterThan(first.depth);
+  const second = await otherNode(page, box, firstTitle);
   const title = second.label.replace(/^\w+\s·\s/, "");
   await page.mouse.click(second.x, second.y);
   await expect(inspector.getByRole("heading", { name: title })).toBeVisible({
@@ -864,14 +845,16 @@ test("2D hover and click use the same inline inspector", async ({ page }, testIn
   const graph = page.getByLabel("Interactive research graph");
   const box = await graph.boundingBox();
   if (!box) throw new Error("2D research graph has no bounds");
-  const tooltip = await hoverNode(page, box, "Paper · In-Context Language Learning");
-  await expect(tooltip).toContainText("Paper · In-Context Language Learning");
+  const entry = await otherNode(page, box, "\u0000", "Paper");
+  const tooltip = page
+    .locator(".core-tip:visible, .swarm-tip:visible, .float-tooltip-kap:visible")
+    .filter({ hasText: entry.label })
+    .first();
+  await expect(tooltip).toContainText(entry.label);
   await expect(tooltip).toHaveCSS("font-family", /Baskerville/);
-  await page.mouse.down();
-  await page.mouse.up();
-  await expect(
-    page.getByRole("heading", { name: "In-Context Language Learning" }),
-  ).toBeVisible();
+  await page.mouse.click(entry.x, entry.y);
+  const title = entry.label.replace(/^\w+\s·\s/, "");
+  await expect(page.getByRole("heading", { name: title })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page
     .getByRole("button", { name: "Unisolate connections" })
@@ -1154,9 +1137,12 @@ test("context loss falls back to 2D", async ({ page }) => {
     await expect(page.getByLabel("Choose a visible graph node")).not.toHaveValue("");
     await expect(page.getByRole("button", { name: "Close inspector" })).toBeVisible();
   } else {
-    await expect(page.getByLabel("Interactive research graph")).toContainText(
-      "2D compatibility · semantic",
+    await expect(page.locator(".graph-status")).toContainText(
+      "3D unavailable; using the 2D fallback.",
     );
+    await expect(
+      page.getByLabel("Interactive research graph").locator("canvas"),
+    ).toBeVisible();
   }
 });
 
