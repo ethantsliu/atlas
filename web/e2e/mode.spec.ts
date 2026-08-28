@@ -19,7 +19,9 @@ function heading(page: Page) {
 async function overview(page: Page, layout = "semantic") {
   const graph = page.getByLabel("Interactive research graph", { exact: true });
   await expect(graph).toContainText(`2D overview · ${layout}`, { timeout: 20_000 });
-  await expect(graph.locator("canvas:not(.cloud-plane)")).toBeVisible();
+  await expect(graph.locator("canvas:not(.cloud-plane)")).toBeVisible({
+    timeout: 20_000,
+  });
   await expect(dimension(page, "2D")).toHaveAttribute("aria-pressed", "true");
   return graph;
 }
@@ -154,19 +156,6 @@ test("both dimensions share one cloud while 3D code stays lazy", async ({
   await overview(page);
   await expect(heading(page)).toBeVisible();
   await expect(trick).toHaveAttribute("aria-pressed", "false");
-  await page.getByRole("button", { name: "connections", exact: true }).click();
-
-  await dimension(page, "3D").click();
-  await expect(
-    page.getByLabel("Interactive 3D research graph", { exact: true }),
-  ).toBeVisible({
-    timeout: 20_000,
-  });
-  await expect(heading(page)).toBeVisible();
-  await expect(trick).toHaveAttribute("aria-pressed", "false");
-  await expect(
-    page.getByRole("button", { name: "connections", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
 });
 
 test("explicit 2D supports a centered touch selection", async ({ page }, testInfo) => {

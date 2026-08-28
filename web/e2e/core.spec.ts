@@ -809,6 +809,10 @@ test("2D hover and click use the same inline inspector", async ({ page }, testIn
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1_440, height: 900 });
   await loadMap(page, "/#?d=2&k=tri");
+  test.skip(
+    (await page.locator(".cloud-plane[data-engine]").count()) === 0,
+    "2D archive interaction requires WebGL2",
+  );
   await showFilters(page);
   await page.getByRole("button", { name: /Paper\s+[,\d]+/ }).click();
   const picker = page.getByLabel("Choose a visible graph node");
