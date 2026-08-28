@@ -1,10 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { PerspectiveCamera } from "three";
 import {
   buildCloud,
   buildSwarm,
+  cloudLod,
   cloudOpacity,
   cloudSize,
+  dropCloud,
+  lodIds,
   markSwarm,
+  moveCloud,
+  restCloud,
   swarmNode,
 } from "./swarm";
 import type { GraphNode } from "../types";
@@ -33,6 +39,14 @@ describe("paper swarm", () => {
     expect(cloudOpacity(100_000)).toBe(0.78);
     expect(cloudOpacity(1_000_000)).toBe(0.42);
     expect(cloudOpacity(5_000_000)).toBe(0.24);
+  });
+
+  it("makes an even deterministic motion level", () => {
+    expect(cloudLod(80_000)).toBe(80_000);
+    expect(cloudLod(1_000_000)).toBe(72_000);
+    expect(cloudLod(3_150_000)).toBe(100_000);
+    expect([...lodIds(10, 4)]).toEqual([1, 3, 6, 8]);
+    expect([...lodIds(10, 4)]).toEqual([...lodIds(10, 4)]);
   });
 
   it("batches positioned papers and marks active points", () => {
@@ -70,7 +84,92 @@ describe("paper swarm", () => {
     expect(cloud.material.uniforms.pointSize.value).toBe(4.8);
     expect(cloud.material.vertexShader).not.toContain("scope");
 
+    moveCloud(cloud);
+    expect(cloud.userData.moving).toBe(true);
+    expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.coarse);
+    restCloud(cloud);
+    expect(cloud.userData.moving).toBe(false);
+    expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.full);
+    expect(cloud.geometry.drawRange.count).toBe(2);
+
+    dropCloud(cloud);
     cloud.geometry.dispose();
     cloud.material.dispose();
+  });
+
+  it("uses motion geometry when the camera changes", () => {
+    const redraw = vi.fn();
+    const cloud = buildCloud(
+      {
+        positions: new Float32Array([1, 2, 3, 4, 5, 6]),
+        scopes: new Uint8Array([0, 2]),
+        ranges: [],
+        loaded: 2,
+        radius: 9,
+      },
+      "light",
+      undefined,
+      redraw,
+    );
+    const camera = new PerspectiveCamera();
+    camera.updateMatrixWorld();
+    cloud.onBeforeRender(
+      {} as never,
+      {} as never,
+      camera,
+      cloud.geometry,
+      cloud.material,
+      {} as never,
+    );
+    expect(cloud.userData.moving).toBe(false);
+
+    camera.position.x = 2;
+    camera.updateMatrixWorld();
+    cloud.onBeforeRender(
+      {} as never,
+      {} as never,
+      camera,
+      cloud.geometry,
+      cloud.material,
+      {} as never,
+    );
+    expect(cloud.userData.moving).toBe(true);
+    expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.coarse);
+
+    restCloud(cloud);
+    expect(redraw).toHaveBeenCalledOnce();
+    dropCloud(cloud);
+    cloud.geometry.dispose();
+    cloud.material.dispose();
+  });
+
+  it("restores every one of 3.1M points after motion", () => {
+    const count = 3_100_000;
+    const cloud = buildCloud(
+      {
+        positions: new Float32Array(count * 3),
+        scopes: new Uint8Array(count),
+        ranges: [],
+        loaded: count,
+        radius: 1,
+      },
+      "light",
+    );
+    try {
+      expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.full);
+      expect(cloud.geometry.drawRange.count).toBe(count);
+
+      moveCloud(cloud);
+      expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.coarse);
+      expect(cloud.geometry.drawRange.count).toBe(100_000);
+
+      restCloud(cloud);
+      expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.full);
+      expect(cloud.geometry.drawRange.count).toBe(count);
+    } finally {
+      dropCloud(cloud);
+      cloud.geometry.dispose();
+      cloud.material.dispose();
+    }
   });
 });

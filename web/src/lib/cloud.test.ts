@@ -3,9 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   cloudPaper,
   cloudRange,
+  createCloud,
   fetchCloudMeta,
   isCloud,
   loadCloud,
+  streamCloud,
   type CloudManifest,
   type CloudRange,
 } from "./cloud";
@@ -75,6 +77,25 @@ function pointBytes(start = 1): ArrayBuffer {
     view.setFloat32(12 + index * 4, value, true),
   );
   raw.set([0, 2], 12 + 24);
+  return bytes;
+}
+
+function packBytes(parts: ArrayBuffer[]): ArrayBuffer {
+  const counts = parts.map((part) => new DataView(part).getUint32(8, true));
+  const count = counts.reduce((sum, value) => sum + value, 0);
+  const bytes = new ArrayBuffer(12 + count * 13);
+  const raw = new Uint8Array(bytes);
+  raw.set(new TextEncoder().encode("ATLASPK1"));
+  new DataView(bytes).setUint32(8, count, true);
+  let pointAt = 12;
+  let scopeAt = 12 + count * 12;
+  parts.forEach((part, index) => {
+    const local = counts[index];
+    raw.set(new Uint8Array(part, 12, local * 12), pointAt);
+    raw.set(new Uint8Array(part, 12 + local * 12, local), scopeAt);
+    pointAt += local * 12;
+    scopeAt += local;
+  });
   return bytes;
 }
 
@@ -181,6 +202,111 @@ describe("paper cloud", () => {
       `/atlas/data/cloud/2020-01.bin?sha=${firstIndex.shards[0].points.sha256}`,
       `/atlas/data/cloud/2020-01.bin?sha=${secondIndex.shards[0].points.sha256}`,
     ]);
+  });
+
+  it("commits concurrent shard responses in manifest order", async () => {
+    const first = pointBytes();
+    const second = pointBytes(7);
+    const index = manifest(first);
+    const next = structuredClone(index.shards[0]);
+    next.month = "2020-02";
+    next.points = {
+      path: "2020-02.bin",
+      sha256: createHash("sha256").update(Buffer.from(second)).digest("hex"),
+      bytes: second.byteLength,
+    };
+    next.meta = { ...next.meta, path: "2020-02.json" };
+    index.shards.push(next);
+    index.source_count = 6;
+    index.count = 4;
+    index.counts = { likely: 2, possible: 0, outside: 2 };
+    index.omitted_count = 2;
+    index.omitted_counts = { likely: 0, possible: 2, outside: 0 };
+    expect(isCloud(index)).toBe(true);
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const responses: string[] = [];
+    const request = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("2020-01")) await gate;
+      else release();
+      responses.push(url);
+      return new Response(url.includes("2020-01") ? first : second);
+    });
+    const steps: number[] = [];
+
+    const data = await streamCloud(
+      index,
+      createCloud(index),
+      new AbortController().signal,
+      (step) => steps.push(step.start),
+      request as unknown as typeof fetch,
+    );
+
+    expect(responses[0]).toContain("2020-02");
+    expect(steps).toEqual([0, 2]);
+    expect(data.ranges.map((range) => range.month)).toEqual(["2020-01", "2020-02"]);
+    expect([...data.positions]).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    expect([...data.scopes]).toEqual([0, 2, 0, 2]);
+  });
+
+  it("prefers one verified point pack while retaining monthly ranges", async () => {
+    const first = pointBytes();
+    const second = pointBytes(7);
+    const packed = packBytes([first, second]);
+    const index = manifest(first);
+    const next = structuredClone(index.shards[0]);
+    next.month = "2020-02";
+    next.points = {
+      path: "2020-02.bin",
+      sha256: createHash("sha256").update(Buffer.from(second)).digest("hex"),
+      bytes: second.byteLength,
+    };
+    next.meta = { ...next.meta, path: "2020-02.json" };
+    index.shards.push(next);
+    index.source_count = 6;
+    index.count = 4;
+    index.counts = { likely: 2, possible: 0, outside: 2 };
+    index.omitted_count = 2;
+    index.omitted_counts = { likely: 0, possible: 2, outside: 0 };
+    index.point_pack = "month-14-v1";
+    index.pack_months = 14;
+    index.packs = [
+      {
+        months: ["2020-01", "2020-02"],
+        count: 4,
+        counts: { likely: 2, possible: 0, outside: 2 },
+        points: {
+          path: "p024.bin",
+          sha256: createHash("sha256").update(Buffer.from(packed)).digest("hex"),
+          bytes: packed.byteLength,
+        },
+      },
+    ];
+    const request = vi.fn(async (_input: RequestInfo | URL) => new Response(packed));
+    const steps: number[] = [];
+
+    expect(isCloud(index)).toBe(true);
+    const data = await streamCloud(
+      index,
+      createCloud(index),
+      new AbortController().signal,
+      (step) => steps.push(step.loaded),
+      request as unknown as typeof fetch,
+    );
+
+    expect(request).toHaveBeenCalledOnce();
+    expect(String(request.mock.calls[0][0])).toContain("p024.bin");
+    expect(data.ranges.map((range) => range.month)).toEqual(["2020-01", "2020-02"]);
+    expect(data.ranges.map((range) => range.start)).toEqual([0, 2]);
+    expect([...data.positions]).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    expect([...data.scopes]).toEqual([0, 2, 0, 2]);
+    expect(steps).toEqual([4]);
+
+    delete index.packs;
+    expect(isCloud(index)).toBe(false);
   });
 
   it("rejects inconsistent totals", () => {

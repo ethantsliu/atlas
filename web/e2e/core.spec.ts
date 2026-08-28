@@ -809,8 +809,12 @@ test("2D hover and click use the same inline inspector", async ({ page }, testIn
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1_440, height: 900 });
   await loadMap(page, "/#?d=2&k=tri");
+  const plane = page.locator(".cloud-plane");
+  await expect(plane).toHaveAttribute("data-engine", /^(ready|unsupported)$/, {
+    timeout: 20_000,
+  });
   test.skip(
-    (await page.locator(".cloud-plane[data-engine]").count()) === 0,
+    (await plane.getAttribute("data-engine")) !== "ready",
     "2D archive interaction requires WebGL2",
   );
   await showFilters(page);

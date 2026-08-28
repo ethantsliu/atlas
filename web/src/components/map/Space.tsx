@@ -115,7 +115,6 @@ export function makeFrameIdle(
   controls.addEventListener?.("start", press);
   controls.addEventListener?.("change", touch);
   controls.addEventListener?.("end", release);
-  canvas.addEventListener("pointermove", touch, true);
   canvas.addEventListener("pointerup", release, true);
   canvas.addEventListener("pointerleave", release, true);
   canvas.addEventListener("wheel", touch, true);
@@ -125,7 +124,6 @@ export function makeFrameIdle(
       controls.removeEventListener?.("start", press);
       controls.removeEventListener?.("change", touch);
       controls.removeEventListener?.("end", release);
-      canvas.removeEventListener("pointermove", touch, true);
       canvas.removeEventListener("pointerup", release, true);
       canvas.removeEventListener("pointerleave", release, true);
       canvas.removeEventListener("wheel", touch, true);
@@ -361,6 +359,7 @@ export function GraphSpace({
     cloudHidden,
     cloudMark,
     height,
+    hovered?.id,
     selected?.id,
     theme,
     topology,

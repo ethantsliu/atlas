@@ -130,6 +130,18 @@ function cloudData(): CloudData {
   };
 }
 
+function pointEvent(type: string, x = 10, y = 10): Event {
+  const event = new Event(type);
+  Object.assign(event, {
+    button: 0,
+    clientX: x,
+    clientY: y,
+    isPrimary: true,
+    pointerType: "mouse",
+  });
+  return event;
+}
+
 beforeEach(() => {
   activeHarness = null;
   vi.clearAllMocks();
@@ -143,9 +155,14 @@ afterEach(() => vi.unstubAllGlobals());
 describe("progressive point mounting", () => {
   it("grows and repaints one mounted cloud without rebuilding it", () => {
     const canvas = new EventTarget() as HTMLCanvasElement;
-    const renderer = { domElement: canvas };
+    const renderer = { domElement: canvas, render: vi.fn() };
     const scene = { add: vi.fn(), remove: vi.fn() };
-    const graph = { renderer: () => renderer, scene: () => scene };
+    const camera = {};
+    const graph = {
+      camera: () => camera,
+      renderer: () => renderer,
+      scene: () => scene,
+    };
     const points = {
       geometry: { dispose: vi.fn() },
       material: { dispose: vi.fn() },
@@ -166,6 +183,9 @@ describe("progressive point mounting", () => {
 
     harness.render(base);
     expect(swarmMocks.buildCloud).toHaveBeenCalledOnce();
+    const redraw = swarmMocks.buildCloud.mock.calls[0][3] as () => void;
+    redraw();
+    expect(renderer.render).toHaveBeenCalledWith(scene, camera);
     expect(scene.add).toHaveBeenCalledOnce();
     expect(swarmMocks.growCloud).toHaveBeenCalledWith(points, data);
 
@@ -186,5 +206,49 @@ describe("progressive point mounting", () => {
     expect(scene.remove).toHaveBeenCalledOnce();
     expect(swarmMocks.dropCloud).toHaveBeenCalledWith(points);
     expect(picker.dispose).toHaveBeenCalledOnce();
+  });
+
+  it("discards a pending click after a newer pointer claim", async () => {
+    const canvas = new EventTarget() as HTMLCanvasElement;
+    canvas["getBoundingClientRect"] = () =>
+      ({ height: 100, left: 0, top: 0, width: 100 }) as DOMRect;
+    const renderer = { domElement: canvas };
+    const scene = { add: vi.fn(), remove: vi.fn() };
+    const graph = { camera: () => ({}), renderer: () => renderer, scene: () => scene };
+    const points = {
+      geometry: { dispose: vi.fn() },
+      material: { dispose: vi.fn() },
+      visible: true,
+    };
+    let resolvePick!: (value: unknown) => void;
+    const pick = vi.fn(() => new Promise((resolve) => (resolvePick = resolve)));
+    const picker = { dispose: vi.fn(), pick };
+    const order = { begin: vi.fn(), claim: vi.fn() };
+    swarmMocks.buildCloud.mockReturnValue(points);
+    gpuMocks.makeGpuPick.mockReturnValue(picker);
+    const data = cloudData();
+    data.loaded = 1;
+    const harness = new HookHarness();
+    harness.render({
+      active: true,
+      data,
+      graphRef: { current: graph },
+      onPick: vi.fn(),
+      order,
+      theme: "light",
+    } as unknown as Parameters<typeof usePoints>[0]);
+
+    canvas.dispatchEvent(pointEvent("pointerdown"));
+    window.dispatchEvent(pointEvent("pointerup"));
+    canvas.dispatchEvent(pointEvent("click"));
+    expect(pick).toHaveBeenCalledOnce();
+
+    canvas.dispatchEvent(pointEvent("pointerdown", 12, 10));
+    resolvePick({ distance: 1, index: 0, valid: () => true });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(order.claim).not.toHaveBeenCalled();
+    harness.unmount();
   });
 });

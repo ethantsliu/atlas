@@ -20,7 +20,7 @@ export async function fullNodes(page: Page): Promise<string> {
   }
   const cloudVisible =
     (await page.getByLabel("Interactive 3D research graph").count()) > 0 ||
-    (await page.locator(".cloud-plane[data-engine]").count()) > 0;
+    (await page.locator('.cloud-plane[data-engine="ready"]').count()) > 0;
   const toggles = filters.locator(".kind-toggle");
   const counts = await Promise.all(
     [0, 1, 2, 3].map(async (index) => {

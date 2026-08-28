@@ -7,6 +7,7 @@ import {
   hoverWait,
   pickBound,
   pickSize,
+  reuseHit,
 } from "./points";
 
 const paper = {
@@ -37,7 +38,17 @@ describe("paper point input", () => {
     expect(hoverMoved(null, { clientX: 40, clientY: 40 })).toBe(false);
   });
 
-  it("bounds metadata to four recently used shards", async () => {
+  it("reuses only an exact still-valid hover pick", () => {
+    const valid = vi.fn(() => true);
+    const hover = { valid, x: 20, y: 40 };
+
+    expect(reuseHit(hover, { clientX: 20, clientY: 40 })).toBe(true);
+    expect(reuseHit(hover, { clientX: 21, clientY: 40 })).toBe(false);
+    valid.mockReturnValue(false);
+    expect(reuseHit(hover, { clientX: 20, clientY: 40 })).toBe(false);
+  });
+
+  it("bounds metadata to two recently used shards", async () => {
     const cache = new Map<string, Promise<number>>();
     for (let index = 0; index < 5; index += 1) {
       await cacheMeta(cache, `${index}`, async () => index);
@@ -45,7 +56,7 @@ describe("paper point input", () => {
     cacheMeta(cache, "1", async () => 9);
     cacheMeta(cache, "5", async () => 5);
 
-    expect([...cache.keys()]).toEqual(["2", "3", "4", "1", "5"].slice(-4));
+    expect([...cache.keys()]).toEqual(["1", "5"]);
   });
 
   it("keeps the visually nearer layer", () => {

@@ -82,24 +82,28 @@ describe("3D idle frames", () => {
     expect(run.pauseAnimation).toHaveBeenCalledOnce();
   });
 
-  it("wakes for input, waits through control changes, and removes listeners", () => {
+  it("ignores blank motion but wakes for controls and release", () => {
     const run = setup();
     run.idle.engineStop();
     run.flush();
 
     run.emitCanvas("pointermove");
-    expect(run.resumeAnimation).toHaveBeenCalledOnce();
-    expect([...run.pending.values()][0]?.delay).toBe(FRAME_IDLE_WAIT);
+    run.emitCanvas("pointermove");
+    expect(run.resumeAnimation).not.toHaveBeenCalled();
+    expect(run.pending.size).toBe(0);
 
-    run.emitControl("change");
+    run.emitControl("start");
     expect(run.resumeAnimation).toHaveBeenCalledOnce();
+    expect(run.pending.size).toBe(0);
+    run.emitControl("end");
     expect(run.pending.size).toBe(1);
+    expect([...run.pending.values()][0]?.delay).toBe(FRAME_IDLE_WAIT);
     run.flush();
     expect(run.pauseAnimation).toHaveBeenCalledTimes(2);
 
     run.idle.dispose();
     run.emitCanvas("pointermove");
-    run.emitControl("change");
+    run.emitControl("start");
     expect(run.resumeAnimation).toHaveBeenCalledOnce();
     expect(run.pending.size).toBe(0);
   });

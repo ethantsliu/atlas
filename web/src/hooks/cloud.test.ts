@@ -38,7 +38,7 @@ vi.mock("../lib/cloud", async (importOriginal) => {
   return { ...original, ...cloudMocks };
 });
 
-import { useCloud } from "./cloud";
+import { resetCloud, useCloud } from "./cloud";
 
 class HookHarness {
   private states: unknown[] = [];
@@ -161,6 +161,7 @@ async function flushPromises(): Promise<void> {
 
 beforeEach(() => {
   activeHarness = null;
+  resetCloud();
   vi.clearAllMocks();
 });
 
@@ -204,6 +205,58 @@ describe("progressive paper cloud state", () => {
     expect(cloudMocks.createCloud).toHaveBeenCalledTimes(1);
     expect(cloudMocks.streamCloud).toHaveBeenCalledTimes(1);
     harness.unmount();
+  });
+
+  it("shares one completed cloud across hook mounts", async () => {
+    const manifest = { count: 4 } as CloudManifest;
+    const data = cloudData();
+    data.loaded = manifest.count;
+    cloudMocks.fetchCloud.mockResolvedValue(manifest);
+    cloudMocks.createCloud.mockReturnValue(data);
+    cloudMocks.streamCloud.mockResolvedValue(data);
+    const first = new HookHarness();
+
+    first.render(true);
+    await flushPromises();
+    expect(first.render(true).data).toBe(data);
+    first.unmount();
+
+    const second = new HookHarness();
+    const restored = second.render(true);
+    expect(restored).toMatchObject({ manifest, data, loading: false, error: null });
+    expect(cloudMocks.fetchCloud).toHaveBeenCalledTimes(1);
+    expect(cloudMocks.createCloud).toHaveBeenCalledTimes(1);
+    expect(cloudMocks.streamCloud).toHaveBeenCalledTimes(1);
+    second.unmount();
+  });
+
+  it("keeps a shared load alive until its last subscriber leaves", async () => {
+    const manifest = { count: 4 } as CloudManifest;
+    const data = cloudData();
+    const pending = deferred<CloudData>();
+    let signal: AbortSignal | undefined;
+    cloudMocks.fetchCloud.mockResolvedValue(manifest);
+    cloudMocks.createCloud.mockReturnValue(data);
+    cloudMocks.streamCloud.mockImplementation(
+      async (_manifest: CloudManifest, _data: CloudData, active: AbortSignal) => {
+        signal = active;
+        return pending.promise;
+      },
+    );
+    const first = new HookHarness();
+    const second = new HookHarness();
+
+    first.render(true);
+    second.render(true);
+    await flushPromises();
+    expect(first.render(true).data).toBe(data);
+    expect(second.render(true).data).toBe(data);
+    expect(cloudMocks.fetchCloud).toHaveBeenCalledTimes(1);
+
+    first.unmount();
+    expect(signal?.aborted).toBe(false);
+    second.unmount();
+    expect(signal?.aborted).toBe(true);
   });
 
   it("discards an aborted partial load and ignores its late completion", async () => {

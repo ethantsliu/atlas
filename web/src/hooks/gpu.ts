@@ -70,7 +70,11 @@ type ViewCamera = Camera & {
   view?: View | null;
 };
 
-export type GpuHit = { distance: number; index: number };
+export type GpuHit = {
+  distance: number;
+  index: number;
+  valid: () => boolean;
+};
 
 export type GpuPick = {
   dispose: () => void;
@@ -80,8 +84,61 @@ export type GpuPick = {
     clientY: number,
     rect: DOMRect,
     hitSize: number,
-  ) => GpuHit | null;
+  ) => Promise<GpuHit | null>;
 };
+
+type PickStamp = {
+  camera: number[];
+  count: number;
+  matrix: number[];
+  position: unknown;
+  projection: number[];
+  source: number[];
+  start: number;
+};
+
+export function pickReady(source: Points<BufferGeometry, ShaderMaterial>): boolean {
+  return source.userData.moving !== true;
+}
+
+function sameValues(left: number[], right: number[]): boolean {
+  return left.every((value, index) => value === right[index]);
+}
+
+export function stampPick(
+  source: Points<BufferGeometry, ShaderMaterial>,
+  camera: Camera,
+): PickStamp {
+  camera.updateMatrixWorld();
+  source.updateWorldMatrix(true, false);
+  return {
+    camera: [...camera.matrixWorld.elements],
+    count: source.geometry.drawRange.count,
+    matrix: [...camera.matrixWorldInverse.elements],
+    position: source.geometry.getAttribute("position"),
+    projection: [...camera.projectionMatrix.elements],
+    source: [...source.matrixWorld.elements],
+    start: source.geometry.drawRange.start,
+  };
+}
+
+export function validPick(
+  stamp: PickStamp,
+  source: Points<BufferGeometry, ShaderMaterial>,
+  camera: Camera,
+): boolean {
+  if (!pickReady(source)) return false;
+  const next = stampPick(source, camera);
+  return (
+    stamp.count === next.count &&
+    stamp.position === next.position &&
+    stamp.start === next.start &&
+    sameValues(stamp.camera, next.camera) &&
+    sameValues(stamp.matrix, next.matrix) &&
+    sameValues(stamp.projection, next.projection) &&
+    sameValues(stamp.source, next.source)
+  );
+}
 
 function canView(camera: Camera): camera is ViewCamera {
   const value = camera as Partial<ViewCamera>;
@@ -196,7 +253,6 @@ export function makeGpuPick(
     stencilBuffer: false,
     type: UnsignedByteType,
   });
-  const bytes = new Uint8Array(PICK_SIZE * PICK_SIZE * 4);
   const bufferSize = new Vector2();
   const world = new Vector3();
   const cameraAt = new Vector3();
@@ -204,14 +260,17 @@ export function makeGpuPick(
   const viewport = new Vector4();
   const scissor = new Vector4();
 
-  const pick = (
+  let disposed = false;
+  const pick = async (
     camera: Camera,
     clientX: number,
     clientY: number,
     rect: DOMRect,
     hitSize: number,
-  ): GpuHit | null => {
+  ): Promise<GpuHit | null> => {
     if (
+      disposed ||
+      !pickReady(source) ||
       renderer.getContext().isContextLost() ||
       !canView(camera) ||
       rect.width <= 0 ||
@@ -233,6 +292,7 @@ export function makeGpuPick(
       0,
       Math.min(height - PICK_SIZE, Math.floor(pointY - PICK_RADIUS)),
     );
+    const stamp = stampPick(source, camera);
     const view = saveView(camera);
     const priorTarget = renderer.getRenderTarget();
     const priorFace = renderer.getActiveCubeFace();
@@ -243,18 +303,26 @@ export function makeGpuPick(
     const priorTest = renderer.getScissorTest();
     const priorViewport = renderer.getViewport(viewport).clone();
     renderer.getClearColor(clearColor);
-    source.updateWorldMatrix(true, false);
     points.matrix.copy(source.matrixWorld);
     points.matrixWorld.copy(source.matrixWorld);
     material.uniforms.pointSize.value = ID_SIZE;
     setView(camera, width, height, left, top);
+    const bytes = new Uint8Array(PICK_SIZE * PICK_SIZE * 4);
+    let reading: Promise<unknown>;
     try {
       renderer.autoClear = false;
       renderer.setRenderTarget(target);
       renderer.setClearColor(0, 0);
       renderer.clear(true, true, true);
       renderer.render(scene, camera);
-      renderer.readRenderTargetPixels(target, 0, 0, PICK_SIZE, PICK_SIZE, bytes);
+      reading = renderer.readRenderTargetPixelsAsync(
+        target,
+        0,
+        0,
+        PICK_SIZE,
+        PICK_SIZE,
+        bytes,
+      );
     } finally {
       renderer.setRenderTarget(priorTarget, priorFace, priorLevel);
       renderer.setViewport(priorViewport);
@@ -264,17 +332,33 @@ export function makeGpuPick(
       renderer.autoClear = priorAuto;
       restoreView(camera, view);
     }
+    await reading;
+    if (
+      disposed ||
+      renderer.getContext().isContextLost() ||
+      !validPick(stamp, source, camera)
+    ) {
+      return null;
+    }
     const count = Math.max(0, source.geometry.drawRange.count);
     const radius = pickRadius(hitSize, width, height, rect);
     const index = readHit(bytes, pointX, pointY, left, top, count, radius);
     if (index == null || index * 3 + 2 >= positions.length) return null;
     world.fromArray(positions, index * 3).applyMatrix4(source.matrixWorld);
     camera.getWorldPosition(cameraAt);
-    return { distance: cameraAt.distanceTo(world), index };
+    return {
+      distance: cameraAt.distanceTo(world),
+      index,
+      valid: () =>
+        !disposed &&
+        !renderer.getContext().isContextLost() &&
+        validPick(stamp, source, camera),
+    };
   };
 
   return {
     dispose: () => {
+      disposed = true;
       scene.remove(points);
       material.dispose();
       target.dispose();

@@ -1,11 +1,17 @@
 import { isNumber, isRecord, isString } from "./guards";
+import {
+  PACK_MODE,
+  PACK_MONTHS,
+  isPacks,
+  loadPoint,
+  pointUnits,
+  type CloudPack,
+  type PackAsset,
+  type PointData,
+} from "./pack";
 import { basePath } from "./paths";
 
-export type CloudAsset = {
-  path: string;
-  sha256: string;
-  bytes: number;
-};
+export type CloudAsset = PackAsset;
 
 export type CloudShard = {
   month: string;
@@ -48,6 +54,9 @@ export type CloudManifest = {
   omitted_sha256: string;
   foreground_sha256: string;
   shards: CloudShard[];
+  point_pack?: typeof PACK_MODE;
+  pack_months?: typeof PACK_MONTHS;
+  packs?: CloudPack[];
 };
 
 export type CloudRange = {
@@ -96,7 +105,6 @@ const POINT = /^\d{4}-\d{2}\.bin$/;
 const META = /^\d{4}-\d{2}\.json$/;
 const ROUTES = /^\d{4}-\d{2}\.routes$/;
 const ANCHORS = /^anchors\.json$/;
-const MAGIC = "ATLASPT1";
 const CLOUD_WINDOW = 5;
 
 export function cloudPath(asset: CloudAsset): string {
@@ -244,6 +252,17 @@ export function isCloud(value: unknown): value is CloudManifest {
         shard.anchor_sha256 === manifest.anchor_sha256 && Boolean(shard.routes),
     );
   if (!legacy && !routed) return false;
+  const loose =
+    manifest.point_pack === undefined &&
+    manifest.pack_months === undefined &&
+    manifest.packs === undefined;
+  const packed =
+    manifest.point_pack === PACK_MODE &&
+    manifest.pack_months === PACK_MONTHS &&
+    isPacks(manifest.packs, manifest.shards, (asset: unknown): asset is CloudAsset =>
+      isAsset(asset, /^p\d{3,}\.bin$/),
+    );
+  if (!loose && !packed) return false;
   const months = manifest.shards.map((shard) => shard.month);
   if (months.join() !== [...new Set(months)].sort().join()) return false;
   const total = manifest.shards.reduce((sum, shard) => sum + shard.count, 0);
@@ -356,66 +375,6 @@ export async function fetchCloud(
   return value;
 }
 
-async function pointShard(
-  shard: CloudShard,
-  signal: AbortSignal,
-  fetcher: typeof fetch,
-  base?: string,
-): Promise<{ positions: Float32Array; scopes: Uint8Array; radius: number }> {
-  const response = await fetcher(basePath(cloudPath(shard.points), base), {
-    signal,
-    cache: "force-cache",
-  });
-  if (!response.ok) throw new Error(`Paper point request failed (${response.status})`);
-  const bytes = await response.arrayBuffer();
-  if (bytes.byteLength !== shard.points.bytes) {
-    throw new Error("Paper point byte length does not match its index");
-  }
-  if ((await digestOf(bytes)) !== shard.points.sha256) {
-    throw new Error("Paper point digest does not match its index");
-  }
-  const view = new DataView(bytes);
-  const magic = new TextDecoder().decode(new Uint8Array(bytes, 0, 8));
-  const count = view.getUint32(8, true);
-  if (
-    magic !== MAGIC ||
-    count !== shard.count ||
-    bytes.byteLength !== 12 + count * 13
-  ) {
-    throw new Error("Paper point shard has an invalid contract");
-  }
-  const positions = new Float32Array(count * 3);
-  let radius = 0;
-  for (let index = 0; index < count * 3; index += 1) {
-    const coordinate = view.getFloat32(12 + index * 4, true);
-    if (!Number.isFinite(coordinate)) {
-      throw new Error("Paper point shard is invalid");
-    }
-    positions[index] = coordinate;
-  }
-  for (let index = 0; index < count; index += 1) {
-    const offset = index * 3;
-    radius = Math.max(
-      radius,
-      Math.hypot(positions[offset], positions[offset + 1], positions[offset + 2]),
-    );
-  }
-  const scopes = new Uint8Array(bytes.slice(12 + count * 12));
-  const scopeCounts = [0, 0, 0];
-  for (const scope of scopes) {
-    if (scope > 2) throw new Error("Paper point shard is invalid");
-    scopeCounts[scope] += 1;
-  }
-  if (
-    scopeCounts[0] !== shard.counts.likely ||
-    scopeCounts[1] !== shard.counts.possible ||
-    scopeCounts[2] !== shard.counts.outside
-  ) {
-    throw new Error("Paper point shard is invalid");
-  }
-  return { positions, scopes, radius };
-}
-
 export function createCloud(manifest: CloudManifest): CloudData {
   return {
     positions: new Float32Array(manifest.count * 3),
@@ -426,8 +385,7 @@ export function createCloud(manifest: CloudManifest): CloudData {
   };
 }
 
-type ShardData = Awaited<ReturnType<typeof pointShard>>;
-type ShardResult = { ok: true; data: ShardData } | { ok: false; error: unknown };
+type ShardResult = { ok: true; data: PointData } | { ok: false; error: unknown };
 
 function abortLoad(signal: AbortSignal): void {
   if (!signal.aborted) return;
@@ -454,9 +412,10 @@ export async function streamCloud(
   const controller = new AbortController();
   const forward = () => controller.abort(signal.reason);
   signal.addEventListener("abort", forward, { once: true });
+  const units = pointUnits(manifest.shards, manifest.packs);
   const results: (Promise<ShardResult> | undefined)[] = [];
   const settles: (((result: ShardResult) => void) | undefined)[] = [];
-  for (const _shard of manifest.shards) {
+  for (const _unit of units) {
     results.push(
       new Promise((resolve) => {
         settles.push(resolve);
@@ -482,14 +441,15 @@ export async function streamCloud(
   const work = async () => {
     while (!stopped) {
       await waitSlot();
-      if (stopped || next >= manifest.shards.length) return;
+      if (stopped || next >= units.length) return;
       const index = next++;
-      const shard = manifest.shards[index];
-      const result: ShardResult = await pointShard(
-        shard,
+      const unit = units[index];
+      const result: ShardResult = await loadPoint(
+        unit,
         controller.signal,
         fetcher,
-        base,
+        basePath(cloudPath(unit.points), base),
+        digestOf,
       ).then(
         (loaded) => ({ ok: true, data: loaded }),
         (error: unknown) => ({ ok: false, error }),
@@ -507,34 +467,48 @@ export async function streamCloud(
       }
     }
   };
-  const workers = Array.from({ length: Math.min(4, manifest.shards.length) }, () =>
-    work(),
-  );
+  const workers = Array.from({ length: Math.min(4, units.length) }, () => work());
   try {
-    for (let index = 0; index < manifest.shards.length; index += 1) {
+    for (let index = 0; index < units.length; index += 1) {
       const result = await results[index]!;
       results[index] = undefined;
       abortLoad(signal);
       if (!result.ok) throw failed ? failure : result.error;
       const loaded = result.data;
-      const shard = manifest.shards[index];
+      const unit = units[index];
       const start = data.loaded;
-      data.positions.set(loaded.positions, start * 3);
+      if (loaded.positions) {
+        data.positions.set(loaded.positions, start * 3);
+      } else {
+        for (let local = 0; local < loaded.count * 3; local += 1) {
+          data.positions[start * 3 + local] = loaded.view.getFloat32(
+            12 + local * 4,
+            true,
+          );
+        }
+      }
       data.scopes.set(loaded.scopes, start);
-      data.ranges.push({
-        month: shard.month,
-        start,
-        count: loaded.scopes.length,
-        meta: shard.meta,
-        anchor_sha256: shard.anchor_sha256,
-        row_sha256: shard.row_sha256,
-        routes: shard.routes,
-      });
-      data.loaded += loaded.scopes.length;
+      let offset = start;
+      for (const shard of unit.shards) {
+        data.ranges.push({
+          month: shard.month,
+          start: offset,
+          count: shard.count,
+          meta: shard.meta,
+          anchor_sha256: shard.anchor_sha256,
+          row_sha256: shard.row_sha256,
+          routes: shard.routes,
+        });
+        offset += shard.count;
+      }
+      if (offset !== start + loaded.count) {
+        throw new Error("Paper point pack count drifted while loading");
+      }
+      data.loaded += loaded.count;
       data.radius = Math.max(data.radius, loaded.radius);
       onStep?.({
         start,
-        count: loaded.scopes.length,
+        count: loaded.count,
         loaded: data.loaded,
         total: manifest.count,
       });

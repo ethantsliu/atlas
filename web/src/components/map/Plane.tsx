@@ -1,4 +1,11 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import {
   OrthographicCamera,
   Points,
@@ -6,11 +13,13 @@ import {
   WebGLRenderer,
   type WebGLRendererParameters,
 } from "three";
-import { pickSize, usePoints, type PointApi, type PointHit } from "../../hooks/points";
+import { usePoints, type PointApi } from "../../hooks/points";
 import type { Theme } from "../../hooks/theme";
 import type { CloudData, CloudPick } from "../../lib/cloud";
 import type { PickOrder } from "../../lib/order";
+import { moveCloud, type CloudSwarm } from "../../lib/swarm";
 import "../../plane.css";
+import "./status.css";
 
 export type PlaneView = { k: number; x: number; y: number };
 
@@ -39,36 +48,53 @@ type PlaneHost = {
   scene: () => Scene;
 };
 
-export function planeHit(
+export type PlaneStatus = "ready" | "lost" | "retrying" | "unsupported";
+
+export function watchPlane(
+  canvas: HTMLCanvasElement,
+  lost: () => void,
+  restored: () => void,
+): () => void {
+  const onLoss = (event: Event) => {
+    event.preventDefault();
+    lost();
+  };
+  canvas.addEventListener("webglcontextlost", onLoss);
+  canvas.addEventListener("webglcontextrestored", restored);
+  return () => {
+    canvas.removeEventListener("webglcontextlost", onLoss);
+    canvas.removeEventListener("webglcontextrestored", restored);
+  };
+}
+
+export function planeRatio(count: number, ratio: number): number {
+  if (count >= 100_000) return 1;
+  return Math.min(Number.isFinite(ratio) && ratio > 0 ? ratio : 1, 1.5);
+}
+
+export function planeDepth(
   data: CloudData,
   view: PlaneView,
   event: PointerEvent | MouseEvent,
   canvas: HTMLCanvasElement,
-): PointHit {
+  index: number,
+): number {
   const rect = canvas.getBoundingClientRect();
   const x = event.clientX - rect.left;
   const y = event.clientY - rect.top;
-  if (rect.width <= 0 || rect.height <= 0 || view.k <= 0) {
-    return { distance: Number.POSITIVE_INFINITY, index: null, x, y };
+  if (
+    rect.width <= 0 ||
+    rect.height <= 0 ||
+    view.k <= 0 ||
+    index < 0 ||
+    index >= data.loaded
+  ) {
+    return Number.POSITIVE_INFINITY;
   }
-  const pointer = "pointerType" in event ? event.pointerType : undefined;
-  let nearest = (pickSize(pointer) / 2) ** 2;
-  let picked: number | null = null;
-  for (let index = 0; index < data.loaded; index += 1) {
-    const offset = index * 3;
-    const dx = data.positions[offset] * view.k + view.x - x;
-    const dy = data.positions[offset + 1] * view.k + view.y - y;
-    const distance = dx * dx + dy * dy;
-    if (distance > nearest) continue;
-    nearest = distance;
-    picked = index;
-  }
-  return {
-    distance: picked == null ? Number.POSITIVE_INFINITY : Math.sqrt(nearest),
-    index: picked,
-    x,
-    y,
-  };
+  const offset = index * 3;
+  const dx = data.positions[offset] * view.k + view.x - x;
+  const dy = data.positions[offset + 1] * view.k + view.y - y;
+  return Math.hypot(dx, dy);
 }
 
 function makeHost(canvas: HTMLCanvasElement): PlaneHost | null {
@@ -119,6 +145,29 @@ function showPlane(
   host.renderer().render(host.scene(), camera);
 }
 
+export function movePlane(points: CloudSwarm | undefined, draw: () => void): void {
+  if (points) moveCloud(points, draw);
+  draw();
+}
+
+function PlaneNotice({ status, retry }: { status: PlaneStatus; retry: () => void }) {
+  if (status === "ready") return null;
+  const message =
+    status === "lost"
+      ? "Paper map paused; the core map remains available."
+      : status === "unsupported"
+        ? "Paper map unavailable; the core map remains available."
+        : "Restoring the paper map…";
+  return (
+    <aside className="graph-status" role="status" aria-live="polite">
+      <span>{message}</span>
+      <button type="button" onClick={retry} disabled={status === "retrying"}>
+        {status === "retrying" ? "Restoring…" : "Retry paper map"}
+      </button>
+    </aside>
+  );
+}
+
 export const CloudPlane = forwardRef<PlaneRef, PlaneProps>(function CloudPlane(
   { active, canvas, data, height, onPick, onReady, order, theme, width },
   ref,
@@ -126,20 +175,47 @@ export const CloudPlane = forwardRef<PlaneRef, PlaneProps>(function CloudPlane(
   const ownRef = useRef<HTMLCanvasElement>(null);
   const pointRef = useRef<PointApi>();
   const viewRef = useRef<PlaneView>({ k: 1, x: width / 2, y: height / 2 });
+  const [epoch, setEpoch] = useState(0);
   const [host, setHost] = useState<PlaneHost | null>(null);
+  const [status, setStatus] = useState<PlaneStatus>("retrying");
+  const retry = useCallback(() => {
+    pointRef.current = undefined;
+    setHost(null);
+    onReady(false);
+    setStatus("retrying");
+    setEpoch((value) => value + 1);
+  }, [onReady]);
 
   useEffect(() => {
     const element = ownRef.current;
     if (!element) return;
-    const next = makeHost(element);
+    let next: PlaneHost | null = null;
+    try {
+      next = makeHost(element);
+    } catch {
+      next = null;
+    }
     if (!next) {
       onReady(false);
+      setStatus("unsupported");
       return;
     }
+    const stopWatch = watchPlane(
+      element,
+      () => {
+        pointRef.current = undefined;
+        setHost(null);
+        onReady(false);
+        setStatus("lost");
+      },
+      retry,
+    );
     pointRef.current = next;
     setHost(next);
+    setStatus("ready");
     onReady(true);
     return () => {
+      stopWatch();
       pointRef.current = undefined;
       onReady(false);
       queueMicrotask(() => {
@@ -147,17 +223,18 @@ export const CloudPlane = forwardRef<PlaneRef, PlaneProps>(function CloudPlane(
         next.renderer().forceContextLoss();
       });
     };
-  }, [onReady]);
+  }, [epoch, onReady, retry]);
 
   const hit = usePoints({
     active,
     canvas,
     data: host && canvas ? data : null,
-    graphRef: pointRef,
-    hit:
+    depth:
       data && canvas
-        ? (event, target) => planeHit(data, viewRef.current, event, target)
+        ? (index, event, target) =>
+            planeDepth(data, viewRef.current, event, target, index)
         : undefined,
+    graphRef: pointRef,
     onPick,
     order,
     theme,
@@ -171,7 +248,13 @@ export const CloudPlane = forwardRef<PlaneRef, PlaneProps>(function CloudPlane(
       take: hit.take,
       view: (view) => {
         viewRef.current = view;
-        if (host) showPlane(host, view, width, height, data?.radius ?? 1);
+        if (host) {
+          const draw = () =>
+            showPlane(host, viewRef.current, width, height, data?.radius ?? 1);
+          const points = host.scene().getObjectByName("archive-cloud") as
+            CloudSwarm | undefined;
+          movePlane(points, draw);
+        }
       },
     }),
     [data?.radius, height, hit.block, hit.drop, hit.take, host, width],
@@ -179,7 +262,7 @@ export const CloudPlane = forwardRef<PlaneRef, PlaneProps>(function CloudPlane(
 
   useEffect(() => {
     if (!host) return;
-    const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
+    const ratio = planeRatio(data?.loaded ?? 0, window.devicePixelRatio);
     host.renderer().setPixelRatio(ratio);
     host.renderer().setSize(width, height, false);
     let frame = 0;
@@ -202,7 +285,14 @@ export const CloudPlane = forwardRef<PlaneRef, PlaneProps>(function CloudPlane(
 
   return (
     <>
-      <canvas className="cloud-plane" ref={ownRef} aria-hidden="true" />
+      <canvas
+        className="cloud-plane"
+        data-engine={status}
+        key={epoch}
+        ref={ownRef}
+        aria-hidden="true"
+      />
+      <PlaneNotice status={status} retry={retry} />
       {hit.tip && (
         <div
           className="swarm-tip cloud-tip"

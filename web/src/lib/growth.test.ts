@@ -111,4 +111,67 @@ describe("progressive paper cloud geometry", () => {
     points.geometry.dispose();
     points.material.dispose();
   });
+
+  it("uploads a completed cached cloud in one remount frame", () => {
+    const buffers = [{}, {}] as WebGLBuffer[];
+    const bufferSubData = vi.fn();
+    const gl = {
+      ARRAY_BUFFER: 34_962,
+      DYNAMIC_DRAW: 35_048,
+      FLOAT: 5_126,
+      bindBuffer: vi.fn(),
+      bufferData: vi.fn(),
+      bufferSubData,
+      createBuffer: vi.fn(() => buffers.shift() ?? null),
+      deleteBuffer: vi.fn(),
+    } as unknown as WebGL2RenderingContext;
+    const renderer = { getContext: () => gl } as unknown as WebGLRenderer;
+    const count = 100_001;
+    const data = dataOf(count, count);
+    const points = buildCloud(data, "light", renderer);
+
+    growCloud(points, data);
+    growCloud(points, data);
+    expect(frames).toHaveLength(1);
+    runFrame();
+
+    expect(frames).toHaveLength(0);
+    expect(points.geometry.drawRange.count).toBe(count);
+    expect(bufferSubData).toHaveBeenCalledTimes(2);
+    expect((bufferSubData.mock.calls[0][2] as Float32Array).length).toBe(count * 3);
+    expect((bufferSubData.mock.calls[1][2] as Float32Array).length).toBe(72_000 * 3);
+
+    dropCloud(points);
+    points.geometry.dispose();
+    points.material.dispose();
+  });
+
+  it("does not upload a completed cache after it is dropped", () => {
+    const buffers = [{}, {}] as WebGLBuffer[];
+    const bufferSubData = vi.fn();
+    const gl = {
+      ARRAY_BUFFER: 34_962,
+      DYNAMIC_DRAW: 35_048,
+      FLOAT: 5_126,
+      bindBuffer: vi.fn(),
+      bufferData: vi.fn(),
+      bufferSubData,
+      createBuffer: vi.fn(() => buffers.shift() ?? null),
+      deleteBuffer: vi.fn(),
+    } as unknown as WebGL2RenderingContext;
+    const renderer = { getContext: () => gl } as unknown as WebGLRenderer;
+    const data = dataOf(CLOUD_BATCH + 2, CLOUD_BATCH + 2);
+    const points = buildCloud(data, "light", renderer);
+
+    growCloud(points, data);
+    dropCloud(points);
+    runFrame();
+
+    expect(cancelAnimationFrame).toHaveBeenCalledOnce();
+    expect(bufferSubData).not.toHaveBeenCalled();
+    expect(points.geometry.drawRange.count).toBe(0);
+    expect(gl.deleteBuffer).toHaveBeenCalledTimes(2);
+    points.geometry.dispose();
+    points.material.dispose();
+  });
 });

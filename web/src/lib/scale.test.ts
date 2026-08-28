@@ -7,6 +7,7 @@ import {
   type CloudManifest,
   type CloudStep,
 } from "./cloud";
+import { packKey, type CloudPack } from "./pack";
 
 type PointAsset = {
   bytes: ArrayBuffer;
@@ -105,12 +106,78 @@ function scaleCase(counts: readonly number[]): {
   };
 }
 
+function packedCase(counts: readonly number[]) {
+  const result = scaleCase(counts);
+  const groups = new Map<number, typeof result.manifest.shards>();
+  result.manifest.shards.forEach((shard) => {
+    const key = packKey(shard.month)!;
+    const group = groups.get(key) ?? [];
+    group.push(shard);
+    groups.set(key, group);
+  });
+  const packs: CloudPack[] = [];
+  for (const [key, shards] of groups) {
+    const count = shards.reduce((sum, shard) => sum + shard.count, 0);
+    const bytes = new ArrayBuffer(12 + count * 13);
+    const raw = new Uint8Array(bytes);
+    raw.set(new TextEncoder().encode("ATLASPK1"));
+    new DataView(bytes).setUint32(8, count, true);
+    let pointAt = 12;
+    let scopeAt = 12 + count * 12;
+    for (const shard of shards) {
+      const source = result.assets.get(shard.points.path)!.bytes;
+      raw.set(new Uint8Array(source, 12, shard.count * 12), pointAt);
+      raw.set(new Uint8Array(source, 12 + shard.count * 12, shard.count), scopeAt);
+      pointAt += shard.count * 12;
+      scopeAt += shard.count;
+    }
+    const path = `p${String(key).padStart(3, "0")}.bin`;
+    const sha256 = createHash("sha256").update(Buffer.from(bytes)).digest("hex");
+    result.assets.set(path, { bytes, month: shards[0].month, path });
+    packs.push({
+      months: shards.map((shard) => shard.month),
+      count,
+      counts: {
+        likely: count,
+        possible: 0,
+        outside: 0,
+      },
+      points: { path, sha256, bytes: bytes.byteLength },
+    });
+  }
+  result.manifest.point_pack = "month-14-v1";
+  result.manifest.pack_months = 14;
+  result.manifest.packs = packs;
+  return result;
+}
+
 function assetPath(input: RequestInfo | URL): string {
   const url = new URL(String(input), "https://atlas.test");
   return url.pathname.split("/").at(-1)!;
 }
 
 describe("paper cloud scale boundaries", () => {
+  it("loads 421 months with 31 point requests", async () => {
+    const { assets, manifest } = packedCase(Array.from({ length: 421 }, () => 1));
+    const requested: string[] = [];
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const path = assetPath(input);
+      requested.push(path);
+      const asset = assets.get(path);
+      return asset ? new Response(asset.bytes) : new Response(null, { status: 404 });
+    }) as unknown as typeof fetch;
+
+    const data = await loadCloud(manifest, new AbortController().signal, fetcher);
+
+    expect(requested).toHaveLength(31);
+    expect(requested.every((path) => /^p\d{3}\.bin$/.test(path))).toBe(true);
+    expect(data.loaded).toBe(421);
+    expect(data.ranges).toHaveLength(421);
+    expect(data.ranges.map((range) => range.month)).toEqual(
+      manifest.shards.map((shard) => shard.month),
+    );
+  });
+
   it("assembles one million points completely in manifest order", async () => {
     const { assets, manifest } = scaleCase(Array.from({ length: 20 }, () => 50_000));
     const requested: string[] = [];
