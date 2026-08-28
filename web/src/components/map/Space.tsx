@@ -35,7 +35,6 @@ import type { GraphRef } from "./Driver";
 import { pickFront } from "./Front";
 import { RouteMark } from "./Route";
 import { frontRank, makeOrder } from "../../lib/order";
-import { moveCloud, type CloudSwarm } from "../../lib/swarm";
 
 export const FRAME_IDLE_WAIT = 240;
 
@@ -49,7 +48,6 @@ type FrameGraph = {
   pauseAnimation: () => unknown;
   renderer: () => { domElement: HTMLCanvasElement };
   resumeAnimation: () => unknown;
-  scene?: () => { getObjectByName: (name: string) => unknown };
 };
 
 type FrameTimer = {
@@ -116,9 +114,6 @@ export function makeFrameIdle(
   };
   const probe = () => {
     if (probeFrame) return;
-    const cloud = graph.scene?.().getObjectByName("archive-cloud") as
-      CloudSwarm | undefined;
-    if (cloud) moveCloud(cloud);
     touch();
     probeFrame = loop.request(() => {
       probeFrame = 0;
