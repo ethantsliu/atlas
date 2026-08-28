@@ -12,6 +12,7 @@ from ideas import (  # noqa: E402
     build_cross_ideas,
     build_provisional_ideas,
     idea_id,
+    idea_title,
 )
 
 
@@ -101,6 +102,16 @@ class IdeaIdTests(unittest.TestCase):
         self.assertEqual(
             idea_id("agents", "variance-control"),
             "idea-standalone-agents--variance-control",
+        )
+
+    def test_titles(self) -> None:
+        self.assertEqual(
+            idea_title("agents", "variance-control"),
+            "When does variance control make agents more reliable?",
+        )
+        self.assertEqual(
+            idea_title("new-field", "regularization"),
+            "Where does regularization produce a repeatable gain in new field?",
         )
 
     def test_all_pairs(self) -> None:

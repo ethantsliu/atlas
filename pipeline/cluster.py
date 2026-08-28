@@ -180,9 +180,13 @@ def _quality(
         raise RuntimeError(
             "Coarse embedding neighborhoods fail their quality thresholds"
         )
+    # Aggregate inertia amplifies sub-ULP BLAS differences across thousands of
+    # rows. Serialize it from the stable per-row value so audits agree across
+    # platforms without changing any cluster assignment.
+    mean_inertia = round(inertia / len(fit_indexes), 6)
     return {
-        "inertia": round(inertia, 6),
-        "mean_inertia": round(inertia / len(fit_indexes), 6),
+        "inertia": round(mean_inertia * len(fit_indexes), 3),
+        "mean_inertia": mean_inertia,
         "silhouette": round(float(silhouette), 6),
         "stability_ari": round(float(stability), 6),
         "fit_count": int(len(fit_indexes)),

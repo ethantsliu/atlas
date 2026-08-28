@@ -73,6 +73,26 @@ LEGACY_IDS = {
     ("representation-learning", "ensembling"): "idea-standalone-48",
 }
 
+IDEA_FRAMES = {
+    "agents": "When does {trick} make agents more reliable?",
+    "ai-for-science": "Does {trick} improve scientific discovery?",
+    "alignment": "Can {trick} improve alignment without hiding failures?",
+    "continual-learning": "Can {trick} reduce catastrophic forgetting?",
+    "efficiency-systems": "Does {trick} deliver real systems efficiency?",
+    "environment-design": "Can {trick} produce better learning environments?",
+    "evaluation": "Which evaluation failures does {trick} expose?",
+    "generative-modeling": "Can {trick} improve generative fidelity?",
+    "interpretability": "Can {trick} yield faithful explanations?",
+    "learning-theory": "What guarantees can {trick} support?",
+    "multimodal": "When does {trick} improve multimodal transfer?",
+    "optimization": "Where does {trick} improve optimization?",
+    "post-training": "When does {trick} improve post-training?",
+    "pre-training": "Does {trick} improve pretraining efficiency or transfer?",
+    "reasoning": "Does {trick} improve robust reasoning?",
+    "representation-learning": "What representations does {trick} preserve?",
+    "world-models": "Can {trick} improve world-model fidelity?",
+}
+
 
 def route_id(value: object) -> str:
     """Normalize one ontology identifier for stable derived IDs."""
@@ -86,6 +106,18 @@ def idea_id(topic: str, trick: str) -> str:
     """Return a rank-independent public ID for one normalized route pair."""
     pair = (route_id(topic), route_id(trick))
     return LEGACY_IDS.get(pair, f"idea-standalone-{pair[0]}--{pair[1]}")
+
+
+def idea_title(topic: str, trick: str) -> str:
+    """Turn one route pair into a concise, domain-specific question."""
+    topic_id = route_id(topic)
+    trick_label = route_id(trick).replace("-", " ")
+    frame = IDEA_FRAMES.get(
+        topic_id,
+        "Where does {trick} produce a repeatable gain in "
+        f"{topic_id.replace('-', ' ')}?",
+    )
+    return frame.format(trick=trick_label)
 
 
 def make_brief(
@@ -225,7 +257,7 @@ def build_cross_ideas(
         key=lambda item: (-len(item[1]), item[0]),
     )
     for (topic, trick), supporting in best_pairs:
-        title = f"Stress-test {trick.replace('-', ' ')} for {topic.replace('-', ' ')}"
+        title = idea_title(topic, trick)
         selected_support = supporting[:6]
         ideas.append(
             {
