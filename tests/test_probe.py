@@ -118,7 +118,9 @@ class ProbeTests(unittest.TestCase):
         self.assertIn("workflow_run:", workflow)
         self.assertIn("github.event.workflow_run.conclusion == 'success'", workflow)
         self.assertIn("github.event.workflow_run.event == 'push'", workflow)
-        self.assertIn("github.event.workflow_run.event == 'workflow_dispatch'", workflow)
+        self.assertIn(
+            "github.event.workflow_run.event == 'workflow_dispatch'", workflow
+        )
         self.assertIn("github.event.workflow_run.head_repository.full_name", workflow)
         self.assertIn("ref: ${{ github.event.workflow_run.head_sha }}", workflow)
         self.assertNotIn("workflow_dispatch:", workflow)
