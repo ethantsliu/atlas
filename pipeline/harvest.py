@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Protocol
 
 from files import atomic_write_bytes, atomic_write_text
+from dates import clean_date, newest_date
 from oai import PREFIX, OaiError
 from scrub import scrub_tree
 
@@ -64,28 +65,9 @@ def page_path(root: Path, generation: str, index: int) -> Path:
     return stage_path(root, generation) / "pages" / f"{index:08d}.json.gz"
 
 
-def clean_date(value: object) -> str:
-    """Require the UTC server response timestamp used as a watermark."""
-    if not isinstance(value, str) or not value.endswith("Z"):
-        raise ValueError("OAI page is missing a UTC responseDate")
-    try:
-        parsed = datetime.fromisoformat(value.removesuffix("Z") + "+00:00")
-    except ValueError as error:
-        raise ValueError("OAI page has an invalid responseDate") from error
-    if parsed.utcoffset() is None:
-        raise ValueError("OAI page responseDate must include UTC")
-    return value
-
-
 def page_date(page: PageLike) -> str:
     """Read responseDate without substituting record or local timestamps."""
     return clean_date(getattr(page, "response_date", None))
-
-
-def newest_date(prior: str | None, current: str) -> str:
-    """Keep a monotonic watermark across replayed or cached responses."""
-    current = clean_date(current)
-    return current if prior is None else max(clean_date(prior), current)
 
 
 def clean_day(value: object, field: str) -> str | None:

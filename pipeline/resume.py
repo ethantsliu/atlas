@@ -7,7 +7,8 @@ import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from harvest import clean_date, read_state, run_harvest, stage_path
+from dates import clean_date
+from harvest import read_state, run_harvest, stage_path
 from oai import OaiError
 
 

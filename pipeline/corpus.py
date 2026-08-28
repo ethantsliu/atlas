@@ -17,13 +17,13 @@ from typing import Callable
 
 from archive import migrate_archive, write_manifest
 from archivecheck import validate_archive
+from dates import clean_date
 from files import atomic_write_text
 from harvest import (
     HISTORY_START,
     advance_history,
     check_stage,
     check_history,
-    clean_date,
     gc_stages,
     plan_history,
     read_state,
