@@ -30,7 +30,7 @@ from harvest import (
     state_path,
 )
 from events import check_ledger
-from merge import merge_generation, read_generation
+from merge import merge_generations, read_generation
 from oai import OaiClient
 from rank import load_rules
 from resume import expiry_near, next_page, reset_stage, token_expired
@@ -243,11 +243,15 @@ def merge_pending(root: Path, archive: Path, rules_path: Path) -> dict:
     cursor = read_cursor(root)
     rules = load_rules(rules_path)
     manifest = None
-    for generation in cursor["pending"]:
-        if generation not in cursor["merged"]:
-            manifest = merge_generation(root, generation, archive, rules)
-            cursor = {**cursor, "merged": [*cursor["merged"], generation]}
-            write_cursor(root, cursor)
+    remaining = [
+        generation
+        for generation in cursor["pending"]
+        if generation not in cursor["merged"]
+    ]
+    if remaining:
+        manifest = merge_generations(root, remaining, archive, rules)
+        cursor = {**cursor, "merged": [*cursor["merged"], *remaining]}
+        write_cursor(root, cursor)
     if manifest is None and (archive / "index.json").is_file():
         manifest = validate_archive(archive)
     return {

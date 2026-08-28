@@ -331,6 +331,32 @@ class ArchiveTests(unittest.TestCase):
             self.assertEqual(saved["papers"][0]["authors"], ["Ada Researcher"])
             self.assertEqual(migrate_archive(root), [])
 
+    def test_parallel_migration(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            expected = []
+            for month in range(1, 5):
+                day = date(2020, month, 2)
+                identifier = f"20{month:02d}.00001"
+                source = paper(
+                    identifier,
+                    published=f"2020-{month:02d}-02T01:00:00Z",
+                    updated=f"2020-{month:02d}-02T01:00:00Z",
+                )
+                payload = build_month(day, intake([source]), RULES)
+                payload["papers"][0]["comment"] = "Prior annotation"
+                payload["papers"][0]["authors"] = ["owner@example.org"]
+                path = root / f"2020-{month:02d}.json.gz"
+                path.write_bytes(shard_bytes(payload))
+                expected.append(f"2020-{month:02d}")
+
+            self.assertEqual(migrate_archive(root, workers=2), expected)
+            for month in expected:
+                saved = read_shard(root / f"{month}.json.gz")["papers"][0]
+                self.assertNotIn("comment", saved)
+                self.assertEqual(saved["authors"], [])
+            self.assertEqual(migrate_archive(root, workers=2), [])
+
     def test_known_legacy(self) -> None:
         unknown = paper("private/9901001", published="1999-01-02")
         with self.assertRaisesRegex(ValueError, "public paper text"):

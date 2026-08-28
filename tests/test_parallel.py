@@ -97,7 +97,8 @@ class ParallelTests(unittest.TestCase):
         for required in (
             'cron: "47 11 * * *"',
             "github.event_name == 'schedule'",
-            "max-parallel: 16",
+            "--parts 20",
+            "max-parallel: 20",
             "fail-fast: false",
             "contents: read",
             "contents: write",

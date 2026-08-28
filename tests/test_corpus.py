@@ -150,7 +150,7 @@ class CorpusTests(unittest.TestCase):
 
         for required in (
             'cron: "17 04,10,16,22 * * *"',
-            "group: arxiv-oai-${{ inputs.snapshot && 'snapshot' || 'corpus' }}",
+            "group: arxiv-oai-corpus",
             "cancel-in-progress: false",
             "PROMOTED_TAG: corpus-v2",
             "MIN_READY: 1000000",
@@ -170,7 +170,6 @@ class CorpusTests(unittest.TestCase):
             "steps.snapshot.outputs.ready == 'true'",
             "steps.prep.outputs.changed == 'true'",
             "steps.prep.outputs.ready == 'true'",
-            "inputs.snapshot != true",
             "actions/upload-artifact@v4",
             'name = f"checkpoint-{archive_hash[:16]}',
             "status=$(awk '/^HTTP/{code=$2} END{print code}' \"$probe\")",
@@ -183,8 +182,15 @@ class CorpusTests(unittest.TestCase):
         self.assertNotIn("archive.read_bytes()", corpus)
         self.assertNotIn("content = path.read_bytes()", corpus)
         self.assertNotIn("--clobber || true", corpus)
+        self.assertIn('missing_assets+=("$PROMO_ROOT/$asset")', corpus)
+        self.assertIn(
+            'gh release upload "$PROMOTED_TAG" "${missing_assets[@]}"', corpus
+        )
+        self.assertNotIn(
+            'gh release upload "$PROMOTED_TAG" "$PROMO_ROOT/$asset"', corpus
+        )
         self.assertLess(
-            corpus.index('gh release upload "$PROMOTED_TAG" "$PROMO_ROOT/$asset"'),
+            corpus.index('gh release upload "$PROMOTED_TAG" "${missing_assets[@]}"'),
             corpus.index("swap_asset()"),
         )
         self.assertLess(

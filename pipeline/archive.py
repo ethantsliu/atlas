@@ -7,8 +7,10 @@ import gzip
 import hashlib
 import json
 import math
+import os
 import re
 import unicodedata
+from concurrent.futures import ProcessPoolExecutor
 from datetime import date, datetime
 from pathlib import Path
 
@@ -447,13 +449,25 @@ def migrate_shard(path: Path) -> bool:
     return True
 
 
-def migrate_archive(root: Path) -> list[str]:
+def migrate_workers(total: int, requested: int | None) -> int:
+    """Bound migration processes by input size and available CPUs."""
+    if requested is not None and (
+        not isinstance(requested, int) or isinstance(requested, bool) or requested < 1
+    ):
+        raise ValueError("Archive migration worker count is invalid")
+    return min(total, requested or 4, os.cpu_count() or 1)
+
+
+def migrate_archive(root: Path, workers: int | None = None) -> list[str]:
     """Migrate every local mutable month from the known prior schema."""
-    return [
-        path.name[:7]
-        for path in sorted(root.glob("????-??.json.gz"))
-        if migrate_shard(path)
-    ]
+    paths = sorted(root.glob("????-??.json.gz"))
+    count = migrate_workers(len(paths), workers)
+    if count < 2:
+        changed = map(migrate_shard, paths)
+    else:
+        with ProcessPoolExecutor(max_workers=count) as pool:
+            changed = list(pool.map(migrate_shard, paths))
+    return [path.name[:7] for path, migrated in zip(paths, changed) if migrated]
 
 
 def write_shard(root: Path, payload: dict) -> Path:

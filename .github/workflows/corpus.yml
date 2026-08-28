@@ -15,14 +15,8 @@ on:
         required: false
         default: "300"
         type: string
-      snapshot:
-        description: "Use the isolated early-snapshot lane"
-        required: false
-        default: false
-        type: boolean
-
 concurrency:
-  group: arxiv-oai-${{ inputs.snapshot && 'snapshot' || 'corpus' }}
+  group: arxiv-oai-corpus
   cancel-in-progress: false
 
 permissions:
@@ -270,7 +264,8 @@ jobs:
             "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
             --jq '.[] | [.name, (.digest // ""), .id] | @tsv' > "$RUNNER_TEMP/promo-assets.tsv"
           mkdir -p "$RUNNER_TEMP/promo-existing"
-          jq -r '.assets[]' "$PROMO_ROOT/plan.json" | while read -r asset; do
+          missing_assets=()
+          while read -r asset; do
             digest=$(jq -r --arg path "$asset" \
               '.shards[] | select(.path == $path) | .sha256' "$PROMO_ROOT/index.json")
             api_digest=$(awk -F '\t' -v name="$asset" '$1 == name {print $2; exit}' \
@@ -289,8 +284,11 @@ jobs:
               echo "Promoted asset name collides with different content: $asset" >&2
               exit 1
             fi
-            gh release upload "$PROMOTED_TAG" "$PROMO_ROOT/$asset"
-          done
+            missing_assets+=("$PROMO_ROOT/$asset")
+          done < <(jq -r '.assets[]' "$PROMO_ROOT/plan.json")
+          if [ "${#missing_assets[@]}" -gt 0 ]; then
+            gh release upload "$PROMOTED_TAG" "${missing_assets[@]}"
+          fi
           swap_asset() {
             local source="$1" stable="$2" stem="$3"
             local digest recovery api_digest stable_digest candidate
@@ -440,10 +438,7 @@ jobs:
 
       - name: Package checkpoint
         id: package
-        if: >-
-          always() &&
-          steps.checkpoint.outcome == 'success' &&
-          inputs.snapshot != true
+        if: always() && steps.checkpoint.outcome == 'success'
         run: |
           python pipeline/corpus.py pack \
             --root "$CORPUS_ROOT" \

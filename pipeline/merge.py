@@ -207,11 +207,14 @@ def fill_store(
     generation: str,
     manifest: dict,
     rules: dict,
-) -> None:
+    start_seq: int = 0,
+) -> int:
     """Stream one sealed generation into its disk-backed event index."""
     records = 0
     tombstones = 0
-    for seq, record in enumerate(page_records(root, generation, manifest)):
+    for seq, record in enumerate(
+        page_records(root, generation, manifest), start=start_seq
+    ):
         add_event(database, record, seq, rules)
         records += 1
         tombstones += isinstance(record, dict) and record.get("deleted") is True
@@ -220,6 +223,7 @@ def fill_store(
     database.commit()
     if records != manifest["record_count"] or tombstones != manifest["tombstone_count"]:
         raise ValueError("OAI generation record totals are invalid")
+    return start_seq + records
 
 
 def active_months(database: sqlite3.Connection) -> list[str]:
@@ -349,14 +353,32 @@ def check_remote(
         raise ValueError("OAI updates require all archive months locally")
 
 
-def merge_generation(
+def batch_name(generations: list[str]) -> str:
+    """Bind a recoverable merge marker to one ordered generation batch."""
+    if (
+        not generations
+        or len(generations) != len(set(generations))
+        or not all(isinstance(item, str) and item for item in generations)
+    ):
+        raise ValueError("OAI generation batch is invalid")
+    if len(generations) == 1:
+        return generations[0]
+    body = json.dumps(generations, separators=(",", ":")).encode()
+    return f"batch-{hashlib.sha256(body).hexdigest()[:16]}"
+
+
+def merge_generations(
     harvest_root: Path,
-    generation: str,
+    generations: list[str],
     archive_root: Path,
     rules: dict,
 ) -> dict:
-    """Convert one sealed harvest into cloud-compatible archive shards."""
-    manifest = read_generation(harvest_root, generation)
+    """Convert ordered sealed harvests through one bounded event store."""
+    marker = batch_name(generations)
+    manifests = [
+        (generation, read_generation(harvest_root, generation))
+        for generation in generations
+    ]
     archive_root.mkdir(parents=True, exist_ok=True)
     if migrate_archive(archive_root):
         write_manifest(archive_root)
@@ -365,12 +387,21 @@ def merge_generation(
     required = ledger_needed(archive_root)
     if not recovering:
         check_ledger(archive_root, prior)
-    start_merge(archive_root, generation, required)
+    start_merge(archive_root, marker, required)
     ledger = open_ledger(archive_root)
     with tempfile.TemporaryDirectory(dir=archive_root) as directory:
         database = open_store(Path(directory) / "events.sqlite")
         try:
-            fill_store(database, harvest_root, generation, manifest, rules)
+            sequence = 0
+            for generation, manifest in manifests:
+                sequence = fill_store(
+                    database,
+                    harvest_root,
+                    generation,
+                    manifest,
+                    rules,
+                    sequence,
+                )
             filter_events(database, ledger)
             routes = active_routes(database)
             months = active_months(database)
@@ -401,3 +432,13 @@ def merge_generation(
             ledger.close()
     finish_merge(archive_root)
     return result
+
+
+def merge_generation(
+    harvest_root: Path,
+    generation: str,
+    archive_root: Path,
+    rules: dict,
+) -> dict:
+    """Convert one sealed harvest into cloud-compatible archive shards."""
+    return merge_generations(harvest_root, [generation], archive_root, rules)
