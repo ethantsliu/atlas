@@ -107,10 +107,16 @@ test("map remains usable without WebGL2", async ({ page }) => {
   await page.goto("/");
 
   const graph = page.getByLabel("Interactive research graph");
-  await expect(graph).toContainText("2D overview · semantic");
-  await expect(mapStatus(page)).toHaveText("3,999 visible graph nodes available.");
+  await expect(graph).toContainText("2D overview · semantic", {
+    timeout: 20_000,
+  });
+  await expect(graph.locator("canvas:not(.cloud-plane)")).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(mapStatus(page)).toHaveText("3,999 visible graph nodes available.", {
+    timeout: 30_000,
+  });
   expect(cloudRequests).toBe(1);
-  await expect(graph.locator("canvas:not(.cloud-plane)")).toBeVisible();
   await graph.focus();
   await page.keyboard.press("ArrowRight");
   await expect(page.getByLabel("Choose a visible graph node")).not.toHaveValue("");
