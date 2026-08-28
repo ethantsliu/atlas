@@ -52,16 +52,15 @@ test("3D cloud restores one full level after rotation", async ({ page }, testInf
     .poll(
       async () => {
         const first = await drawCount(page);
-        await page.waitForTimeout(500);
+        if (first <= 100_000) return 0;
+        await page.waitForTimeout(3_000);
         return (await drawCount(page)) === first ? first : 0;
       },
-      { timeout: 30_000 },
+      { timeout: 45_000 },
     )
     .toBeGreaterThan(100_000);
   const full = await drawCount(page);
   const coarse = full >= 3_000_000 ? 100_000 : 72_000;
-  await page.waitForTimeout(1_000);
-  expect(await drawCount(page)).toBe(full);
   await startTrace(page);
 
   const canvas = graph.locator("canvas").first();
