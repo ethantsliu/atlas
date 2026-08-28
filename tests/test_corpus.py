@@ -150,6 +150,7 @@ class CorpusTests(unittest.TestCase):
 
         for required in (
             'cron: "17 04,10,16,22 * * *"',
+            "group: arxiv-oai-${{ inputs.snapshot && 'snapshot' || 'corpus' }}",
             "cancel-in-progress: false",
             "PROMOTED_TAG: corpus-v2",
             "MIN_READY: 1000000",
@@ -169,6 +170,7 @@ class CorpusTests(unittest.TestCase):
             "steps.snapshot.outputs.ready == 'true'",
             "steps.prep.outputs.changed == 'true'",
             "steps.prep.outputs.ready == 'true'",
+            "inputs.snapshot != true",
             "actions/upload-artifact@v4",
             'name = f"checkpoint-{archive_hash[:16]}',
             "status=$(awk '/^HTTP/{code=$2} END{print code}' \"$probe\")",
