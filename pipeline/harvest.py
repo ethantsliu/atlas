@@ -82,6 +82,12 @@ def page_date(page: PageLike) -> str:
     return clean_date(getattr(page, "response_date", None))
 
 
+def newest_date(prior: str | None, current: str) -> str:
+    """Keep a monotonic watermark across replayed or cached responses."""
+    current = clean_date(current)
+    return current if prior is None else max(clean_date(prior), current)
+
+
 def clean_day(value: object, field: str) -> str | None:
     """Require one optional canonical OAI calendar day."""
     if value is None:
@@ -398,13 +404,12 @@ def sum_page(summary: dict, checked: tuple) -> dict:
     page_ids = set(identifiers)
     if len(page_ids) != len(identifiers) or summary["ids"] & page_ids:
         raise ValueError("Harvest generation repeats a record identifier")
-    watermark = summary["watermark"]
-    if watermark is not None and response_date < watermark:
-        raise ValueError("Harvest page response dates are not monotonic")
+    # responseDate belongs to the serving node, so small clock skew is valid.
+    # Token hashes and cursors, rather than wall-clock order, prove page order.
     return {
         "records": summary["records"] + records,
         "tombstones": summary["tombstones"] + tombstones,
-        "watermark": response_date,
+        "watermark": newest_date(summary["watermark"], response_date),
         "source_total": source_total,
         "token_hashes": token_hashes,
         "ids": summary["ids"] | page_ids,
@@ -574,9 +579,6 @@ def run_harvest(
     for page in pages:
         index = state["page_count"]
         token, source_total = page_meta(state, page)
-        response_date = page_date(page)
-        if state["watermark"] is not None and response_date < state["watermark"]:
-            raise ValueError("OAI responseDate moved backwards")
         row = save_page(root, generation, index, page)
         state = {
             **state,
@@ -584,7 +586,7 @@ def run_harvest(
             "next_token": token,
             "token_expires": page.expires,
             "source_total": source_total,
-            "watermark": row["response_date"],
+            "watermark": newest_date(state["watermark"], row["response_date"]),
             "page_count": index + 1,
             "record_count": state["record_count"] + row["records"],
             "tombstone_count": state["tombstone_count"] + row["tombstones"],

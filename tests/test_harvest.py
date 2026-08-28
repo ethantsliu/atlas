@@ -142,6 +142,34 @@ class HarvestTests(unittest.TestCase):
             self.assertNotIn("tricks", saved["records"][0])
             self.assertNotIn("scope", saved["records"][0])
 
+    def test_clock_skew(self) -> None:
+        pages = [
+            TestPage(
+                (record("2608.00001"),),
+                "next",
+                "2026-08-26T20:00:04Z",
+                cursor=0,
+                total=2,
+            ),
+            TestPage(
+                (record("2608.00002"),),
+                None,
+                "2026-08-26T20:00:03Z",
+                cursor=1,
+                total=2,
+            ),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = run_harvest(root, "skew", FakeClient({None: pages}))
+
+            self.assertTrue(manifest["sealed"])
+            self.assertEqual(manifest["record_count"], 2)
+            self.assertEqual(manifest["watermark"], "2026-08-26T20:00:03Z")
+            checked = check_stage(root, "skew")
+            self.assertEqual(checked["record_count"], manifest["record_count"])
+            self.assertEqual(checked["watermark"], manifest["watermark"])
+
     def test_checkpoint_privacy(self) -> None:
         unsafe = record("2608.00001")
         unsafe["abstract"] = (
@@ -348,6 +376,36 @@ class HarvestTests(unittest.TestCase):
                 manifest["query"]["until"],
                 "2026-08-26",
             )
+
+    def test_cached_date(self) -> None:
+        pages = [
+            TestPage(
+                (record("2608.00001"),),
+                "next",
+                "2026-08-26T20:01:00Z",
+                cursor=0,
+                total=2,
+            ),
+            TestPage(
+                (record("2608.00002"),),
+                None,
+                "2026-08-26T20:00:00Z",
+                cursor=1,
+                total=2,
+            ),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = run_harvest(root, "cached", FakeClient({None: pages}))
+            checked = check_stage(root, "cached")
+
+        self.assertEqual(manifest["record_count"], 2)
+        self.assertEqual(manifest["watermark"], "2026-08-26T20:01:00Z")
+        self.assertEqual(checked["watermark"], "2026-08-26T20:01:00Z")
+        self.assertEqual(
+            [row["response_date"] for row in manifest["pages"]],
+            ["2026-08-26T20:01:00Z", "2026-08-26T20:00:00Z"],
+        )
 
     def test_server_date(self) -> None:
         page = Page(records=(record("2608.00001"),), token=None)
