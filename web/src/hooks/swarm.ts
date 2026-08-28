@@ -141,7 +141,6 @@ export function useSwarm(input: SwarmInput): {
       clear();
     };
     const change = () => {
-      down = null;
       clear();
     };
 

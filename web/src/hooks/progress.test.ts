@@ -310,6 +310,7 @@ describe("progressive point mounting", () => {
     canvas.dispatchEvent(pointEvent("pointerleave", 10, 10, "touch"));
     controls.dispatchEvent(new Event("change"));
     canvas.dispatchEvent(pointEvent("click"));
+    controls.dispatchEvent(new Event("change"));
     expect(pick).not.toHaveBeenCalled();
 
     retries.shift()?.();

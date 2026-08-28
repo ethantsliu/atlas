@@ -31,29 +31,13 @@ import type { GraphData, GraphLink, GraphNode } from "../../types";
 import type { CloudData, CloudPick } from "../../lib/cloud";
 import type { CloudMark } from "../../lib/focus";
 import { nodeDepth, usePoints, type PointTip } from "../../hooks/points";
-import type { GraphApi, GraphRef } from "./Driver";
+import type { GraphRef } from "./Driver";
 import { pickFront } from "./Front";
 import { RouteMark } from "./Route";
 import { frontRank, makeOrder } from "../../lib/order";
-import { moveCloud, restCloud, type CloudSwarm } from "../../lib/swarm";
+import { moveCloud, type CloudSwarm } from "../../lib/swarm";
 
 export const FRAME_IDLE_WAIT = 240;
-
-type CloudGraph = Pick<GraphApi, "scene">;
-
-function sceneCloud(graph: CloudGraph | undefined): CloudSwarm | null {
-  return (graph?.scene().getObjectByName("archive-cloud") as CloudSwarm) ?? null;
-}
-
-export function tickCloud(graph: CloudGraph | undefined): void {
-  const cloud = sceneCloud(graph);
-  if (cloud) moveCloud(cloud);
-}
-
-export function stopCloud(graph: CloudGraph | undefined): void {
-  const cloud = sceneCloud(graph);
-  if (cloud) restCloud(cloud);
-}
 
 type FrameControl = {
   addEventListener?: (type: string, listener: () => void) => void;
@@ -65,6 +49,7 @@ type FrameGraph = {
   pauseAnimation: () => unknown;
   renderer: () => { domElement: HTMLCanvasElement };
   resumeAnimation: () => unknown;
+  scene?: () => { getObjectByName: (name: string) => unknown };
 };
 
 type FrameTimer = {
@@ -119,6 +104,12 @@ export function makeFrameIdle(
     resume();
     rest();
   };
+  const probe = () => {
+    const cloud = graph.scene?.().getObjectByName("archive-cloud") as
+      CloudSwarm | undefined;
+    if (cloud) moveCloud(cloud);
+    touch();
+  };
   const engineTick = () => {
     running = true;
     cancel();
@@ -132,6 +123,7 @@ export function makeFrameIdle(
   controls.addEventListener?.("start", press);
   controls.addEventListener?.("change", touch);
   controls.addEventListener?.("end", release);
+  canvas.addEventListener("pointermove", probe, true);
   canvas.addEventListener("pointerup", release, true);
   canvas.addEventListener("pointerleave", release, true);
   canvas.addEventListener("wheel", touch, true);
@@ -141,6 +133,7 @@ export function makeFrameIdle(
       controls.removeEventListener?.("start", press);
       controls.removeEventListener?.("change", touch);
       controls.removeEventListener?.("end", release);
+      canvas.removeEventListener("pointermove", probe, true);
       canvas.removeEventListener("pointerup", release, true);
       canvas.removeEventListener("pointerleave", release, true);
       canvas.removeEventListener("wheel", touch, true);
@@ -417,13 +410,11 @@ export function GraphSpace({
         enableNodeDrag={false}
         onEngineTick={() => {
           engineReadyRef.current = true;
-          tickCloud(graphRef.current);
           frameRef.current?.engineTick();
         }}
-        onEngineStop={() => {
-          stopCloud(graphRef.current);
-          stopFrames(frameRef, graphRef, camera, fitRef, showView, coreIds);
-        }}
+        onEngineStop={() =>
+          stopFrames(frameRef, graphRef, camera, fitRef, showView, coreIds)
+        }
         onNodeClick={(node) => {
           order.claim(3, nodeDepth(graphRef.current, node), () =>
             pickFront(cloudHit, cloudOpenRef, onChoose, node),

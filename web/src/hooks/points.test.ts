@@ -8,6 +8,7 @@ import {
   pickBound,
   pickSize,
   reuseHit,
+  shownHit,
 } from "./points";
 
 const paper = {
@@ -46,6 +47,17 @@ describe("paper point input", () => {
     expect(reuseHit(hover, { clientX: 21, clientY: 40 })).toBe(false);
     valid.mockReturnValue(false);
     expect(reuseHit(hover, { clientX: 20, clientY: 40 })).toBe(false);
+  });
+
+  it("keeps an exact displayed paper clickable after passive camera drift", () => {
+    const hover = { paper: bound, x: 20, y: 40 };
+
+    expect(shownHit(hover, { clientX: 20, clientY: 40 })).toBe(true);
+    expect(shownHit(hover, { clientX: 20, clientY: 40.5 })).toBe(true);
+    expect(shownHit(hover, { clientX: 21.1, clientY: 40 })).toBe(false);
+    expect(shownHit({ ...hover, paper: undefined }, { clientX: 20, clientY: 40 })).toBe(
+      false,
+    );
   });
 
   it("bounds metadata to two recently used shards", async () => {

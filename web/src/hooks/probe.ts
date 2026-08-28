@@ -41,6 +41,7 @@ export type PointRefs = {
 export type PointMatch = {
   distance: number;
   index: number | null;
+  paper?: CloudPick;
   valid?: () => boolean;
   x: number;
   y: number;
@@ -54,7 +55,9 @@ type PointHit<Event extends MouseEvent | PointerEvent> = (
 type PointLoad = (index: number) => Promise<CloudPick | null>;
 
 type ClickInput = {
+  cached?: Hover;
   canvas: HTMLCanvasElement;
+  done?: () => void;
   event: MouseEvent;
   hit: PointHit<MouseEvent>;
   load: PointLoad;
@@ -121,6 +124,15 @@ export function reuseHit(
 ): boolean {
   return Boolean(
     hover && hover.x === event.clientX && hover.y === event.clientY && hover.valid?.(),
+  );
+}
+
+export function shownHit(
+  hover: Pick<Hover, "paper" | "x" | "y"> | null,
+  event: Pick<MouseEvent, "clientX" | "clientY">,
+): boolean {
+  return Boolean(
+    hover?.paper && Math.hypot(hover.x - event.clientX, hover.y - event.clientY) <= 1,
   );
 }
 
@@ -239,7 +251,8 @@ function claimPoint(args: ClickInput, match: PointMatch): void {
   const { canvas, event, load, order, refs, setTip, start, token } = args;
   if (token !== refs.select.current || isHidden(refs) || match.index == null) return;
   const hovered = refs.target.current ?? refs.hover.current;
-  const paper = hovered?.index === match.index ? hovered.paper : undefined;
+  const paper =
+    match.paper ?? (hovered?.index === match.index ? hovered.paper : undefined);
   if (performance.now() < refs.block.current && !paper) return;
   const claim: Claim = {
     committed: false,
@@ -265,30 +278,39 @@ function claimPoint(args: ClickInput, match: PointMatch): void {
 
 export function choosePoint(args: ClickInput): void {
   const { canvas, event, hit, refs, token } = args;
-  if (refs.points.current?.userData?.moving) {
-    const tries = args.tries ?? 0;
-    if (tries >= 4) return;
-    window.setTimeout(() => {
-      if (token !== refs.select.current || isHidden(refs)) return;
-      choosePoint({ ...args, tries: tries + 1 });
-    }, CLOUD_REST_MS + 20);
-    return;
-  }
-  const cached = refs.target.current;
-  if (reuseHit(cached, event)) {
+  const cached = args.cached ?? refs.target.current;
+  if (shownHit(cached, event) || reuseHit(cached, event)) {
     const rect = canvas.getBoundingClientRect();
     claimPoint(args, {
       distance: cached!.distance,
       index: cached!.index,
+      paper: cached!.paper,
       valid: cached!.valid,
       x: event.clientX - rect.left,
       y: event.clientY - rect.top,
     });
+    args.done?.();
+    return;
+  }
+  if (refs.points.current?.userData?.moving) {
+    const tries = args.tries ?? 0;
+    if (tries >= 4) {
+      args.done?.();
+      return;
+    }
+    window.setTimeout(() => {
+      if (token !== refs.select.current || isHidden(refs)) {
+        args.done?.();
+        return;
+      }
+      choosePoint({ ...args, tries: tries + 1 });
+    }, CLOUD_REST_MS + 20);
     return;
   }
   void hit(event, args.pointer)
     .then((match) => claimPoint(args, match))
     .catch(() => {
       if (token === refs.select.current) refs.claim.current = null;
-    });
+    })
+    .finally(() => args.done?.());
 }

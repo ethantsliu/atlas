@@ -22,6 +22,7 @@ import {
   choosePoint,
   clearHover,
   isHidden,
+  shownHit,
   showPoint,
   type Claim,
   type Hover,
@@ -35,7 +36,7 @@ const HOVER_WAIT = 120;
 const DENSE_HOVER_WAIT = 700;
 const META_LIMIT = 2;
 export const CLOUD_HOVER_LIMIT = 100_000;
-export { clearHover, pickBound, reuseHit, type PointTip } from "./probe";
+export { clearHover, pickBound, reuseHit, shownHit, type PointTip } from "./probe";
 
 type PointInput = {
   graphRef: PointRef;
@@ -56,7 +57,7 @@ export type PointApi = Pick<GraphApi, "camera" | "renderer" | "scene"> & {
 };
 
 export type PointRef = { current: PointApi | undefined };
-type Down = { pointer?: string; x: number; y: number };
+type Down = { pointer?: string; target?: Hover; x: number; y: number };
 
 function dropPoints(
   graph: PointApi,
@@ -265,6 +266,7 @@ function mountPoints(
   let moved: PointerEvent | null = null;
   let down: Down | null = null;
   let released: Down | null = null;
+  let choosing: number | null = null;
   let pressed = false;
   const show = (event: PointerEvent) =>
     showPoint({ event, hit, load, refs, setProbing, setTip });
@@ -311,7 +313,7 @@ function mountPoints(
   };
   const change = () => {
     refs.claim.current = null;
-    refs.select.current += 1;
+    if (choosing == null) refs.select.current += 1;
     clear();
   };
   const press = (event: PointerEvent) => {
@@ -319,6 +321,7 @@ function mountPoints(
     refs.claim.current = null;
     refs.request.current += 1;
     refs.select.current += 1;
+    choosing = null;
     released = null;
     stop();
     if (isHidden(refs) || !event.isPrimary || event.button !== 0) {
@@ -328,6 +331,9 @@ function mountPoints(
     }
     down = {
       pointer: event.pointerType,
+      target: shownHit(refs.target.current, event)
+        ? (refs.target.current ?? undefined)
+        : undefined,
       x: event.clientX,
       y: event.clientY,
     };
@@ -353,8 +359,14 @@ function mountPoints(
     ) {
       return;
     }
+    const token = refs.select.current;
+    choosing = token;
     choosePoint({
+      cached: start.target,
       canvas,
+      done: () => {
+        if (choosing === token) choosing = null;
+      },
       event,
       hit,
       load,
@@ -363,7 +375,7 @@ function mountPoints(
       refs,
       setTip,
       start,
-      token: refs.select.current,
+      token,
     });
   };
   const dropChange = bindChange(graph.controls?.(), change);
