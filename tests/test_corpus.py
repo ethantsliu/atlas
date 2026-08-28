@@ -245,6 +245,16 @@ class CorpusTests(unittest.TestCase):
             corpus.index("Dispatch validated promotion"),
             corpus.index("Acknowledge promotion"),
         )
+        self.assertLess(
+            corpus.index("Bound prior assets"),
+            corpus.index("Publish promoted shards"),
+        )
+        self.assertLess(
+            corpus.index("Dispatch validated promotion"),
+            corpus.index("Bound promoted assets"),
+        )
+        self.assertEqual(corpus.count("pipeline/reap.py promo"), 2)
+        self.assertEqual(corpus.count("pipeline/reap.py point"), 2)
         self.assertNotIn("Retire stale shard assets", corpus)
         self.assertNotIn("corpus-keep.txt", corpus)
         self.assertNotIn("schedule:", legacy)
@@ -258,6 +268,16 @@ class CorpusTests(unittest.TestCase):
         sweep = (ROOT / ".github/workflows/sweep.yml").read_text(encoding="utf-8")
         self.assertIn('--arg coverage_through_day "$THROUGH"', sweep)
         self.assertIn("coverage_through_day:$coverage_through_day", sweep)
+        self.assertLess(
+            sweep.index("Bound prior assets"),
+            sweep.index("Publish immutable shards"),
+        )
+        self.assertLess(
+            sweep.index("Dispatch cloud build"),
+            sweep.index("Bound promoted assets"),
+        )
+        self.assertEqual(sweep.count("pipeline/reap.py promo"), 2)
+        self.assertEqual(sweep.count("pipeline/reap.py point"), 2)
 
     def test_backfill_chain(self) -> None:
         corpus = (ROOT / ".github/workflows/corpus.yml").read_text(encoding="utf-8")

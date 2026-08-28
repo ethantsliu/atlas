@@ -106,6 +106,7 @@ jobs:
           pointer=$(awk -F '\t' 'NR == 1 {print $2}' \
             "$RUNNER_TEMP/checkpoint-pointers.tsv")
           test -n "$pointer"
+          echo "PRIOR_NAME=$pointer" >> "$GITHUB_ENV"
           gh release download "$CHECKPOINT_TAG" \
             --pattern "$pointer" \
             --dir "$RUNNER_TEMP/corpus-parts"
@@ -175,6 +176,7 @@ jobs:
           if gh release view "$PROMOTED_TAG" >/dev/null 2>&1; then
             gh release download "$PROMOTED_TAG" \
               --pattern index.json \
+              --pattern cloud-ready.json \
               --dir "$PRIOR_ROOT"
           fi
 
@@ -208,6 +210,35 @@ jobs:
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Bound prior assets
+        if: steps.prep.outputs.changed == 'true'
+        run: |
+          reserve=$(jq '.assets | length + 4' "$PROMO_ROOT/plan.json")
+          if [ "$reserve" -gt 900 ]; then
+            echo "Promotion exceeds the safe release-asset budget." >&2
+            exit 1
+          fi
+          if [ ! -f "$PRIOR_ROOT/index.json" ] || \
+             [ ! -f "$PRIOR_ROOT/cloud-ready.json" ]; then
+            exit 0
+          fi
+          release_id=$(gh api \
+            "repos/$GITHUB_REPOSITORY/releases/tags/$PROMOTED_TAG" --jq .id)
+          gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
+            --jq '.[] | {id,name,created_at,state} | @json' \
+            > "$RUNNER_TEMP/prior-assets.jsonl"
+          python pipeline/reap.py promo \
+            --assets "$RUNNER_TEMP/prior-assets.jsonl" \
+            --index "$PRIOR_ROOT/index.json" \
+            --ready "$PRIOR_ROOT/cloud-ready.json" \
+            --reserve "$reserve" \
+            > "$RUNNER_TEMP/prior-reap.json"
+          while read -r id; do
+            gh api --method DELETE \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$id"
+          done < <(jq -r '.delete[]' "$RUNNER_TEMP/prior-reap.json")
 
       - name: Publish immutable shards
         if: steps.prep.outputs.changed == 'true'
@@ -351,6 +382,25 @@ jobs:
             "repos/$GITHUB_REPOSITORY/dispatches" \
             --input "$RUNNER_TEMP/corpus-dispatch.json"
 
+      - name: Bound promoted assets
+        if: steps.prep.outputs.changed == 'true' && steps.verify.outcome == 'success'
+        run: |
+          release_id=$(gh api \
+            "repos/$GITHUB_REPOSITORY/releases/tags/$PROMOTED_TAG" --jq .id)
+          gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
+            --jq '.[] | {id,name,created_at,state} | @json' \
+            > "$RUNNER_TEMP/promoted-assets.jsonl"
+          python pipeline/reap.py promo \
+            --assets "$RUNNER_TEMP/promoted-assets.jsonl" \
+            --index "$PROMO_ROOT/index.json" \
+            --ready "$PROMO_ROOT/cloud-ready.json" \
+            > "$RUNNER_TEMP/promoted-reap.json"
+          while read -r id; do
+            gh api --method DELETE \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$id"
+          done < <(jq -r '.delete[]' "$RUNNER_TEMP/promoted-reap.json")
+
       - name: Acknowledge generations
         run: |
           args=()
@@ -431,6 +481,25 @@ jobs:
         run: |
           release_id=$(gh api \
             "repos/$GITHUB_REPOSITORY/releases/tags/$CHECKPOINT_TAG" --jq .id)
+          reserve=$(jq '.parts | length + 1' "$CHECKPOINT_POINTER")
+          if [ "$reserve" -gt 900 ]; then
+            echo "Checkpoint exceeds the safe release-asset budget." >&2
+            exit 1
+          fi
+          gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
+            --jq '.[] | {id,name,created_at,state} | @json' \
+            > "$RUNNER_TEMP/checkpoint-prior.jsonl"
+          python pipeline/reap.py point \
+            --assets "$RUNNER_TEMP/checkpoint-prior.jsonl" \
+            --pointer "$PRIOR_POINTER" \
+            --current "$PRIOR_NAME" \
+            --reserve "$reserve" \
+            > "$RUNNER_TEMP/checkpoint-prior-reap.json"
+          while read -r id; do
+            gh api --method DELETE \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$id"
+          done < <(jq -r '.delete[]' "$RUNNER_TEMP/checkpoint-prior-reap.json")
           gh api --paginate \
             "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
             --jq '.[] | [.id, .name, (.digest // "")] | @tsv' \
@@ -481,6 +550,19 @@ jobs:
                 "repos/$GITHUB_REPOSITORY/releases/assets/$id"
             fi
           done < "$verify/assets.tsv"
+          gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
+            --jq '.[] | {id,name,created_at,state} | @json' \
+            > "$verify/assets.jsonl"
+          python pipeline/reap.py point \
+            --assets "$verify/assets.jsonl" \
+            --pointer "$CHECKPOINT_POINTER" \
+            --current "$pointer" \
+            > "$verify/reap.json"
+          while read -r id; do
+            gh api --method DELETE \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$id"
+          done < <(jq -r '.delete[]' "$verify/reap.json")
 
       - name: Enforce atomic result
         if: always()
