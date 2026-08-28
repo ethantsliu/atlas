@@ -3,6 +3,7 @@ from __future__ import annotations
 import gzip
 import json
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -117,7 +118,11 @@ class ParallelTests(unittest.TestCase):
             ".snapshot_complete == true",
             '(.history_complete | type == "boolean")',
             ".coverage_through_year",
-            "MIN_CLOUD: 1000000",
+            ".coverage_through_day",
+            '(has("coverage_through_day") | not)',
+            "fromdateiso8601",
+            'test("^[0-9]{4}-(0[1-9]|1[0-2])-[0-9]{2}$")',
+            "MIN_CLOUD: 3145000",
             '"$paper_count" -lt "$MIN_CLOUD"',
             "daily cloud reconciliation has no work",
             ".index_sha256 == $index_sha256",
@@ -172,6 +177,52 @@ class ParallelTests(unittest.TestCase):
         self.assertNotIn("workflow_run:", serial)
         self.assertNotIn("schedule:", serial)
 
+    def test_ready_compat(self) -> None:
+        workflow = (ROOT / ".github/workflows/cloudall.yml").read_text()
+        marker = '--argjson paper_count "$paper_count" \'\n'
+        start = workflow.index(marker) + len(marker)
+        end = workflow.index(
+            '\n            \' "$root/archive/cloud-ready.json"',
+            start,
+        )
+        query = workflow[start:end]
+        base = {
+            "schema_version": 1,
+            "snapshot_complete": True,
+            "history_complete": True,
+            "coverage_through_year": 2026,
+            "index_sha256": "index",
+            "paper_count": 3_100_000,
+        }
+
+        def accepted(changes: dict) -> bool:
+            payload = {**base, **changes}
+            result = subprocess.run(
+                [
+                    "jq",
+                    "-e",
+                    "--arg",
+                    "index_sha256",
+                    "index",
+                    "--argjson",
+                    "paper_count",
+                    "3100000",
+                    query,
+                ],
+                input=json.dumps(payload),
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            return result.returncode == 0
+
+        self.assertTrue(accepted({}))
+        self.assertTrue(accepted({"coverage_through_day": "2026-08-28"}))
+        self.assertFalse(accepted({"coverage_through_day": None}))
+        self.assertFalse(accepted({"coverage_through_day": "2026-02-31"}))
+        self.assertFalse(accepted({"coverage_through_day": "2025-08-28"}))
+        self.assertFalse(accepted({"coverage_through_year": 1900}))
+
     def test_cross_cache(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "2020-01.npz"
@@ -224,6 +275,25 @@ class ParallelTests(unittest.TestCase):
             self.assertEqual(manifest["count"], 2)
             self.assertEqual(
                 [row["month"] for row in manifest["shards"]], ["2020-01", "2020-02"]
+            )
+            self.assertEqual(
+                [month for pack in manifest["packs"] for month in pack["months"]],
+                ["2020-01", "2020-02"],
+            )
+            self.assertEqual(manifest["packs"][0]["points"]["bytes"], 12 + 2 * 13)
+            legacy = root / "legacy"
+            shutil.copytree(cloud, legacy)
+            old = json.loads((legacy / "index.json").read_text(encoding="utf-8"))
+            for pack in old.pop("packs"):
+                (legacy / pack["points"]["path"]).unlink()
+            old.pop("point_pack")
+            old.pop("pack_months")
+            (legacy / "index.json").write_text(json.dumps(old), encoding="utf-8")
+            migration = make_plan(archive, legacy, 16, anchors=anchors)
+            self.assertEqual(migration["changed_count"], 1)
+            self.assertEqual(
+                [month for part in migration["partitions"] for month in part["months"]],
+                ["2020-02"],
             )
             equal_plan = make_plan(archive, cloud, 16, anchors=anchors)
             equal_path = root / "equal.json"

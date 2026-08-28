@@ -42,17 +42,16 @@ def paper(identifier: str, title: str = "A sparse routing algorithm") -> dict:
 
 
 def shard(papers: list[dict], month: str = "2024-01") -> dict:
+    counts = {
+        scope: sum(item["scope"] == scope for item in papers)
+        for scope in ("likely", "possible", "outside")
+    }
     return {
         "schema_version": 1,
         "policy_version": "fixture-1",
         "month": month,
         "days": [],
-        "counts": {
-            "all": len(papers),
-            "likely": len(papers),
-            "possible": 0,
-            "outside": 0,
-        },
+        "counts": {"all": len(papers), **counts},
         "papers": papers,
     }
 
@@ -76,6 +75,8 @@ class ScanTests(unittest.TestCase):
             result = scan_archive(root, manifest, corpus, limit=4)
 
         self.assertEqual(result["loaded_papers"], 20)
+        self.assertEqual(result["recovered_outside"], 0)
+        self.assertEqual(result["skipped_outside"], 0)
         self.assertEqual(result["loaded_months"], ["2024-01"])
         self.assertEqual(len(result["candidates"]), 1)
         idea = result["candidates"][0]
@@ -120,6 +121,8 @@ class ScanTests(unittest.TestCase):
             result = scan_archive(root, manifest, corpus, limit=2)
 
         self.assertEqual(result["loaded_papers"], 0)
+        self.assertEqual(result["recovered_outside"], 0)
+        self.assertEqual(result["skipped_outside"], 0)
         self.assertEqual(result["loaded_months"], [])
         self.assertEqual(result["candidates"], [])
         self.assertEqual(result["related_work"], {})
@@ -177,6 +180,47 @@ class ScanTests(unittest.TestCase):
             manifest, corpus = setup(root, papers)
             with self.assertRaisesRegex(ValueError, "between 1 and 48"):
                 scan_archive(root, manifest, corpus, limit=49)
+
+    def test_recovery(self) -> None:
+        recovered = [
+            {**paper(f"2401.{index:05d}"), "scope": "outside"} for index in range(1, 3)
+        ]
+        topic_only = {
+            **paper("2401.00003"),
+            "scope": "outside",
+            "tricks": [],
+        }
+        trick_only = {
+            **paper("2401.00004"),
+            "scope": "outside",
+            "topics": [],
+        }
+        unrouted = {
+            **paper("2401.00005"),
+            "scope": "outside",
+            "topics": [],
+            "tricks": [],
+        }
+        primary = {
+            **paper("2401.00006"),
+            "topics": [],
+            "tricks": [],
+        }
+        papers = [*recovered, topic_only, trick_only, unrouted, primary]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest, corpus = setup(root, papers)
+            result = scan_archive(root, manifest, corpus, limit=2)
+
+        self.assertEqual(result["loaded_papers"], 3)
+        self.assertEqual(result["recovered_outside"], 2)
+        self.assertEqual(result["skipped_outside"], 3)
+        self.assertEqual(len(result["candidates"]), 1)
+        self.assertEqual(
+            result["candidates"][0]["support_ids"],
+            ["arxiv:2401.00001", "arxiv:2401.00002"],
+        )
+        self.assertTrue(result["trick_candidates"])
 
     @unittest.skipUnless(os.getenv("ATLAS_SCALE_TEST") == "1", "opt-in scale test")
     def test_scale(self) -> None:

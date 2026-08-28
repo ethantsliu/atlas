@@ -8,6 +8,7 @@ import struct
 from pathlib import Path
 
 from node import clip_words
+from pack import PACK_MODE, PACK_MONTHS
 
 
 SCOPES = ("likely", "possible", "outside")
@@ -105,10 +106,11 @@ def cloud_manifest(
     anchors: dict,
     anchor_count: int,
     neighbor_count: int,
+    packs: list[dict] | None = None,
 ) -> dict:
     """Assemble one count-reconciled physical-dedupe cloud manifest."""
     omitted_ids = [identifier for row in rows for identifier in row["omitted_ids"]]
-    return {
+    manifest = {
         "schema_version": 1,
         "source": "arxiv",
         "model": model,
@@ -135,6 +137,15 @@ def cloud_manifest(
         "foreground_sha256": foreground_hash(foreground),
         "shards": rows,
     }
+    if packs is not None:
+        manifest.update(
+            {
+                "point_pack": PACK_MODE,
+                "pack_months": PACK_MONTHS,
+                "packs": packs,
+            }
+        )
+    return manifest
 
 
 def cloud_cover(papers: list[dict], candidates: set[str]) -> tuple[list[dict], dict]:

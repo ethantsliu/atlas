@@ -62,6 +62,20 @@ def seal(root: Path, generation: str, records: tuple[dict, ...]) -> None:
 
 
 class DurableTests(unittest.TestCase):
+    def test_redacted_title(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = root / "archive"
+            record = paper("2608.00001")
+            record["title"] = "contact@university.edu"
+
+            seal(root, "redacted", (record,))
+            manifest = merge.merge_generation(root, "redacted", archive, RULES)
+            saved = read_shard(archive / "2026-08.json.gz")["papers"]
+
+            self.assertEqual(manifest["counts"]["all"], 1)
+            self.assertEqual(saved[0]["title"], "arXiv 2608.00001")
+
     def test_move_crash(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -208,6 +208,13 @@ def attach_span(
     cursor = read_cursor(target)
     check_clean(cursor, first, last)
     updated = next_cursor(cursor, manifests)
+    updated = check_cursor(
+        {
+            **updated,
+            "watermark": f"{through.isoformat()}T00:00:00Z",
+            "coverage_through_day": through.isoformat(),
+        }
+    )
     check_targets(source, target, manifests)
     copied = [
         manifest["generation"]

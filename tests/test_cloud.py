@@ -305,6 +305,9 @@ class CloudTests(unittest.TestCase):
             self.assertEqual(len(content), 12 + count * 13)
             self.assertTrue(np.isfinite(points).all())
             self.assertEqual(manifest["count"], 2)
+            self.assertEqual(manifest["point_pack"], "month-14-v1")
+            self.assertEqual(manifest["packs"][0]["months"], ["2020-01"])
+            self.assertEqual(manifest["packs"][0]["points"]["bytes"], 12 + 2 * 13)
             self.assertEqual(metadata["count"], 2)
             self.assertEqual(metadata["papers"][0][0], "2001.00001")
             self.assertEqual(route_head[:4], (ROUTE_MAGIC, 2, ROUTE_COUNT, ROUTE_COUNT))
@@ -320,6 +323,7 @@ class CloudTests(unittest.TestCase):
                 "2020-01.bin",
                 "2020-01.json",
                 "2020-01.routes",
+                manifest["packs"][0]["points"]["path"],
             ):
                 path = output / name
                 original = path.read_bytes()

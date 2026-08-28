@@ -17,7 +17,7 @@ from scan import check_trick_sources, scan_archive
 from synth import check_candidate, check_manifest, make_manifest
 
 
-VERSION = "discover-1"
+VERSION = "discover-2"
 MAX_IDEAS = 48
 ARTIFACT_KEYS = {
     "schema_version",
@@ -35,6 +35,8 @@ COVERAGE_KEYS = {
     "manifest_sha256",
     "manifest_papers",
     "loaded_papers",
+    "recovered_outside",
+    "skipped_outside",
     "manifest_months",
     "loaded_months",
 }
@@ -88,6 +90,8 @@ def build_artifact(root: Path, limit: int) -> dict | None:
             "manifest_sha256": file_hash(index_path),
             "manifest_papers": manifest.get("counts", {}).get("all", 0),
             "loaded_papers": scan["loaded_papers"],
+            "recovered_outside": scan["recovered_outside"],
+            "skipped_outside": scan["skipped_outside"],
             "manifest_months": len(manifest["shards"]),
             "loaded_months": scan["loaded_months"],
         },
@@ -149,6 +153,8 @@ def check_coverage(value: object, corpus: dict) -> None:
     counts = (
         value["manifest_papers"],
         value["loaded_papers"],
+        value["recovered_outside"],
+        value["skipped_outside"],
         value["manifest_months"],
     )
     source_months = [
@@ -161,6 +167,9 @@ def check_coverage(value: object, corpus: dict) -> None:
             isinstance(count, int) and not isinstance(count, bool) for count in counts
         )
         or not 0 <= value["loaded_papers"] <= value["manifest_papers"]
+        or not 0 <= value["recovered_outside"] <= value["loaded_papers"]
+        or not 0 <= value["skipped_outside"] <= value["manifest_papers"]
+        or value["loaded_papers"] + value["skipped_outside"] > value["manifest_papers"]
         or value["manifest_months"] != len(source_months)
         or not isinstance(loaded, list)
         or loaded != sorted(set(loaded))
@@ -206,6 +215,17 @@ def check_artifact(value: object, archive_root: Path) -> dict:
         raise ValueError("Discovery corpus manifest does not match its archive")
     if file_hash(archive_root / MANIFEST_NAME) != value["coverage"]["manifest_sha256"]:
         raise ValueError("Discovery archive manifest digest does not match")
+    loaded = set(value["coverage"]["loaded_months"])
+    rows = [row for row in archive["shards"] if row["month"] in loaded]
+    loaded_all = sum(row["counts"]["all"] for row in rows)
+    loaded_outside = sum(row["counts"]["outside"] for row in rows)
+    if (
+        value["coverage"]["loaded_papers"] + value["coverage"]["skipped_outside"]
+        != loaded_all
+        or value["coverage"]["recovered_outside"] + value["coverage"]["skipped_outside"]
+        != loaded_outside
+    ):
+        raise ValueError("Discovery recovery coverage is invalid")
     check_trick_sources(archive_root, archive, tricks)
     check_gate(value["review_gate"])
     return value

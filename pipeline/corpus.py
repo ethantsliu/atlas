@@ -17,7 +17,7 @@ from typing import Callable
 
 from archive import migrate_archive, write_manifest
 from archivecheck import validate_archive
-from dates import clean_date
+from dates import clean_date, coverage_day, exact_day, first_date
 from files import atomic_write_text
 from harvest import (
     HISTORY_START,
@@ -60,6 +60,7 @@ def check_cursor(value: object) -> dict:
     watermark = value.get("watermark")
     if watermark is not None:
         clean_date(watermark)
+    coverage = exact_day(value.get("coverage_through_day"), "Corpus coverage")
     active = value.get("active")
     if active is not None and (
         not isinstance(active, dict)
@@ -90,7 +91,12 @@ def check_cursor(value: object) -> dict:
     ):
         raise ValueError("Corpus merged generations are invalid")
     check_history(value.get("history"))
-    return {**value, "pending": pending, "merged": merged}
+    return {
+        **value,
+        "coverage_through_day": coverage,
+        "pending": pending,
+        "merged": merged,
+    }
 
 
 def base_cursor(root: Path) -> dict:
@@ -98,6 +104,7 @@ def base_cursor(root: Path) -> dict:
     return {
         "schema_version": SCHEMA_VERSION,
         "watermark": None,
+        "coverage_through_day": None,
         "active": None,
         "last_generation": None,
         "pending": [],
@@ -184,14 +191,6 @@ def plan_run(root: Path, now: datetime) -> tuple[dict, str, str | None, str | No
     return cursor, generation, start, end
 
 
-def first_date(manifest: dict) -> str:
-    """Return the first server response as a conservative sync watermark."""
-    pages = manifest.get("pages")
-    if not isinstance(pages, list) or not pages or not isinstance(pages[0], dict):
-        raise ValueError("Corpus manifest has no first responseDate")
-    return clean_date(pages[0].get("response_date"))
-
-
 def finish_run(root: Path, cursor: dict, generation: str, manifest: dict) -> dict:
     """Advance an overlap-safe responseDate watermark after a sealed list."""
     watermark = first_date(manifest)
@@ -205,6 +204,7 @@ def finish_run(root: Path, cursor: dict, generation: str, manifest: dict) -> dic
         **cursor,
         "history": history,
         "watermark": watermark,
+        "coverage_through_day": coverage_day(manifest, generation),
         "active": None,
         "last_generation": generation,
         "pending": [*cursor.get("pending", []), generation],

@@ -5,12 +5,12 @@ import sys
 import tempfile
 import unittest
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
 
-from corpus import read_cursor, write_cursor  # noqa: E402
+from corpus import plan_run, read_cursor, write_cursor  # noqa: E402
 from harvest import run_harvest, stage_path  # noqa: E402
 from sweep import attach_span, harvest_span, year_span  # noqa: E402
 
@@ -137,7 +137,29 @@ class SweepTests(unittest.TestCase):
             self.assertEqual(cursor["last_generation"], "history-2020")
             self.assertEqual(cursor["history"]["next_year"], 2021)
             self.assertTrue(cursor["history"]["complete"])
+            self.assertEqual(cursor["coverage_through_day"], "2020-08-27")
+            self.assertEqual(cursor["watermark"], "2020-08-27T00:00:00Z")
             self.assertTrue(stage_path(target, "history-2019").is_dir())
+
+    def test_overlap(self) -> None:
+        through = date(2020, 8, 27)
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            source = base / "sweep"
+            target = base / "corpus"
+            harvest_span(source, 2019, 2020, through, FakeClient())
+            seed_cursor(target)
+            attach_span(source, target, 2019, 2020, through)
+            cursor = read_cursor(target)
+            write_cursor(target, {**cursor, "pending": [], "merged": []})
+
+            _cursor, _generation, start, end = plan_run(
+                target,
+                datetime(2020, 8, 29, tzinfo=timezone.utc),
+            )
+
+            self.assertEqual(start, "2020-08-27")
+            self.assertIsNone(end)
 
     def test_attach_collision(self) -> None:
         through = date(2020, 8, 27)

@@ -61,6 +61,15 @@ def shard() -> dict:
     }
 
 
+def outside(identifier: str, *, routed: bool) -> dict:
+    item = paper(identifier, "A sparse routing algorithm for agents")
+    item["scope"] = "outside"
+    if not routed:
+        item["topics"] = []
+        item["tricks"] = []
+    return item
+
+
 class DiscoverTests(unittest.TestCase):
     def test_policy(self) -> None:
         workflow = (ROOT / ".github/workflows/discover.yml").read_text(encoding="utf-8")
@@ -122,6 +131,8 @@ class DiscoverTests(unittest.TestCase):
             )
             self.assertTrue(artifact["candidates"])
             self.assertTrue(artifact["trick_candidates"])
+            self.assertEqual(artifact["coverage"]["recovered_outside"], 0)
+            self.assertEqual(artifact["coverage"]["skipped_outside"], 0)
             self.assertEqual(
                 set(artifact["related_work"]),
                 {row["candidate_id"] for row in artifact["candidates"]},
@@ -165,6 +176,38 @@ class DiscoverTests(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "between 1 and 48"):
                 build_artifact(root, 49)
+
+    def test_recovery(self) -> None:
+        papers = [
+            outside("2401.00001", routed=True),
+            outside("2401.00002", routed=True),
+            outside("2401.00003", routed=False),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_shard(
+                root,
+                {
+                    **shard(),
+                    "counts": {"all": 3, "likely": 0, "possible": 0, "outside": 3},
+                    "papers": papers,
+                },
+            )
+            write_manifest(root)
+            artifact = build_artifact(root, 4)
+
+            self.assertIs(check_artifact(artifact, root), artifact)
+            self.assertEqual(artifact["coverage"]["loaded_papers"], 2)
+            self.assertEqual(artifact["coverage"]["recovered_outside"], 2)
+            self.assertEqual(artifact["coverage"]["skipped_outside"], 1)
+            self.assertTrue(artifact["trick_candidates"])
+
+            for key in ("recovered_outside", "skipped_outside"):
+                with self.subTest(key=key):
+                    changed = copy.deepcopy(artifact)
+                    changed["coverage"][key] += 1
+                    with self.assertRaisesRegex(ValueError, "coverage"):
+                        check_artifact(changed, root)
 
     def test_trick_tamper(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

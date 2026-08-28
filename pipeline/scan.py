@@ -39,6 +39,7 @@ from synth import check_manifest, make_candidate
 
 
 SCOPES = frozenset({"likely", "possible"})
+ALL_SCOPES = SCOPES | {"outside"}
 MAX_IDEAS = 48
 MAX_TRICKS = 200
 MAX_SUPPORT = 6
@@ -115,6 +116,14 @@ def route_ids(paper: dict) -> tuple[set[str], set[str]]:
     if not topic_ids <= set(TOPICS) or not trick_ids <= set(TRICKS):
         raise ValueError("Promoted corpus routes are invalid")
     return topic_ids, trick_ids
+
+
+def scan_ok(paper: dict, topics: set[str], tricks: set[str]) -> bool:
+    """Recover pair-routed outside papers without indexing the full archive."""
+    scope = paper.get("scope")
+    if scope not in ALL_SCOPES:
+        raise ValueError("Promoted corpus scope is invalid")
+    return scope in SCOPES or bool(topics and tricks)
 
 
 def add_pairs(
@@ -239,9 +248,9 @@ def scan_shards(
     db: sqlite3.Connection,
     root: Path,
     manifest: dict,
-) -> tuple[int, list[str], dict[tuple[str, str], dict]]:
+) -> tuple[dict[str, int], list[str], dict[tuple[str, str], dict]]:
     """Stream digest-verified shards through constant-size route state."""
-    count = 0
+    counts = {"eligible": 0, "recovered": 0, "skipped": 0}
     loaded: list[str] = []
     pairs: dict[tuple[str, str], dict] = {}
     shards = sorted(manifest.get("shards", []), key=lambda row: row.get("month", ""))
@@ -261,21 +270,24 @@ def scan_shards(
         payload = read_shard(path)
         loaded.append(month)
         for paper in payload["papers"]:
-            if paper.get("scope") not in SCOPES:
+            topics, tricks = route_ids(paper)
+            if not scan_ok(paper, topics, tricks):
+                counts["skipped"] += 1
                 continue
+            if paper.get("scope") == "outside":
+                counts["recovered"] += 1
             canonical = arxiv_id(paper.get("id"))
             inserted = db.execute(
                 "INSERT OR IGNORE INTO seen(canonical) VALUES (?)", (canonical,)
             ).rowcount
             if not inserted:
                 raise ValueError(f"Promoted corpus paper is duplicated: {canonical}")
-            topics, tricks = route_ids(paper)
             add_pairs(pairs, topics, tricks, canonical, month)
             add_doc(db, paper)
             add_tricks(db, paper, canonical, MAX_SOURCES)
-            count += 1
+            counts["eligible"] += 1
         db.commit()
-    return count, loaded, pairs
+    return counts, loaded, pairs
 
 
 def make_ideas(
@@ -492,7 +504,8 @@ def match_shard(
     if file_hash(path) != expected:
         raise ValueError(f"Promoted corpus shard drifted: {path.name}")
     for paper in read_shard(path)["papers"]:
-        if paper.get("scope") not in SCOPES:
+        topics, tricks = route_ids(paper)
+        if not scan_ok(paper, topics, tricks):
             continue
         canonical = arxiv_id(paper.get("id"))
         if canonical in seen:
@@ -536,10 +549,12 @@ def scan_archive(
     check_manifest(corpus)
     with tempfile.TemporaryDirectory(prefix="atlas-scan-") as directory:
         with open_db(Path(directory) / "scan.db") as db:
-            count, loaded, pairs = scan_shards(db, root, manifest)
+            counts, loaded, pairs = scan_shards(db, root, manifest)
             candidates = make_ideas(pairs, corpus, limit)
             return {
-                "loaded_papers": count,
+                "loaded_papers": counts["eligible"],
+                "recovered_outside": counts["recovered"],
+                "skipped_outside": counts["skipped"],
                 "loaded_months": loaded,
                 "candidates": candidates,
                 "trick_candidates": make_tricks(db),

@@ -14,14 +14,14 @@ from typing import Protocol
 
 from files import atomic_write_bytes, atomic_write_text
 from dates import clean_date, newest_date
-from oai import PREFIX, OaiError
+from oai import EARLIEST, PREFIX, OaiError
 from scrub import scrub_tree
 
 
 SCHEMA_VERSION = 1
 GENERATION = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 HISTORY_START = 2005
-HISTORY_FIRST = "2005-09-16"
+HISTORY_FIRST = EARLIEST
 
 
 class PageLike(Protocol):

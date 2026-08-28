@@ -40,6 +40,7 @@ from omit import (
     read_cloud,
     reuse_bytes,
 )
+from pack import pack_changes, sync_packs, write_packs
 
 
 MONTH = re.compile(r"^[0-9]{4}-(?:0[1-9]|1[0-2])$")
@@ -232,6 +233,7 @@ def make_plan(
             anchor_sha256,
         )
     ]
+    changed = pack_changes(output, rows, prior, changed)
     total = min(limit, len(changed))
     parts = [{"id": index, "count": 0, "months": []} for index in range(total)]
     ranked = sorted(changed, key=lambda row: (-row["counts"]["all"], row["month"]))
@@ -484,6 +486,7 @@ def join_parts(
                 atomic_write_bytes(stage / path.name, path.read_bytes())
             ordered.append(row)
         anchor_content = anchor_bytes(anchor_rows[0], plan["anchor_sha256"])
+        packs = write_packs(stage, ordered)
         manifest = cloud_manifest(
             ordered,
             foreground,
@@ -498,6 +501,7 @@ def join_parts(
             },
             len(anchor_rows[0]),
             ROUTE_COUNT,
+            packs,
         )
         atomic_write_bytes(stage / "anchors.json", anchor_content)
         atomic_write_text(
@@ -510,6 +514,7 @@ def join_parts(
             for key in ("points", "meta", "routes"):
                 name = row[key]["path"]
                 atomic_write_bytes(output / name, (stage / name).read_bytes())
+        sync_packs(output, ordered, packs)
         atomic_write_bytes(
             output / "anchors.json", (stage / "anchors.json").read_bytes()
         )

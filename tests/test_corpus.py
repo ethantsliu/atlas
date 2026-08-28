@@ -153,8 +153,8 @@ class CorpusTests(unittest.TestCase):
             "group: arxiv-oai-corpus",
             "cancel-in-progress: false",
             "PROMOTED_TAG: corpus-v2",
-            "MIN_READY: 1000000",
-            'if [ "$paper_count" -ge "$MIN_READY" ]; then',
+            "MIN_READY: 3145000",
+            'if [ "$paper_count" -ge "$MIN_READY" ] && [ -n "$coverage_day" ]; then',
             'python pipeline/corpus.py check --root "$CORPUS_ROOT" --stage-only',
             'swap_asset "$PROMO_ROOT/index.json" index.json index',
             'swap_asset "$PROMO_ROOT/cloud-ready.json" cloud-ready.json ready',
@@ -166,6 +166,9 @@ class CorpusTests(unittest.TestCase):
             "cloud-ready.json",
             "snapshot_complete:true",
             "coverage_through_year:$coverage_through_year",
+            "coverage_through_day:$coverage_through_day",
+            'echo "coverage_day=$coverage_day" >> "$GITHUB_OUTPUT"',
+            "coverage_year=${coverage_day%%-*}",
             'echo "history_complete=$history_complete" >> "$GITHUB_OUTPUT"',
             "steps.snapshot.outputs.ready == 'true'",
             "steps.prep.outputs.changed == 'true'",
@@ -249,6 +252,10 @@ class CorpusTests(unittest.TestCase):
         self.assertNotIn("group: arxiv-oai-corpus", feed)
         self.assertIn("retention-days: 1", corpus)
         self.assertIn('default: "corpus-v2"', discover)
+
+        sweep = (ROOT / ".github/workflows/sweep.yml").read_text(encoding="utf-8")
+        self.assertIn('--arg coverage_through_day "$THROUGH"', sweep)
+        self.assertIn("coverage_through_day:$coverage_through_day", sweep)
 
     def test_backfill_chain(self) -> None:
         corpus = (ROOT / ".github/workflows/corpus.yml").read_text(encoding="utf-8")
@@ -379,6 +386,7 @@ class CorpusTests(unittest.TestCase):
             cursor = read_cursor(root)
             self.assertIsNone(cursor["active"])
             self.assertEqual(cursor["watermark"], "2026-08-27T00:17:00Z")
+            self.assertEqual(cursor["coverage_through_day"], "2005-12-31")
             self.assertEqual(cursor["history"]["next_year"], 2006)
             self.assertFalse(cursor["history"]["complete"])
 
@@ -401,6 +409,10 @@ class CorpusTests(unittest.TestCase):
             self.assertEqual(result["start"], "2026-08-27")
             self.assertEqual(client.calls[0]["start"], "2026-08-27")
             self.assertIsNone(client.calls[0]["end"])
+            self.assertEqual(
+                read_cursor(root)["coverage_through_day"],
+                "2026-08-28",
+            )
 
     def test_midnight_overlap(self) -> None:
         first = TestPage(
@@ -857,6 +869,14 @@ class CorpusTests(unittest.TestCase):
                 json.dumps({"schema_version": 9}), encoding="utf-8"
             )
             with self.assertRaisesRegex(ValueError, "contract"):
+                read_cursor(root)
+
+            seed_cursor(root, "2026-08-27T00:17:00Z")
+            path = root / "cursor.json"
+            cursor = json.loads(path.read_text(encoding="utf-8"))
+            cursor["coverage_through_day"] = "2026-02-31"
+            path.write_text(json.dumps(cursor), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "coverage day"):
                 read_cursor(root)
 
 

@@ -11,14 +11,30 @@ from urllib.error import HTTPError, URLError
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
 
 from oai import (  # noqa: E402
+    EARLIEST,
     PAGE_LIMIT,
     RECORD_FIELDS,
     OaiClient,
     OaiError,
     build_url,
+    parse_identity,
     parse_page,
     token_expired,
 )
+
+IDENTIFY = b"""<?xml version="1.0" encoding="UTF-8"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
+  <responseDate>2026-01-01T00:00:00Z</responseDate>
+  <Identify>
+    <repositoryName>arXiv</repositoryName>
+    <baseURL>https://oaipmh.arxiv.org/oai</baseURL>
+    <protocolVersion>2.0</protocolVersion>
+    <adminEmail>help@arxiv.org</adminEmail>
+    <earliestDatestamp>2005-09-16</earliestDatestamp>
+    <deletedRecord>persistent</deletedRecord>
+    <granularity>YYYY-MM-DD</granularity>
+  </Identify>
+</OAI-PMH>"""
 
 PAGE = b"""<?xml version="1.0" encoding="UTF-8"?>
 <OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
@@ -87,6 +103,31 @@ PRIVATE_PAGE = b"""<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
 
 
 class OaiParseTests(unittest.TestCase):
+    def test_identity(self) -> None:
+        identity = parse_identity(IDENTIFY)
+
+        self.assertEqual(identity.repository, "arXiv")
+        self.assertEqual(identity.base, "https://oaipmh.arxiv.org/oai")
+        self.assertEqual(identity.earliest, EARLIEST)
+        self.assertEqual(identity.granularity, "YYYY-MM-DD")
+        self.assertEqual(identity.deletions, "persistent")
+
+    def test_policy(self) -> None:
+        changes = (
+            (b">arXiv</repositoryName>", b">mirror</repositoryName>"),
+            (
+                b">https://oaipmh.arxiv.org/oai</baseURL>",
+                b">https://example.org/oai</baseURL>",
+            ),
+            (b">2005-09-16</earliestDatestamp>", b">2005-09-15</earliestDatestamp>"),
+            (b">persistent</deletedRecord>", b">transient</deletedRecord>"),
+            (b">YYYY-MM-DD</granularity>", b">YYYY-MM-DDThh:mm:ssZ</granularity>"),
+        )
+        for current, changed in changes:
+            with self.subTest(changed=changed):
+                with self.assertRaisesRegex(ValueError, "policy changed"):
+                    parse_identity(IDENTIFY.replace(current, changed))
+
     def test_page(self) -> None:
         page = parse_page(PAGE)
 
@@ -260,6 +301,41 @@ class OaiClientTests(unittest.TestCase):
         self.assertIn("metadataPrefix=arXiv", urls[0])
         self.assertIn("resumptionToken=next+%0A+token", urls[1])
         self.assertEqual(clock.waits, [0.25])
+
+    def test_identify(self) -> None:
+        urls = []
+
+        def opener(request, timeout):
+            urls.append(request.full_url)
+            return self.Response(IDENTIFY)
+
+        client = OaiClient(delay=0, opener=opener, sleeper=lambda _: None)
+        first = client.identify()
+        second = client.identify()
+
+        self.assertIs(first, second)
+        self.assertEqual(len(urls), 1)
+        self.assertIn("verb=Identify", urls[0])
+
+    def test_preflight(self) -> None:
+        urls = []
+        payloads = iter((IDENTIFY, DONE))
+
+        def opener(request, timeout):
+            urls.append(request.full_url)
+            return self.Response(next(payloads))
+
+        client = OaiClient(
+            delay=0,
+            opener=opener,
+            sleeper=lambda _: None,
+            official=True,
+        )
+        pages = list(client.pages())
+
+        self.assertEqual(len(pages), 1)
+        self.assertIn("verb=Identify", urls[0])
+        self.assertIn("verb=ListRecords", urls[1])
 
     def test_fetch_cadence(self) -> None:
         clock = self.Clock()

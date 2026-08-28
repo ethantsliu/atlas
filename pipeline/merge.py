@@ -82,6 +82,9 @@ def clean_text(value: object, field: str, *, empty: bool = False) -> str:
 def normalize_paper(record: dict) -> dict:
     """Project an active OAI record into the archive's minimal source fields."""
     identifier = clean_text(record.get("id"), "id").lower()
+    title = clean_text(record.get("title"), "title", empty=True)
+    if not title:
+        title = f"arXiv {identifier}"
     categories = clean_list(record.get("categories"), "categories")
     published = iso_date(record.get("published"), "published")
     updated = iso_date(record.get("updated") or published, "updated")
@@ -91,7 +94,7 @@ def normalize_paper(record: dict) -> dict:
     return {
         "id": identifier,
         "url": f"https://arxiv.org/abs/{identifier}",
-        "title": clean_text(record.get("title"), "title"),
+        "title": title,
         "abstract": clean_text(record.get("abstract"), "abstract", empty=True),
         "authors": clean_list(record.get("authors"), "authors"),
         "categories": categories,

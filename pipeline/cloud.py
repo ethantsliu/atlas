@@ -25,6 +25,7 @@ from omit import (
     read_cloud,
     reuse_bytes,
 )
+from pack import PACK_MODE, PACK_MONTHS, check_packs, write_packs
 from routes import (
     ROUTE_COUNT,
     ROUTE_MAGIC,
@@ -299,6 +300,7 @@ def build_cloud(
             f"Archive point shards are missing: {', '.join(sorted(missing))}"
         )
     ordered = [shards[month] for month in sorted(source_rows)]
+    packs = write_packs(output, ordered)
     manifest = cloud_manifest(
         ordered,
         foreground,
@@ -309,6 +311,7 @@ def build_cloud(
         anchor_asset,
         len(anchors[0]),
         ROUTE_COUNT,
+        packs,
     )
     atomic_write_text(
         output / "index.json",
@@ -463,6 +466,15 @@ def validate_cloud(
             anchor_sha256,
             anchor_count,
         )
+    packed = (
+        cloud.get("point_pack"),
+        cloud.get("pack_months"),
+        cloud.get("packs"),
+    )
+    if packed != (None, None, None):
+        if packed[0] != PACK_MODE or packed[1] != PACK_MONTHS:
+            raise RuntimeError("Archive cloud point packs drifted")
+        check_packs(output, list(cloud_rows.values()), packed[2])
     all_omitted = [
         identifier for row in cloud_rows.values() for identifier in row["omitted_ids"]
     ]

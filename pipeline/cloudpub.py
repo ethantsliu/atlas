@@ -11,6 +11,7 @@ from cloudvec import MODEL_REVISION
 from embed import MODEL, MODEL_DIGEST
 from omit import ids_hash, read_cloud
 from routes import ROUTE_COUNT, ROUTE_PAIR, check_routes
+from pack import PACK_MODE, PACK_MONTHS, check_packs
 from cloudaudit import SCOPES, meta_rows, point_rows, valid_asset
 
 
@@ -172,6 +173,11 @@ def validate_published_assets(output: Path = OUTPUT_ROOT) -> dict:
     rows, anchor_count, anchor_sha256 = manifest_contract(cloud)
     expected = {"index.json"}
     validate_anchors(output, cloud, expected, anchor_count, anchor_sha256)
+    packed = (
+        cloud.get("point_pack"),
+        cloud.get("pack_months"),
+        cloud.get("packs"),
+    )
     months = []
     total_count = total_source = total_omitted = 0
     total_counts = {scope: 0 for scope in SCOPES}
@@ -216,6 +222,13 @@ def validate_published_assets(output: Path = OUTPUT_ROOT) -> dict:
         for scope in SCOPES:
             total_counts[scope] += row["counts"][scope]
             total_omitted_counts[scope] += row["omitted_counts"][scope]
+
+    if packed != (None, None, None):
+        if packed[0] != PACK_MODE or packed[1] != PACK_MONTHS:
+            raise RuntimeError("Published cloud point packs drifted")
+        check_packs(output, rows, packed[2])
+        for pack in packed[2]:
+            release_asset(output, pack.get("points"), expected, "point pack")
 
     actual = {
         path.relative_to(output).as_posix()

@@ -19,6 +19,10 @@ from urls import open_public, read_limited
 
 BASE_URL = "https://oaipmh.arxiv.org/oai"
 PREFIX = "arXiv"
+REPOSITORY = "arXiv"
+EARLIEST = "2005-09-16"
+GRANULARITY = "YYYY-MM-DD"
+DELETIONS = "persistent"
 RETRY_CODES = {429, 500, 502, 503, 504}
 USER_AGENT = "Atlas/0.2 (+https://xn--rss.to/atlas/)"
 PAGE_LIMIT = 32 * 1024 * 1024
@@ -58,6 +62,17 @@ class Page:
     total: int | None = None
     expires: str | None = None
     response_date: str | None = None
+
+
+@dataclass(frozen=True)
+class Identity:
+    """Repository policy required for an exhaustive OAI harvest."""
+
+    repository: str
+    base: str
+    earliest: str
+    granularity: str
+    deletions: str
 
 
 def local(node: ET.Element) -> str:
@@ -260,6 +275,31 @@ def parse_page(source: bytes | str) -> Page:
     )
 
 
+def parse_identity(source: bytes | str) -> Identity:
+    """Parse and enforce the official arXiv repository policy."""
+    root = ET.fromstring(source)
+    error = next((item for item in root if local(item) == "error"), None)
+    if error is not None:
+        raise OaiError(
+            error.attrib.get("code", "unknown"),
+            clean(error.text) or "OAI request failed",
+        )
+    node = next((item for item in root if local(item) == "Identify"), None)
+    if node is None:
+        raise ValueError("OAI response has no Identify element")
+    identity = Identity(
+        repository=content(node, "repositoryName") or "",
+        base=content(node, "baseURL") or "",
+        earliest=content(node, "earliestDatestamp") or "",
+        granularity=content(node, "granularity") or "",
+        deletions=content(node, "deletedRecord") or "",
+    )
+    expected = Identity(REPOSITORY, BASE_URL, EARLIEST, GRANULARITY, DELETIONS)
+    if identity != expected:
+        raise ValueError("OAI repository policy changed")
+    return identity
+
+
 def date_text(value: date | datetime | str) -> str:
     """Format and validate one day at OAI's supported granularity."""
     if isinstance(value, datetime):
@@ -354,11 +394,14 @@ class OaiClient:
         sleeper: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.monotonic,
         now: Callable[[], datetime] = utc_now,
+        official: bool | None = None,
     ) -> None:
         if retries < 0:
             raise ValueError("retries cannot be negative")
         if delay < MIN_DELAY and sleeper is time.sleep:
             raise ValueError("production delay must be at least 3 seconds")
+        if official is not None and not isinstance(official, bool):
+            raise ValueError("official transport flag must be boolean")
         self.base = base
         self.timeout = timeout
         self.retries = retries
@@ -368,6 +411,10 @@ class OaiClient:
         self.clock = clock
         self.now = now
         self.last_request: float | None = None
+        self.identity: Identity | None = None
+        self.official = (
+            base == BASE_URL and opener is open_public if official is None else official
+        )
 
     def wait_turn(self, minimum: float = 0) -> None:
         """Enforce cadence immediately before every network request."""
@@ -380,21 +427,15 @@ class OaiClient:
             current = self.clock()
         self.last_request = current
 
-    def fetch(
-        self,
-        start: date | datetime | str | None = None,
-        end: date | datetime | str | None = None,
-        token: str | None = None,
-    ) -> Page:
-        """Fetch and parse one page with bounded transient retries."""
-        url = build_url(start, end, token, base=self.base)
+    def request(self, url: str) -> bytes:
+        """Read one OAI response with bounded transient retries."""
         request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
         minimum = 0.0
         for attempt in range(self.retries + 1):
             self.wait_turn(minimum)
             try:
                 with self.opener(request, timeout=self.timeout) as response:
-                    return parse_page(read_limited(response, PAGE_LIMIT))
+                    return read_limited(response, PAGE_LIMIT)
             except HTTPError as error:
                 if error.code not in RETRY_CODES or attempt == self.retries:
                     raise
@@ -409,6 +450,23 @@ class OaiClient:
                 minimum = self.delay * (2**attempt)
         raise AssertionError("retry loop ended without a result")
 
+    def identify(self) -> Identity:
+        """Validate official repository guarantees once per client."""
+        if self.identity is None:
+            url = f"{self.base}?{urllib.parse.urlencode({'verb': 'Identify'})}"
+            self.identity = parse_identity(self.request(url))
+        return self.identity
+
+    def fetch(
+        self,
+        start: date | datetime | str | None = None,
+        end: date | datetime | str | None = None,
+        token: str | None = None,
+    ) -> Page:
+        """Fetch and parse one page with bounded transient retries."""
+        url = build_url(start, end, token, base=self.base)
+        return parse_page(self.request(url))
+
     def pages(
         self,
         start: date | datetime | str | None = None,
@@ -416,6 +474,8 @@ class OaiClient:
         token: str | None = None,
     ) -> Iterator[Page]:
         """Yield every response page while following opaque tokens."""
+        if self.official:
+            self.identify()
         page = self.fetch(start, end, token)
         while True:
             yield page
