@@ -180,11 +180,32 @@ jobs:
           fi
           echo "history_complete=$history_complete" >> "$GITHUB_OUTPUT"
 
+      - name: Assess snapshot readiness
+        id: snapshot
+        if: steps.checkpoint.outcome == 'success' && steps.merge.outcome == 'success'
+        run: |
+          paper_count=$(jq -r '.counts.all' "$CORPUS_ARCHIVE/index.json")
+          history_complete=$(jq -r '.history.complete' "$CORPUS_ROOT/cursor.json")
+          next_year=$(jq -r '.history.next_year' "$CORPUS_ROOT/cursor.json")
+          if ! [[ "$paper_count" =~ ^[0-9]+$ ]] || \
+             ! [[ "$next_year" =~ ^[0-9]+$ ]] || \
+             { [ "$history_complete" != "true" ] && [ "$history_complete" != "false" ]; }; then
+            echo "Corpus snapshot metadata is invalid." >&2
+            exit 1
+          fi
+          coverage_year=$((next_year - 1))
+          echo "paper_count=$paper_count" >> "$GITHUB_OUTPUT"
+          echo "history_complete=$history_complete" >> "$GITHUB_OUTPUT"
+          echo "coverage_year=$coverage_year" >> "$GITHUB_OUTPUT"
+          if [ "$paper_count" -ge "$MIN_READY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Prepare atomic promotion
         id: prep
-        if: >-
-          steps.merge.outputs.promote == 'true' &&
-          steps.merge.outputs.history_complete == 'true'
+        if: steps.snapshot.outputs.ready == 'true'
         run: |
           args=(
             --archive "$CORPUS_ARCHIVE"
@@ -200,28 +221,22 @@ jobs:
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
           fi
-          if [ "$(jq -r '.history.complete' "$CORPUS_ROOT/cursor.json")" = "true" ]; then
-            index_sha=$(sha256sum "$PROMO_ROOT/index.json" | awk '{print $1}')
-            paper_count=$(jq -r '.counts.all' "$PROMO_ROOT/index.json")
-            if [ "$paper_count" -ge "$MIN_READY" ]; then
-              jq -n \
-                --arg index_sha256 "$index_sha" \
-                --argjson paper_count "$paper_count" \
-                '{schema_version:1,history_complete:true,index_sha256:$index_sha256,paper_count:$paper_count}' \
-                > "$PROMO_ROOT/cloud-ready.json"
-              echo "ready=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "Completed history has only $paper_count papers; readiness requires at least $MIN_READY." >&2
-              echo "ready=false" >> "$GITHUB_OUTPUT"
-            fi
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-          fi
+          index_sha=$(sha256sum "$PROMO_ROOT/index.json" | awk '{print $1}')
+          paper_count=$(jq -r '.counts.all' "$PROMO_ROOT/index.json")
+          test "$paper_count" = "${{ steps.snapshot.outputs.paper_count }}"
+          jq -n \
+            --arg index_sha256 "$index_sha" \
+            --argjson paper_count "$paper_count" \
+            --argjson history_complete "${{ steps.snapshot.outputs.history_complete }}" \
+            --argjson coverage_through_year "${{ steps.snapshot.outputs.coverage_year }}" \
+            '{schema_version:1,snapshot_complete:true,history_complete:$history_complete,
+              coverage_through_year:$coverage_through_year,
+              index_sha256:$index_sha256,paper_count:$paper_count}' \
+            > "$PROMO_ROOT/cloud-ready.json"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
 
       - name: Validate promoted corpus
-        if: >-
-          steps.merge.outputs.promote == 'true' &&
-          steps.merge.outputs.history_complete == 'true'
+        if: steps.snapshot.outputs.ready == 'true'
         run: |
           python -m unittest tests.test_merge tests.test_corpus -v
           python - <<'PY'
@@ -238,8 +253,7 @@ jobs:
 
       - name: Publish promoted shards
         if: >-
-          steps.merge.outputs.promote == 'true' &&
-          steps.merge.outputs.history_complete == 'true' &&
+          steps.prep.outputs.changed == 'true' &&
           steps.prep.outputs.ready == 'true'
         run: |
           gh release view "$PROMOTED_TAG" >/dev/null 2>&1 || \
@@ -336,8 +350,7 @@ jobs:
       - name: Verify promoted release
         id: verify_promo
         if: >-
-          steps.merge.outputs.promote == 'true' &&
-          steps.merge.outputs.history_complete == 'true' &&
+          steps.prep.outputs.changed == 'true' &&
           steps.prep.outputs.ready == 'true'
         run: |
           verify="$RUNNER_TEMP/corpus-verify"
@@ -391,8 +404,7 @@ jobs:
 
       - name: Dispatch validated promotion
         if: >-
-          steps.merge.outputs.promote == 'true' &&
-          steps.merge.outputs.history_complete == 'true' &&
+          steps.prep.outputs.changed == 'true' &&
           steps.prep.outputs.ready == 'true'
         run: |
           index_sha=$(jq -r '.index_sha256' "$PROMO_ROOT/plan.json")
@@ -565,8 +577,13 @@ jobs:
           steps.harvest.outcome == 'success' &&
           steps.checkpoint.outcome == 'success' &&
           steps.merge.outcome == 'success' &&
+          steps.snapshot.outcome == 'success' &&
           steps.package.outcome == 'success' &&
           steps.checkpoint_release.outcome == 'success' &&
+          (steps.snapshot.outputs.ready == 'false' ||
+           (steps.prep.outcome == 'success' &&
+            (steps.prep.outputs.changed == 'false' ||
+             steps.verify_promo.outcome == 'success'))) &&
           (steps.merge.outputs.promote == 'false' ||
             (steps.merge.outputs.history_complete == 'false' &&
              steps.acknowledge.outcome == 'success') ||

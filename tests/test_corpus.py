@@ -163,9 +163,11 @@ class CorpusTests(unittest.TestCase):
             "index_sha256:$index_sha256",
             "ready_sha256:$ready_sha256",
             "cloud-ready.json",
-            "history_complete:true",
+            "snapshot_complete:true",
+            "coverage_through_year:$coverage_through_year",
             'echo "history_complete=$history_complete" >> "$GITHUB_OUTPUT"',
-            "steps.merge.outputs.history_complete == 'true'",
+            "steps.snapshot.outputs.ready == 'true'",
+            "steps.prep.outputs.changed == 'true'",
             "steps.prep.outputs.ready == 'true'",
             "actions/upload-artifact@v4",
             'name = f"checkpoint-{archive_hash[:16]}',
@@ -207,9 +209,12 @@ class CorpusTests(unittest.TestCase):
             corpus.index("Verify promoted release"),
             corpus.index("Dispatch validated promotion"),
         )
+        for step in ("Prepare atomic promotion", "Validate promoted corpus"):
+            start = corpus.index(f"- name: {step}")
+            end = corpus.find("\n      - name:", start + 1)
+            block = corpus[start : end if end >= 0 else len(corpus)]
+            self.assertIn("steps.snapshot.outputs.ready == 'true'", block)
         for step in (
-            "Prepare atomic promotion",
-            "Validate promoted corpus",
             "Publish promoted shards",
             "Verify promoted release",
             "Dispatch validated promotion",
@@ -217,7 +222,8 @@ class CorpusTests(unittest.TestCase):
             start = corpus.index(f"- name: {step}")
             end = corpus.find("\n      - name:", start + 1)
             block = corpus[start : end if end >= 0 else len(corpus)]
-            self.assertIn("steps.merge.outputs.history_complete == 'true'", block)
+            self.assertIn("steps.prep.outputs.changed == 'true'", block)
+            self.assertIn("steps.prep.outputs.ready == 'true'", block)
         self.assertLess(
             corpus.index('cmp "$PROMO_ROOT/cloud-ready.json"'),
             corpus.index("Dispatch validated promotion"),
@@ -248,8 +254,11 @@ class CorpusTests(unittest.TestCase):
             "steps.harvest.outcome == 'success'",
             "steps.checkpoint.outcome == 'success'",
             "steps.merge.outcome == 'success'",
+            "steps.snapshot.outcome == 'success'",
             "steps.package.outcome == 'success'",
             "steps.checkpoint_release.outcome == 'success'",
+            "steps.snapshot.outputs.ready == 'false'",
+            "steps.verify_promo.outcome == 'success'",
             "steps.merge.outputs.promote == 'false'",
             "steps.merge.outputs.history_complete == 'false'",
             "steps.merge.outputs.history_complete == 'true'",
