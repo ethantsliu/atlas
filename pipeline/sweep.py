@@ -77,6 +77,24 @@ def check_span(root: Path, first: int, last: int, through: date) -> list[dict]:
     return manifests
 
 
+def source_root(source: Path) -> Path:
+    """Resolve one direct or artifact-wrapped sweep root."""
+    if source.is_symlink():
+        raise ValueError("Sweep source root is unsafe")
+    roots = [source, source / "arxiv-sweep"]
+    found = []
+    for root in roots:
+        stage = root / "stage"
+        if not stage.exists():
+            continue
+        if root.is_symlink() or stage.is_symlink() or not stage.is_dir():
+            raise ValueError("Sweep source stage is invalid")
+        found.append(root)
+    if len(found) != 1:
+        raise ValueError("Sweep source has no unique stage")
+    return found[0]
+
+
 def harvest_span(
     root: Path,
     first: int,
@@ -202,6 +220,7 @@ def attach_span(
     through: date,
 ) -> dict:
     """Attach validated stages and atomically advance a clean cursor."""
+    source = source_root(source)
     if source.resolve() == target.resolve():
         raise ValueError("Sweep source and corpus root must differ")
     manifests = check_span(source, first, last, through)

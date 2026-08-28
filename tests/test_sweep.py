@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
 
 from corpus import plan_run, read_cursor, write_cursor  # noqa: E402
 from harvest import run_harvest, stage_path  # noqa: E402
-from sweep import attach_span, harvest_span, year_span  # noqa: E402
+from sweep import attach_span, harvest_span, source_root, year_span  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -140,6 +140,35 @@ class SweepTests(unittest.TestCase):
             self.assertEqual(cursor["coverage_through_day"], "2020-08-27")
             self.assertEqual(cursor["watermark"], "2020-08-27T00:00:00Z")
             self.assertTrue(stage_path(target, "history-2019").is_dir())
+
+    def test_nested_source(self) -> None:
+        through = date(2020, 8, 27)
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            source = base / "download" / "arxiv-sweep"
+            target = base / "corpus"
+            harvest_span(source, 2019, 2020, through, FakeClient())
+            seed_cursor(target)
+
+            result = attach_span(base / "download", target, 2019, 2020, through)
+
+            self.assertEqual(result["copied"], ["history-2019", "history-2020"])
+
+    def test_direct_source(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory)
+            (source / "stage").mkdir()
+
+            self.assertEqual(source_root(source), source)
+
+    def test_nested_ambiguous(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory)
+            (source / "stage").mkdir()
+            (source / "arxiv-sweep" / "stage").mkdir(parents=True)
+
+            with self.assertRaisesRegex(ValueError, "unique stage"):
+                source_root(source)
 
     def test_overlap(self) -> None:
         through = date(2020, 8, 27)

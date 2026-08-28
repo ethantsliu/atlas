@@ -268,6 +268,12 @@ class CorpusTests(unittest.TestCase):
         sweep = (ROOT / ".github/workflows/sweep.yml").read_text(encoding="utf-8")
         self.assertIn('--arg coverage_through_day "$THROUGH"', sweep)
         self.assertIn("coverage_through_day:$coverage_through_day", sweep)
+        self.assertIn(
+            'echo "SWEEP_ROOT=$RUNNER_TEMP/sweep/arxiv-sweep"',
+            sweep,
+        )
+        self.assertGreaterEqual(sweep.count("set -o pipefail"), 4)
+        self.assertGreaterEqual(corpus.count("set -o pipefail"), 3)
         self.assertLess(
             sweep.index("Bound prior assets"),
             sweep.index("Publish immutable shards"),
