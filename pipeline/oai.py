@@ -338,6 +338,22 @@ def build_url(
     return f"{base}?{urllib.parse.urlencode(params)}"
 
 
+def post_request(url: str) -> urllib.request.Request:
+    """Build an uncached OAI POST from one validated query URL."""
+    parsed = urllib.parse.urlsplit(url)
+    target = urllib.parse.urlunsplit(
+        (parsed.scheme, parsed.netloc, parsed.path, "", "")
+    )
+    return urllib.request.Request(
+        target,
+        data=parsed.query.encode("ascii"),
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": USER_AGENT,
+        },
+    )
+
+
 def retry_wait(
     error: HTTPError,
     fallback: float,
@@ -427,9 +443,13 @@ class OaiClient:
             current = self.clock()
         self.last_request = current
 
-    def request(self, url: str) -> bytes:
+    def request(self, source: str | urllib.request.Request) -> bytes:
         """Read one OAI response with bounded transient retries."""
-        request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+        request = (
+            source
+            if isinstance(source, urllib.request.Request)
+            else urllib.request.Request(source, headers={"User-Agent": USER_AGENT})
+        )
         minimum = 0.0
         for attempt in range(self.retries + 1):
             self.wait_turn(minimum)
@@ -465,7 +485,7 @@ class OaiClient:
     ) -> Page:
         """Fetch and parse one page with bounded transient retries."""
         url = build_url(start, end, token, base=self.base)
-        return parse_page(self.request(url))
+        return parse_page(self.request(post_request(url)))
 
     def pages(
         self,
@@ -478,11 +498,11 @@ class OaiClient:
             self.identify()
         page = self.fetch(start, end, token)
         while True:
+            if token_expired(page, self.now()):
+                raise OaiError("badResumptionToken", "response token expired")
             yield page
             if not page.token:
                 return
-            if token_expired(page, self.now()):
-                raise OaiError("badResumptionToken", "resumption token expired")
             page = self.fetch(token=page.token)
 
     def records(

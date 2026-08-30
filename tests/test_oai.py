@@ -19,6 +19,7 @@ from oai import (  # noqa: E402
     build_url,
     parse_identity,
     parse_page,
+    post_request,
     token_expired,
 )
 
@@ -278,12 +279,20 @@ class OaiClientTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "must not follow"):
             build_url(start="2020-02-04", end="2020-02-03")
 
+        request = post_request(initial)
+        self.assertEqual(request.get_method(), "POST")
+        self.assertEqual(request.full_url, "https://oaipmh.arxiv.org/oai")
+        self.assertEqual(
+            urllib.parse.parse_qs(request.data.decode()),
+            params | {"from": ["2005-09-16"], "until": ["2005-12-31"]},
+        )
+
     def test_resume(self) -> None:
-        urls = []
+        requests = []
         payloads = iter((PAGE, DONE))
 
         def opener(request, timeout):
-            urls.append(request.full_url)
+            requests.append(request)
             self.assertEqual(timeout, 10)
             return self.Response(next(payloads))
 
@@ -298,8 +307,11 @@ class OaiClientTests(unittest.TestCase):
         records = list(client.records(start="2024-01-01"))
 
         self.assertEqual(len(records), 3)
-        self.assertIn("metadataPrefix=arXiv", urls[0])
-        self.assertIn("resumptionToken=next+%0A+token", urls[1])
+        self.assertTrue(all(request.get_method() == "POST" for request in requests))
+        first = urllib.parse.parse_qs(requests[0].data.decode())
+        second = urllib.parse.parse_qs(requests[1].data.decode())
+        self.assertEqual(first["metadataPrefix"], ["arXiv"])
+        self.assertEqual(second["resumptionToken"], ["next \n token"])
         self.assertEqual(clock.waits, [0.25])
 
     def test_identify(self) -> None:
@@ -335,7 +347,7 @@ class OaiClientTests(unittest.TestCase):
 
         self.assertEqual(len(pages), 1)
         self.assertIn("verb=Identify", urls[0])
-        self.assertIn("verb=ListRecords", urls[1])
+        self.assertEqual(urls[1], "https://oaipmh.arxiv.org/oai")
 
     def test_fetch_cadence(self) -> None:
         clock = self.Clock()
@@ -452,8 +464,7 @@ class OaiClientTests(unittest.TestCase):
             now=lambda: datetime(2021, 1, 1, tzinfo=timezone.utc),
         )
         pages = client.pages()
-        next(pages)
-        with self.assertRaisesRegex(OaiError, "token expired"):
+        with self.assertRaisesRegex(OaiError, "response token expired"):
             next(pages)
         self.assertEqual(calls, 1)
 
