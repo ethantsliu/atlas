@@ -596,5 +596,6 @@ def main() -> None:
     else:
         print(json.dumps(ack_pending(args.root, args.generation), sort_keys=True))
 
+
 if __name__ == "__main__":
     main()
