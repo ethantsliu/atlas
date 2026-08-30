@@ -172,9 +172,7 @@ def plan_run(
         write_cursor(root, cursor)
         return cursor, active["generation"], active["start"], active.get("end")
     if cursor["pending"] and (not batch or cursor["history"]["complete"]):
-        raise RuntimeError(
-            "Corpus pending generation must be promoted and acknowledged"
-        )
+        raise RuntimeError("Corpus pending generation needs promotion acknowledgement")
     history = cursor["history"]
     if not history["complete"]:
         history, generation, start, end = plan_history(
