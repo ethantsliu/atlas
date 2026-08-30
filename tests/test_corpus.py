@@ -21,6 +21,7 @@ from corpus import (  # noqa: E402
     pack_root,
     prep_release,
     read_cursor,
+    run_batch,
     run_corpus,
     unpack_root,
     write_cursor,
@@ -142,6 +143,61 @@ def seed_cursor(root: Path, watermark: str) -> None:
 
 
 class CorpusTests(unittest.TestCase):
+    def test_batch_history(self) -> None:
+        class BatchClient:
+            delay = 3.1
+
+            def __init__(self) -> None:
+                self.calls = []
+                self.pageset = [
+                    TestPage((paper("2501.00001"),), None, "2025-12-31T23:00:00Z"),
+                    TestPage((paper("2601.00001"),), None, "2026-08-27T00:10:00Z"),
+                ]
+
+            def pages(self, start=None, end=None, token=None):
+                self.calls.append({"start": start, "end": end, "token": token})
+                yield self.pageset.pop(0)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_cursor(
+                root,
+                {
+                    "schema_version": 1,
+                    "watermark": "2024-12-31T23:00:00Z",
+                    "active": None,
+                    "last_generation": "history-2024",
+                    "pending": [],
+                    "merged": [],
+                    "history": {
+                        "next_year": 2025,
+                        "through_year": 2026,
+                        "complete": False,
+                    },
+                },
+            )
+            client = BatchClient()
+            result = run_batch(
+                root,
+                client,
+                max_pages=10,
+                max_minutes=5,
+                wall=lambda: NOW,
+            )
+
+            self.assertEqual(
+                result["batch_generations"], ["history-2025", "history-2026"]
+            )
+            self.assertEqual(result["batch_pages"], 2)
+            self.assertTrue(read_cursor(root)["history"]["complete"])
+            self.assertEqual(
+                read_cursor(root)["pending"], ["history-2025", "history-2026"]
+            )
+            self.assertEqual(
+                [row["start"] for row in client.calls],
+                ["2025-01-01", "2026-01-01"],
+            )
+
     def test_workflow_policy(self) -> None:
         corpus = (ROOT / ".github/workflows/corpus.yml").read_text(encoding="utf-8")
         legacy = (ROOT / ".github/workflows/archive.yml").read_text(encoding="utf-8")
@@ -152,6 +208,7 @@ class CorpusTests(unittest.TestCase):
             'cron: "17 04,10,16,22 * * *"',
             "group: arxiv-oai-corpus",
             "cancel-in-progress: false",
+            "--batch",
             "PROMOTED_TAG: corpus-v2",
             "MIN_READY: 3145000",
             'if [ "$history_complete" = "true" ] &&',
