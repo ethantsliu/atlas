@@ -172,9 +172,12 @@ test("historical paper loading can recover without resetting the map", async ({
   await page.keyboard.press("Enter");
   await expect(graph).toBeFocused();
   await expect(alert).toHaveCount(0);
-  await expect(page.locator(".filters")).toContainText("historical arXiv papers", {
-    timeout: 30_000,
-  });
+  await expect(page.locator(".filters")).toContainText(
+    "papers mapped by semantic similarity",
+    {
+      timeout: 30_000,
+    },
+  );
   expect(attempts).toBeGreaterThan(1);
   await expect(graph).toBeFocused();
   await expect(inspector.getByRole("heading", { name: "pretraining" })).toBeVisible();

@@ -70,10 +70,10 @@ export function MapFilters({
         id="atlas-filter-content"
         className={`filter-content ${mobileExpanded ? "mobile-open" : ""}`}
       >
-        <p className="aside-copy">
+        <p className="aside-copy" data-cloud-count={archiveCount ?? 0}>
           {archiveCount
-            ? `${archiveCount.toLocaleString()} historical arXiv papers form the semantic swarm; foreground papers remain inspectable nodes.`
-            : `${atlas.meta.paper_count.toLocaleString()} foreground papers join research areas, techniques, and ideas.`}
+            ? `${(atlas.meta.paper_count + archiveCount).toLocaleString()} papers mapped by semantic similarity. Select one to inspect its available details.`
+            : `${atlas.meta.paper_count.toLocaleString()} papers mapped with research areas, techniques, and ideas.`}
         </p>
 
         {ALL_NODE_KINDS.map((kind) => (

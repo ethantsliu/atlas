@@ -474,9 +474,12 @@ test("historical paper points open the inline inspector", async ({
   if (target) await watchCopy(page);
   const links = target ? null : await cloudLinks();
   await page.goto(target ? `/#?k=p&c=${target.camera}` : "/#?d=3");
-  await expect(page.locator(".filters")).toContainText("historical arXiv papers", {
-    timeout: 20_000,
-  });
+  await expect(page.locator(".filters")).toContainText(
+    "papers mapped by semantic similarity",
+    {
+      timeout: 20_000,
+    },
+  );
   await page.waitForTimeout(2_500);
   if (target) await waitCamera(page, target.camera);
   const graph = page.getByLabel("Interactive 3D research graph");
@@ -523,7 +526,7 @@ test("historical paper points open the inline inspector", async ({
     const offset = offsetCamera(target, canvasBox.width / canvasBox.height);
     await page.goto(`/?pick=offset#?k=p&c=${offset.camera}`);
     await expect(page.locator(".filters .aside-copy")).toContainText(
-      `${size.toLocaleString()} historical arXiv papers`,
+      "papers mapped by semantic similarity",
       { timeout: 20_000 },
     );
     await waitCamera(page, offset.camera);
@@ -600,7 +603,7 @@ test("the nearest visible layer wins at one exact pointer coordinate", async ({
   await loadMap(page, "/#?s=topic%3Aalignment&k=trpi");
   const size = await cloudSize();
   await expect(page.locator(".filters .aside-copy")).toContainText(
-    `${size.toLocaleString()} historical arXiv papers`,
+    "papers mapped by semantic similarity",
     { timeout: 20_000 },
   );
   await fullNodes(page);
@@ -699,9 +702,12 @@ test("touch opens a historical paper in the stacked inspector", async ({
   const target = await cloudTarget();
   await watchCopy(page);
   await page.goto(`/#?k=p&c=${target.camera}`);
-  await expect(page.locator(".filters")).toContainText("historical arXiv papers", {
-    timeout: 20_000,
-  });
+  await expect(page.locator(".filters")).toContainText(
+    "papers mapped by semantic similarity",
+    {
+      timeout: 20_000,
+    },
+  );
   await waitCamera(page, target.camera);
 
   const graph = page.getByLabel("Interactive 3D research graph");
@@ -781,9 +787,12 @@ test("foreground paper points open the visible paper", async ({ page }, testInfo
   );
   await page.setViewportSize({ width: 1_440, height: 900 });
   await page.goto("/#?d=3");
-  await expect(page.locator(".filters")).toContainText("historical arXiv papers", {
-    timeout: 20_000,
-  });
+  await expect(page.locator(".filters")).toContainText(
+    "papers mapped by semantic similarity",
+    {
+      timeout: 20_000,
+    },
+  );
   await page.waitForTimeout(2_500);
 
   const graph = page.getByLabel("Interactive 3D research graph");
@@ -821,7 +830,7 @@ test("2D hover and click use the same inline inspector", async ({ page }, testIn
   await page.getByRole("button", { name: /Paper\s+[,\d]+/ }).click();
   const picker = page.getByLabel("Choose a visible graph node");
   const filters = page.locator(".filters");
-  await expect(filters).toContainText("foreground papers");
+  await expect(filters).toContainText("papers mapped");
   const fullState = await fullNodes(page);
   const fullCount = Number(fullState.match(/[\d,]+/)?.[0].replaceAll(",", ""));
   expect(fullCount).toBeGreaterThan(200_000);

@@ -20,7 +20,7 @@ async function stopTrace(page: Page): Promise<number[]> {
   return page.evaluate(() => (window as TraceHost).lodTrace ?? []);
 }
 
-test("3D cloud restores one full level after rotation", async ({ page }, testInfo) => {
+test("3D cloud keeps a stable rotation level", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chrome", "Chromium traces WebGL draw levels");
   test.setTimeout(90_000);
   await page.setViewportSize({ width: 1_440, height: 900 });
@@ -44,9 +44,12 @@ test("3D cloud restores one full level after rotation", async ({ page }, testInf
   await page.goto("/#?d=3&k=trpi");
   const graph = page.getByLabel("Interactive 3D research graph", { exact: true });
   await expect(graph).toBeVisible({ timeout: 20_000 });
-  await expect(page.locator(".filters")).toContainText("historical arXiv papers", {
-    timeout: 30_000,
-  });
+  await expect(page.locator(".filters")).toContainText(
+    "papers mapped by semantic similarity",
+    {
+      timeout: 30_000,
+    },
+  );
 
   await expect
     .poll(
@@ -60,7 +63,7 @@ test("3D cloud restores one full level after rotation", async ({ page }, testInf
     )
     .toBeGreaterThan(100_000);
   const full = await drawCount(page);
-  const coarse = full >= 3_000_000 ? 100_000 : 72_000;
+  const coarse = full <= 250_000 ? full : full >= 3_000_000 ? 100_000 : 72_000;
   await startTrace(page);
 
   const canvas = graph.locator("canvas").first();
@@ -76,5 +79,7 @@ test("3D cloud restores one full level after rotation", async ({ page }, testInf
   await expect.poll(() => drawCount(page), { timeout: 10_000 }).toBe(full);
   await page.waitForTimeout(1_000);
   expect(await drawCount(page)).toBe(full);
-  expect(await stopTrace(page)).toEqual([full, coarse, full]);
+  expect(await stopTrace(page)).toEqual(
+    coarse === full ? [full] : [full, coarse, full],
+  );
 });

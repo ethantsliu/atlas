@@ -12,11 +12,12 @@ export async function fullNodes(page: Page): Promise<string> {
   const paperOn = (await paperLens.getAttribute("aria-pressed")) === "true";
   let archiveCount = 0;
   if (paperOn) {
-    await expect(filters).toContainText("historical arXiv papers", {
+    await expect(filters).toContainText("papers mapped by semantic similarity", {
       timeout: 20_000,
     });
-    const copy = await filters.locator(".aside-copy").textContent();
-    archiveCount = Number((copy?.match(/[\d,]+/)?.[0] ?? "0").replaceAll(",", ""));
+    archiveCount = Number(
+      (await filters.locator(".aside-copy").getAttribute("data-cloud-count")) ?? 0,
+    );
   }
   const cloudVisible =
     (await page.getByLabel("Interactive 3D research graph").count()) > 0 ||

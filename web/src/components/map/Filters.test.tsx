@@ -20,7 +20,8 @@ describe("MapFilters", () => {
     );
 
     expect(markup).toContain("289</small>");
-    expect(markup).toContain("2 foreground papers");
+    expect(markup).toContain("2 papers mapped");
     expect(markup).not.toContain("historical arXiv records");
+    expect(markup).not.toContain("foreground papers");
   });
 });

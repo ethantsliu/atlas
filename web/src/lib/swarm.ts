@@ -102,14 +102,15 @@ export type CloudSwarm = Points<BufferGeometry, ShaderMaterial> & {
 };
 
 export const CLOUD_BATCH = 65_536;
-export const CLOUD_LOD_MAX = 100_000;
+export const CLOUD_LOD_CAP = 100_000;
+export const CLOUD_LOD_MAX = 250_000;
 export const CLOUD_REST_MS = 160;
 export const CLOUD_SETTLE_MS = 280;
 export const CLOUD_VIEW_EPS = 1e-6;
 
 export function cloudLod(count: number): number {
   if (count <= CLOUD_LOD_MAX) return Math.max(0, count);
-  const floor = count >= 3_000_000 ? CLOUD_LOD_MAX : 72_000;
+  const floor = count >= 3_000_000 ? CLOUD_LOD_CAP : 72_000;
   return Math.min(count, floor);
 }
 
@@ -323,6 +324,7 @@ export function cloudTone(count: number): CloudTone {
 export function motionTone(count: number): CloudTone {
   const base = cloudTone(count);
   const sample = Math.max(1, cloudLod(count));
+  if (sample >= count) return base;
   const density = Math.max(1, count / sample);
   const sizeScale = Math.min(2.2, density ** 0.25);
   const alphaScale = Math.min(1.65, density ** 0.15);

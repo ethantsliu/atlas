@@ -206,9 +206,12 @@ test("navigation cancels a deferred camera restore", async ({
   const moved = await steadyCamera(page);
 
   release();
-  await expect(page.locator(".filters")).toContainText("historical arXiv papers", {
-    timeout: 20_000,
-  });
+  await expect(page.locator(".filters")).toContainText(
+    "papers mapped by semantic similarity",
+    {
+      timeout: 20_000,
+    },
+  );
   const after = await steadyCamera(page);
   const movedParts = cameraParts(moved);
   const afterParts = cameraParts(after);

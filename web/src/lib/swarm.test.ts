@@ -10,6 +10,7 @@ import {
   cloudLod,
   cloudOpacity,
   cloudSize,
+  cloudTone,
   dropCloud,
   lodIds,
   markSwarm,
@@ -48,6 +49,7 @@ describe("paper swarm", () => {
 
   it("makes an even deterministic motion level", () => {
     expect(cloudLod(80_000)).toBe(80_000);
+    expect(cloudLod(225_000)).toBe(225_000);
     expect(cloudLod(1_000_000)).toBe(72_000);
     expect(cloudLod(3_150_000)).toBe(100_000);
     expect([...lodIds(10, 4)]).toEqual([1, 3, 6, 8]);
@@ -56,6 +58,7 @@ describe("paper swarm", () => {
 
   it("caps motion-only density compensation", () => {
     expect(motionTone(80_000)).toEqual({ opacity: 0.96, size: 4.8 });
+    expect(motionTone(225_000)).toEqual(cloudTone(225_000));
     expect(motionTone(3_151_000).size).toBeCloseTo(2.64);
     expect(motionTone(3_151_000).opacity).toBeCloseTo(0.495);
     expect(motionTone(3_151_000).size / cloudSize(3_151_000)).toBeLessThanOrEqual(2.2);

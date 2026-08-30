@@ -39,7 +39,7 @@ async function selectTopic(page: Page) {
 
 async function completeCloud(page: Page) {
   const filters = page.locator(".filters");
-  await expect(filters).toContainText("historical arXiv papers", {
+  await expect(filters).toContainText("papers mapped by semantic similarity", {
     timeout: 30_000,
   });
   const toggles = filters.locator(".kind-toggle");

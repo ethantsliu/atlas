@@ -139,7 +139,7 @@ describe("progressive paper cloud geometry", () => {
     expect(points.geometry.drawRange.count).toBe(count);
     expect(bufferSubData).toHaveBeenCalledTimes(2);
     expect((bufferSubData.mock.calls[0][2] as Float32Array).length).toBe(count * 3);
-    expect((bufferSubData.mock.calls[1][2] as Float32Array).length).toBe(72_000 * 3);
+    expect((bufferSubData.mock.calls[1][2] as Float32Array).length).toBe(count * 3);
 
     dropCloud(points);
     points.geometry.dispose();
