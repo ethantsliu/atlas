@@ -21,11 +21,11 @@ from corpus import (  # noqa: E402
     pack_root,
     prep_release,
     read_cursor,
-    run_batch,
     run_corpus,
     unpack_root,
     write_cursor,
 )
+from corpusbatch import run_batch  # noqa: E402
 from oai import OaiClient, OaiError  # noqa: E402
 from archive import read_shard, shard_bytes  # noqa: E402
 from archivecheck import validate_archive  # noqa: E402
@@ -208,7 +208,7 @@ class CorpusTests(unittest.TestCase):
             'cron: "17 04,10,16,22 * * *"',
             "group: arxiv-oai-corpus",
             "cancel-in-progress: false",
-            "--batch",
+            "pipeline/corpusbatch.py",
             "PROMOTED_TAG: corpus-v2",
             "MIN_READY: 3145000",
             'if [ "$history_complete" = "true" ] &&',

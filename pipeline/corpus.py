@@ -418,50 +418,6 @@ def run_corpus(
     }
 
 
-def run_batch(
-    root: Path,
-    client,
-    *,
-    max_pages: int,
-    max_minutes: float,
-    clock: Callable[[], float] = time.monotonic,
-    wall: Callable[[], datetime] = utc_now,
-) -> dict:
-    """Harvest consecutive history windows inside one restored checkpoint."""
-    if max_pages < 1:
-        raise ValueError("Corpus page limit must be positive")
-    if max_minutes <= 0:
-        raise ValueError("Corpus time limit must be positive")
-    started = clock()
-    pages = 0
-    results = []
-    while pages < max_pages:
-        minutes = max_minutes - (clock() - started) / 60
-        if minutes <= 0:
-            break
-        result = run_corpus(
-            root,
-            client,
-            max_pages=max_pages - pages,
-            max_minutes=minutes,
-            clock=clock,
-            wall=wall,
-            batch=True,
-        )
-        results.append(result)
-        pages += result["pages_this_run"]
-        cursor = read_cursor(root)
-        if result["status"] != "complete" or cursor["history"]["complete"]:
-            break
-    if not results:
-        raise RuntimeError("Corpus batch exhausted its time before harvesting")
-    return {
-        **results[-1],
-        "batch_generations": [row["generation"] for row in results],
-        "batch_pages": pages,
-    }
-
-
 def check_root(root: Path, *, archive: bool = True) -> dict:
     """Validate corpus state, optionally including the durable archive."""
     cursor = check_cursor(read_cursor(root))
@@ -577,7 +533,6 @@ def parse_args() -> argparse.Namespace:
     run.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     run.add_argument("--max-pages", type=int, default=5_000)
     run.add_argument("--max-minutes", type=float, default=300)
-    run.add_argument("--batch", action="store_true")
     check = commands.add_parser("check", help="validate a checkpoint")
     check.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     check.add_argument(
@@ -609,8 +564,7 @@ def main() -> None:
     """Run one corpus command."""
     args = parse_args()
     if args.command == "run":
-        runner = run_batch if args.batch else run_corpus
-        result = runner(
+        result = run_corpus(
             args.root,
             OaiClient(),
             max_pages=args.max_pages,
@@ -641,7 +595,6 @@ def main() -> None:
         )
     else:
         print(json.dumps(ack_pending(args.root, args.generation), sort_keys=True))
-
 
 if __name__ == "__main__":
     main()
