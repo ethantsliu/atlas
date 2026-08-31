@@ -382,7 +382,7 @@ class CorpusTests(unittest.TestCase):
             self.assertIn(guard, chain)
         self.assertNotIn('.reason == "token-expiring"', chain)
         self.assertIn('CHAIN_PAGES: "5000"', chain)
-        self.assertIn('CHAIN_MINUTES: "300"', chain)
+        self.assertIn('CHAIN_MINUTES: "90"', chain)
         self.assertNotIn("inputs.pages", chain)
         self.assertNotIn("inputs.minutes", chain)
         self.assertIn("actions: write", corpus)
