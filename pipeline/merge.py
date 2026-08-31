@@ -257,27 +257,22 @@ def active_routes(database: sqlite3.Connection) -> dict[str, str]:
     }
 
 
-def find_moves(root: Path, routes: dict[str, str]) -> tuple[set[str], set[str]]:
-    """Find active identifiers that must leave an older month shard."""
+def find_moves(
+    ledger: sqlite3.Connection,
+    routes: dict[str, str],
+    tombstones: set[str],
+) -> tuple[set[str], set[str]]:
+    """Find prior shard routes changed or removed by active events."""
     moved: set[str] = set()
     months: set[str] = set()
-    locations: dict[str, set[str]] = {}
-    for path in sorted(root.glob("????-??.json.gz")):
-        month = path.name.removesuffix(".json.gz")
-        for paper in read_shard(path)["papers"]:
-            identifier = paper.get("id")
-            if not isinstance(identifier, str) or not identifier:
-                raise ValueError("Archive paper ID is invalid")
-            locations.setdefault(identifier, set()).add(month)
-    for identifier, found in locations.items():
+    rows = ledger.execute("SELECT id, month FROM events WHERE deleted=0 ORDER BY id")
+    for identifier, month in rows:
         target = routes.get(identifier)
-        if len(found) > 1 and (target is None or target not in found):
-            raise ValueError("Archive paper IDs are duplicated across months")
-        if target is not None:
-            old = found - {target}
-            if old:
-                moved.add(identifier)
-                months.update(old)
+        if identifier in tombstones:
+            months.add(month)
+        elif target is not None and target != month:
+            moved.add(identifier)
+            months.add(month)
     return moved, months
 
 
@@ -419,15 +414,10 @@ def merge_generations(
             months = active_months(database)
             tombstones = tombstone_ids(database)
             check_remote(archive_root, prior, months, tombstones)
-            moved, old_months = find_moves(archive_root, routes)
+            moved, old_months = find_moves(ledger, routes, tombstones)
             removals = tombstones | moved
             targets = set(months)
             targets.update(old_months)
-            if tombstones:
-                targets.update(
-                    path.name.removesuffix(".json.gz")
-                    for path in archive_root.glob("????-??.json.gz")
-                )
             for month in sorted(targets):
                 merge_month(
                     archive_root,
