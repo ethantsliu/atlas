@@ -373,7 +373,7 @@ class CorpusTests(unittest.TestCase):
             'if [ "$RUN_MODE" = "merge" ]',
             "next_mode=harvest",
             "next_mode=merge",
-            ".pending | length > 0",
+            ".history.complete == true",
             ".active.generation == $result[0].generation",
             "if ! jq -e",
             "safely checkpointed",
