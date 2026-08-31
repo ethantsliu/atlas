@@ -385,7 +385,7 @@ class CorpusTests(unittest.TestCase):
             self.assertIn(guard, chain)
         self.assertNotIn('.reason == "token-expiring"', chain)
         self.assertIn('CHAIN_PAGES: "5000"', chain)
-        self.assertIn('CHAIN_MINUTES: "90"', chain)
+        self.assertIn('CHAIN_MINUTES: "180"', chain)
         self.assertNotIn("inputs.pages", chain)
         self.assertNotIn("inputs.minutes", chain)
         self.assertIn("actions: write", corpus)
@@ -394,7 +394,7 @@ class CorpusTests(unittest.TestCase):
             corpus.index("- name: Continue pipeline"),
         )
         self.assertIn("if: inputs.mode != 'merge'", corpus)
-        self.assertIn("MAX_MINUTES: ${{ inputs.minutes || '90' }}", corpus)
+        self.assertIn("MAX_MINUTES: ${{ inputs.minutes || '180' }}", corpus)
 
     def test_cadence(self) -> None:
         first = b"""<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">

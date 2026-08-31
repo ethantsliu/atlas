@@ -63,7 +63,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     parser.add_argument("--max-pages", type=int, default=5_000)
-    parser.add_argument("--max-minutes", type=float, default=90)
+    parser.add_argument("--max-minutes", type=float, default=180)
     return parser.parse_args()
 
 
