@@ -21,7 +21,7 @@ from cloud import (  # noqa: E402
 from corpus import prep_release  # noqa: E402
 from embed import EMBED_DIM, MODEL, MODEL_DIGEST  # noqa: E402
 from harvest import run_harvest, stage_path  # noqa: E402
-from merge import merge_generation  # noqa: E402
+from merge import index_store, merge_generation, open_store  # noqa: E402
 from oai import Page, parse_page  # noqa: E402
 from rank import load_rules  # noqa: E402
 from retrieve import check_retrieval, retrieve  # noqa: E402
@@ -106,6 +106,23 @@ def seed_cloud(root: Path, archive: Path, papers: list[dict]) -> tuple[dict, Pat
 
 
 class MergeTests(unittest.TestCase):
+    def test_store_index(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            database = open_store(Path(directory) / "events.sqlite")
+            try:
+                index_store(database)
+                columns = database.execute("PRAGMA index_info(event_month)").fetchall()
+                plan = database.execute(
+                    "EXPLAIN QUERY PLAN SELECT id, paper FROM events "
+                    "WHERE deleted=0 AND month=? ORDER BY id",
+                    ("2026-08",),
+                ).fetchall()
+            finally:
+                database.close()
+
+        self.assertEqual([row[2] for row in columns], ["month", "id"])
+        self.assertIn("event_month", str(plan))
+
     def test_parser_seam(self) -> None:
         source = b"""<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
           <responseDate>2026-08-26T20:00:00Z</responseDate><ListRecords>
