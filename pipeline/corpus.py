@@ -6,17 +6,15 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
 import shutil
-import tarfile
-import tempfile
 import time
 from datetime import datetime, timezone
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Callable
 
 from archive import migrate_archive, write_manifest
 from archivecheck import validate_archive
+from bundle import pack_tree, unpack_tree
 from dates import clean_date, coverage_day, exact_day, first_date
 from files import atomic_write_text
 from harvest import (
@@ -462,48 +460,12 @@ def check_root(root: Path, *, archive: bool = True) -> dict:
 def pack_root(root: Path, archive: Path) -> None:
     """Package one validated checkpoint for durable release storage."""
     check_root(root)
-    archive.parent.mkdir(parents=True, exist_ok=True)
-    handle, name = tempfile.mkstemp(
-        prefix="corpus-", suffix=".tar.gz", dir=archive.parent
-    )
-    os.close(handle)
-    temporary = Path(name)
-    try:
-        with tarfile.open(temporary, "w:gz") as bundle:
-            for path in sorted(root.rglob("*")):
-                bundle.add(path, arcname=path.relative_to(root), recursive=False)
-        os.replace(temporary, archive)
-    finally:
-        temporary.unlink(missing_ok=True)
-
-
-def safe_member(member: tarfile.TarInfo) -> None:
-    """Reject unsafe or unexpectedly large checkpoint members."""
-    path = PurePosixPath(member.name)
-    if (
-        path.is_absolute()
-        or ".." in path.parts
-        or not (member.isdir() or member.isreg())
-        or member.size < 0
-    ):
-        raise ValueError("Corpus checkpoint contains an unsafe member")
+    pack_tree(root, archive)
 
 
 def unpack_root(archive: Path, root: Path) -> None:
     """Restore and validate one release checkpoint."""
-    if root.exists() and any(root.iterdir()):
-        raise ValueError("Corpus restore directory is not empty")
-    root.mkdir(parents=True, exist_ok=True)
-    with tarfile.open(archive, "r:gz") as bundle:
-        members = bundle.getmembers()
-        if (
-            len(members) > MAX_FILES
-            or sum(member.size for member in members) > MAX_BYTES
-        ):
-            raise ValueError("Corpus checkpoint exceeds safe restore bounds")
-        for member in members:
-            safe_member(member)
-        bundle.extractall(root, members=members)
+    unpack_tree(archive, root, MAX_FILES, MAX_BYTES)
     archive_root = root / "archive"
     if archive_root.exists() and migrate_archive(archive_root):
         write_manifest(archive_root)
