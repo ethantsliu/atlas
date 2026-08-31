@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import re
 import sys
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "pipeline"))
 
-from ontology import TOPICS, TRICKS, route  # noqa: E402
+from ontology import TOPICS, TRICKS, phrase_hit, route  # noqa: E402
 
 
 class OntologyRoutingTests(unittest.TestCase):
@@ -36,6 +37,26 @@ class OntologyRoutingTests(unittest.TestCase):
     def test_tuning_route(self) -> None:
         labels = {item["id"] for item in route("Fine-tuning a policy", TOPICS)}
         self.assertIn("post-training", labels)
+
+    def test_match_equivalence(self) -> None:
+        cases = (
+            ("agent", "agent"),
+            ("an agent works", "agent"),
+            ("reagent", "agent"),
+            ("agentic", "agent"),
+            ("agent-free", "agent"),
+            ("agent_1", "agent"),
+            ("map-elites", "map-elites"),
+            ("(rlhf)", "rlhf"),
+            ("caféagent", "agent"),
+            ("agenté", "agent"),
+        )
+        for text, phrase in cases:
+            with self.subTest(text=text, phrase=phrase):
+                expected = re.search(
+                    rf"(?<![a-z0-9]){re.escape(phrase)}(?![a-z0-9])", text
+                )
+                self.assertEqual(phrase_hit(text, phrase), expected is not None)
 
 
 if __name__ == "__main__":

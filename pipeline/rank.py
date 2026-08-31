@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 
-from ontology import TOPICS, TRICKS, route
+from ontology import TOPICS, TRICKS, phrase_hit, route
 
 
 def load_rules(path: Path) -> dict:
@@ -87,7 +86,7 @@ def term_hits(text: str, terms: dict[str, float]) -> list[str]:
     return [
         phrase
         for phrase in terms
-        if re.search(rf"(?<![a-z0-9]){re.escape(phrase)}(?![a-z0-9])", lowered)
+        if phrase_hit(lowered, phrase)
     ]
 
 

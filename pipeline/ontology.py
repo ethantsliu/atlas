@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import re
-
 TOPICS = {
     "alignment": [
         "ai alignment",
@@ -153,6 +151,23 @@ TOPICS = {
     ],
 }
 
+
+WORD_CHARS = frozenset("abcdefghijklmnopqrstuvwxyz0123456789")
+
+
+def phrase_hit(text: str, phrase: str) -> bool:
+    """Match one literal phrase with the ontology's ASCII word boundaries."""
+    start = text.find(phrase)
+    while start >= 0:
+        end = start + len(phrase)
+        left = start == 0 or text[start - 1] not in WORD_CHARS
+        right = end == len(text) or text[end] not in WORD_CHARS
+        if left and right:
+            return True
+        start = text.find(phrase, start + 1)
+    return False
+
+
 TRICKS = {
     "variance-control": [
         "gradient variance",
@@ -281,10 +296,7 @@ def route(text: str, ontology: dict[str, list[str]], limit: int = 4) -> list[dic
             {
                 phrase
                 for phrase in phrases
-                if re.search(
-                    rf"(?<![a-z0-9]){re.escape(phrase)}(?![a-z0-9])",
-                    lowered,
-                )
+                if phrase_hit(lowered, phrase)
             }
         )
         if hits:
