@@ -62,15 +62,15 @@ class DatabaseTests(unittest.TestCase):
         values = day_values(payload)
 
         self.assertEqual(values[0], "2026-08-21")
-        self.assertEqual(values[4], 734)
-        self.assertEqual(values[8], 276)
+        self.assertEqual(values[4], payload["source"]["source_total"])
+        self.assertEqual(values[8], len(payload["papers"]))
         self.assertTrue(values[-1])
 
     def test_paper_values(self) -> None:
         payload = load_sample()
         rows = paper_values(payload)
 
-        self.assertEqual(len(rows), 276)
+        self.assertEqual(len(rows), len(payload["papers"]))
         self.assertEqual(rows[0][1], payload["shortlist_ids"][0])
         self.assertTrue(rows[0][3])
         self.assertFalse(rows[-1][3])
@@ -104,9 +104,9 @@ class DatabaseTests(unittest.TestCase):
 
         count, cutoff = sync_days(connection, [payload], 365)
 
-        self.assertEqual(count, 276)
+        self.assertEqual(count, len(payload["papers"]))
         self.assertEqual(cutoff, date(2025, 8, 22))
-        self.assertEqual(len(connection.value.batches[0][1]), 276)
+        self.assertEqual(len(connection.value.batches[0][1]), len(payload["papers"]))
 
     def test_load_days(self) -> None:
         payloads = load_days(FEED_ROOT, "2026-08-21")
