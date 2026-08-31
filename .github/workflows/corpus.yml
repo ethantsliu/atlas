@@ -5,6 +5,14 @@ on:
     - cron: "17 04,10,16,22 * * *"
   workflow_dispatch:
     inputs:
+      mode:
+        description: "Pipeline phase"
+        required: false
+        default: "harvest"
+        type: choice
+        options:
+          - harvest
+          - merge
       pages:
         description: "Maximum OAI pages this run"
         required: false
@@ -125,10 +133,11 @@ jobs:
 
       - name: Harvest official metadata
         id: harvest
+        if: inputs.mode != 'merge'
         continue-on-error: true
         env:
           MAX_PAGES: ${{ inputs.pages || '5000' }}
-          MAX_MINUTES: ${{ inputs.minutes || '300' }}
+          MAX_MINUTES: ${{ inputs.minutes || '90' }}
         run: |
           set -o pipefail
           python pipeline/corpusbatch.py \
@@ -139,13 +148,17 @@ jobs:
       - name: Validate checkpoint
         id: checkpoint
         continue-on-error: true
-        if: always() && steps.harvest.outcome != 'skipped'
+        if: >-
+          always() &&
+          (inputs.mode == 'merge' || steps.harvest.outcome != 'skipped')
         # Restore and package perform full archive validation. This bounded check
         # authenticates the new stage without rescanning 1M+ durable rows.
         run: python pipeline/corpus.py check --root "$CORPUS_ROOT" --stage-only
 
       - name: Read prior promoted index
-        if: steps.checkpoint.outcome == 'success'
+        if: >-
+          inputs.mode == 'merge' &&
+          steps.checkpoint.outcome == 'success'
         run: |
           mkdir -p "$PRIOR_ROOT"
           probe="$RUNNER_TEMP/promoted-release.txt"
@@ -167,7 +180,9 @@ jobs:
 
       - name: Merge sealed generations
         id: merge
-        if: steps.checkpoint.outcome == 'success'
+        if: >-
+          inputs.mode == 'merge' &&
+          steps.checkpoint.outcome == 'success'
         run: |
           set -o pipefail
           python pipeline/corpus.py merge \
@@ -679,64 +694,77 @@ jobs:
               "repos/$GITHUB_REPOSITORY/releases/assets/$id"
           done < <(jq -r '.delete[]' "$verify/reap.json")
 
-      - name: Continue historical backfill
+      - name: Continue pipeline
         if: >-
           always() &&
-          steps.harvest.outcome == 'success' &&
           steps.checkpoint.outcome == 'success' &&
-          steps.merge.outcome == 'success' &&
-          steps.snapshot.outcome == 'success' &&
           steps.package.outcome == 'success' &&
           steps.checkpoint_release.outcome == 'success' &&
-          (steps.snapshot.outputs.ready == 'false' ||
-           (steps.prep.outcome == 'success' &&
-            (steps.prep.outputs.changed == 'false' ||
-             steps.verify_promo.outcome == 'success'))) &&
-          (steps.merge.outputs.promote == 'false' ||
-            (steps.merge.outputs.history_complete == 'false' &&
-             steps.acknowledge.outcome == 'success') ||
-            (steps.merge.outputs.history_complete == 'true' &&
-             steps.prep.outcome == 'success' &&
-             steps.acknowledge.outcome == 'success'))
+          ((inputs.mode != 'merge' && steps.harvest.outcome == 'success') ||
+           (inputs.mode == 'merge' &&
+            steps.merge.outcome == 'success' &&
+            steps.snapshot.outcome == 'success' &&
+            (steps.snapshot.outputs.ready == 'false' ||
+             (steps.prep.outcome == 'success' &&
+              (steps.prep.outputs.changed == 'false' ||
+               steps.verify_promo.outcome == 'success'))) &&
+            (steps.merge.outputs.promote == 'false' ||
+             (steps.merge.outputs.history_complete == 'false' &&
+              steps.acknowledge.outcome == 'success') ||
+             (steps.merge.outputs.history_complete == 'true' &&
+              steps.prep.outcome == 'success' &&
+              steps.acknowledge.outcome == 'success'))))
         env:
           CHAIN_PAGES: "5000"
           CHAIN_MINUTES: "90"
+          RUN_MODE: ${{ inputs.mode || 'harvest' }}
         run: |
-          test -s "$RUNNER_TEMP/corpus-result.json"
-          jq -e '
-            (.status == "complete" or .status == "partial") and
-            (.reason | type == "string") and
-            (.generation | type == "string" and length > 0) and
-            (.pages_this_run | type == "number" and floor == . and . >= 0) and
-            (.prior_page_count | type == "number" and floor == . and . >= 0) and
-            (.page_count | type == "number" and floor == . and . >= 0)
-          ' "$RUNNER_TEMP/corpus-result.json" >/dev/null
-          if jq -e '.history.complete == true' "$CORPUS_ROOT/cursor.json" >/dev/null; then
-            echo "Historical bootstrap is complete; scheduled synchronization remains active."
-            exit 0
+          if [ "$RUN_MODE" = "merge" ]; then
+            if jq -e '.history.complete == true' "$CORPUS_ROOT/cursor.json" >/dev/null; then
+              echo "Historical bootstrap is complete; scheduled synchronization remains active."
+              exit 0
+            fi
+            next_mode=harvest
+          else
+            test -s "$RUNNER_TEMP/corpus-result.json"
+            jq -e '
+              (.status == "complete" or .status == "partial") and
+              (.reason | type == "string") and
+              (.generation | type == "string" and length > 0) and
+              (.pages_this_run | type == "number" and floor == . and . >= 0) and
+              (.prior_page_count | type == "number" and floor == . and . >= 0) and
+              (.page_count | type == "number" and floor == . and . >= 0)
+            ' "$RUNNER_TEMP/corpus-result.json" >/dev/null
+            if ! jq -e '
+              (.status == "complete" and .reason == "sealed") or
+              (.status == "partial" and
+               (.reason == "page-limit" or .reason == "time-limit") and
+               .page_count > .prior_page_count)
+            ' "$RUNNER_TEMP/corpus-result.json" >/dev/null; then
+              echo "Historical bootstrap is safely checkpointed; a scheduled run will resume it."
+              exit 0
+            fi
+            jq -e --slurpfile result "$RUNNER_TEMP/corpus-result.json" '
+              (.pending | type == "array") and
+              (.merged | type == "array") and
+              (($result[0].status == "complete" and .active == null) or
+               ($result[0].status == "partial" and
+                .active.generation == $result[0].generation))
+            ' "$CORPUS_ROOT/cursor.json" >/dev/null
+            if jq -e '.pending | length > 0' "$CORPUS_ROOT/cursor.json" >/dev/null; then
+              next_mode=merge
+            else
+              next_mode=harvest
+            fi
           fi
-          if ! jq -e '
-            (.status == "complete" and .reason == "sealed") or
-            (.status == "partial" and
-             (.reason == "page-limit" or .reason == "time-limit") and
-             .page_count > .prior_page_count)
-          ' "$RUNNER_TEMP/corpus-result.json" >/dev/null; then
-            echo "Historical bootstrap is safely checkpointed; a scheduled run will resume it."
-            exit 0
-          fi
-          jq -e --slurpfile result "$RUNNER_TEMP/corpus-result.json" '
-            .history.complete == false and
-            .pending == [] and
-            .merged == [] and
-            (($result[0].status == "complete" and .active == null) or
-             ($result[0].status == "partial" and
-              .active.generation == $result[0].generation))
-          ' "$CORPUS_ROOT/cursor.json" >/dev/null
           gh workflow run corpus.yml \
             --ref main \
+            -f mode="$next_mode" \
             -f pages="$CHAIN_PAGES" \
             -f minutes="$CHAIN_MINUTES"
 
       - name: Enforce harvest result
-        if: steps.harvest.outcome == 'failure' || steps.checkpoint.outcome == 'failure'
+        if: >-
+          steps.checkpoint.outcome == 'failure' ||
+          (inputs.mode != 'merge' && steps.harvest.outcome == 'failure')
         run: exit 1

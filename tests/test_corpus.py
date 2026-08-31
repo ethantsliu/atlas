@@ -342,10 +342,10 @@ class CorpusTests(unittest.TestCase):
         self.assertEqual(sweep.count("pipeline/reap.py promo"), 2)
         self.assertEqual(sweep.count("pipeline/reap.py point"), 2)
 
-    def test_backfill_chain(self) -> None:
+    def test_phase_chain(self) -> None:
         corpus = (ROOT / ".github/workflows/corpus.yml").read_text(encoding="utf-8")
         chain = corpus[
-            corpus.index("- name: Continue historical backfill") : corpus.index(
+            corpus.index("- name: Continue pipeline") : corpus.index(
                 "- name: Enforce harvest result"
             )
         ]
@@ -369,13 +369,16 @@ class CorpusTests(unittest.TestCase):
             '.reason == "sealed"',
             '.reason == "page-limit"',
             '.reason == "time-limit"',
-            ".history.complete == false",
-            ".pending == []",
-            ".merged == []",
+            "RUN_MODE: ${{ inputs.mode || 'harvest' }}",
+            'if [ "$RUN_MODE" = "merge" ]',
+            "next_mode=harvest",
+            "next_mode=merge",
+            ".pending | length > 0",
             ".active.generation == $result[0].generation",
             "if ! jq -e",
             "safely checkpointed",
             "gh workflow run corpus.yml",
+            '-f mode="$next_mode"',
             '-f pages="$CHAIN_PAGES"',
             '-f minutes="$CHAIN_MINUTES"',
         ):
@@ -388,8 +391,10 @@ class CorpusTests(unittest.TestCase):
         self.assertIn("actions: write", corpus)
         self.assertLess(
             corpus.index("- name: Publish release checkpoint"),
-            corpus.index("- name: Continue historical backfill"),
+            corpus.index("- name: Continue pipeline"),
         )
+        self.assertIn("if: inputs.mode != 'merge'", corpus)
+        self.assertIn("MAX_MINUTES: ${{ inputs.minutes || '90' }}", corpus)
 
     def test_cadence(self) -> None:
         first = b"""<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
