@@ -11,7 +11,7 @@ BARE_URL = re.compile(r"https?://\S+", re.IGNORECASE)
 RULE = re.compile(r"^[\s—–_-]{10,}")
 CURATOR = (
     re.compile(r"^READ THIS!", re.IGNORECASE),
-    re.compile(r"^Q\d+\s*:", re.IGNORECASE),
+    re.compile(r"^Q\d+\s*:"),
     re.compile(r"^Question:\s*\(1\)", re.IGNORECASE),
     re.compile(r"^Comment:\s*:", re.IGNORECASE),
     re.compile(r"THIS IS RELEVANT TO", re.IGNORECASE),

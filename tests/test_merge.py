@@ -353,6 +353,17 @@ class MergeTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "public paper text"):
                     merge_generation(harvest, "unsafe", root / "archive", RULES)
 
+    def test_error_id(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            harvest = root / "harvest"
+            record = {**paper("2608.00001", "cs.LG"), "title": "Q1: Why?"}
+            seal(harvest, "unsafe-title", (record,))
+            with self.assertRaisesRegex(
+                ValueError, r"public paper text is invalid: 2608\.00001"
+            ):
+                merge_generation(harvest, "unsafe-title", root / "archive", RULES)
+
     def test_control_cleanup(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

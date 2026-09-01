@@ -16,6 +16,7 @@ class TitleTests(unittest.TestCase):
             "curator annotation",
         )
         self.assertEqual(title_issue("Q1: Why? Q2: How?"), "curator annotation")
+        self.assertTrue(valid_title("q0: Primitives for Hyper-Epoch Pretraining"))
         self.assertEqual(
             title_issue("https://arxiv.org/abs/2401.00001"), "bare URL title"
         )

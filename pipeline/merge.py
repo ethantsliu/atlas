@@ -190,9 +190,14 @@ def add_event(
         raise ValueError("Archive public paper text is invalid") from error
     stamp = event_stamp(record.get("datestamp"))
     deleted = record.get("deleted") is True
-    paper = (
-        None if deleted else compact_paper(scope_paper(normalize_paper(record), rules))
-    )
+    try:
+        paper = (
+            None
+            if deleted
+            else compact_paper(scope_paper(normalize_paper(record), rules))
+        )
+    except ValueError as error:
+        raise ValueError(f"{error}: {identifier}") from error
     month = None if paper is None else month_key(paper["published"])
     body = (
         None

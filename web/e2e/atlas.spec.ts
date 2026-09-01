@@ -113,9 +113,7 @@ test("map remains usable without WebGL2", async ({ page }) => {
   await expect(graph.locator("canvas:not(.cloud-plane)")).toBeVisible({
     timeout: 20_000,
   });
-  await expect(mapStatus(page)).toHaveText("3,999 visible graph nodes available.", {
-    timeout: 30_000,
-  });
+  await fullNodes(page);
   expect(cloudRequests).toBe(1);
   await graph.focus();
   await page.keyboard.press("ArrowRight");
