@@ -19,7 +19,6 @@ jobs:
     timeout-minutes: 350
     outputs:
       through: ${{ steps.range.outputs.through }}
-      through_year: ${{ steps.range.outputs.through_year }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -32,15 +31,14 @@ jobs:
         run: |
           through=$(date -u +%F)
           echo "through=$through" >> "$GITHUB_OUTPUT"
-          echo "through_year=${through%%-*}" >> "$GITHUB_OUTPUT"
           echo "SWEEP_ROOT=$RUNNER_TEMP/arxiv-sweep" >> "$GITHUB_ENV"
-      - name: Harvest recent history
+      - name: Harvest missing history prefix
         run: |
           set -o pipefail
           python pipeline/sweep.py harvest \
             --root "$SWEEP_ROOT" \
-            --start-year 2019 \
-            --end-year "${{ steps.range.outputs.through_year }}" \
+            --start-year 2005 \
+            --end-year 2018 \
             --through "${{ steps.range.outputs.through }}" \
             | tee "$RUNNER_TEMP/sweep-result.json"
           test -s "$RUNNER_TEMP/sweep-result.json"
@@ -66,12 +64,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       CORPUS_ROOT: data/cache/corpus
-      CORPUS_ARCHIVE: data/cache/corpus/archive
       CHECKPOINT_TAG: oai-corpus-v1
-      PROMOTED_TAG: corpus-v2
-      MIN_READY: 3145000
       THROUGH: ${{ needs.harvest.outputs.through }}
-      THROUGH_YEAR: ${{ needs.harvest.outputs.through_year }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -88,8 +82,6 @@ jobs:
           echo "CHECKPOINT_ROOT=$RUNNER_TEMP/corpus-checkpoint" >> "$GITHUB_ENV"
           echo "CHECKPOINT_POINTER=$RUNNER_TEMP/corpus-checkpoint/checkpoint.json" >> "$GITHUB_ENV"
           echo "PRIOR_POINTER=$RUNNER_TEMP/corpus-checkpoint/prior.json" >> "$GITHUB_ENV"
-          echo "PROMO_ROOT=$RUNNER_TEMP/corpus-promo" >> "$GITHUB_ENV"
-          echo "PRIOR_ROOT=$RUNNER_TEMP/corpus-prior" >> "$GITHUB_ENV"
 
       - uses: actions/download-artifact@v4
         with:
@@ -155,267 +147,11 @@ jobs:
           python pipeline/sweep.py attach \
             --source "$SWEEP_ROOT" \
             --root "$CORPUS_ROOT" \
-            --start-year 2019 \
-            --end-year "$THROUGH_YEAR" \
+            --start-year 2005 \
+            --end-year 2018 \
             --through "$THROUGH" \
             | tee "$RUNNER_TEMP/sweep-attach.json"
           python pipeline/corpus.py check --root "$CORPUS_ROOT" --stage-only
-
-      - name: Consolidate generations
-        id: merge
-        run: |
-          set -o pipefail
-          python pipeline/corpus.py merge \
-            --root "$CORPUS_ROOT" \
-            --archive "$CORPUS_ARCHIVE" \
-            --rules data/source/feed.json \
-            | tee "$RUNNER_TEMP/corpus-merge.json"
-          test "$(jq -r '.history.complete' "$CORPUS_ROOT/cursor.json")" = true
-          test "$(jq -r '.history.next_year' "$CORPUS_ROOT/cursor.json")" = \
-            "$((THROUGH_YEAR + 1))"
-          test "$(jq -r '.counts.all' "$CORPUS_ARCHIVE/index.json")" -ge "$MIN_READY"
-
-      - name: Read prior promotion
-        run: |
-          mkdir -p "$PRIOR_ROOT"
-          if gh release view "$PROMOTED_TAG" >/dev/null 2>&1; then
-            gh release download "$PROMOTED_TAG" \
-              --pattern index.json \
-              --pattern cloud-ready.json \
-              --dir "$PRIOR_ROOT"
-          fi
-
-      - name: Prepare promotion
-        id: prep
-        run: |
-          set -o pipefail
-          args=(--archive "$CORPUS_ARCHIVE" --output "$PROMO_ROOT")
-          if [ -f "$PRIOR_ROOT/index.json" ]; then
-            args+=(--prior "$PRIOR_ROOT/index.json")
-          fi
-          python pipeline/corpus.py prep "${args[@]}" \
-            | tee "$RUNNER_TEMP/corpus-promo.json"
-          paper_count=$(jq -r '.counts.all' "$PROMO_ROOT/index.json")
-          test "$paper_count" -ge "$MIN_READY"
-          test "$paper_count" = \
-            "$(jq -r '.counts.all' "$CORPUS_ARCHIVE/index.json")"
-          index_sha=$(sha256sum "$PROMO_ROOT/index.json" | awk '{print $1}')
-          jq -n \
-            --arg index_sha256 "$index_sha" \
-            --argjson paper_count "$paper_count" \
-            --argjson coverage_through_year "$THROUGH_YEAR" \
-            --arg coverage_through_day "$THROUGH" \
-            '{schema_version:1,snapshot_complete:true,history_complete:true,
-              coverage_through_year:$coverage_through_year,
-              coverage_through_day:$coverage_through_day,
-              index_sha256:$index_sha256,
-              paper_count:$paper_count}' \
-            > "$PROMO_ROOT/cloud-ready.json"
-          if [ "$(jq '.months | length' "$PROMO_ROOT/plan.json")" -gt 0 ]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Bound prior assets
-        if: steps.prep.outputs.changed == 'true'
-        run: |
-          reserve=$(jq '.assets | length + 4' "$PROMO_ROOT/plan.json")
-          if [ "$reserve" -gt 900 ]; then
-            echo "Promotion exceeds the safe release-asset budget." >&2
-            exit 1
-          fi
-          if [ ! -f "$PRIOR_ROOT/index.json" ] || \
-             [ ! -f "$PRIOR_ROOT/cloud-ready.json" ]; then
-            exit 0
-          fi
-          release_id=$(gh api \
-            "repos/$GITHUB_REPOSITORY/releases/tags/$PROMOTED_TAG" --jq .id)
-          gh api --paginate \
-            "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
-            --jq '.[] | {id,name,created_at,state} | @json' \
-            > "$RUNNER_TEMP/prior-assets.jsonl"
-          python pipeline/reap.py promo \
-            --assets "$RUNNER_TEMP/prior-assets.jsonl" \
-            --index "$PRIOR_ROOT/index.json" \
-            --ready "$PRIOR_ROOT/cloud-ready.json" \
-            --reserve "$reserve" \
-            > "$RUNNER_TEMP/prior-reap.json"
-          while read -r id; do
-            gh api --method DELETE \
-              "repos/$GITHUB_REPOSITORY/releases/assets/$id"
-          done < <(jq -r '.delete[]' "$RUNNER_TEMP/prior-reap.json")
-
-      - name: Publish immutable shards
-        if: steps.prep.outputs.changed == 'true'
-        run: |
-          gh release view "$PROMOTED_TAG" >/dev/null 2>&1 || \
-            gh release create "$PROMOTED_TAG" \
-              --title "Atlas corpus v2" \
-              --notes "Official arXiv OAI metadata shards used by Atlas."
-          release_id=$(gh api \
-            "repos/$GITHUB_REPOSITORY/releases/tags/$PROMOTED_TAG" --jq .id)
-          gh api --paginate \
-            "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
-            --jq '.[] | [.name, (.digest // "")] | @tsv' \
-            > "$RUNNER_TEMP/promo-assets.tsv"
-          mkdir -p "$RUNNER_TEMP/promo-existing"
-          missing=()
-          while read -r asset; do
-            digest=$(jq -r --arg path "$asset" \
-              '.shards[] | select(.path == $path) | .sha256' \
-              "$PROMO_ROOT/index.json")
-            api_digest=$(awk -F '\t' -v name="$asset" \
-              '$1 == name {print $2; exit}' "$RUNNER_TEMP/promo-assets.tsv")
-            if [ "$api_digest" = "sha256:$digest" ]; then
-              continue
-            fi
-            if grep -q "^$asset"$'\t' "$RUNNER_TEMP/promo-assets.tsv"; then
-              gh release download "$PROMOTED_TAG" \
-                --pattern "$asset" \
-                --dir "$RUNNER_TEMP/promo-existing"
-              test "$(sha256sum "$RUNNER_TEMP/promo-existing/$asset" | awk '{print $1}')" = \
-                "$digest"
-              continue
-            fi
-            missing+=("$PROMO_ROOT/$asset")
-          done < <(jq -r '.assets[]' "$PROMO_ROOT/plan.json")
-          if [ "${#missing[@]}" -gt 0 ]; then
-            gh release upload "$PROMOTED_TAG" "${missing[@]}"
-          fi
-
-      - name: Swap promotion pointers
-        if: steps.prep.outputs.changed == 'true'
-        run: |
-          release_id=$(gh api \
-            "repos/$GITHUB_REPOSITORY/releases/tags/$PROMOTED_TAG" --jq .id)
-          gh api --paginate \
-            "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
-            --jq '.[] | [.name, (.digest // ""), .id] | @tsv' \
-            > "$RUNNER_TEMP/promo-swap.tsv"
-          swap_asset() {
-            local source="$1" stable="$2" stem="$3"
-            local digest recovery stable_digest candidate stable_id candidate_id prior
-            digest=$(sha256sum "$source" | awk '{print $1}')
-            recovery="${stem}-${digest:0:16}.json"
-            cp "$source" "$PROMO_ROOT/$recovery"
-            if ! grep -q "^$recovery"$'\t' "$RUNNER_TEMP/promo-swap.tsv"; then
-              gh release upload "$PROMOTED_TAG" "$PROMO_ROOT/$recovery"
-            else
-              test "$(awk -F '\t' -v name="$recovery" \
-                '$1 == name {print $2; exit}' "$RUNNER_TEMP/promo-swap.tsv")" = \
-                "sha256:$digest"
-            fi
-            stable_digest=$(awk -F '\t' -v name="$stable" \
-              '$1 == name {print $2; exit}' "$RUNNER_TEMP/promo-swap.tsv")
-            if [ "$stable_digest" = "sha256:$digest" ]; then
-              return
-            fi
-            candidate="next-${stem}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${digest:0:16}.json"
-            cp "$source" "$PROMO_ROOT/$candidate"
-            gh release upload "$PROMOTED_TAG" "$PROMO_ROOT/$candidate"
-            gh api --paginate \
-              "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
-              --jq '.[] | [.name, (.digest // ""), .id] | @tsv' \
-              > "$RUNNER_TEMP/promo-next.tsv"
-            stable_id=$(awk -F '\t' -v name="$stable" \
-              '$1 == name {print $3; exit}' "$RUNNER_TEMP/promo-next.tsv")
-            if [ -n "$stable_id" ]; then
-              prior=$(awk -F '\t' -v name="$stable" \
-                '$1 == name {print $2; exit}' "$RUNNER_TEMP/promo-next.tsv" \
-                | sed 's/^sha256://')
-              prior="${prior:-unknown}"
-              gh api --method PATCH \
-                "repos/$GITHUB_REPOSITORY/releases/assets/$stable_id" \
-                -f name="old-${stem}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${prior:0:16}.json" \
-                >/dev/null
-            fi
-            candidate_id=$(awk -F '\t' -v name="$candidate" \
-              '$1 == name {print $3; exit}' "$RUNNER_TEMP/promo-next.tsv")
-            test -n "$candidate_id"
-            gh api --method PATCH \
-              "repos/$GITHUB_REPOSITORY/releases/assets/$candidate_id" \
-              -f name="$stable" >/dev/null
-          }
-          swap_asset "$PROMO_ROOT/index.json" index.json index
-          swap_asset "$PROMO_ROOT/cloud-ready.json" cloud-ready.json ready
-
-      - name: Verify promotion
-        id: verify
-        if: steps.prep.outputs.changed == 'true'
-        run: |
-          verify="$RUNNER_TEMP/corpus-verify"
-          mkdir -p "$verify"
-          index_sha=$(sha256sum "$PROMO_ROOT/index.json" | awk '{print $1}')
-          ready_sha=$(sha256sum "$PROMO_ROOT/cloud-ready.json" | awk '{print $1}')
-          gh release download "$PROMOTED_TAG" \
-            --pattern index.json \
-            --pattern "index-${index_sha:0:16}.json" \
-            --pattern cloud-ready.json \
-            --pattern "ready-${ready_sha:0:16}.json" \
-            --dir "$verify"
-          cmp "$PROMO_ROOT/index.json" "$verify/index.json"
-          cmp "$verify/index.json" "$verify/index-${index_sha:0:16}.json"
-          cmp "$PROMO_ROOT/cloud-ready.json" "$verify/cloud-ready.json"
-          cmp "$verify/cloud-ready.json" "$verify/ready-${ready_sha:0:16}.json"
-          release_id=$(gh api \
-            "repos/$GITHUB_REPOSITORY/releases/tags/$PROMOTED_TAG" --jq .id)
-          gh api --paginate \
-            "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
-            --jq '.[] | [.name, (.digest // "")] | @tsv' > "$verify/assets.tsv"
-          jq -r '.shards[] | [.path, .sha256] | @tsv' "$verify/index.json" \
-            | while IFS=$'\t' read -r asset digest; do
-                test "$(awk -F '\t' -v name="$asset" \
-                  '$1 == name {print $2; exit}' "$verify/assets.tsv")" = \
-                  "sha256:$digest"
-              done
-
-      - name: Dispatch cloud build
-        if: steps.prep.outputs.changed == 'true' && steps.verify.outcome == 'success'
-        run: |
-          index_sha=$(sha256sum "$PROMO_ROOT/index.json" | awk '{print $1}')
-          ready_sha=$(sha256sum "$PROMO_ROOT/cloud-ready.json" | awk '{print $1}')
-          jq -n \
-            --arg tag "$PROMOTED_TAG" \
-            --arg index_sha256 "$index_sha" \
-            --arg ready_sha256 "$ready_sha" \
-            --slurpfile plan "$PROMO_ROOT/plan.json" \
-            '{event_type:"corpus-promoted",client_payload:{
-              tag:$tag,index_sha256:$index_sha256,ready_sha256:$ready_sha256,
-              months:$plan[0].months
-            }}' > "$RUNNER_TEMP/corpus-dispatch.json"
-          gh api --method POST \
-            "repos/$GITHUB_REPOSITORY/dispatches" \
-            --input "$RUNNER_TEMP/corpus-dispatch.json"
-
-      - name: Bound promoted assets
-        if: steps.prep.outputs.changed == 'true' && steps.verify.outcome == 'success'
-        run: |
-          release_id=$(gh api \
-            "repos/$GITHUB_REPOSITORY/releases/tags/$PROMOTED_TAG" --jq .id)
-          gh api --paginate \
-            "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
-            --jq '.[] | {id,name,created_at,state} | @json' \
-            > "$RUNNER_TEMP/promoted-assets.jsonl"
-          python pipeline/reap.py promo \
-            --assets "$RUNNER_TEMP/promoted-assets.jsonl" \
-            --index "$PROMO_ROOT/index.json" \
-            --ready "$PROMO_ROOT/cloud-ready.json" \
-            > "$RUNNER_TEMP/promoted-reap.json"
-          while read -r id; do
-            gh api --method DELETE \
-              "repos/$GITHUB_REPOSITORY/releases/assets/$id"
-          done < <(jq -r '.delete[]' "$RUNNER_TEMP/promoted-reap.json")
-
-      - name: Acknowledge generations
-        run: |
-          args=()
-          while read -r generation; do
-            args+=(--generation "$generation")
-          done < <(jq -r '.pending[]' "$RUNNER_TEMP/corpus-merge.json")
-          if [ "${#args[@]}" -gt 0 ]; then
-            python pipeline/corpus.py ack --root "$CORPUS_ROOT" "${args[@]}"
-          fi
 
       - name: Package canonical checkpoint
         id: package
@@ -424,7 +160,7 @@ jobs:
             --root "$CORPUS_ROOT" \
             --archive "$CORPUS_FILE"
           mkdir -p "$CHECKPOINT_ROOT/raw"
-          split -b 1800m -d -a 4 "$CORPUS_FILE" "$CHECKPOINT_ROOT/raw/part-"
+          split -b 450m -d -a 4 "$CORPUS_FILE" "$CHECKPOINT_ROOT/raw/part-"
           python - <<'PY'
           import hashlib
           import json
@@ -476,8 +212,6 @@ jobs:
             ${{ env.CHECKPOINT_POINTER }}
             ${{ env.CHECKPOINT_ROOT }}/checkpoint-*.part
             ${{ runner.temp }}/sweep-attach.json
-            ${{ runner.temp }}/corpus-merge.json
-            ${{ runner.temp }}/corpus-promo.json
           compression-level: 0
           if-no-files-found: error
           retention-days: 1
@@ -570,18 +304,19 @@ jobs:
               "repos/$GITHUB_REPOSITORY/releases/assets/$id"
           done < <(jq -r '.delete[]' "$verify/reap.json")
 
+      - name: Dispatch consolidation
+        if: steps.checkpoint.outcome == 'success'
+        run: |
+          gh workflow run corpus.yml \
+            -f mode=merge \
+            -f pages=5000 \
+            -f minutes=180
+
       - name: Enforce atomic result
         if: always()
         env:
-          PREP: ${{ steps.prep.outcome }}
-          CHANGED: ${{ steps.prep.outputs.changed }}
-          VERIFIED: ${{ steps.verify.outcome }}
           PACKAGED: ${{ steps.package.outcome }}
           CHECKPOINTED: ${{ steps.checkpoint.outcome }}
         run: |
-          test "$PREP" = success
-          if [ "$CHANGED" = true ]; then
-            test "$VERIFIED" = success
-          fi
           test "$PACKAGED" = success
           test "$CHECKPOINTED" = success

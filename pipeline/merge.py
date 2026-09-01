@@ -174,9 +174,7 @@ def open_store(path: Path) -> sqlite3.Connection:
 
 def index_store(database: sqlite3.Connection) -> None:
     """Index active month routes after bulk event insertion completes."""
-    database.execute(
-        "CREATE INDEX event_month ON events(month, id) WHERE deleted=0"
-    )
+    database.execute("CREATE INDEX event_month ON events(month, id) WHERE deleted=0")
     database.commit()
 
 

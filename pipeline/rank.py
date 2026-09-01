@@ -83,11 +83,7 @@ def validate_rules(rules: dict) -> None:
 def term_hits(text: str, terms: dict[str, float]) -> list[str]:
     """Find distinct bounded phrases in deterministic configuration order."""
     lowered = text.lower()
-    return [
-        phrase
-        for phrase in terms
-        if phrase_hit(lowered, phrase)
-    ]
+    return [phrase for phrase in terms if phrase_hit(lowered, phrase)]
 
 
 def hit_score(hits: list[str], terms: dict[str, float]) -> float:

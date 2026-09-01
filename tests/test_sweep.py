@@ -70,6 +70,10 @@ class SweepTests(unittest.TestCase):
     def test_year_span(self) -> None:
         through = date(2020, 8, 27)
         self.assertEqual(
+            year_span(2005, 2005, through),
+            [(2005, "2005-09-16", "2005-12-31")],
+        )
+        self.assertEqual(
             year_span(2019, 2020, through),
             [
                 (2019, "2019-01-01", "2019-12-31"),
@@ -153,6 +157,53 @@ class SweepTests(unittest.TestCase):
             result = attach_span(base / "download", target, 2019, 2020, through)
 
             self.assertEqual(result["copied"], ["history-2019", "history-2020"])
+
+    def test_prefix_attach(self) -> None:
+        through = date(2008, 12, 31)
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            source = base / "prefix"
+            target = base / "corpus"
+            harvest_span(source, 2005, 2006, through, FakeClient())
+            harvest_span(target, 2007, 2008, through, FakeClient())
+            write_cursor(
+                target,
+                {
+                    "schema_version": 1,
+                    "watermark": "2026-08-27T00:08:00Z",
+                    "coverage_through_day": "2008-12-31",
+                    "active": None,
+                    "last_generation": "history-2008",
+                    "pending": ["history-2007", "history-2008"],
+                    "merged": [],
+                    "history": {
+                        "next_year": 2009,
+                        "through_year": 2008,
+                        "complete": True,
+                    },
+                },
+            )
+
+            result = attach_span(source, target, 2005, 2006, through)
+            cursor = read_cursor(target)
+
+            self.assertEqual(result["mode"], "prefix")
+            self.assertEqual(
+                cursor["pending"],
+                [
+                    "history-2005",
+                    "history-2006",
+                    "history-2007",
+                    "history-2008",
+                ],
+            )
+            self.assertEqual(cursor["coverage_through_day"], "2008-12-31")
+            self.assertEqual(cursor["watermark"], "2026-08-27T00:08:00Z")
+            self.assertEqual(cursor["last_generation"], "history-2008")
+            self.assertEqual(
+                cursor["history"],
+                {"next_year": 2009, "through_year": 2008, "complete": True},
+            )
 
     def test_direct_source(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

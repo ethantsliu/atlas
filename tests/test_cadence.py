@@ -24,16 +24,11 @@ class SweepPolicyTests(unittest.TestCase):
             self.assertNotIn(parallel, harvest)
 
     def test_history_stage(self) -> None:
-        self.assertIn("2019", self.sweep)
-        self.assertIn(
-            "through_year: ${{ steps.range.outputs.through_year }}", self.sweep
-        )
-        self.assertIn(
-            '--end-year "${{ steps.range.outputs.through_year }}"', self.sweep
-        )
-        self.assertIn('--end-year "$THROUGH_YEAR"', self.sweep)
-        self.assertNotIn("--end-year 2026", self.sweep)
-        self.assertNotIn("coverage_through_year:2026", self.sweep)
+        self.assertEqual(self.sweep.count("--start-year 2005"), 2)
+        self.assertEqual(self.sweep.count("--end-year 2018"), 2)
+        self.assertNotIn("pipeline/corpus.py merge", self.sweep)
+        self.assertIn("gh workflow run corpus.yml", self.sweep)
+        self.assertIn("-f mode=merge", self.sweep)
         self.assertIn("actions/upload-artifact@v4", self.sweep)
         self.assertRegex(self.sweep, r"retention-days:\s*[1-9][0-9]*")
 

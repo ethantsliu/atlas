@@ -323,23 +323,32 @@ class CorpusTests(unittest.TestCase):
         self.assertIn('default: "corpus-v2"', discover)
 
         sweep = (ROOT / ".github/workflows/sweep.yml").read_text(encoding="utf-8")
-        self.assertIn('--arg coverage_through_day "$THROUGH"', sweep)
-        self.assertIn("coverage_through_day:$coverage_through_day", sweep)
         self.assertIn(
             'echo "SWEEP_ROOT=$RUNNER_TEMP/sweep/arxiv-sweep"',
             sweep,
         )
-        self.assertGreaterEqual(sweep.count("set -o pipefail"), 4)
+        self.assertEqual(sweep.count("--start-year 2005"), 2)
+        self.assertEqual(sweep.count("--end-year 2018"), 2)
+        self.assertIn("split -b 450m", sweep)
+        self.assertIn("gh workflow run corpus.yml", sweep)
+        self.assertIn("-f mode=merge", sweep)
+        self.assertNotIn("pipeline/corpus.py merge", sweep)
+        self.assertNotIn('event_type:"corpus-promoted"', sweep)
+        self.assertGreaterEqual(sweep.count("set -o pipefail"), 2)
         self.assertGreaterEqual(corpus.count("set -o pipefail"), 3)
         self.assertLess(
-            sweep.index("Bound prior assets"),
-            sweep.index("Publish immutable shards"),
+            sweep.index("Attach sealed sweep"),
+            sweep.index("Package canonical checkpoint"),
         )
         self.assertLess(
-            sweep.index("Dispatch cloud build"),
-            sweep.index("Bound promoted assets"),
+            sweep.index("Package canonical checkpoint"),
+            sweep.index("Publish canonical checkpoint"),
         )
-        self.assertEqual(sweep.count("pipeline/reap.py promo"), 2)
+        self.assertLess(
+            sweep.index("Publish canonical checkpoint"),
+            sweep.index("Dispatch consolidation"),
+        )
+        self.assertEqual(sweep.count("pipeline/reap.py promo"), 0)
         self.assertEqual(sweep.count("pipeline/reap.py point"), 2)
 
     def test_phase_chain(self) -> None:
@@ -395,6 +404,77 @@ class CorpusTests(unittest.TestCase):
         )
         self.assertIn("if: inputs.mode != 'merge'", corpus)
         self.assertIn("MAX_MINUTES: ${{ inputs.minutes || '180' }}", corpus)
+
+    def test_phase_isolation(self) -> None:
+        corpus = (ROOT / ".github/workflows/corpus.yml").read_text(encoding="utf-8")
+
+        def step(name: str) -> str:
+            start = corpus.index(f"- name: {name}")
+            end = corpus.find("\n      - name:", start + 1)
+            return corpus[start : end if end >= 0 else len(corpus)]
+
+        harvest = step("Harvest official metadata")
+        merge = step("Merge sealed generations")
+        snapshot = step("Assess snapshot readiness")
+        package = step("Package checkpoint")
+        release = step("Publish release checkpoint")
+
+        self.assertIn("if: inputs.mode != 'merge'", harvest)
+        self.assertNotIn("pipeline/corpus.py merge", harvest)
+        self.assertIn("inputs.mode == 'merge'", merge)
+        self.assertIn("steps.checkpoint.outcome == 'success'", merge)
+        self.assertIn("steps.merge.outcome == 'success'", snapshot)
+        self.assertIn("!cancelled() && steps.checkpoint.outcome == 'success'", package)
+        self.assertIn("!cancelled() && steps.package.outcome == 'success'", release)
+        self.assertLess(
+            corpus.index("Harvest official metadata"),
+            corpus.index("Package checkpoint"),
+        )
+        self.assertLess(
+            corpus.index("Package checkpoint"), corpus.index("Continue pipeline")
+        )
+
+    def test_phase_budget(self) -> None:
+        import re
+
+        corpus = (ROOT / ".github/workflows/corpus.yml").read_text(encoding="utf-8")
+        timeout = re.findall(r"^    timeout-minutes: (\d+)$", corpus, re.MULTILINE)
+        dispatch = re.search(
+            r'minutes:\n(?:        .*\n){2}        default: "(\d+)"', corpus
+        )
+        runtime = re.search(
+            r"MAX_MINUTES: \$\{\{ inputs\.minutes \|\| '(\d+)' \}\}", corpus
+        )
+        chain = re.search(r'CHAIN_MINUTES: "(\d+)"', corpus)
+
+        self.assertEqual(len(timeout), 1)
+        self.assertIsNotNone(dispatch)
+        self.assertIsNotNone(runtime)
+        self.assertIsNotNone(chain)
+        job_minutes = int(timeout[0])
+        phase_minutes = {
+            int(dispatch.group(1)),
+            int(runtime.group(1)),
+            int(chain.group(1)),
+        }
+        self.assertEqual(len(phase_minutes), 1)
+        harvest_minutes = phase_minutes.pop()
+        self.assertGreater(harvest_minutes, 0)
+        self.assertGreaterEqual(job_minutes, harvest_minutes * 2)
+
+        chain_block = corpus[
+            corpus.index("- name: Continue pipeline") : corpus.index(
+                "- name: Enforce harvest result"
+            )
+        ]
+        self.assertEqual(
+            chain_block.count(
+                "if jq -e '.history.complete == true' "
+                '"$CORPUS_ROOT/cursor.json" >/dev/null; then'
+            ),
+            2,
+        )
+        self.assertNotIn(".pending | length", chain_block)
 
     def test_cadence(self) -> None:
         first = b"""<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">

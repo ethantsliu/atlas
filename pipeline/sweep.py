@@ -13,7 +13,14 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 
 from corpus import check_cursor, read_cursor, write_cursor
-from harvest import advance_history, check_stage, run_harvest, stage_path
+from harvest import (
+    HISTORY_FIRST,
+    HISTORY_START,
+    advance_history,
+    check_stage,
+    run_harvest,
+    stage_path,
+)
 from merge import read_generation
 from oai import OaiClient
 
@@ -45,7 +52,7 @@ def year_span(first: int, last: int, through: date) -> list[tuple[int, str, str]
     return [
         (
             year,
-            f"{year:04d}-01-01",
+            HISTORY_FIRST if year == HISTORY_START else f"{year:04d}-01-01",
             through.isoformat() if year == through.year else f"{year:04d}-12-31",
         )
         for year in range(first, last + 1)
@@ -159,6 +166,58 @@ def check_clean(cursor: dict, first: int, last: int) -> None:
         raise ValueError("Corpus cursor is not clean before the sweep")
 
 
+def history_year(generation: str) -> int:
+    """Read one canonical annual generation name."""
+    if not generation.startswith("history-"):
+        raise ValueError("Corpus pending generation is not annual history")
+    try:
+        year = int(generation.removeprefix("history-"))
+    except ValueError as error:
+        raise ValueError("Corpus pending history year is invalid") from error
+    return clean_year(year, "pending")
+
+
+def check_prefix(cursor: dict, first: int, last: int) -> None:
+    """Require a complete later range that the sweep immediately precedes."""
+    history = cursor["history"]
+    years = [history_year(generation) for generation in cursor["pending"]]
+    if (
+        cursor["active"] is not None
+        or cursor["merged"]
+        or not years
+        or years != list(range(last + 1, history["through_year"] + 1))
+        or first != HISTORY_START
+        or history["next_year"] != history["through_year"] + 1
+        or not history["complete"]
+        or cursor.get("last_generation") != f"history-{history['through_year']}"
+        or not isinstance(cursor.get("watermark"), str)
+        or not cursor.get("coverage_through_day")
+    ):
+        raise ValueError("Corpus cursor is not complete after the sweep prefix")
+
+
+def prefix_cursor(cursor: dict, manifests: list[dict]) -> dict:
+    """Prepend sealed missing years without weakening later coverage."""
+    generations = [manifest["generation"] for manifest in manifests]
+    watermarks = [
+        manifest["pages"][0].get("response_date")
+        for manifest in manifests
+        if manifest.get("pages")
+    ]
+    if len(watermarks) != len(manifests) or not all(
+        isinstance(value, str) for value in watermarks
+    ):
+        raise ValueError("Sweep stage has no response watermark")
+    watermark = max([cursor["watermark"], *watermarks])
+    return check_cursor(
+        {
+            **cursor,
+            "watermark": watermark,
+            "pending": [*generations, *cursor["pending"]],
+        }
+    )
+
+
 def next_cursor(cursor: dict, manifests: list[dict]) -> dict:
     """Build one atomic cursor update for attached history stages."""
     result = cursor
@@ -225,15 +284,22 @@ def attach_span(
         raise ValueError("Sweep source and corpus root must differ")
     manifests = check_span(source, first, last, through)
     cursor = read_cursor(target)
-    check_clean(cursor, first, last)
-    updated = next_cursor(cursor, manifests)
-    updated = check_cursor(
-        {
-            **updated,
-            "watermark": f"{through.isoformat()}T00:00:00Z",
-            "coverage_through_day": through.isoformat(),
-        }
-    )
+    try:
+        check_clean(cursor, first, last)
+    except ValueError:
+        check_prefix(cursor, first, last)
+        mode = "prefix"
+        updated = prefix_cursor(cursor, manifests)
+    else:
+        mode = "forward"
+        updated = next_cursor(cursor, manifests)
+        updated = check_cursor(
+            {
+                **updated,
+                "watermark": f"{through.isoformat()}T00:00:00Z",
+                "coverage_through_day": through.isoformat(),
+            }
+        )
     check_targets(source, target, manifests)
     copied = [
         manifest["generation"]
@@ -243,6 +309,7 @@ def attach_span(
     write_cursor(target, updated)
     return {
         "status": "attached",
+        "mode": mode,
         "generations": [manifest["generation"] for manifest in manifests],
         "copied": copied,
         "pending": updated["pending"],

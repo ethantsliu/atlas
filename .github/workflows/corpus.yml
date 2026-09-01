@@ -100,12 +100,16 @@ jobs:
               (.sha256 | test("^[0-9a-f]{64}$")) and
               (.bytes | type == "number" and . > 0))
           ' "$PRIOR_POINTER" >/dev/null
+          patterns=()
+          while read -r name; do
+            patterns+=(--pattern "$name")
+          done < <(jq -r '.parts[].name' "$PRIOR_POINTER")
+          gh release download "$CHECKPOINT_TAG" \
+            "${patterns[@]}" \
+            --dir "$RUNNER_TEMP/corpus-parts"
           jq -c '.parts[]' "$PRIOR_POINTER" | while read -r row; do
             name=$(jq -r '.name' <<<"$row")
             digest=$(jq -r '.sha256' <<<"$row")
-            gh release download "$CHECKPOINT_TAG" \
-              --pattern "$name" \
-              --dir "$RUNNER_TEMP/corpus-parts"
             test "$(sha256sum "$RUNNER_TEMP/corpus-parts/$name" | awk '{print $1}')" = "$digest"
           done
           jq -r '.parts[].name' "$PRIOR_POINTER" | while read -r name; do
@@ -149,7 +153,7 @@ jobs:
         id: checkpoint
         continue-on-error: true
         if: >-
-          always() &&
+          !cancelled() &&
           (inputs.mode == 'merge' || steps.harvest.outcome != 'skipped')
         # Restore and package perform full archive validation. This bounded check
         # authenticates the new stage without rescanning 1M+ durable rows.
@@ -524,13 +528,13 @@ jobs:
 
       - name: Package checkpoint
         id: package
-        if: always() && steps.checkpoint.outcome == 'success'
+        if: ${{ !cancelled() && steps.checkpoint.outcome == 'success' }}
         run: |
           python pipeline/corpus.py pack \
             --root "$CORPUS_ROOT" \
             --archive "$CORPUS_FILE"
           mkdir -p "$CHECKPOINT_ROOT/raw"
-          split -b 1800m -d -a 4 "$CORPUS_FILE" "$CHECKPOINT_ROOT/raw/part-"
+          split -b 450m -d -a 4 "$CORPUS_FILE" "$CHECKPOINT_ROOT/raw/part-"
           python - <<'PY'
           import hashlib
           import json
@@ -576,7 +580,7 @@ jobs:
           PY
 
       - name: Upload run checkpoint
-        if: always() && steps.package.outcome == 'success'
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: corpus-checkpoint-${{ github.run_id }}
@@ -592,7 +596,7 @@ jobs:
 
       - name: Publish release checkpoint
         id: checkpoint_release
-        if: always() && steps.package.outcome == 'success'
+        if: ${{ !cancelled() && steps.package.outcome == 'success' }}
         run: |
           gh release view "$CHECKPOINT_TAG" >/dev/null 2>&1 || \
             gh release create "$CHECKPOINT_TAG" \
@@ -696,7 +700,7 @@ jobs:
 
       - name: Continue pipeline
         if: >-
-          always() &&
+          !cancelled() &&
           steps.checkpoint.outcome == 'success' &&
           steps.package.outcome == 'success' &&
           steps.checkpoint_release.outcome == 'success' &&

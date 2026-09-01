@@ -292,13 +292,7 @@ def route(text: str, ontology: dict[str, list[str]], limit: int = 4) -> list[dic
     lowered = text.lower()
     matches = []
     for label, phrases in ontology.items():
-        hits = sorted(
-            {
-                phrase
-                for phrase in phrases
-                if phrase_hit(lowered, phrase)
-            }
-        )
+        hits = sorted({phrase for phrase in phrases if phrase_hit(lowered, phrase)})
         if hits:
             matches.append({"id": label, "score": len(hits), "evidence": hits[:4]})
     matches.sort(key=lambda item: (-item["score"], item["id"]))
