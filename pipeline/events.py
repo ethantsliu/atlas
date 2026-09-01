@@ -235,16 +235,24 @@ def check_ledger(root: Path, manifest: dict, *, active: bool = False) -> None:
 
 def filter_events(database: sqlite3.Connection, ledger: sqlite3.Connection) -> None:
     """Discard source events older than the durable per-paper watermark."""
-    stale = []
-    for identifier, stamp in database.execute(
-        "SELECT id, stamp FROM events ORDER BY id"
-    ):
-        prior = ledger.execute(
-            "SELECT stamp FROM events WHERE id=?", (identifier,)
-        ).fetchone()
-        if prior is not None and stamp < prior[0]:
-            stale.append(identifier)
-    database.executemany("DELETE FROM events WHERE id=?", [(row,) for row in stale])
+    if ledger.execute("SELECT 1 FROM events LIMIT 1").fetchone() is None:
+        return
+    database.execute(
+        "CREATE TEMP TABLE prior_events "
+        "(id TEXT PRIMARY KEY, stamp TEXT NOT NULL) WITHOUT ROWID"
+    )
+    database.executemany(
+        "INSERT INTO prior_events VALUES (?, ?)",
+        ledger.execute("SELECT id, stamp FROM events ORDER BY id"),
+    )
+    database.execute(
+        """DELETE FROM events
+        WHERE EXISTS (
+          SELECT 1 FROM prior_events
+          WHERE prior_events.id=events.id AND events.stamp<prior_events.stamp
+        )"""
+    )
+    database.execute("DROP TABLE prior_events")
     database.commit()
 
 
@@ -255,8 +263,6 @@ def save_events(database: sqlite3.Connection, ledger: sqlite3.Connection) -> Non
         ON CONFLICT(id) DO UPDATE SET
           stamp=excluded.stamp, deleted=excluded.deleted, month=excluded.month
         WHERE excluded.stamp >= events.stamp""",
-        database.execute(
-            "SELECT id, stamp, deleted, month FROM events ORDER BY id"
-        ).fetchall(),
+        database.execute("SELECT id, stamp, deleted, month FROM events ORDER BY id"),
     )
     ledger.commit()

@@ -20,6 +20,7 @@ from cloud import (  # noqa: E402
 )
 from corpus import prep_release  # noqa: E402
 from embed import EMBED_DIM, MODEL, MODEL_DIGEST  # noqa: E402
+from events import filter_events, open_ledger, save_events  # noqa: E402
 from harvest import run_harvest, stage_path  # noqa: E402
 from merge import index_store, merge_generation, open_store  # noqa: E402
 from oai import Page, parse_page  # noqa: E402
@@ -106,6 +107,72 @@ def seed_cloud(root: Path, archive: Path, papers: list[dict]) -> tuple[dict, Pat
 
 
 class MergeTests(unittest.TestCase):
+    def test_event_watermarks(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "ledger").mkdir()
+            database = open_store(root / "incoming.sqlite")
+            ledger = open_ledger(root / "ledger")
+            try:
+                database.executemany(
+                    "INSERT INTO events VALUES (?, ?, ?, ?, ?, ?)",
+                    [
+                        ("stale", "2026-01-01T00:00:00Z", 0, 0, "2026-01", "{}"),
+                        ("equal", "2026-02-01T00:00:00Z", 1, 0, "2026-02", "{}"),
+                        ("newer", "2026-03-01T00:00:00Z", 2, 0, "2026-03", "{}"),
+                        ("unseen", "2026-01-01T00:00:00Z", 3, 0, "2026-01", "{}"),
+                    ],
+                )
+                ledger.executemany(
+                    "INSERT INTO events VALUES (?, ?, ?, ?)",
+                    [
+                        ("stale", "2026-02-01T00:00:00Z", 0, "2026-01"),
+                        ("equal", "2026-02-01T00:00:00Z", 0, "2026-02"),
+                        ("newer", "2026-02-01T00:00:00Z", 0, "2026-03"),
+                    ],
+                )
+
+                filter_events(database, ledger)
+                self.assertEqual(
+                    [
+                        row[0]
+                        for row in database.execute("SELECT id FROM events ORDER BY id")
+                    ],
+                    ["equal", "newer", "unseen"],
+                )
+
+                save_events(database, ledger)
+                self.assertEqual(
+                    ledger.execute(
+                        "SELECT id, stamp FROM events ORDER BY id"
+                    ).fetchall(),
+                    [
+                        ("equal", "2026-02-01T00:00:00Z"),
+                        ("newer", "2026-03-01T00:00:00Z"),
+                        ("stale", "2026-02-01T00:00:00Z"),
+                        ("unseen", "2026-01-01T00:00:00Z"),
+                    ],
+                )
+            finally:
+                database.close()
+                ledger.close()
+
+            (root / "empty-ledger").mkdir()
+            empty = open_store(root / "empty-incoming.sqlite")
+            empty_ledger = open_ledger(root / "empty-ledger")
+            try:
+                empty.execute(
+                    "INSERT INTO events VALUES (?, ?, ?, ?, ?, ?)",
+                    ("first", "2026-01-01T00:00:00Z", 0, 0, "2026-01", "{}"),
+                )
+                filter_events(empty, empty_ledger)
+                self.assertEqual(
+                    empty.execute("SELECT count(*) FROM events").fetchone(), (1,)
+                )
+            finally:
+                empty.close()
+                empty_ledger.close()
+
     def test_store_index(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             database = open_store(Path(directory) / "events.sqlite")
