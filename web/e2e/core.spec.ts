@@ -37,12 +37,21 @@ type CloudTarget = {
   url: string;
 };
 
+type CloudManifest = {
+  count: number;
+  shards: {
+    count: number;
+    meta: { path: string };
+    points: { path: string };
+  }[];
+};
+
 function cameraPart(value: number) {
   const rounded = Math.round(value * 10) / 10;
   return String(Object.is(rounded, -0) ? 0 : rounded);
 }
 
-function screenGap(cloud: Float32Array, candidate: number, foreground: Float32Array) {
+function screenGap(points: Float32Array, candidate: number, other: Float32Array) {
   const at = candidate * 3;
   const aspect = 1.1;
   const radius = 16;
@@ -50,9 +59,9 @@ function screenGap(cloud: Float32Array, candidate: number, foreground: Float32Ar
   const tangent = Math.tan((50 * Math.PI) / 360);
   const distance = radius / tangent;
   const target = {
-    x: cloud[at] - ndc.x * radius * aspect,
-    y: cloud[at + 1] - ndc.y * radius,
-    z: cloud[at + 2],
+    x: points[at] - ndc.x * radius * aspect,
+    y: points[at + 1] - ndc.y * radius,
+    z: points[at + 2],
   };
   let gap = Number.POSITIVE_INFINITY;
   const visit = (points: Float32Array, skip = -1) => {
@@ -67,8 +76,8 @@ function screenGap(cloud: Float32Array, candidate: number, foreground: Float32Ar
       gap = Math.min(gap, dx * dx + dy * dy);
     }
   };
-  visit(cloud, candidate);
-  visit(foreground);
+  visit(points, candidate);
+  visit(other);
   return gap;
 }
 
@@ -89,20 +98,14 @@ async function layoutPoints() {
   return Float32Array.from(rows.flatMap((row) => row.slice(0, 3)));
 }
 
-async function cloudTarget(): Promise<CloudTarget> {
+async function cloudLayout() {
   const root = join(process.cwd(), "public", "data", "cloud");
-  const manifest = JSON.parse(await readFile(join(root, "index.json"), "utf8")) as {
-    count: number;
-    shards: {
-      count: number;
-      meta: { path: string };
-      points: { path: string };
-    }[];
-  };
+  const manifest = JSON.parse(
+    await readFile(join(root, "index.json"), "utf8"),
+  ) as CloudManifest;
   const blocks = await Promise.all(
     manifest.shards.map((shard) => readFile(join(root, shard.points.path))),
   );
-  const foreground = await layoutPoints();
   const positions = new Float32Array(manifest.count * 3);
   let next = 0;
   for (const [blockIndex, block] of blocks.entries()) {
@@ -118,6 +121,12 @@ async function cloudTarget(): Promise<CloudTarget> {
   if (next !== manifest.count || manifest.shards.length === 0) {
     throw new Error("Historical point manifest count drifted");
   }
+  return { manifest, positions, root };
+}
+
+async function cloudTarget(): Promise<CloudTarget> {
+  const { manifest, positions, root } = await cloudLayout();
+  const foreground = await layoutPoints();
 
   const shard = manifest.shards.at(-1)!;
   const start = manifest.count - shard.count;
@@ -149,6 +158,48 @@ async function cloudTarget(): Promise<CloudTarget> {
     point: [positions[at], positions[at + 1], positions[at + 2]],
     title: row[1],
     url: row[2],
+  };
+}
+
+async function foregroundTarget(): Promise<CloudTarget> {
+  const root = join(process.cwd(), "public", "data");
+  const core = JSON.parse(await readFile(join(root, "atlas.json"), "utf8")) as {
+    layout: { positions: Record<string, number[]> };
+    paper_asset: { path: string };
+  };
+  const path = core.paper_asset.path.replace(/^\/data\//, "");
+  const bundle = JSON.parse(await readFile(join(root, path), "utf8")) as {
+    layout: { positions: Record<string, number[]> };
+    papers: { id: string; title: string; url: string }[];
+  };
+  const coreRows = Object.values(core.layout.positions);
+  const paperRows = Object.entries(bundle.layout.positions);
+  const foreground = Float32Array.from(
+    [...coreRows, ...paperRows.map(([, row]) => row)].flatMap((row) => row.slice(0, 3)),
+  );
+  const { positions: cloud } = await cloudLayout();
+  const samples = Math.min(128, paperRows.length);
+  let best = 0;
+  let bestGap = -1;
+  for (let sample = 0; sample < samples; sample += 1) {
+    const index = Math.floor(
+      (sample * (paperRows.length - 1)) / Math.max(1, samples - 1),
+    );
+    const gap = screenGap(foreground, coreRows.length + index, cloud);
+    if (gap > bestGap) {
+      best = index;
+      bestGap = gap;
+    }
+  }
+  const [id, row] = paperRows[best];
+  const paper = bundle.papers.find((entry) => entry.id === id);
+  if (!paper || row.length < 3)
+    throw new Error("Foreground target metadata is missing");
+  return {
+    camera: `1_${cameraPart(row[0])}_${cameraPart(row[1])}_${cameraPart(row[2])}_16_0_0`,
+    point: [row[0], row[1], row[2]],
+    title: paper.title,
+    url: paper.url,
   };
 }
 
@@ -315,28 +366,6 @@ async function waitCamera(page: Page, camera: string) {
   await expect.poll(read, { timeout: 20_000 }).toBe(camera);
   await page.waitForTimeout(120);
   await expect.poll(read, { timeout: 20_000 }).toBe(camera);
-}
-
-async function swarmPoint(
-  page: Page,
-): Promise<{ x: number; y: number; title: string }> {
-  const graph = page.getByLabel("Interactive 3D research graph");
-  const box = await graph.boundingBox();
-  if (!box) throw new Error("Research graph has no bounds");
-  const tip = page.locator(".swarm-tip:not(.cloud-tip)");
-  const cloud = page.locator(".cloud-tip");
-  for (const y of [0.35, 0.45, 0.55, 0.65, 0.75]) {
-    for (const x of [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]) {
-      const point = { x: box.x + box.width * x, y: box.y + box.height * y };
-      await page.mouse.move(point.x, point.y);
-      await page.waitForTimeout(850);
-      const label = (await tip.count()) ? await tip.textContent() : null;
-      if (label?.startsWith("Paper · ") && (await cloud.count()) === 0) {
-        return { ...point, title: label.slice("Paper · ".length) };
-      }
-    }
-  }
-  throw new Error("No foreground paper point accepted hover input");
 }
 
 test("the initial map enables every lens", async ({ page }) => {
@@ -786,6 +815,8 @@ test("foreground paper points open the visible paper", async ({ page }, testInfo
     "Foreground point picking requires hosted 3D support",
   );
   await page.setViewportSize({ width: 1_440, height: 900 });
+  const target = await foregroundTarget();
+  await watchCopy(page);
   await page.goto("/#?d=3");
   await expect(page.locator(".filters")).toContainText(
     "papers mapped by semantic similarity",
@@ -796,16 +827,32 @@ test("foreground paper points open the visible paper", async ({ page }, testInfo
   await page.waitForTimeout(2_500);
 
   const graph = page.getByLabel("Interactive 3D research graph");
+  const firstCanvas = await graph.locator("canvas:not(.cloud-plane)").boundingBox();
+  if (!firstCanvas) throw new Error("Research graph canvas has no bounds");
+  const offset = offsetCamera(target, firstCanvas.width / firstCanvas.height);
+  await page.goto(`/?pick=foreground#?d=3&c=${offset.camera}`);
+  await expect(page.locator(".filters .aside-copy")).toContainText(
+    "papers mapped by semantic similarity",
+    { timeout: 20_000 },
+  );
+  await waitCamera(page, offset.camera);
   const graphBox = await graph.boundingBox();
   const panel = page.locator("#map-inspector");
   const panelBox = await panel.boundingBox();
-  const point = await swarmPoint(page);
-  await page.waitForTimeout(400);
+  const canvas = await graph.locator("canvas:not(.cloud-plane)").boundingBox();
+  if (!canvas) throw new Error("Research graph canvas has no bounds");
+  const point = {
+    x: canvas.x + ((offset.ndc.x + 1) * canvas.width) / 2,
+    y: canvas.y + ((1 - offset.ndc.y) * canvas.height) / 2,
+  };
+  await page.mouse.move(point.x, point.y);
+  const tip = page.locator(".swarm-tip:not(.cloud-tip)");
+  await expect(tip).toContainText(`Paper · ${target.title}`, { timeout: 20_000 });
   await expect(page.locator(".cloud-tip")).toHaveCount(0);
   await page.mouse.click(point.x, point.y);
 
   const inspector = panel;
-  await expect(inspector.getByRole("heading", { name: point.title })).toBeVisible();
+  await expect(inspector.getByRole("heading", { name: target.title })).toBeVisible();
   await expect(inspector.getByRole("button", { name: "Open paper" })).toBeVisible();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(await graph.boundingBox()).toEqual(graphBox);
