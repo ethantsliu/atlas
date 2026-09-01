@@ -32,7 +32,82 @@ permissions:
   actions: write
 
 jobs:
+  stage_merge:
+    if: inputs.mode == 'merge'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CHECKPOINT_TAG: oai-corpus-v1
+    steps:
+      - name: Assemble immutable merge source
+        run: |
+          parts="$RUNNER_TEMP/corpus-parts"
+          output="$RUNNER_TEMP/corpus-source"
+          mkdir -p "$parts" "$output"
+          release_id=$(gh api \
+            "repos/$GITHUB_REPOSITORY/releases/tags/$CHECKPOINT_TAG" --jq .id)
+          gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
+            --jq '.[] | [.created_at, .name] | @tsv' \
+            | awk -F '\t' '$2 ~ /^pointer-[0-9]+-[0-9]+-[0-9a-f]{16}\.json$/ {print}' \
+            | sort -r > "$RUNNER_TEMP/checkpoint-pointers.tsv"
+          pointer=$(awk -F '\t' 'NR == 1 {print $2}' \
+            "$RUNNER_TEMP/checkpoint-pointers.tsv")
+          test -n "$pointer"
+          gh release download "$CHECKPOINT_TAG" \
+            --pattern "$pointer" \
+            --dir "$parts"
+          cp "$parts/$pointer" "$output/prior.json"
+          printf '%s\n' "$pointer" > "$output/prior-name.txt"
+          jq -e '
+            .schema_version == 1 and
+            (.archive_sha256 | test("^[0-9a-f]{64}$")) and
+            (.archive_bytes | type == "number" and . > 0) and
+            (.parts | type == "array" and length > 0) and
+            ([.parts[].name] | length == (unique | length)) and
+            all(.parts[];
+              (.name | test("^checkpoint-[0-9a-f]{16}-[0-9]{4}-[0-9a-f]{16}\\.part$")) and
+              (.sha256 | test("^[0-9a-f]{64}$")) and
+              (.bytes | type == "number" and . > 0))
+          ' "$output/prior.json" >/dev/null
+          patterns=()
+          while read -r name; do
+            patterns+=(--pattern "$name")
+          done < <(jq -r '.parts[].name' "$output/prior.json")
+          gh release download "$CHECKPOINT_TAG" \
+            "${patterns[@]}" \
+            --dir "$parts"
+          jq -c '.parts[]' "$output/prior.json" | while read -r row; do
+            name=$(jq -r '.name' <<<"$row")
+            digest=$(jq -r '.sha256' <<<"$row")
+            bytes=$(jq -r '.bytes' <<<"$row")
+            test "$(stat -c %s "$parts/$name")" = "$bytes"
+            test "$(sha256sum "$parts/$name" | awk '{print $1}')" = "$digest"
+          done
+          jq -r '.parts[].name' "$output/prior.json" | while read -r name; do
+            cat "$parts/$name"
+          done > "$output/corpus.tar.gz"
+          test "$(sha256sum "$output/corpus.tar.gz" | awk '{print $1}')" = \
+            "$(jq -r '.archive_sha256' "$output/prior.json")"
+          test "$(stat -c %s "$output/corpus.tar.gz")" = \
+            "$(jq -r '.archive_bytes' "$output/prior.json")"
+
+      - name: Stage immutable merge source
+        uses: actions/upload-artifact@v4
+        with:
+          name: corpus-source-${{ github.run_id }}
+          path: ${{ runner.temp }}/corpus-source
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+
   harvest:
+    needs: stage_merge
+    if: >-
+      always() &&
+      (inputs.mode != 'merge' || needs.stage_merge.result == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 720
     env:
@@ -59,62 +134,83 @@ jobs:
           echo "PROMO_ROOT=$RUNNER_TEMP/corpus-promo" >> "$GITHUB_ENV"
           echo "PRIOR_ROOT=$RUNNER_TEMP/corpus-prior" >> "$GITHUB_ENV"
 
+      - name: Download staged merge source
+        if: inputs.mode == 'merge'
+        uses: actions/download-artifact@v4
+        with:
+          name: corpus-source-${{ github.run_id }}
+          path: ${{ runner.temp }}/corpus-source
+
       - name: Restore release checkpoint
         run: |
           mkdir -p "$RUNNER_TEMP/corpus-parts" "$CHECKPOINT_ROOT"
-          probe="$RUNNER_TEMP/checkpoint-release.txt"
-          if ! gh api -i "repos/$GITHUB_REPOSITORY/releases/tags/$CHECKPOINT_TAG" \
-            > "$probe" 2>&1; then
-            status=$(awk '/^HTTP/{code=$2} END{print code}' "$probe")
-            if [ "$status" = "404" ]; then
-              echo "No corpus checkpoint release exists yet."
+          if [ "${{ inputs.mode }}" = "merge" ]; then
+            cp "$RUNNER_TEMP/corpus-source/corpus.tar.gz" "$CORPUS_FILE"
+            cp "$RUNNER_TEMP/corpus-source/prior.json" "$PRIOR_POINTER"
+            pointer=$(cat "$RUNNER_TEMP/corpus-source/prior-name.txt")
+            if [[ ! "$pointer" =~ ^pointer-[0-9]+-[0-9]+-[0-9a-f]{16}\.json$ ]]; then
+              echo "Staged checkpoint pointer name is invalid." >&2
+              exit 1
+            fi
+            echo "PRIOR_NAME=$pointer" >> "$GITHUB_ENV"
+          else
+            probe="$RUNNER_TEMP/checkpoint-release.txt"
+            if ! gh api -i "repos/$GITHUB_REPOSITORY/releases/tags/$CHECKPOINT_TAG" \
+              > "$probe" 2>&1; then
+              status=$(awk '/^HTTP/{code=$2} END{print code}' "$probe")
+              if [ "$status" = "404" ]; then
+                echo "No corpus checkpoint release exists yet."
+                exit 0
+              fi
+              echo "Could not inspect corpus checkpoint release" >&2
+              exit 1
+            fi
+            release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$CHECKPOINT_TAG" --jq .id)
+            gh api --paginate \
+              "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
+              --jq '.[] | [.created_at, .name] | @tsv' \
+              | awk -F '\t' '$2 ~ /^pointer-[0-9]+-[0-9]+-[0-9a-f]{16}\.json$/ {print}' \
+              | sort -r > "$RUNNER_TEMP/checkpoint-pointers.tsv"
+            pointer=$(awk -F '\t' 'NR == 1 {print $2}' \
+              "$RUNNER_TEMP/checkpoint-pointers.tsv")
+            if [ -z "$pointer" ]; then
+              echo "Checkpoint release has no complete pointer; starting from a clean state."
               exit 0
             fi
-            echo "Could not inspect corpus checkpoint release" >&2
-            exit 1
+            echo "PRIOR_NAME=$pointer" >> "$GITHUB_ENV"
+            gh release download "$CHECKPOINT_TAG" \
+              --pattern "$pointer" \
+              --dir "$RUNNER_TEMP/corpus-parts"
+            cp "$RUNNER_TEMP/corpus-parts/$pointer" "$PRIOR_POINTER"
+            jq -e '
+              .schema_version == 1 and
+              (.archive_sha256 | test("^[0-9a-f]{64}$")) and
+              (.archive_bytes | type == "number" and . >= 0) and
+              (.parts | type == "array" and length > 0) and
+              ([.parts[].name] | length == (unique | length)) and
+              all(.parts[];
+                (.name | test("^checkpoint-[0-9a-f]{16}-[0-9]{4}-[0-9a-f]{16}\\.part$")) and
+                (.sha256 | test("^[0-9a-f]{64}$")) and
+                (.bytes | type == "number" and . > 0))
+            ' "$PRIOR_POINTER" >/dev/null
+            patterns=()
+            while read -r name; do
+              patterns+=(--pattern "$name")
+            done < <(jq -r '.parts[].name' "$PRIOR_POINTER")
+            gh release download "$CHECKPOINT_TAG" \
+              "${patterns[@]}" \
+              --dir "$RUNNER_TEMP/corpus-parts"
+            jq -c '.parts[]' "$PRIOR_POINTER" | while read -r row; do
+              name=$(jq -r '.name' <<<"$row")
+              digest=$(jq -r '.sha256' <<<"$row")
+              bytes=$(jq -r '.bytes' <<<"$row")
+              test "$(stat -c %s "$RUNNER_TEMP/corpus-parts/$name")" = "$bytes"
+              test "$(sha256sum "$RUNNER_TEMP/corpus-parts/$name" | awk '{print $1}')" = "$digest"
+            done
+            jq -r '.parts[].name' "$PRIOR_POINTER" | while read -r name; do
+              cat "$RUNNER_TEMP/corpus-parts/$name"
+            done > "$CORPUS_FILE"
           fi
-          release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$CHECKPOINT_TAG" --jq .id)
-          gh api --paginate \
-            "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
-            --jq '.[] | [.created_at, .name] | @tsv' \
-            | awk -F '\t' '$2 ~ /^pointer-[0-9]+-[0-9]+-[0-9a-f]{16}\.json$/ {print}' \
-            | sort -r > "$RUNNER_TEMP/checkpoint-pointers.tsv"
-          pointer=$(awk -F '\t' 'NR == 1 {print $2}' \
-            "$RUNNER_TEMP/checkpoint-pointers.tsv")
-          if [ -z "$pointer" ]; then
-            echo "Checkpoint release has no complete pointer; starting from a clean state."
-            exit 0
-          fi
-          echo "PRIOR_NAME=$pointer" >> "$GITHUB_ENV"
-          gh release download "$CHECKPOINT_TAG" \
-            --pattern "$pointer" \
-            --dir "$RUNNER_TEMP/corpus-parts"
-          cp "$RUNNER_TEMP/corpus-parts/$pointer" "$PRIOR_POINTER"
-          jq -e '
-            .schema_version == 1 and
-            (.archive_sha256 | test("^[0-9a-f]{64}$")) and
-            (.archive_bytes | type == "number" and . >= 0) and
-            (.parts | type == "array" and length > 0) and
-            all(.parts[];
-              (.name | test("^checkpoint-[0-9a-f]{16}-[0-9]{4}-[0-9a-f]{16}\\.part$")) and
-              (.sha256 | test("^[0-9a-f]{64}$")) and
-              (.bytes | type == "number" and . > 0))
-          ' "$PRIOR_POINTER" >/dev/null
-          patterns=()
-          while read -r name; do
-            patterns+=(--pattern "$name")
-          done < <(jq -r '.parts[].name' "$PRIOR_POINTER")
-          gh release download "$CHECKPOINT_TAG" \
-            "${patterns[@]}" \
-            --dir "$RUNNER_TEMP/corpus-parts"
-          jq -c '.parts[]' "$PRIOR_POINTER" | while read -r row; do
-            name=$(jq -r '.name' <<<"$row")
-            digest=$(jq -r '.sha256' <<<"$row")
-            test "$(sha256sum "$RUNNER_TEMP/corpus-parts/$name" | awk '{print $1}')" = "$digest"
-          done
-          jq -r '.parts[].name' "$PRIOR_POINTER" | while read -r name; do
-            cat "$RUNNER_TEMP/corpus-parts/$name"
-          done > "$CORPUS_FILE"
           test "$(sha256sum "$CORPUS_FILE" | awk '{print $1}')" = \
             "$(jq -r '.archive_sha256' "$PRIOR_POINTER")"
           test "$(stat -c %s "$CORPUS_FILE")" = \

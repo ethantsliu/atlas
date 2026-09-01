@@ -233,6 +233,13 @@ class CorpusTests(unittest.TestCase):
             "steps.prep.outputs.changed == 'true'",
             "steps.prep.outputs.ready == 'true'",
             "actions/upload-artifact@v4",
+            "stage_merge:",
+            "needs: stage_merge",
+            "inputs.mode != 'merge' || needs.stage_merge.result == 'success'",
+            "name: corpus-source-${{ github.run_id }}",
+            "actions/download-artifact@v4",
+            'cp "$RUNNER_TEMP/corpus-source/corpus.tar.gz" "$CORPUS_FILE"',
+            "([.parts[].name] | length == (unique | length))",
             'name = f"checkpoint-{archive_hash[:16]}',
             "status=$(awk '/^HTTP/{code=$2} END{print code}' \"$probe\")",
             'if [ "$status" = "404" ]; then',
@@ -320,6 +327,14 @@ class CorpusTests(unittest.TestCase):
         self.assertIn("group: arxiv-daily-feed", feed)
         self.assertNotIn("group: arxiv-oai-corpus", feed)
         self.assertIn("retention-days: 1", corpus)
+        self.assertLess(
+            corpus.index("Assemble immutable merge source"),
+            corpus.index("Download staged merge source"),
+        )
+        self.assertLess(
+            corpus.index("Download staged merge source"),
+            corpus.index("Restore release checkpoint"),
+        )
         self.assertIn('default: "corpus-v2"', discover)
 
         sweep = (ROOT / ".github/workflows/sweep.yml").read_text(encoding="utf-8")
