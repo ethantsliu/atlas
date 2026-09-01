@@ -50,6 +50,15 @@ PAPER_FIELDS = (
     "updated",
 )
 
+EVENT_UPSERT = """INSERT INTO events VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+  stamp=excluded.stamp, seq=excluded.seq, deleted=excluded.deleted,
+  month=excluded.month, paper=excluded.paper
+WHERE excluded.stamp > events.stamp
+   OR (excluded.stamp = events.stamp AND excluded.seq > events.seq)"""
+EVENT_BATCH = 1_000
+COMMIT_BATCHES = 10
+
 
 def clean_list(value: object, field: str) -> list[str]:
     """Normalize one public list without accepting nested metadata."""
@@ -178,10 +187,8 @@ def index_store(database: sqlite3.Connection) -> None:
     database.commit()
 
 
-def add_event(
-    database: sqlite3.Connection, record: object, seq: int, rules: dict
-) -> None:
-    """Idempotently retain the newest event for one arXiv identifier."""
+def event_row(record: object, seq: int, rules: dict) -> tuple:
+    """Normalize one source record into its bounded event-store row."""
     if not isinstance(record, dict):
         raise ValueError("OAI generation record is not an object")
     try:
@@ -204,15 +211,14 @@ def add_event(
         if paper is None
         else json.dumps(paper, ensure_ascii=False, separators=(",", ":"))
     )
-    database.execute(
-        """INSERT INTO events VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          stamp=excluded.stamp, seq=excluded.seq, deleted=excluded.deleted,
-          month=excluded.month, paper=excluded.paper
-        WHERE excluded.stamp > events.stamp
-           OR (excluded.stamp = events.stamp AND excluded.seq > events.seq)""",
-        (identifier, stamp, seq, deleted, month, body),
-    )
+    return identifier, stamp, seq, deleted, month, body
+
+
+def add_event(
+    database: sqlite3.Connection, record: object, seq: int, rules: dict
+) -> None:
+    """Idempotently retain the newest event for one arXiv identifier."""
+    database.execute(EVENT_UPSERT, event_row(record, seq, rules))
 
 
 def fill_store(
@@ -226,14 +232,22 @@ def fill_store(
     """Stream one sealed generation into its disk-backed event index."""
     records = 0
     tombstones = 0
+    batch = []
+    batches = 0
     for seq, record in enumerate(
         page_records(root, generation, manifest), start=start_seq
     ):
-        add_event(database, record, seq, rules)
+        batch.append(event_row(record, seq, rules))
         records += 1
         tombstones += isinstance(record, dict) and record.get("deleted") is True
-        if records % 10_000 == 0:
-            database.commit()
+        if len(batch) == EVENT_BATCH:
+            database.executemany(EVENT_UPSERT, batch)
+            batch.clear()
+            batches += 1
+            if batches % COMMIT_BATCHES == 0:
+                database.commit()
+    if batch:
+        database.executemany(EVENT_UPSERT, batch)
     database.commit()
     if records != manifest["record_count"] or tombstones != manifest["tombstone_count"]:
         raise ValueError("OAI generation record totals are invalid")
@@ -413,7 +427,10 @@ def merge_generations(
                 )
             filter_events(database, ledger)
             index_store(database)
-            routes = active_routes(database)
+            # A bootstrap has no prior public routes to move. Avoid building a
+            # multi-million-entry Python dictionary solely to compare it with
+            # an empty ledger.
+            routes = active_routes(database) if required else {}
             months = active_months(database)
             tombstones = tombstone_ids(database)
             check_remote(archive_root, prior, months, tombstones)

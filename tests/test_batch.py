@@ -105,6 +105,7 @@ class BatchTests(unittest.TestCase):
 
             with (
                 patch("merge.find_moves", wraps=merge.find_moves) as moves,
+                patch("merge.active_routes", wraps=merge.active_routes) as routes,
                 patch("merge.check_ledger", wraps=merge.check_ledger) as ledger,
                 patch("corpus.write_cursor", wraps=corpus.write_cursor) as writes,
             ):
@@ -116,6 +117,7 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(result["pending"], pending)
             self.assertEqual(read_cursor(root)["merged"], pending)
             self.assertEqual(moves.call_count, 1)
+            self.assertEqual(routes.call_count, 0)
             self.assertEqual(ledger.call_count, 2)
             self.assertEqual(writes.call_count, 1)
 
