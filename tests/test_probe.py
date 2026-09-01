@@ -130,7 +130,7 @@ def fixture() -> tuple[FakeFetch, dict]:
 
 class ProbeTests(unittest.TestCase):
     def test_paper_limit(self) -> None:
-        self.assertEqual(PAPER_LIMIT, 10_000_000)
+        self.assertEqual(PAPER_LIMIT, 32_000_000)
 
     def test_deploy_gate(self) -> None:
         workflow = (ROOT / ".github/workflows/deploy.yml").read_text(encoding="utf-8")
