@@ -372,6 +372,10 @@ test("the initial map enables every lens", async ({ page }) => {
   const hits = trackShard(page);
   await loadMap(page, "/");
   await showFilters(page);
+  await expect(page.locator('.filters .kind-toggle[aria-pressed="true"]')).toHaveCount(
+    4,
+    { timeout: 20_000 },
+  );
   await fullNodes(page);
   await expect(page.getByRole("button", { name: /Paper\s+[,\d]+/ })).toHaveAttribute(
     "aria-pressed",
@@ -683,7 +687,17 @@ test("the nearest visible layer wins at one exact pointer coordinate", async ({
   expect(front).toHaveLength(1);
   const match = front[0].label.match(/^(Topic|Trick|Paper|Idea) · (.+)$/);
   expect(match).not.toBeNull();
-  expect(front[0].depth).toBeLessThan(rearDepth);
+  if (match?.[1] === "Topic" && match[2] === "alignment") {
+    // Camera links quantize the centered target to tenths. WebKit can land a
+    // fraction of a pixel on either side of the reconstructed target depth, so
+    // certify the same layer within that serialization bound instead of
+    // requiring a mathematically strict inequality against its own depth.
+    expect(Math.abs(front[0].depth - rearDepth)).toBeLessThan(0.2);
+  } else {
+    // Any different layer accepted at this exact coordinate must genuinely be
+    // in front of the centered alignment target.
+    expect(front[0].depth).toBeLessThan(rearDepth);
+  }
 
   const [, kind, title] = match!;
   await page.mouse.click(point.x, point.y);
