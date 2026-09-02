@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
-from archive import migrate_archive, write_manifest
+from archive import migrate_archive, read_manifest, write_manifest
 from archivecheck import validate_archive
 from bundle import pack_tree, unpack_tree
 from dates import clean_date, coverage_day, exact_day, first_date
@@ -302,14 +302,25 @@ def prior_paths(prior: dict | None) -> dict[str, str]:
     return result
 
 
-def prep_release(archive: Path, output: Path, prior_path: Path | None = None) -> dict:
+def prep_release(
+    archive: Path,
+    output: Path,
+    prior_path: Path | None = None,
+    *,
+    trusted_archive: bool = False,
+) -> dict:
     """Stage immutable shard assets and an atomic release index."""
     if output.exists() and any(output.iterdir()):
         raise ValueError("Corpus release staging directory is not empty")
     output.mkdir(parents=True, exist_ok=True)
-    if migrate_archive(archive):
-        write_manifest(archive)
-    manifest = validate_archive(archive)
+    if trusted_archive:
+        # The staged merge validated every record before the authenticated handoff;
+        # the digest check below still binds every promoted byte to its manifest.
+        manifest = read_manifest(archive, verify_shards=False)
+    else:
+        if migrate_archive(archive):
+            write_manifest(archive)
+        manifest = validate_archive(archive)
     prior = read_json(prior_path) if prior_path is not None else None
     old_paths = prior_paths(prior)
     shards = []
@@ -531,6 +542,7 @@ def parse_args() -> argparse.Namespace:
     prep.add_argument("--archive", type=Path, required=True)
     prep.add_argument("--output", type=Path, required=True)
     prep.add_argument("--prior", type=Path)
+    prep.add_argument("--trusted-archive", action="store_true")
     ack = commands.add_parser("ack", help="acknowledge promoted generations")
     ack.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     ack.add_argument("--generation", action="append", required=True)
@@ -572,11 +584,13 @@ def main() -> None:
             )
         )
     elif args.command == "prep":
-        print(
-            json.dumps(
-                prep_release(args.archive, args.output, args.prior), sort_keys=True
-            )
+        result = prep_release(
+            args.archive,
+            args.output,
+            args.prior,
+            trusted_archive=args.trusted_archive,
         )
+        print(json.dumps(result, sort_keys=True))
     else:
         print(json.dumps(ack_pending(args.root, args.generation), sort_keys=True))
 

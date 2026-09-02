@@ -936,7 +936,13 @@ class CorpusTests(unittest.TestCase):
             )
 
             merged = merge_pending(root, archive, ROOT / "data/source/feed.json")
-            plan = prep_release(archive, first)
+            with (
+                patch("corpus.migrate_archive") as migrate,
+                patch("corpus.validate_archive") as validate,
+            ):
+                plan = prep_release(archive, first, trusted_archive=True)
+            migrate.assert_not_called()
+            validate.assert_not_called()
 
             self.assertEqual(merged["pending"], ["history-2005"])
             self.assertEqual(plan["months"], ["2026-08"])
