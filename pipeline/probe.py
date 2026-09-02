@@ -324,11 +324,16 @@ def check_cloud(base: str, fetcher: Fetcher) -> tuple[dict, list[str]]:
         raise ProbeError("Cloud index is not an object")
     rows = cloud.get("shards")
     counts = cloud.get("counts")
+    source_count = cloud.get("source_count")
+    omitted_count = cloud.get("omitted_count")
     if (
         cloud.get("schema_version") != 1
         or cloud.get("source") != "arxiv"
         or cloud.get("point_bytes") != 13
         or not is_count(cloud.get("count"))
+        or not is_count(source_count)
+        or not is_count(omitted_count)
+        or source_count != cloud["count"] + omitted_count
         or not isinstance(counts, dict)
         or set(counts) != {"likely", "possible", "outside"}
         or not all(is_count(value) for value in counts.values())
@@ -338,6 +343,12 @@ def check_cloud(base: str, fetcher: Fetcher) -> tuple[dict, list[str]]:
         raise ProbeError("Cloud index has an unsupported shape")
     for row in rows:
         point_meta(row)
+        if (
+            not is_count(row.get("source_count"))
+            or not is_count(row.get("omitted_count"))
+            or row["source_count"] != row["count"] + row["omitted_count"]
+        ):
+            raise ProbeError(f"Cloud source coverage is invalid: {row.get('month')}")
     months = [row["month"] for row in rows]
     totals = {
         scope: sum(row["counts"][scope] for row in rows)
@@ -346,6 +357,8 @@ def check_cloud(base: str, fetcher: Fetcher) -> tuple[dict, list[str]]:
     if (
         months != sorted(set(months))
         or cloud["count"] != sum(row["count"] for row in rows)
+        or source_count != sum(row["source_count"] for row in rows)
+        or omitted_count != sum(row["omitted_count"] for row in rows)
         or cloud["count"] != sum(counts.values())
         or counts != totals
     ):
@@ -376,6 +389,7 @@ def run_probe(
         "reading": reading,
         "feed": feed,
         "cloud_count": cloud["count"],
+        "cloud_source_count": cloud["source_count"],
         "cloud_assets": cloud_assets,
     }
 

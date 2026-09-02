@@ -69,11 +69,15 @@ def fixture() -> tuple[FakeFetch, dict]:
         "source": "arxiv",
         "point_bytes": 13,
         "count": 2,
+        "source_count": 2,
+        "omitted_count": 0,
         "counts": {"likely": 1, "possible": 1, "outside": 0},
         "shards": [
             {
                 "month": "1991-01",
                 "count": 1,
+                "source_count": 1,
+                "omitted_count": 0,
                 "counts": {"likely": 1, "possible": 0, "outside": 0},
                 "points": {
                     "path": "1991-01.bin",
@@ -84,6 +88,8 @@ def fixture() -> tuple[FakeFetch, dict]:
             {
                 "month": "2026-08",
                 "count": 1,
+                "source_count": 1,
+                "omitted_count": 0,
                 "counts": {"likely": 0, "possible": 1, "outside": 0},
                 "points": {
                     "path": "2026-08.bin",
@@ -179,6 +185,7 @@ class ProbeTests(unittest.TestCase):
         self.assertTrue(report["reading"].endswith("aaa-bbb.json"))
         self.assertTrue(report["feed"].endswith("2026-08-24.json"))
         self.assertEqual(report["cloud_count"], 2)
+        self.assertEqual(report["cloud_source_count"], 2)
         self.assertEqual(len(report["cloud_assets"]), 2)
         self.assertEqual(len(fetcher.requests), 11)
 
@@ -270,8 +277,29 @@ class ProbeTests(unittest.TestCase):
         content_type, body = fetcher.responses[url]
         cloud = json.loads(body)
         cloud["count"] = 3
+        cloud["source_count"] = 3
         fetcher.responses[url] = (content_type, encoded(cloud))
         with self.assertRaisesRegex(ProbeError, "counts or ordering"):
+            run_probe("https://example.org/atlas/", fetcher)
+
+    def test_cloud_source_count(self) -> None:
+        fetcher, _ = fixture()
+        url = "https://example.org/atlas/data/cloud/index.json"
+        content_type, body = fetcher.responses[url]
+        cloud = json.loads(body)
+        cloud["source_count"] += 1
+        fetcher.responses[url] = (content_type, encoded(cloud))
+        with self.assertRaisesRegex(ProbeError, "unsupported shape"):
+            run_probe("https://example.org/atlas/", fetcher)
+
+    def test_cloud_shard_omission(self) -> None:
+        fetcher, _ = fixture()
+        url = "https://example.org/atlas/data/cloud/index.json"
+        content_type, body = fetcher.responses[url]
+        cloud = json.loads(body)
+        cloud["shards"][0]["omitted_count"] += 1
+        fetcher.responses[url] = (content_type, encoded(cloud))
+        with self.assertRaisesRegex(ProbeError, "source coverage"):
             run_probe("https://example.org/atlas/", fetcher)
 
     def test_retry(self) -> None:
