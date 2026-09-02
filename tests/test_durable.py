@@ -181,6 +181,35 @@ class DurableTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "disagrees"):
                 check_root(root)
 
+    def test_trusted_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            archive = root / "archive"
+            seal(
+                root,
+                "first",
+                (paper("2608.00001"), paper("2608.00002")),
+            )
+            merge.merge_generation(root, "first", archive, RULES)
+            with sqlite3.connect(archive / LEDGER_NAME) as database:
+                database.execute(
+                    "UPDATE events SET month='2026-07' WHERE id='2608.00002'"
+                )
+            seal(
+                root,
+                "second",
+                (paper("2608.00001", stamp="2026-08-22"),),
+            )
+
+            with self.assertRaisesRegex(ValueError, "disagrees"):
+                merge.merge_generation(
+                    root,
+                    "second",
+                    archive,
+                    RULES,
+                    trusted_checkpoint=True,
+                )
+
     def test_ledger_schema(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

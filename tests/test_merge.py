@@ -303,7 +303,14 @@ class MergeTests(unittest.TestCase):
             )
             seal(harvest, "bootstrap", records)
 
-            manifest = merge_generation(harvest, "bootstrap", archive, RULES, workers=2)
+            manifest = merge_generation(
+                harvest,
+                "bootstrap",
+                archive,
+                RULES,
+                workers=2,
+                trusted_checkpoint=True,
+            )
 
             self.assertEqual(manifest["counts"]["all"], 3)
             self.assertEqual(manifest["counts"]["likely"], 1)

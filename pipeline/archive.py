@@ -523,7 +523,7 @@ def check_ids(root: Path, shards: list[dict]) -> None:
                 shard_meta(path, seen)
 
 
-def read_manifest(root: Path) -> dict:
+def read_manifest(root: Path, *, verify_shards: bool = True) -> dict:
     """Read the prior remote index when a resumable worker has one."""
     path = root / MANIFEST_NAME
     if not path.exists():
@@ -536,7 +536,8 @@ def read_manifest(root: Path) -> dict:
         payload.get("shards"), list
     ):
         raise ValueError("Archive manifest contract is invalid")
-    check_ids(root, payload["shards"])
+    if verify_shards:
+        check_ids(root, payload["shards"])
     return payload
 
 

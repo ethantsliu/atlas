@@ -491,6 +491,7 @@ def merge_generations(
     archive_root: Path,
     rules: dict,
     workers: int = 1,
+    trusted_checkpoint: bool = False,
 ) -> dict:
     """Convert ordered sealed harvests through one bounded event store."""
     marker = batch_name(generations)
@@ -499,12 +500,12 @@ def merge_generations(
         for generation in generations
     ]
     archive_root.mkdir(parents=True, exist_ok=True)
-    if migrate_archive(archive_root):
+    if not trusted_checkpoint and migrate_archive(archive_root):
         write_manifest(archive_root)
-    prior = read_manifest(archive_root)
+    prior = read_manifest(archive_root, verify_shards=not trusted_checkpoint)
     recovering = merge_path(archive_root).exists()
     required = ledger_needed(archive_root)
-    if not recovering:
+    if not recovering and not trusted_checkpoint:
         check_ledger(archive_root, prior)
     start_merge(archive_root, marker, required)
     ledger = open_ledger(archive_root)
@@ -559,6 +560,14 @@ def merge_generation(
     archive_root: Path,
     rules: dict,
     workers: int = 1,
+    trusted_checkpoint: bool = False,
 ) -> dict:
     """Convert one sealed harvest into cloud-compatible archive shards."""
-    return merge_generations(harvest_root, [generation], archive_root, rules, workers)
+    return merge_generations(
+        harvest_root,
+        [generation],
+        archive_root,
+        rules,
+        workers,
+        trusted_checkpoint,
+    )

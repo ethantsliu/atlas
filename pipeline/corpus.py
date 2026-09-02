@@ -240,7 +240,11 @@ def ack_pending(root: Path, generations: list[str]) -> dict:
 
 
 def merge_pending(
-    root: Path, archive: Path, rules_path: Path, workers: int = 1
+    root: Path,
+    archive: Path,
+    rules_path: Path,
+    workers: int = 1,
+    trusted_checkpoint: bool = False,
 ) -> dict:
     """Merge every sealed, unpublished generation in source order."""
     cursor = read_cursor(root)
@@ -252,7 +256,9 @@ def merge_pending(
         if generation not in cursor["merged"]
     ]
     if remaining:
-        manifest = merge_generations(root, remaining, archive, rules, workers)
+        manifest = merge_generations(
+            root, remaining, archive, rules, workers, trusted_checkpoint
+        )
         cursor = {**cursor, "merged": [*cursor["merged"], *remaining]}
         write_cursor(root, cursor)
     if manifest is None and (archive / "index.json").is_file():
@@ -516,6 +522,11 @@ def parse_args() -> argparse.Namespace:
     merge.add_argument("--archive", type=Path, required=True)
     merge.add_argument("--rules", type=Path, required=True)
     merge.add_argument("--workers", type=int, default=1)
+    merge.add_argument(
+        "--trusted-checkpoint",
+        action="store_true",
+        help="defer redundant validation of an authenticated immutable checkpoint",
+    )
     prep = commands.add_parser("prep", help="stage an atomic corpus release")
     prep.add_argument("--archive", type=Path, required=True)
     prep.add_argument("--output", type=Path, required=True)
@@ -550,7 +561,13 @@ def main() -> None:
     elif args.command == "merge":
         print(
             json.dumps(
-                merge_pending(args.root, args.archive, args.rules, args.workers),
+                merge_pending(
+                    args.root,
+                    args.archive,
+                    args.rules,
+                    args.workers,
+                    args.trusted_checkpoint,
+                ),
                 sort_keys=True,
             )
         )
