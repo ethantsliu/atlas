@@ -8,6 +8,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -244,6 +245,8 @@ class CorpusTests(unittest.TestCase):
             "github-token: ${{ github.token }}",
             "run-id: ${{ inputs.stage_run_id }}",
             'cp "$RUNNER_TEMP/corpus-source/corpus.tar.gz" "$CORPUS_FILE"',
+            "unpack_args+=(--defer-check)",
+            'python pipeline/corpus.py unpack "${unpack_args[@]}"',
             "([.parts[].name] | length == (unique | length))",
             'name = f"checkpoint-{archive_hash[:16]}',
             "status=$(awk '/^HTTP/{code=$2} END{print code}' \"$probe\")",
@@ -339,6 +342,10 @@ class CorpusTests(unittest.TestCase):
         self.assertLess(
             corpus.index("Download staged merge source"),
             corpus.index("Restore release checkpoint"),
+        )
+        defer = corpus.index("unpack_args+=(--defer-check)")
+        self.assertLess(
+            corpus.rindex('if [ "${{ inputs.mode }}" = "merge" ]', 0, defer), defer
         )
         self.assertIn('default: "corpus-v2"', discover)
         for required in (
@@ -834,6 +841,28 @@ class CorpusTests(unittest.TestCase):
             report = check_root(restored)
             self.assertEqual(report["cursor"]["watermark"], "2026-08-27T00:17:00Z")
             self.assertEqual(report["generations"][0]["records"], 1)
+
+    def test_deferred_restore(self) -> None:
+        final = TestPage((paper("1"),), None, "2026-08-27T00:17:00Z")
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            source = base / "source"
+            archive = base / "corpus.tar.gz"
+            restored = base / "restored"
+            run_corpus(
+                source,
+                FakeClient({None: [final]}),
+                max_pages=1,
+                max_minutes=5,
+                wall=lambda: NOW,
+            )
+            pack_root(source, archive)
+
+            with patch("corpus.check_root") as check:
+                unpack_root(archive, restored, defer_check=True)
+
+            check.assert_not_called()
+            self.assertEqual(read_cursor(restored)["watermark"], "2026-08-27T00:17:00Z")
 
     def test_stage_check(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

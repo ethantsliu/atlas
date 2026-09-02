@@ -232,9 +232,17 @@ jobs:
             "$(jq -r '.archive_sha256' "$PRIOR_POINTER")"
           test "$(stat -c %s "$CORPUS_FILE")" = \
             "$(jq -r '.archive_bytes' "$PRIOR_POINTER")"
-          python pipeline/corpus.py unpack \
-            --root "$CORPUS_ROOT" \
+          unpack_args=(
+            --root "$CORPUS_ROOT"
             --archive "$CORPUS_FILE"
+          )
+          if [ "${{ inputs.mode }}" = "merge" ]; then
+            # The immutable pointer and every part were authenticated above.
+            # Merge validates each sealed generation while consuming it, so a
+            # second full record scan here only burns the hosted-runner window.
+            unpack_args+=(--defer-check)
+          fi
+          python pipeline/corpus.py unpack "${unpack_args[@]}"
 
       - name: Verify harvester
         run: |

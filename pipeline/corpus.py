@@ -463,9 +463,11 @@ def pack_root(root: Path, archive: Path) -> None:
     pack_tree(root, archive)
 
 
-def unpack_root(archive: Path, root: Path) -> None:
-    """Restore and validate one release checkpoint."""
+def unpack_root(archive: Path, root: Path, *, defer_check: bool = False) -> None:
+    """Restore a checkpoint and validate it now unless its consumer will do so."""
     unpack_tree(archive, root, MAX_FILES, MAX_BYTES)
+    if defer_check:
+        return
     archive_root = root / "archive"
     if archive_root.exists() and migrate_archive(archive_root):
         write_manifest(archive_root)
@@ -506,6 +508,7 @@ def parse_args() -> argparse.Namespace:
     unpack = commands.add_parser("unpack", help="restore a checkpoint")
     unpack.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     unpack.add_argument("--archive", type=Path, required=True)
+    unpack.add_argument("--defer-check", action="store_true")
     merge = commands.add_parser("merge", help="merge sealed OAI generations")
     merge.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     merge.add_argument("--archive", type=Path, required=True)
@@ -540,7 +543,7 @@ def main() -> None:
     elif args.command == "pack":
         pack_root(args.root, args.archive)
     elif args.command == "unpack":
-        unpack_root(args.archive, args.root)
+        unpack_root(args.archive, args.root, defer_check=args.defer_check)
     elif args.command == "merge":
         print(
             json.dumps(
