@@ -239,7 +239,9 @@ def ack_pending(root: Path, generations: list[str]) -> dict:
     return cursor
 
 
-def merge_pending(root: Path, archive: Path, rules_path: Path) -> dict:
+def merge_pending(
+    root: Path, archive: Path, rules_path: Path, workers: int = 1
+) -> dict:
     """Merge every sealed, unpublished generation in source order."""
     cursor = read_cursor(root)
     rules = load_rules(rules_path)
@@ -250,7 +252,7 @@ def merge_pending(root: Path, archive: Path, rules_path: Path) -> dict:
         if generation not in cursor["merged"]
     ]
     if remaining:
-        manifest = merge_generations(root, remaining, archive, rules)
+        manifest = merge_generations(root, remaining, archive, rules, workers)
         cursor = {**cursor, "merged": [*cursor["merged"], *remaining]}
         write_cursor(root, cursor)
     if manifest is None and (archive / "index.json").is_file():
@@ -513,6 +515,7 @@ def parse_args() -> argparse.Namespace:
     merge.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     merge.add_argument("--archive", type=Path, required=True)
     merge.add_argument("--rules", type=Path, required=True)
+    merge.add_argument("--workers", type=int, default=1)
     prep = commands.add_parser("prep", help="stage an atomic corpus release")
     prep.add_argument("--archive", type=Path, required=True)
     prep.add_argument("--output", type=Path, required=True)
@@ -547,7 +550,8 @@ def main() -> None:
     elif args.command == "merge":
         print(
             json.dumps(
-                merge_pending(args.root, args.archive, args.rules), sort_keys=True
+                merge_pending(args.root, args.archive, args.rules, args.workers),
+                sort_keys=True,
             )
         )
     elif args.command == "prep":

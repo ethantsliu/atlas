@@ -8,6 +8,7 @@ import json
 import sqlite3
 import tempfile
 import unicodedata
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from pathlib import Path
 
 from arxivid import paper_id
@@ -132,37 +133,42 @@ def read_generation(root: Path, generation: str) -> dict:
 
 def page_records(root: Path, generation: str, manifest: dict):
     """Yield digest-verified records from every sealed source page."""
-    base = stage_path(root, generation)
     for index, row in enumerate(manifest["pages"]):
-        expected = f"pages/{index:08d}.json.gz"
-        if not isinstance(row, dict) or row.get("path") != expected:
-            raise ValueError("OAI generation page order is invalid")
-        path = base / expected
-        try:
-            content = path.read_bytes()
-        except OSError as error:
-            raise ValueError(f"OAI generation page is missing: {path.name}") from error
-        if len(content) != row.get("bytes") or hashlib.sha256(
-            content
-        ).hexdigest() != row.get("sha256"):
-            raise ValueError(f"OAI generation page digest is invalid: {path.name}")
-        payload = read_page(content, path.name)
-        records = payload.get("records")
-        if (
-            payload.get("schema_version") != 1
-            or payload.get("generation") != generation
-            or payload.get("page") != index
-            or payload.get("response_date") != row.get("response_date")
-            or not isinstance(records, list)
-            or len(records) != row.get("records")
-        ):
-            raise ValueError(f"OAI generation page contract is invalid: {path.name}")
-        if sum(
-            isinstance(record, dict) and record.get("deleted") is True
-            for record in records
-        ) != row.get("tombstones"):
-            raise ValueError(f"OAI generation tombstones are invalid: {path.name}")
-        yield from records
+        yield from read_page_records(root, generation, index, row)
+
+
+def read_page_records(
+    root: Path, generation: str, index: int, row: object
+) -> list[dict]:
+    """Read and authenticate one independently processable OAI source page."""
+    expected = f"pages/{index:08d}.json.gz"
+    if not isinstance(row, dict) or row.get("path") != expected:
+        raise ValueError("OAI generation page order is invalid")
+    path = stage_path(root, generation) / expected
+    try:
+        content = path.read_bytes()
+    except OSError as error:
+        raise ValueError(f"OAI generation page is missing: {path.name}") from error
+    if len(content) != row.get("bytes") or hashlib.sha256(
+        content
+    ).hexdigest() != row.get("sha256"):
+        raise ValueError(f"OAI generation page digest is invalid: {path.name}")
+    payload = read_page(content, path.name)
+    records = payload.get("records")
+    if (
+        payload.get("schema_version") != 1
+        or payload.get("generation") != generation
+        or payload.get("page") != index
+        or payload.get("response_date") != row.get("response_date")
+        or not isinstance(records, list)
+        or len(records) != row.get("records")
+    ):
+        raise ValueError(f"OAI generation page contract is invalid: {path.name}")
+    if sum(
+        isinstance(record, dict) and record.get("deleted") is True for record in records
+    ) != row.get("tombstones"):
+        raise ValueError(f"OAI generation tombstones are invalid: {path.name}")
+    return records
 
 
 def open_store(path: Path) -> sqlite3.Connection:
@@ -228,6 +234,81 @@ def add_event(
     database.execute(EVENT_UPSERT, event_row(record, seq, rules))
 
 
+def page_event_rows(
+    root: Path,
+    generation: str,
+    index: int,
+    row: dict,
+    rules: dict,
+    start_seq: int,
+) -> tuple[list[tuple], int]:
+    """Authenticate and normalize one page inside a conversion worker."""
+    records = read_page_records(root, generation, index, row)
+    return (
+        [
+            event_row(record, start_seq + offset, rules)
+            for offset, record in enumerate(records)
+        ],
+        sum(record.get("deleted") is True for record in records),
+    )
+
+
+def insert_rows(database: sqlite3.Connection, rows: list[tuple], batches: int) -> int:
+    """Insert normalized rows in bounded transactions."""
+    for offset in range(0, len(rows), EVENT_BATCH):
+        database.executemany(EVENT_UPSERT, rows[offset : offset + EVENT_BATCH])
+        batches += 1
+        if batches % COMMIT_BATCHES == 0:
+            database.commit()
+    return batches
+
+
+def fill_store_parallel(
+    database: sqlite3.Connection,
+    root: Path,
+    generation: str,
+    manifest: dict,
+    rules: dict,
+    start_seq: int,
+    workers: int,
+) -> int:
+    """Normalize authenticated pages concurrently with bounded IPC memory."""
+    jobs = []
+    sequence = start_seq
+    for index, row in enumerate(manifest["pages"]):
+        count = row.get("records") if isinstance(row, dict) else None
+        if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+            raise ValueError("OAI generation page contract is invalid")
+        jobs.append((root, generation, index, row, rules, sequence))
+        sequence += count
+    records = 0
+    tombstones = 0
+    batches = 0
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        source = iter(jobs)
+        pending = set()
+        for _ in range(workers * 2):
+            try:
+                pending.add(pool.submit(page_event_rows, *next(source)))
+            except StopIteration:
+                break
+        while pending:
+            done, pending = wait(pending, return_when=FIRST_COMPLETED)
+            for future in done:
+                rows, removed = future.result()
+                records += len(rows)
+                tombstones += removed
+                batches = insert_rows(database, rows, batches)
+                try:
+                    pending.add(pool.submit(page_event_rows, *next(source)))
+                except StopIteration:
+                    pass
+    database.commit()
+    if records != manifest["record_count"] or tombstones != manifest["tombstone_count"]:
+        raise ValueError("OAI generation record totals are invalid")
+    return start_seq + records
+
+
 def fill_store(
     database: sqlite3.Connection,
     root: Path,
@@ -235,8 +316,15 @@ def fill_store(
     manifest: dict,
     rules: dict,
     start_seq: int = 0,
+    workers: int = 1,
 ) -> int:
     """Stream one sealed generation into its disk-backed event index."""
+    if not isinstance(workers, int) or isinstance(workers, bool) or workers < 1:
+        raise ValueError("Event conversion worker count is invalid")
+    if workers > 1:
+        return fill_store_parallel(
+            database, root, generation, manifest, rules, start_seq, workers
+        )
     records = 0
     tombstones = 0
     batch = []
@@ -402,6 +490,7 @@ def merge_generations(
     generations: list[str],
     archive_root: Path,
     rules: dict,
+    workers: int = 1,
 ) -> dict:
     """Convert ordered sealed harvests through one bounded event store."""
     marker = batch_name(generations)
@@ -431,6 +520,7 @@ def merge_generations(
                     manifest,
                     rules,
                     sequence,
+                    workers,
                 )
             filter_events(database, ledger)
             index_store(database)
@@ -468,6 +558,7 @@ def merge_generation(
     generation: str,
     archive_root: Path,
     rules: dict,
+    workers: int = 1,
 ) -> dict:
     """Convert one sealed harvest into cloud-compatible archive shards."""
-    return merge_generations(harvest_root, [generation], archive_root, rules)
+    return merge_generations(harvest_root, [generation], archive_root, rules, workers)
