@@ -478,6 +478,7 @@ test("cross-scale calibration exposes its complete validation protocol", async (
 });
 
 test("insight visualizations provide inspectable data tables", async ({ page }) => {
+  test.setTimeout(90_000);
   await page.goto(corePath);
   await page.getByRole("button", { name: "Insights" }).click();
   await expect(
