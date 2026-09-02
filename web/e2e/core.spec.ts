@@ -368,6 +368,33 @@ async function waitCamera(page: Page, camera: string) {
   await expect.poll(read, { timeout: 20_000 }).toBe(camera);
 }
 
+async function waitCameraIdle(page: Page) {
+  const copy = page.getByRole("button", { name: "Copy a link to this atlas view" });
+  const read = async () => {
+    await copy.evaluate((button: HTMLButtonElement) => button.click());
+    const copied = await page.evaluate(
+      () => (window as typeof window & { __atlasCopied?: string }).__atlasCopied ?? "",
+    );
+    return copied
+      ? new URLSearchParams(new URL(copied).hash.replace(/^#\?/, "")).get("c")
+      : null;
+  };
+  const deadline = Date.now() + 30_000;
+  let camera = await read();
+  let unchangedSince = Date.now();
+  while (Date.now() < deadline) {
+    await page.waitForTimeout(250);
+    const current = await read();
+    if (current !== camera) {
+      camera = current;
+      unchangedSince = Date.now();
+    } else if (camera && Date.now() - unchangedSince >= 1_000) {
+      return camera;
+    }
+  }
+  throw new Error("Research graph camera did not settle");
+}
+
 test("the initial map enables every lens", async ({ page }) => {
   const hits = trackShard(page);
   await loadMap(page, "/");
@@ -642,7 +669,7 @@ test("the nearest visible layer wins at one exact pointer coordinate", async ({
   await fullNodes(page);
   const inspector = page.locator("#map-inspector");
   await expect(inspector.getByRole("heading", { name: "alignment" })).toBeVisible();
-  await page.waitForTimeout(2_500);
+  await waitCameraIdle(page);
   const center = page.getByRole("button", { name: "Center selected" });
 
   const graph = page.getByLabel("Interactive 3D research graph");
@@ -667,18 +694,18 @@ test("the nearest visible layer wins at one exact pointer coordinate", async ({
     )
     .toBe(1);
   await expect(tips).not.toContainText("Loading Paper…", { timeout: 20_000 });
-  await page
-    .getByRole("button", { name: "Copy a link to this atlas view" })
-    .evaluate((button: HTMLButtonElement) => button.click());
-  const copied = await page.evaluate(
-    () => (window as typeof window & { __atlasCopied?: string }).__atlasCopied ?? "",
-  );
-  const camera = new URLSearchParams(new URL(copied).hash.replace(/^#\?/, "")).get("c");
-  expect(camera).not.toBeNull();
-  await waitCamera(page, camera!);
-  await page.mouse.move(2, 2);
-  await page.mouse.move(point.x, point.y);
-  await expect(tips).toHaveCount(1, { timeout: 20_000 });
+  const camera = await waitCameraIdle(page);
+  await expect
+    .poll(
+      async () => {
+        await page.mouse.move(2, 2);
+        await page.mouse.move(point.x, point.y);
+        await page.waitForTimeout(820);
+        return tips.count();
+      },
+      { timeout: 30_000 },
+    )
+    .toBe(1);
   await expect(tips).not.toContainText("Loading Paper…", { timeout: 20_000 });
   const radius = Number(camera?.split("_")[4]);
   expect(radius).toBeGreaterThan(0);
