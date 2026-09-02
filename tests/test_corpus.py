@@ -345,6 +345,7 @@ class CorpusTests(unittest.TestCase):
             "name: corpus-stage",
             "group: arxiv-oai-corpus-stage",
             "timeout-minutes: 240",
+            "GH_REPO: ${{ github.repository }}",
             "CHECKPOINT_TAG: oai-corpus-v1",
             "Assemble immutable merge source",
             "([.parts[].name] | length == (unique | length))",
