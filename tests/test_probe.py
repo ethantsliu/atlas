@@ -160,6 +160,7 @@ class ProbeTests(unittest.TestCase):
         deploy = workflow.index("actions/deploy-pages@v4")
         probe = workflow.index("python3 pipeline/probe.py")
         self.assertIn('--expected-sha "$CERTIFIED_SHA"', workflow)
+        self.assertIn('--expected-cloud-source "$expected_cloud_source"', workflow)
         self.assertLess(bind, cloud)
         self.assertLess(cloud, marker)
         self.assertLess(marker, stale_sync)
@@ -197,6 +198,19 @@ class ProbeTests(unittest.TestCase):
             fetcher.requests[0],
             "https://example.org/atlas/release.json?sha=" + "1" * 40,
         )
+
+    def test_exact_cloud_source(self) -> None:
+        fetcher, _ = fixture()
+        report = run_probe(
+            "https://example.org/atlas", fetcher, expected_cloud_source=2
+        )
+        self.assertEqual(report["cloud_source_count"], 2)
+
+        fetcher, _ = fixture()
+        with self.assertRaisesRegex(ProbeError, "certified release"):
+            run_probe("https://example.org/atlas", fetcher, expected_cloud_source=3)
+        with self.assertRaisesRegex(ProbeError, "count is invalid"):
+            run_probe("https://example.org/atlas", fetcher, expected_cloud_source=-1)
 
     def test_stale_release(self) -> None:
         fetcher, _ = fixture()

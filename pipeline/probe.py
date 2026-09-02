@@ -371,8 +371,11 @@ def run_probe(
     base: str,
     fetcher: Fetcher = fetch_url,
     expected_sha: str | None = None,
+    expected_cloud_source: int | None = None,
 ) -> dict:
     """Run every anonymous live-release check and return a compact report."""
+    if expected_cloud_source is not None and not is_count(expected_cloud_source):
+        raise ProbeError("Expected cloud source count is invalid")
     root = parse_base(base)
     release_sha = check_release(root, expected_sha, fetcher)
     script = check_html(root, fetcher)
@@ -380,6 +383,11 @@ def run_probe(
     reading = check_reading(root, bundle, fetcher)
     feed = check_feed(root, fetcher)
     cloud, cloud_assets = check_cloud(root, fetcher)
+    if (
+        expected_cloud_source is not None
+        and cloud["source_count"] != expected_cloud_source
+    ):
+        raise ProbeError("Cloud source count does not match the certified release")
     return {
         "site": root,
         "release_sha": release_sha,
@@ -400,6 +408,7 @@ def probe_many(
     delay: float,
     fetcher: Fetcher = fetch_url,
     expected_sha: str | None = None,
+    expected_cloud_source: int | None = None,
 ) -> dict:
     """Retry a live check briefly to tolerate deployment propagation."""
     if not 1 <= attempts <= 10 or not 0 <= delay <= 30:
@@ -407,7 +416,7 @@ def probe_many(
     last: ProbeError | None = None
     for attempt in range(attempts):
         try:
-            return run_probe(base, fetcher, expected_sha)
+            return run_probe(base, fetcher, expected_sha, expected_cloud_source)
         except ProbeError as error:
             last = error
             if attempt + 1 < attempts:
@@ -422,6 +431,7 @@ def main() -> None:
     parser.add_argument("--attempts", type=int, default=1)
     parser.add_argument("--delay", type=float, default=0)
     parser.add_argument("--expected-sha")
+    parser.add_argument("--expected-cloud-source", type=int)
     args = parser.parse_args()
     try:
         report = probe_many(
@@ -429,6 +439,7 @@ def main() -> None:
             args.attempts,
             args.delay,
             expected_sha=args.expected_sha,
+            expected_cloud_source=args.expected_cloud_source,
         )
     except ProbeError as error:
         raise SystemExit(f"Live atlas probe failed: {error}") from error
