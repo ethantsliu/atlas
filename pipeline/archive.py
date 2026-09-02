@@ -384,7 +384,9 @@ def merge_month(prior: dict, current: dict) -> dict:
 def shard_bytes(payload: dict) -> bytes:
     """Serialize a monthly shard as reproducible compressed JSON."""
     body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
-    return gzip.compress(body, compresslevel=9, mtime=0)
+    # Level 6 is deterministic and materially faster for multi-million-paper
+    # snapshots while producing virtually the same release size as level 9.
+    return gzip.compress(body, compresslevel=6, mtime=0)
 
 
 def raw_shard(path: Path) -> dict:

@@ -258,11 +258,35 @@ def filter_events(database: sqlite3.Connection, ledger: sqlite3.Connection) -> N
 
 def save_events(database: sqlite3.Connection, ledger: sqlite3.Connection) -> None:
     """Advance durable watermarks after every archive mutation succeeds."""
-    ledger.executemany(
-        """INSERT INTO events VALUES (?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-          stamp=excluded.stamp, deleted=excluded.deleted, month=excluded.month
-        WHERE excluded.stamp >= events.stamp""",
-        database.execute("SELECT id, stamp, deleted, month FROM events ORDER BY id"),
+    source = next(
+        (
+            row[2]
+            for row in database.execute("PRAGMA database_list")
+            if row[1] == "main"
+        ),
+        "",
     )
+    if not source:
+        raise ValueError("Conversion event store has no durable source path")
+    database.commit()
     ledger.commit()
+    attached = False
+    try:
+        ledger.execute("ATTACH DATABASE ? AS incoming", (source,))
+        attached = True
+        # The otherwise-redundant WHERE disambiguates SQLite's INSERT/SELECT
+        # grammar from the UPSERT clause that follows it.
+        ledger.execute(
+            """INSERT INTO events (id, stamp, deleted, month)
+            SELECT id, stamp, deleted, month FROM incoming.events WHERE true
+            ON CONFLICT(id) DO UPDATE SET
+              stamp=excluded.stamp, deleted=excluded.deleted, month=excluded.month
+            WHERE excluded.stamp >= events.stamp"""
+        )
+        ledger.commit()
+    except sqlite3.DatabaseError:
+        ledger.rollback()
+        raise
+    finally:
+        if attached:
+            ledger.execute("DETACH DATABASE incoming")

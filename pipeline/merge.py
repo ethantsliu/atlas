@@ -168,6 +168,13 @@ def page_records(root: Path, generation: str, manifest: dict):
 def open_store(path: Path) -> sqlite3.Connection:
     """Open the bounded-memory event store used during one conversion."""
     database = sqlite3.connect(path)
+    # This store is disposable conversion scratch: the sealed source pages are
+    # the recovery boundary. Avoid fsync and rollback-journal work that cannot
+    # make an interrupted conversion resumable.
+    database.execute("PRAGMA journal_mode=OFF")
+    database.execute("PRAGMA synchronous=OFF")
+    database.execute("PRAGMA temp_store=MEMORY")
+    database.execute("PRAGMA cache_size=-131072")
     database.execute(
         """CREATE TABLE events (
         id TEXT PRIMARY KEY,
@@ -176,7 +183,7 @@ def open_store(path: Path) -> sqlite3.Connection:
         deleted INTEGER NOT NULL,
         month TEXT,
         paper TEXT
-        )"""
+        ) WITHOUT ROWID"""
     )
     return database
 
