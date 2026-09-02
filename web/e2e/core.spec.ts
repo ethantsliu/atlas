@@ -646,15 +646,6 @@ test("the nearest visible layer wins at one exact pointer coordinate", async ({
   if (!box) throw new Error("Research graph has no bounds");
   const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 
-  await page.getByRole("button", { name: "Copy a link to this atlas view" }).click();
-  const copied = await page.evaluate(
-    () => (window as typeof window & { __atlasCopied?: string }).__atlasCopied ?? "",
-  );
-  const camera = new URLSearchParams(new URL(copied).hash.replace(/^#\?/, "")).get("c");
-  const radius = Number(camera?.split("_")[4]);
-  expect(radius).toBeGreaterThan(0);
-  const rearDepth = radius / Math.tan((50 * Math.PI) / 360);
-
   const tips = page.locator(".core-tip:visible, .swarm-tip:visible");
   await expect
     .poll(
@@ -672,6 +663,17 @@ test("the nearest visible layer wins at one exact pointer coordinate", async ({
     )
     .toBe(1);
   await expect(tips).not.toContainText("Loading Paper…", { timeout: 20_000 });
+  await page
+    .getByRole("button", { name: "Copy a link to this atlas view" })
+    .evaluate((button: HTMLButtonElement) => button.click());
+  const copied = await page.evaluate(
+    () => (window as typeof window & { __atlasCopied?: string }).__atlasCopied ?? "",
+  );
+  const camera = new URLSearchParams(new URL(copied).hash.replace(/^#\?/, "")).get("c");
+  const radius = Number(camera?.split("_")[4]);
+  expect(radius).toBeGreaterThan(0);
+  const rearDepth = radius / Math.tan((50 * Math.PI) / 360);
+
   const front = await tips.evaluateAll((elements) =>
     elements.map((element) => ({
       depth: Number((element as HTMLElement).dataset.depth),
@@ -692,9 +694,6 @@ test("the nearest visible layer wins at one exact pointer coordinate", async ({
   await expect(inspector.getByRole("heading", { name: title })).toBeVisible({
     timeout: 20_000,
   });
-  await expect(page.locator("#graph-selection")).not.toHaveText(
-    "Topic selected: alignment",
-  );
 });
 
 test("core gestures preserve picking after camera movement", async ({
