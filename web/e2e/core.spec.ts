@@ -674,6 +674,12 @@ test("the nearest visible layer wins at one exact pointer coordinate", async ({
     () => (window as typeof window & { __atlasCopied?: string }).__atlasCopied ?? "",
   );
   const camera = new URLSearchParams(new URL(copied).hash.replace(/^#\?/, "")).get("c");
+  expect(camera).not.toBeNull();
+  await waitCamera(page, camera!);
+  await page.mouse.move(2, 2);
+  await page.mouse.move(point.x, point.y);
+  await expect(tips).toHaveCount(1, { timeout: 20_000 });
+  await expect(tips).not.toContainText("Loading Paper…", { timeout: 20_000 });
   const radius = Number(camera?.split("_")[4]);
   expect(radius).toBeGreaterThan(0);
   const rearDepth = radius / Math.tan((50 * Math.PI) / 360);
@@ -688,11 +694,10 @@ test("the nearest visible layer wins at one exact pointer coordinate", async ({
   const match = front[0].label.match(/^(Topic|Trick|Paper|Idea) · (.+)$/);
   expect(match).not.toBeNull();
   if (match?.[1] === "Topic" && match[2] === "alignment") {
-    // Camera links quantize the centered target to tenths. WebKit can land a
-    // fraction of a pixel on either side of the reconstructed target depth, so
-    // certify the same layer within that serialization bound instead of
-    // requiring a mathematically strict inequality against its own depth.
-    expect(Math.abs(front[0].depth - rearDepth)).toBeLessThan(0.2);
+    // Camera links quantize position and radius to tenths. Radius error is
+    // magnified by the perspective conversion, so include both serialization
+    // bounds instead of comparing the target strictly against its own depth.
+    expect(Math.abs(front[0].depth - rearDepth)).toBeLessThan(0.3);
   } else {
     // Any different layer accepted at this exact coordinate must genuinely be
     // in front of the centered alignment target.
