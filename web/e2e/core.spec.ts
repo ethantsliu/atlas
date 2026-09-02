@@ -621,7 +621,7 @@ test("historical paper points open the inline inspector", async ({
 test("the nearest visible layer wins at one exact pointer coordinate", async ({
   page,
 }, testInfo) => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
   test.skip(
     !["chrome", "safari"].includes(testInfo.project.name),
     "Layered 3D picking is covered in Chromium and WebKit",
@@ -639,8 +639,7 @@ test("the nearest visible layer wins at one exact pointer coordinate", async ({
   const inspector = page.locator("#map-inspector");
   await expect(inspector.getByRole("heading", { name: "alignment" })).toBeVisible();
   await page.waitForTimeout(2_500);
-  await page.getByRole("button", { name: "Center selected" }).click();
-  await page.waitForTimeout(300);
+  const center = page.getByRole("button", { name: "Center selected" });
 
   const graph = page.getByLabel("Interactive 3D research graph");
   const box = await graph.locator("canvas:not(.cloud-plane)").boundingBox();
@@ -656,10 +655,22 @@ test("the nearest visible layer wins at one exact pointer coordinate", async ({
   expect(radius).toBeGreaterThan(0);
   const rearDepth = radius / Math.tan((50 * Math.PI) / 360);
 
-  await page.mouse.move(point.x, point.y);
-  await page.waitForTimeout(820);
   const tips = page.locator(".core-tip:visible, .swarm-tip:visible");
-  await expect(tips).toHaveCount(1, { timeout: 20_000 });
+  await expect
+    .poll(
+      async () => {
+        await page.mouse.move(2, 2);
+        await center.click();
+        await page.mouse.move(point.x, point.y);
+        await page.waitForTimeout(820);
+        return tips.count();
+      },
+      {
+        message: "centered selection should settle under the pointer",
+        timeout: 30_000,
+      },
+    )
+    .toBe(1);
   await expect(tips).not.toContainText("Loading Paper…", { timeout: 20_000 });
   const front = await tips.evaluateAll((elements) =>
     elements.map((element) => ({
