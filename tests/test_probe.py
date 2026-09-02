@@ -199,7 +199,7 @@ class ProbeTests(unittest.TestCase):
             "https://example.org/atlas/release.json?sha=" + "1" * 40,
         )
 
-    def test_exact_cloud_source(self) -> None:
+    def test_source_exact(self) -> None:
         fetcher, _ = fixture()
         report = run_probe(
             "https://example.org/atlas", fetcher, expected_cloud_source=2
@@ -296,7 +296,7 @@ class ProbeTests(unittest.TestCase):
         with self.assertRaisesRegex(ProbeError, "counts or ordering"):
             run_probe("https://example.org/atlas/", fetcher)
 
-    def test_cloud_source_count(self) -> None:
+    def test_source_count(self) -> None:
         fetcher, _ = fixture()
         url = "https://example.org/atlas/data/cloud/index.json"
         content_type, body = fetcher.responses[url]
@@ -306,7 +306,7 @@ class ProbeTests(unittest.TestCase):
         with self.assertRaisesRegex(ProbeError, "unsupported shape"):
             run_probe("https://example.org/atlas/", fetcher)
 
-    def test_cloud_shard_omission(self) -> None:
+    def test_shard_omission(self) -> None:
         fetcher, _ = fixture()
         url = "https://example.org/atlas/data/cloud/index.json"
         content_type, body = fetcher.responses[url]
