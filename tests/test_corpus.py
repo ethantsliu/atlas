@@ -240,6 +240,7 @@ class CorpusTests(unittest.TestCase):
             "inputs.stage_run_id != ''",
             "needs.stage_merge.result == 'success'",
             "name: corpus-source-${{ github.run_id }}",
+            "name: corpus-merged-${{ github.run_id }}",
             "actions/download-artifact@v4",
             "name: corpus-source-${{ inputs.stage_run_id }}",
             "github-token: ${{ github.token }}",
@@ -490,11 +491,11 @@ class CorpusTests(unittest.TestCase):
         )
         chain = re.search(r'CHAIN_MINUTES: "(\d+)"', corpus)
 
-        self.assertEqual(len(timeout), 1)
+        self.assertEqual(timeout, ["350", "360"])
         self.assertIsNotNone(dispatch)
         self.assertIsNotNone(runtime)
         self.assertIsNotNone(chain)
-        job_minutes = int(timeout[0])
+        job_minutes = int(timeout[-1])
         phase_minutes = {
             int(dispatch.group(1)),
             int(runtime.group(1)),

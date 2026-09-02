@@ -38,15 +38,27 @@ permissions:
 
 jobs:
   stage_merge:
-    if: inputs.mode == 'merge' && inputs.stage_run_id == ''
+    if: inputs.mode == 'merge'
     runs-on: ubuntu-latest
+    timeout-minutes: 350
     permissions:
       contents: read
+      actions: read
     env:
       GH_TOKEN: ${{ github.token }}
+      CORPUS_ROOT: data/cache/corpus
+      CORPUS_ARCHIVE: data/cache/corpus/archive
       CHECKPOINT_TAG: oai-corpus-v1
     steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
       - name: Assemble immutable merge source
+        if: inputs.stage_run_id == ''
         run: |
           parts="$RUNNER_TEMP/corpus-parts"
           output="$RUNNER_TEMP/corpus-source"
@@ -100,6 +112,7 @@ jobs:
             "$(jq -r '.archive_bytes' "$output/prior.json")"
 
       - name: Stage immutable merge source
+        if: inputs.stage_run_id == ''
         uses: actions/upload-artifact@v4
         with:
           name: corpus-source-${{ github.run_id }}
@@ -108,15 +121,73 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+      - name: Download pre-staged merge source
+        if: inputs.stage_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: corpus-source-${{ inputs.stage_run_id }}
+          path: ${{ runner.temp }}/corpus-source
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.stage_run_id }}
+
+      - name: Restore immutable merge source
+        run: |
+          source="$RUNNER_TEMP/corpus-source"
+          archive="$RUNNER_TEMP/corpus.tar.gz"
+          pointer="$source/prior.json"
+          test -s "$source/corpus.tar.gz"
+          test -s "$pointer"
+          cp "$source/corpus.tar.gz" "$archive"
+          test "$(sha256sum "$archive" | awk '{print $1}')" = \
+            "$(jq -r '.archive_sha256' "$pointer")"
+          test "$(stat -c %s "$archive")" = \
+            "$(jq -r '.archive_bytes' "$pointer")"
+          python pipeline/corpus.py unpack \
+            --root "$CORPUS_ROOT" \
+            --archive "$archive" \
+            --defer-check
+
+      - name: Merge immutable generations
+        run: |
+          set -o pipefail
+          python pipeline/corpus.py merge \
+            --root "$CORPUS_ROOT" \
+            --archive "$CORPUS_ARCHIVE" \
+            --rules data/source/feed.json \
+            --workers 4 \
+            --trusted-checkpoint | tee "$RUNNER_TEMP/corpus-merge.json"
+          test "$(jq -r '.manifest.counts.all' "$RUNNER_TEMP/corpus-merge.json")" = \
+            "3148342"
+          jq -e '
+            .history.complete == true and
+            .coverage_through_day == "2026-08-31"
+          ' "$CORPUS_ROOT/cursor.json" >/dev/null
+
+      - name: Stage merged corpus
+        run: |
+          output="$RUNNER_TEMP/corpus-merged"
+          mkdir -p "$output/archive"
+          cp -a "$CORPUS_ARCHIVE/." "$output/archive/"
+          cp "$CORPUS_ROOT/cursor.json" "$output/cursor.json"
+          cp "$RUNNER_TEMP/corpus-merge.json" "$output/merge.json"
+
+      - name: Preserve merged corpus
+        uses: actions/upload-artifact@v4
+        with:
+          name: corpus-merged-${{ github.run_id }}
+          path: ${{ runner.temp }}/corpus-merged
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+
   harvest:
     needs: stage_merge
     if: >-
       always() &&
-      (inputs.mode != 'merge' ||
-        inputs.stage_run_id != '' ||
-        needs.stage_merge.result == 'success')
+      (inputs.mode != 'merge' || needs.stage_merge.result == 'success')
     runs-on: ubuntu-latest
-    timeout-minutes: 720
+    timeout-minutes: 360
     env:
       GH_TOKEN: ${{ github.token }}
       CORPUS_ROOT: data/cache/corpus
@@ -157,6 +228,13 @@ jobs:
           github-token: ${{ github.token }}
           repository: ${{ github.repository }}
           run-id: ${{ inputs.stage_run_id }}
+
+      - name: Download staged merged corpus
+        if: inputs.mode == 'merge'
+        uses: actions/download-artifact@v4
+        with:
+          name: corpus-merged-${{ github.run_id }}
+          path: ${{ runner.temp }}/corpus-merged
 
       - name: Restore release checkpoint
         run: |
@@ -244,6 +322,25 @@ jobs:
           fi
           python pipeline/corpus.py unpack "${unpack_args[@]}"
 
+      - name: Restore staged merged corpus
+        if: inputs.mode == 'merge'
+        run: |
+          test -s "$RUNNER_TEMP/corpus-merged/archive/index.json"
+          test -s "$RUNNER_TEMP/corpus-merged/cursor.json"
+          test -s "$RUNNER_TEMP/corpus-merged/merge.json"
+          rm -rf -- "$CORPUS_ARCHIVE"
+          mkdir -p "$CORPUS_ARCHIVE"
+          cp -a "$RUNNER_TEMP/corpus-merged/archive/." "$CORPUS_ARCHIVE/"
+          cp "$RUNNER_TEMP/corpus-merged/cursor.json" "$CORPUS_ROOT/cursor.json"
+          cp "$RUNNER_TEMP/corpus-merged/merge.json" \
+            "$RUNNER_TEMP/corpus-merge.json"
+          test "$(jq -r '.counts.all' "$CORPUS_ARCHIVE/index.json")" = \
+            "3148342"
+          jq -e '
+            .history.complete == true and
+            .coverage_through_day == "2026-08-31"
+          ' "$CORPUS_ROOT/cursor.json" >/dev/null
+
       - name: Verify harvester
         run: |
           python -m pip install -r dev.txt
@@ -316,13 +413,7 @@ jobs:
           inputs.mode == 'merge' &&
           steps.checkpoint.outcome == 'success'
         run: |
-          set -o pipefail
-          python pipeline/corpus.py merge \
-            --root "$CORPUS_ROOT" \
-            --archive "$CORPUS_ARCHIVE" \
-            --rules data/source/feed.json \
-            --workers 4 \
-            --trusted-checkpoint | tee "$RUNNER_TEMP/corpus-merge.json"
+          test -s "$RUNNER_TEMP/corpus-merge.json"
           if [ "$(jq '.pending | length' "$RUNNER_TEMP/corpus-merge.json")" -gt 0 ]; then
             echo "promote=true" >> "$GITHUB_OUTPUT"
           else
