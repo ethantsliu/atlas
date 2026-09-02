@@ -1,0 +1,81 @@
+name: corpus-stage
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: arxiv-oai-corpus-stage
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CHECKPOINT_TAG: oai-corpus-v1
+    steps:
+      - name: Assemble immutable merge source
+        run: |
+          parts="$RUNNER_TEMP/corpus-parts"
+          output="$RUNNER_TEMP/corpus-source"
+          mkdir -p "$parts" "$output"
+          release_id=$(gh api \
+            "repos/$GITHUB_REPOSITORY/releases/tags/$CHECKPOINT_TAG" --jq .id)
+          gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
+            --jq '.[] | [.created_at, .name] | @tsv' \
+            | awk -F '\t' '$2 ~ /^pointer-[0-9]+-[0-9]+-[0-9a-f]{16}\.json$/ {print}' \
+            | sort -r > "$RUNNER_TEMP/checkpoint-pointers.tsv"
+          pointer=$(awk -F '\t' 'NR == 1 {print $2}' \
+            "$RUNNER_TEMP/checkpoint-pointers.tsv")
+          test -n "$pointer"
+          gh release download "$CHECKPOINT_TAG" \
+            --pattern "$pointer" \
+            --dir "$parts"
+          cp "$parts/$pointer" "$output/prior.json"
+          printf '%s\n' "$pointer" > "$output/prior-name.txt"
+          jq -e '
+            .schema_version == 1 and
+            (.archive_sha256 | test("^[0-9a-f]{64}$")) and
+            (.archive_bytes | type == "number" and . > 0) and
+            (.parts | type == "array" and length > 0) and
+            ([.parts[].name] | length == (unique | length)) and
+            all(.parts[];
+              (.name | test("^checkpoint-[0-9a-f]{16}-[0-9]{4}-[0-9a-f]{16}\\.part$")) and
+              (.sha256 | test("^[0-9a-f]{64}$")) and
+              (.bytes | type == "number" and . > 0))
+          ' "$output/prior.json" >/dev/null
+          patterns=()
+          while read -r name; do
+            patterns+=(--pattern "$name")
+          done < <(jq -r '.parts[].name' "$output/prior.json")
+          gh release download "$CHECKPOINT_TAG" \
+            "${patterns[@]}" \
+            --dir "$parts"
+          jq -c '.parts[]' "$output/prior.json" | while read -r row; do
+            name=$(jq -r '.name' <<<"$row")
+            digest=$(jq -r '.sha256' <<<"$row")
+            bytes=$(jq -r '.bytes' <<<"$row")
+            test "$(stat -c %s "$parts/$name")" = "$bytes"
+            test "$(sha256sum "$parts/$name" | awk '{print $1}')" = "$digest"
+          done
+          jq -r '.parts[].name' "$output/prior.json" | while read -r name; do
+            cat "$parts/$name"
+          done > "$output/corpus.tar.gz"
+          test "$(sha256sum "$output/corpus.tar.gz" | awk '{print $1}')" = \
+            "$(jq -r '.archive_sha256' "$output/prior.json")"
+          test "$(stat -c %s "$output/corpus.tar.gz")" = \
+            "$(jq -r '.archive_bytes' "$output/prior.json")"
+
+      - name: Stage immutable merge source
+        uses: actions/upload-artifact@v4
+        with:
+          name: corpus-source-${{ github.run_id }}
+          path: ${{ runner.temp }}/corpus-source
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error

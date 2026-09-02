@@ -23,6 +23,11 @@ on:
         required: false
         default: "180"
         type: string
+      stage_run_id:
+        description: "Optional corpus-stage run containing an immutable merge source"
+        required: false
+        default: ""
+        type: string
 concurrency:
   group: arxiv-oai-corpus
   cancel-in-progress: false
@@ -33,7 +38,7 @@ permissions:
 
 jobs:
   stage_merge:
-    if: inputs.mode == 'merge'
+    if: inputs.mode == 'merge' && inputs.stage_run_id == ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -107,7 +112,9 @@ jobs:
     needs: stage_merge
     if: >-
       always() &&
-      (inputs.mode != 'merge' || needs.stage_merge.result == 'success')
+      (inputs.mode != 'merge' ||
+        inputs.stage_run_id != '' ||
+        needs.stage_merge.result == 'success')
     runs-on: ubuntu-latest
     timeout-minutes: 720
     env:
@@ -135,11 +142,21 @@ jobs:
           echo "PRIOR_ROOT=$RUNNER_TEMP/corpus-prior" >> "$GITHUB_ENV"
 
       - name: Download staged merge source
-        if: inputs.mode == 'merge'
+        if: inputs.mode == 'merge' && inputs.stage_run_id == ''
         uses: actions/download-artifact@v4
         with:
           name: corpus-source-${{ github.run_id }}
           path: ${{ runner.temp }}/corpus-source
+
+      - name: Download pre-staged merge source
+        if: inputs.mode == 'merge' && inputs.stage_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: corpus-source-${{ inputs.stage_run_id }}
+          path: ${{ runner.temp }}/corpus-source
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.stage_run_id }}
 
       - name: Restore release checkpoint
         run: |

@@ -200,6 +200,7 @@ class CorpusTests(unittest.TestCase):
 
     def test_workflow_policy(self) -> None:
         corpus = (ROOT / ".github/workflows/corpus.yml").read_text(encoding="utf-8")
+        stage = (ROOT / ".github/workflows/corpusstage.yml").read_text(encoding="utf-8")
         legacy = (ROOT / ".github/workflows/archive.yml").read_text(encoding="utf-8")
         discover = (ROOT / ".github/workflows/discover.yml").read_text(encoding="utf-8")
         feed = (ROOT / ".github/workflows/feed.yml").read_text(encoding="utf-8")
@@ -235,9 +236,13 @@ class CorpusTests(unittest.TestCase):
             "actions/upload-artifact@v4",
             "stage_merge:",
             "needs: stage_merge",
-            "inputs.mode != 'merge' || needs.stage_merge.result == 'success'",
+            "inputs.stage_run_id != ''",
+            "needs.stage_merge.result == 'success'",
             "name: corpus-source-${{ github.run_id }}",
             "actions/download-artifact@v4",
+            "name: corpus-source-${{ inputs.stage_run_id }}",
+            "github-token: ${{ github.token }}",
+            "run-id: ${{ inputs.stage_run_id }}",
             'cp "$RUNNER_TEMP/corpus-source/corpus.tar.gz" "$CORPUS_FILE"',
             "([.parts[].name] | length == (unique | length))",
             'name = f"checkpoint-{archive_hash[:16]}',
@@ -336,6 +341,21 @@ class CorpusTests(unittest.TestCase):
             corpus.index("Restore release checkpoint"),
         )
         self.assertIn('default: "corpus-v2"', discover)
+        for required in (
+            "name: corpus-stage",
+            "group: arxiv-oai-corpus-stage",
+            "timeout-minutes: 240",
+            "CHECKPOINT_TAG: oai-corpus-v1",
+            "Assemble immutable merge source",
+            "([.parts[].name] | length == (unique | length))",
+            "actions/upload-artifact@v4",
+            "name: corpus-source-${{ github.run_id }}",
+            "compression-level: 0",
+            "retention-days: 1",
+        ):
+            self.assertIn(required, stage)
+        self.assertNotIn("contents: write", stage)
+        self.assertNotIn("actions: write", stage)
 
         sweep = (ROOT / ".github/workflows/sweep.yml").read_text(encoding="utf-8")
         self.assertIn(
