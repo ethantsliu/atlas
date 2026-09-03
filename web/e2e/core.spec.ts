@@ -807,8 +807,9 @@ test("touch opens a historical paper in the stacked inspector", async ({
   test.setTimeout(120_000);
   test.skip(testInfo.project.name !== "iphone", "Dense touch picking uses iPhone");
   test.skip((await cloudSize()) <= 100_000, "Dense cloud touch needs the full corpus");
+  const target = await cloudTarget();
   await watchCopy(page);
-  await page.goto("/#?d=3&k=p");
+  await page.goto(`/#?k=p&c=${target.camera}`);
   await expect(page.locator(".filters")).toContainText(
     "papers mapped by semantic similarity",
     {
@@ -818,8 +819,7 @@ test("touch opens a historical paper in the stacked inspector", async ({
   await fullNodes(page);
 
   const graph = page.getByLabel("Interactive 3D research graph");
-  await page.getByRole("button", { name: "Reset 3D view" }).click();
-  await waitCameraIdle(page);
+  await waitCamera(page, target.camera);
 
   const inspector = page.locator("#map-inspector");
   const beforeGraph = await graph.boundingBox();
@@ -828,26 +828,15 @@ test("touch opens a historical paper in the stacked inspector", async ({
   const canvas = await graph.locator("canvas:not(.cloud-plane)").boundingBox();
   if (!canvas) throw new Error("Research graph canvas has no bounds");
   const cloudSource = inspector.getByRole("link", { name: "View on arXiv" });
-  const fractions = [0.15, 0.3, 0.7, 0.85, 0.5];
-  for (const y of fractions) {
-    for (const x of fractions) {
-      await page.touchscreen.tap(
-        canvas.x + canvas.width * x,
-        canvas.y + canvas.height * y,
-      );
-      await page.waitForTimeout(700);
-      if ((await cloudSource.count()) > 0) break;
-    }
-    if ((await cloudSource.count()) > 0) break;
-  }
-  await expect(cloudSource).toBeVisible({ timeout: 20_000 });
-  await expect(selection).toContainText("Paper selected:");
-  const title =
-    (await selection.textContent())?.replace(/^Paper selected:\s*/, "") ?? "";
-  expect(title).not.toBe("");
-  await expect(inspector.getByRole("heading", { name: title })).toBeVisible();
-  await expect(cloudSource).toHaveAttribute("href", /^https:\/\/arxiv\.org\/abs\//);
-  await expect(inspector).toHaveAccessibleName(title);
+  await page.waitForTimeout(900);
+  await page.touchscreen.tap(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2);
+
+  await expect(inspector.getByRole("heading", { name: target.title })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(cloudSource).toHaveAttribute("href", target.url);
+  await expect(inspector).toHaveAccessibleName(target.title);
+  await expect(selection).toHaveText(`Paper selected: ${target.title}`);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   const afterGraph = await graph.boundingBox();
   expect(afterGraph?.x).toBe(beforeGraph.x);
@@ -882,7 +871,7 @@ test("touch opens a historical paper in the stacked inspector", async ({
   await expect(unisolate).toHaveAttribute("aria-pressed", "true");
   await unisolate.click();
   await expect(mapStatus(page)).toHaveText(fullState);
-  await expect(inspector.getByRole("heading", { name: title })).toBeVisible();
+  await expect(inspector.getByRole("heading", { name: target.title })).toBeVisible();
 });
 
 test("foreground selection opens the stacked inspector", async ({ page }, testInfo) => {
