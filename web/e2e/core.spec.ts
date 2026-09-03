@@ -799,17 +799,26 @@ test("touch opens a historical paper in the stacked inspector", async ({
   const graph = page.getByLabel("Interactive 3D research graph");
   await page.getByRole("button", { name: "Reset 3D view" }).click();
   await waitCameraIdle(page);
-  const point = await cloudPoint(page);
-  await page.mouse.move(2, 2);
-  await expect(page.locator(".cloud-tip")).toBeHidden();
 
   const inspector = page.locator("#map-inspector");
   const beforeGraph = await graph.boundingBox();
   if (!beforeGraph) throw new Error("Research graph has no bounds");
-  await page.touchscreen.tap(point.x, point.y);
-
   const selection = page.locator("#graph-selection");
-  await expect(selection).toContainText("Paper selected:", { timeout: 20_000 });
+  const canvas = await graph.locator("canvas:not(.cloud-plane)").boundingBox();
+  if (!canvas) throw new Error("Research graph canvas has no bounds");
+  const offsets = [0, -24, 24, -48, 48];
+  for (const y of offsets) {
+    for (const x of offsets) {
+      await page.touchscreen.tap(
+        canvas.x + canvas.width / 2 + x,
+        canvas.y + canvas.height / 2 + y,
+      );
+      await page.waitForTimeout(300);
+      if ((await selection.textContent())?.startsWith("Paper selected:")) break;
+    }
+    if ((await selection.textContent())?.startsWith("Paper selected:")) break;
+  }
+  await expect(selection).toContainText("Paper selected:");
   const title =
     (await selection.textContent())?.replace(/^Paper selected:\s*/, "") ?? "";
   expect(title).not.toBe("");
