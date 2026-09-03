@@ -23,6 +23,34 @@ MAX_DIRECTIONS = 2_000
 MAX_SUPPORTS = 24
 SCOPES = frozenset({"likely", "possible"})
 SHA256 = "0123456789abcdef"
+SUBJECT_ID = re.compile(r"^[A-Za-z][A-Za-z0-9.-]{1,31}$")
+SUPPORT_ID = re.compile(r"^arxiv:\S+$")
+CORPUS_KEYS = {"manifest_sha256", "source_count", "month_count"}
+COVERAGE_KEYS = {
+    "scanned_papers",
+    "eligible_direction_papers",
+    "scanned_months",
+}
+COUNT_KEYS = {
+    "broad_areas",
+    "technique_families",
+    "arxiv_subjects",
+    "eligible_directions",
+    "candidate_directions",
+}
+FAMILY_KEYS = {"id", "label", "all_paper_count", "in_scope_paper_count"}
+SUBJECT_KEYS = {"id", "label", "paper_count", "primary_paper_count"}
+DIRECTION_KEYS = {
+    "id",
+    "status",
+    "subject_id",
+    "technique_id",
+    "support_count",
+    "year_count",
+    "independent_author_groups_at_least",
+    "npmi",
+    "support_ids",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -79,6 +107,11 @@ def direction_key(subject: str, technique: str) -> str:
     """Build one stable corpus-independent candidate identity."""
     body = f"{VERSION}\0{subject}\0{technique}".encode()
     return f"direction:{hashlib.sha256(body).hexdigest()[:16]}"
+
+
+def whole(value: object) -> bool:
+    """Return whether a public count is a non-negative integer, excluding bools."""
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
 
 
 def association(joint: int, subject: int, technique: int, total: int) -> float:
@@ -285,12 +318,24 @@ def check_catalog(value: object) -> dict:  # noqa: C901
         "directions",
         "notice",
     }
-    if set(value) != required or value.get("schema_version") != 1:
+    if (
+        set(value) != required
+        or value.get("schema_version") != 1
+        or value.get("generator_version") != VERSION
+        or value.get("status") != "corpus-derived"
+        or not isinstance(value.get("notice"), str)
+        or not value["notice"].strip()
+    ):
         raise ValueError("Catalog contract is invalid")
     corpus = value.get("corpus")
     coverage = value.get("coverage")
     counts = value.get("counts")
-    if not all(isinstance(row, dict) for row in (corpus, coverage, counts)):
+    if (
+        not all(isinstance(row, dict) for row in (corpus, coverage, counts))
+        or set(corpus) != CORPUS_KEYS
+        or set(coverage) != COVERAGE_KEYS
+        or set(counts) != COUNT_KEYS
+    ):
         raise ValueError("Catalog metadata is invalid")
     digest = corpus.get("manifest_sha256")
     if (
@@ -307,16 +352,15 @@ def check_catalog(value: object) -> dict:  # noqa: C901
         coverage.get("scanned_months"),
         *counts.values(),
     ]
-    if not all(
-        isinstance(item, int) and not isinstance(item, bool) and item >= 0
-        for item in integers
-    ):
+    if not all(whole(item) for item in integers):
         raise ValueError("Catalog counts are invalid")
     if (
         corpus["source_count"] != coverage["scanned_papers"]
         or corpus["month_count"] != coverage["scanned_months"]
         or counts.get("broad_areas") != len(TOPICS)
         or counts.get("technique_families") != len(TRICKS)
+        or coverage["eligible_direction_papers"] > corpus["source_count"]
+        or counts["candidate_directions"] > counts["eligible_directions"]
     ):
         raise ValueError("Catalog coverage counts disagree")
     areas = value.get("areas")
@@ -327,15 +371,36 @@ def check_catalog(value: object) -> dict:  # noqa: C901
         isinstance(rows, list) for rows in (areas, techniques, subjects, directions)
     ):
         raise ValueError("Catalog collections are invalid")
+    if not all(
+        isinstance(row, dict)
+        for rows in (areas, techniques, subjects, directions)
+        for row in rows
+    ):
+        raise ValueError("Catalog rows are invalid")
     if [row.get("id") for row in areas] != sorted(TOPICS):
         raise ValueError("Catalog broad areas are invalid")
     if [row.get("id") for row in techniques] != sorted(TRICKS):
         raise ValueError("Catalog technique families are invalid")
     subject_ids = [row.get("id") for row in subjects]
-    if subject_ids != sorted(set(subject_ids)) or counts.get("arxiv_subjects") != len(
-        subjects
+    if (
+        not all(isinstance(identifier, str) for identifier in subject_ids)
+        or subject_ids != sorted(set(subject_ids))
+        or counts.get("arxiv_subjects") != len(subjects)
     ):
         raise ValueError("Catalog subjects are invalid")
+    for row in subjects:
+        identifier = row.get("id")
+        if (
+            set(row) != SUBJECT_KEYS
+            or not isinstance(identifier, str)
+            or not SUBJECT_ID.fullmatch(identifier)
+            or row.get("label") != identifier
+            or not whole(row.get("paper_count"))
+            or not whole(row.get("primary_paper_count"))
+            or row["primary_paper_count"] > row["paper_count"]
+            or row["paper_count"] > corpus["source_count"]
+        ):
+            raise ValueError("Catalog subject row is invalid")
     expected_directions = sorted(
         directions,
         key=lambda row: (
@@ -345,40 +410,59 @@ def check_catalog(value: object) -> dict:  # noqa: C901
             row.get("technique_id", ""),
         ),
     )
+    direction_ids = [row.get("id") for row in directions]
+    direction_pairs = [
+        (row.get("subject_id"), row.get("technique_id")) for row in directions
+    ]
     if (
-        directions != expected_directions
+        not all(isinstance(identifier, str) for identifier in direction_ids)
+        or not all(
+            isinstance(subject, str) and isinstance(technique, str)
+            for subject, technique in direction_pairs
+        )
+        or directions != expected_directions
         or counts.get("candidate_directions") != len(directions)
         or counts.get("eligible_directions", 0) < len(directions)
+        or len(set(direction_ids)) != len(direction_ids)
+        or len(set(direction_pairs)) != len(direction_pairs)
     ):
         raise ValueError("Catalog direction counts are invalid")
     for row in [*areas, *techniques]:
         if (
-            not all(
-                isinstance(row.get(key), int) and row[key] >= 0
-                for key in ("all_paper_count", "in_scope_paper_count")
-            )
+            set(row) != FAMILY_KEYS
+            or not isinstance(row.get("label"), str)
+            or not row["label"]
+            or not whole(row.get("all_paper_count"))
+            or not whole(row.get("in_scope_paper_count"))
             or row["in_scope_paper_count"] > row["all_paper_count"]
+            or row["all_paper_count"] > corpus["source_count"]
+            or row["in_scope_paper_count"] > coverage["eligible_direction_papers"]
         ):
             raise ValueError("Catalog family counts are invalid")
     for row in directions:
         supports = row.get("support_ids")
         if (
-            row.get("status") != "candidate"
+            set(row) != DIRECTION_KEYS
+            or row.get("status") != "candidate"
             or row.get("subject_id") not in set(subject_ids)
             or row.get("technique_id") not in TRICKS
             or row.get("id") != direction_key(row["subject_id"], row["technique_id"])
-            or not isinstance(row.get("support_count"), int)
+            or not whole(row.get("support_count"))
             or row["support_count"] < MIN_DIRECTION_SUPPORT
-            or not isinstance(row.get("year_count"), int)
+            or row["support_count"] > coverage["eligible_direction_papers"]
+            or not whole(row.get("year_count"))
             or row["year_count"] < 2
             or row.get("independent_author_groups_at_least") != 3
             or not isinstance(row.get("npmi"), (int, float))
+            or isinstance(row.get("npmi"), bool)
+            or not math.isfinite(row["npmi"])
             or not -1 <= row["npmi"] <= 1
             or not isinstance(supports, list)
             or not 1 <= len(supports) <= 6
             or supports != sorted(set(supports))
             or not all(
-                isinstance(item, str) and item.startswith("arxiv:") for item in supports
+                isinstance(item, str) and SUPPORT_ID.fullmatch(item)
+                for item in supports
             )
         ):
             raise ValueError("Catalog candidate direction is invalid")

@@ -24,7 +24,6 @@ describe("MapFilters", () => {
     expect(markup).toContain("Broad areas");
     expect(markup).toContain("Technique families");
     expect(markup).toContain("Screened briefs");
-    expect(markup).toContain("Loading");
     expect(markup).not.toContain("historical arXiv records");
     expect(markup).not.toContain("foreground papers");
   });

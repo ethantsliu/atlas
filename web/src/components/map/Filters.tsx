@@ -5,9 +5,7 @@ import { ALL_NODE_KINDS, NODE_COLORS } from "../../lib/graph";
 import type { GraphNodeKind } from "../../types";
 import type { AtlasRead } from "../../lib/payload";
 
-const CatalogCopy = lazy(() =>
-  import("./Catalog").then((module) => ({ default: module.CatalogCopy })),
-);
+const CatalogCopy = lazy(() => import("./Catalog"));
 import { CoverageMini } from "../shared/Coverage";
 
 type MapFiltersProps = {
@@ -86,7 +84,7 @@ export function MapFilters({
             : `${atlas.meta.paper_count.toLocaleString()} mapped papers.`}
         </p>
 
-        <Suspense fallback={<p className="range-copy catalog-copy">Loading…</p>}>
+        <Suspense fallback={null}>
           <CatalogCopy enabled={Boolean(archiveCount)} ideas={atlas.meta.idea_count} />
         </Suspense>
 

@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { fetchCatalogSummary, readCatalogSummary } from "./catalog";
+import {
+  fetchCatalog,
+  fetchCatalogSummary,
+  readCatalog,
+  readCatalogSummary,
+} from "./catalog";
 
 function payload() {
   return {
@@ -31,6 +36,56 @@ function payload() {
   };
 }
 
+function detail() {
+  return {
+    ...payload(),
+    counts: {
+      broad_areas: 1,
+      technique_families: 1,
+      arxiv_subjects: 1,
+      eligible_directions: 1,
+      candidate_directions: 1,
+    },
+    areas: [
+      {
+        id: "agents",
+        label: "agents",
+        all_paper_count: 120,
+        in_scope_paper_count: 100,
+      },
+    ],
+    techniques: [
+      {
+        id: "retrieval-and-memory",
+        label: "retrieval and memory",
+        all_paper_count: 90,
+        in_scope_paper_count: 80,
+      },
+    ],
+    subjects: [
+      {
+        id: "cs.LG",
+        label: "cs.LG",
+        paper_count: 75,
+        primary_paper_count: 60,
+      },
+    ],
+    directions: [
+      {
+        id: "direction:1234567890abcdef",
+        status: "candidate",
+        subject_id: "cs.LG",
+        technique_id: "retrieval-and-memory",
+        support_count: 42,
+        year_count: 8,
+        independent_author_groups_at_least: 3,
+        npmi: 0.2,
+        support_ids: ["arxiv:2401.00001", "arxiv:2501.00002"],
+      },
+    ],
+  };
+}
+
 describe("full-corpus catalog", () => {
   it("reads only the compact public inventory", () => {
     expect(readCatalogSummary(payload())).toEqual({
@@ -51,6 +106,24 @@ describe("full-corpus catalog", () => {
     expect(readCatalogSummary({ ...payload(), extra: true })).toBeNull();
   });
 
+  it("validates every explorable catalog row and reference", () => {
+    expect(readCatalog(detail())).toMatchObject({
+      summary: { arxivSubjects: 1, candidateDirections: 1 },
+      subjects: [{ id: "cs.LG", paperCount: 75 }],
+      directions: [{ techniqueId: "retrieval-and-memory", supportCount: 42 }],
+    });
+
+    const duplicate = detail();
+    duplicate.counts.candidate_directions = 2;
+    duplicate.counts.eligible_directions = 2;
+    duplicate.directions.push({ ...duplicate.directions[0] });
+    expect(readCatalog(duplicate)).toBeNull();
+
+    const missing = detail();
+    missing.directions[0].subject_id = "cs.MISSING";
+    expect(readCatalog(missing)).toBeNull();
+  });
+
   it("uses the deployed base path", async () => {
     const fetcher = vi.fn(async () => new Response(JSON.stringify(payload())));
     await expect(
@@ -59,6 +132,14 @@ describe("full-corpus catalog", () => {
     expect(fetcher).toHaveBeenCalledWith("/atlas/data/catalog.json", {
       signal: undefined,
       headers: { Accept: "application/json" },
+    });
+  });
+
+  it("fetches the validated explorable catalog", async () => {
+    const fetcher = vi.fn(async () => new Response(JSON.stringify(detail())));
+    await expect(fetchCatalog(undefined, fetcher, "/atlas/")).resolves.toMatchObject({
+      subjects: [{ id: "cs.LG" }],
+      directions: [{ id: "direction:1234567890abcdef" }],
     });
   });
 });

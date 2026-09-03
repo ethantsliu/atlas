@@ -133,6 +133,23 @@ class CatalogTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "coverage"):
             check_catalog(changed)
 
+        changed = copy.deepcopy(value)
+        changed["subjects"][0]["extra"] = True
+        with self.assertRaisesRegex(ValueError, "subject row"):
+            check_catalog(changed)
+
+        changed = copy.deepcopy(value)
+        changed["directions"].append(copy.deepcopy(changed["directions"][0]))
+        changed["counts"]["candidate_directions"] += 1
+        changed["counts"]["eligible_directions"] += 1
+        with self.assertRaisesRegex(ValueError, "direction counts"):
+            check_catalog(changed)
+
+        changed = copy.deepcopy(value)
+        changed["directions"][0]["subject_id"] = "cs.MISSING"
+        with self.assertRaisesRegex(ValueError, "candidate direction"):
+            check_catalog(changed)
+
     def test_is_deterministic(self) -> None:
         self.assertEqual(self.build(), self.build())
 
