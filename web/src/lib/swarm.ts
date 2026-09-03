@@ -108,6 +108,17 @@ export const CLOUD_REST_MS = 160;
 export const CLOUD_SETTLE_MS = 280;
 export const CLOUD_VIEW_EPS = 1e-6;
 
+export function cloudBatchEnd(
+  loaded: number,
+  available: number,
+  total: number,
+  bulk = false,
+): number {
+  return bulk || available === total
+    ? available
+    : Math.min(available, loaded + CLOUD_BATCH);
+}
+
 export function cloudLod(count: number): number {
   if (count <= CLOUD_LOD_MAX) return Math.max(0, count);
   const floor = count >= 3_000_000 ? CLOUD_LOD_CAP : 72_000;
@@ -495,9 +506,12 @@ export function growCloud(points: CloudSwarm, data: CloudData): void {
     store.frame = 0;
     if (store.dropped) return;
     const start = store.loaded;
-    const end = store.bulk
-      ? store.data.loaded
-      : Math.min(store.data.loaded, start + CLOUD_BATCH);
+    const end = cloudBatchEnd(
+      start,
+      store.data.loaded,
+      store.data.positions.length / 3,
+      store.bulk,
+    );
     if (end <= start) return;
     const [coarseStart, coarseEnd] = fillLod(store, start, end);
     if (store.gl && store.buffer) {

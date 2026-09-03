@@ -7,6 +7,7 @@ import {
   CLOUD_REST_MS,
   CLOUD_SETTLE_MS,
   CLOUD_VIEW_EPS,
+  cloudBatchEnd,
   cloudLod,
   cloudOpacity,
   cloudSize,
@@ -54,6 +55,12 @@ describe("paper swarm", () => {
     expect(cloudLod(3_150_000)).toBe(100_000);
     expect([...lodIds(10, 4)]).toEqual([1, 3, 6, 8]);
     expect([...lodIds(10, 4)]).toEqual([...lodIds(10, 4)]);
+  });
+
+  it("catches up when the final cloud pack arrives", () => {
+    expect(cloudBatchEnd(0, 200_000, 3_150_000)).toBe(65_536);
+    expect(cloudBatchEnd(2_450_000, 3_150_000, 3_150_000)).toBe(3_150_000);
+    expect(cloudBatchEnd(0, 200_000, 3_150_000, true)).toBe(200_000);
   });
 
   it("caps motion-only density compensation", () => {
