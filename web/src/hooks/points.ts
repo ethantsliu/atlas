@@ -252,7 +252,12 @@ function mountPoints(
         renderer.render(graph.scene(), graph.camera() as Camera);
       };
   const points = buildCloud(data, input.theme, renderer, redraw);
-  const dropControl = bindCloud(points, graph.controls?.(), renderer.domElement);
+  const dropControl = bindCloud(
+    points,
+    graph.controls?.(),
+    renderer.domElement,
+    window,
+  );
   growCloud(points, data);
   points.visible = input.active;
   refs.points.current = points;

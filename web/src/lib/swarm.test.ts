@@ -5,12 +5,14 @@ import {
   buildCloud,
   buildSwarm,
   CLOUD_REST_MS,
+  CLOUD_LARGE_SETTLE_MS,
   CLOUD_SETTLE_MS,
   CLOUD_VIEW_EPS,
   cloudBatchEnd,
   cloudLod,
   cloudOpacity,
   cloudSize,
+  cloudSettle,
   cloudTone,
   dropCloud,
   lodIds,
@@ -55,6 +57,8 @@ describe("paper swarm", () => {
     expect(cloudLod(3_150_000)).toBe(100_000);
     expect([...lodIds(10, 4)]).toEqual([1, 3, 6, 8]);
     expect([...lodIds(10, 4)]).toEqual([...lodIds(10, 4)]);
+    expect(cloudSettle(250_000)).toBe(CLOUD_SETTLE_MS);
+    expect(cloudSettle(3_150_000)).toBe(CLOUD_LARGE_SETTLE_MS);
   });
 
   it("catches up when the final cloud pack arrives", () => {
@@ -228,10 +232,12 @@ describe("paper swarm", () => {
     };
     const emit = (type: string) =>
       listeners.get(type)?.forEach((listener) => listener());
-    const pointer = (type: string, id: number) => {
+    const target = new EventTarget();
+    const releaseTarget = new EventTarget();
+    const pointer = (type: string, id: number, on = target) => {
       const event = new Event(type);
       Object.defineProperty(event, "pointerId", { value: id });
-      target.dispatchEvent(event);
+      on.dispatchEvent(event);
     };
     const points = buildCloud(
       {
@@ -245,8 +251,7 @@ describe("paper swarm", () => {
       undefined,
       redraw,
     );
-    const target = new EventTarget();
-    const drop = bindCloud(points, control, target);
+    const drop = bindCloud(points, control, target, releaseTarget);
     try {
       emit("start");
       emit("end");
@@ -292,11 +297,11 @@ describe("paper swarm", () => {
       emit("start");
       pointer("pointerdown", 2);
       moveCloud(points, redraw);
-      pointer("pointercancel", 1);
+      pointer("pointercancel", 1, releaseTarget);
       emit("end");
       vi.advanceTimersByTime(CLOUD_SETTLE_MS * 2);
       expect(points.userData.moving).toBe(true);
-      pointer("pointerup", 2);
+      pointer("pointerup", 2, releaseTarget);
       emit("end");
       vi.advanceTimersByTime(CLOUD_SETTLE_MS);
       expect(points.userData.moving).toBe(false);
@@ -304,7 +309,7 @@ describe("paper swarm", () => {
       emit("start");
       pointer("pointerdown", 3);
       moveCloud(points, redraw);
-      pointer("pointercancel", 3);
+      pointer("pointercancel", 3, releaseTarget);
       emit("end");
       vi.advanceTimersByTime(CLOUD_SETTLE_MS);
       expect(points.userData.moving).toBe(false);

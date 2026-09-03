@@ -106,6 +106,7 @@ export const CLOUD_LOD_CAP = 100_000;
 export const CLOUD_LOD_MAX = 250_000;
 export const CLOUD_REST_MS = 160;
 export const CLOUD_SETTLE_MS = 280;
+export const CLOUD_LARGE_SETTLE_MS = 800;
 export const CLOUD_VIEW_EPS = 1e-6;
 
 export function cloudBatchEnd(
@@ -117,6 +118,10 @@ export function cloudBatchEnd(
   return bulk || (total > CLOUD_LOD_MAX && available === total)
     ? available
     : Math.min(available, loaded + CLOUD_BATCH);
+}
+
+export function cloudSettle(count: number): number {
+  return count > CLOUD_LOD_MAX ? CLOUD_LARGE_SETTLE_MS : CLOUD_SETTLE_MS;
 }
 
 export function cloudLod(count: number): number {
@@ -178,7 +183,9 @@ function armRest(points: CloudSwarm): void {
   const store = points.userData;
   clearRest(store);
   if (store.held) return;
-  const delay = store.settling ? CLOUD_SETTLE_MS : CLOUD_REST_MS;
+  const delay = store.settling
+    ? cloudSettle(store.data.positions.length / 3)
+    : CLOUD_REST_MS;
   store.rest = setTimeout(() => restCloud(points), delay);
 }
 
@@ -202,6 +209,7 @@ export function bindCloud(
   points: CloudSwarm,
   control: CloudControl | null | undefined,
   target?: EventTarget | null,
+  releaseTarget: EventTarget | null | undefined = target,
 ): () => void {
   const pointers = new Set<number>();
   const hold = () => holdCloud(points);
@@ -219,14 +227,14 @@ export function bindCloud(
   control?.addEventListener?.("start", hold);
   control?.addEventListener?.("end", release);
   target?.addEventListener("pointerdown", press);
-  target?.addEventListener("pointerup", lift);
-  target?.addEventListener("pointercancel", lift);
+  releaseTarget?.addEventListener("pointerup", lift);
+  releaseTarget?.addEventListener("pointercancel", lift);
   return () => {
     control?.removeEventListener?.("start", hold);
     control?.removeEventListener?.("end", release);
     target?.removeEventListener("pointerdown", press);
-    target?.removeEventListener("pointerup", lift);
-    target?.removeEventListener("pointercancel", lift);
+    releaseTarget?.removeEventListener("pointerup", lift);
+    releaseTarget?.removeEventListener("pointercancel", lift);
   };
 }
 
