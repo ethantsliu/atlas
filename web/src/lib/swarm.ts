@@ -114,7 +114,7 @@ export function cloudBatchEnd(
   total: number,
   bulk = false,
 ): number {
-  return bulk || available === total
+  return bulk || (total > CLOUD_LOD_MAX && available === total)
     ? available
     : Math.min(available, loaded + CLOUD_BATCH);
 }
