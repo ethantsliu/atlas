@@ -82,7 +82,7 @@ export function MapFilters({
       >
         <p className="aside-copy" data-cloud-count={archiveCount ?? 0}>
           {archiveCount
-            ? `${(atlas.meta.paper_count + archiveCount).toLocaleString()} mapped papers. Select one.`
+            ? `${(atlas.meta.paper_count + archiveCount).toLocaleString()} papers mapped by semantic similarity.`
             : `${atlas.meta.paper_count.toLocaleString()} mapped papers.`}
         </p>
 
