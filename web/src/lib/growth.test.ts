@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WebGLRenderer } from "three";
 import type { CloudData } from "./cloud";
-import { CLOUD_BATCH, buildCloud, dropCloud, growCloud } from "./swarm";
+import { CLOUD_BATCH, CLOUD_LOD_MAX, buildCloud, dropCloud, growCloud } from "./swarm";
 
 let frames: FrameRequestCallback[] = [];
 
@@ -61,6 +61,25 @@ describe("progressive paper cloud geometry", () => {
     expect(frames).toHaveLength(0);
     expect(points.geometry.getAttribute("position")).toBe(positions);
 
+    points.geometry.dispose();
+    points.material.dispose();
+  });
+
+  it("catches up when the final large-cloud pack arrives", () => {
+    const data = dataOf(CLOUD_LOD_MAX + 2);
+    const points = buildCloud(data, "dark");
+
+    data.loaded = CLOUD_BATCH;
+    growCloud(points, data);
+    runFrame();
+    expect(points.geometry.drawRange.count).toBe(CLOUD_BATCH);
+
+    data.loaded = CLOUD_LOD_MAX + 2;
+    growCloud(points, data);
+    runFrame();
+    expect(points.geometry.drawRange.count).toBe(CLOUD_LOD_MAX + 2);
+
+    dropCloud(points);
     points.geometry.dispose();
     points.material.dispose();
   });

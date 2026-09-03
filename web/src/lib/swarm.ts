@@ -109,17 +109,6 @@ export const CLOUD_SETTLE_MS = 280;
 export const CLOUD_LARGE_SETTLE_MS = 800;
 export const CLOUD_VIEW_EPS = 1e-6;
 
-export function cloudBatchEnd(
-  loaded: number,
-  available: number,
-  total: number,
-  bulk = false,
-): number {
-  return bulk || (total > CLOUD_LOD_MAX && available === total)
-    ? available
-    : Math.min(available, loaded + CLOUD_BATCH);
-}
-
 export function cloudSettle(count: number): number {
   return count > CLOUD_LOD_MAX ? CLOUD_LARGE_SETTLE_MS : CLOUD_SETTLE_MS;
 }
@@ -514,12 +503,12 @@ export function growCloud(points: CloudSwarm, data: CloudData): void {
     store.frame = 0;
     if (store.dropped) return;
     const start = store.loaded;
-    const end = cloudBatchEnd(
-      start,
-      store.data.loaded,
-      store.data.positions.length / 3,
-      store.bulk,
-    );
+    const total = store.data.positions.length / 3;
+    const complete = total > CLOUD_LOD_MAX && store.data.loaded === total;
+    const end =
+      store.bulk || complete
+        ? store.data.loaded
+        : Math.min(store.data.loaded, start + CLOUD_BATCH);
     if (end <= start) return;
     const [coarseStart, coarseEnd] = fillLod(store, start, end);
     if (store.gl && store.buffer) {
