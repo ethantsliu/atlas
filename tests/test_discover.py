@@ -84,6 +84,7 @@ class DiscoverTests(unittest.TestCase):
             "EVENT_NAME: ${{ github.event_name }}",
             'default: "all"',
             'default: "corpus-v2"',
+            "python -m pip install -r dev.txt",
             'if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$scope" = "latest" ]',
             'jq -r \'.shards[].month\' "$manifest" > "$requested"',
             '--archive "$ARCHIVE_ROOT"',

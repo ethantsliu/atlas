@@ -87,11 +87,16 @@ function expectOrbitPreserved(before: CameraSnapshot, after: CameraSnapshot) {
   expect(Math.abs(after.pitch - before.pitch)).toBeLessThanOrEqual(1);
 }
 
-async function wheelOnGraph(page: Page, deltaY: number, count = 1) {
+async function wheelOnGraph(
+  page: Page,
+  deltaY: number,
+  count = 1,
+  at: { x: number; y: number } = { x: 0.5, y: 0.5 },
+) {
   const graph = page.getByLabel("Interactive 3D research graph");
   const box = await graph.boundingBox();
   if (!box) throw new Error("Research graph has no bounds");
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.move(box.x + box.width * at.x, box.y + box.height * at.y);
   for (let step = 0; step < count; step += 1) {
     await page.mouse.wheel(0, deltaY);
   }
@@ -194,7 +199,7 @@ test("navigation cancels a deferred camera restore", async ({
   expect(moved).not.toBe(view);
 });
 
-test("wheel zoom preserves the orbit center before and after rotation", async ({
+test("wheel zoom follows the cursor and rotation keeps its new center", async ({
   context,
   page,
 }, testInfo) => {
@@ -209,10 +214,10 @@ test("wheel zoom preserves the orbit center before and after rotation", async ({
   await expect.poll(() => copyCamera(page), { timeout: 20_000 }).toBe(view);
   const initial = cameraSnapshot(view);
 
-  await wheelOnGraph(page, -120, 6);
+  await wheelOnGraph(page, -120, 6, { x: 0.78, y: 0.3 });
   const zoomedValue = await steadyCamera(page);
   const zoomed = cameraSnapshot(zoomedValue);
-  expect(length(targetDelta(initial, zoomed))).toBeLessThan(0.35);
+  expect(length(targetDelta(initial, zoomed))).toBeGreaterThan(0.35);
   expect(zoomed.radius).toBeLessThan(initial.radius);
   expect(zoomed.yaw).toBeCloseTo(initial.yaw, 0);
   expect(zoomed.pitch).toBeCloseTo(initial.pitch, 0);
@@ -235,10 +240,10 @@ test("wheel zoom preserves the orbit center before and after rotation", async ({
     Math.abs(orbited.yaw - zoomed.yaw) + Math.abs(orbited.pitch - zoomed.pitch),
   ).toBeGreaterThan(2);
 
-  await wheelOnGraph(page, 120, 6);
+  await wheelOnGraph(page, 120, 6, { x: 0.22, y: 0.72 });
   const restoredValue = await steadyCamera(page);
   const restored = cameraSnapshot(restoredValue);
-  expect(length(targetDelta(orbited, restored))).toBeLessThan(0.35);
+  expect(length(targetDelta(orbited, restored))).toBeGreaterThan(0.35);
   expect(restored.radius).toBeGreaterThan(orbited.radius);
   expect(Math.abs(restored.yaw - orbited.yaw)).toBeLessThanOrEqual(1);
   expect(Math.abs(restored.pitch - orbited.pitch)).toBeLessThanOrEqual(1);
@@ -246,7 +251,7 @@ test("wheel zoom preserves the orbit center before and after rotation", async ({
   expect(await copyCamera(page)).toBe(restoredValue);
 });
 
-test("WebKit keeps fractional trackpad and pinch zoom centered", async ({
+test("WebKit keeps cursor-aware fractional trackpad and pinch zoom native", async ({
   context,
   page,
 }, testInfo) => {
@@ -261,13 +266,16 @@ test("WebKit keeps fractional trackpad and pinch zoom centered", async ({
   await expect.poll(() => copyCamera(page), { timeout: 20_000 }).toBe(view);
   const initial = cameraSnapshot(view);
   const canvas = graph.locator("canvas:not(.cloud-plane)");
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("Research canvas has no bounds");
+  await page.mouse.move(box.x + box.width * 0.72, box.y + box.height * 0.28);
 
   for (let step = 0; step < 8; step += 1) {
-    await canvas.dispatchEvent("wheel", { deltaY: -7.5, deltaMode: 0 });
+    await page.mouse.wheel(0, -7.5);
   }
   const trackedValue = await steadyCamera(page);
   const tracked = cameraSnapshot(trackedValue);
-  expect(length(targetDelta(initial, tracked))).toBeLessThan(0.35);
+  expect(length(targetDelta(initial, tracked))).toBeGreaterThan(0.35);
   expect(tracked.radius).toBeLessThan(initial.radius);
   expect(tracked.yaw).toBeCloseTo(initial.yaw, 0);
   expect(tracked.pitch).toBeCloseTo(initial.pitch, 0);
@@ -276,9 +284,11 @@ test("WebKit keeps fractional trackpad and pinch zoom centered", async ({
     deltaY: -120,
     deltaMode: 0,
     ctrlKey: true,
+    clientX: box.x + box.width * 0.72,
+    clientY: box.y + box.height * 0.28,
   });
   const pinched = cameraSnapshot(await steadyCamera(page));
-  expect(length(targetDelta(tracked, pinched))).toBeLessThan(0.35);
+  expect(length(targetDelta(tracked, pinched))).toBeGreaterThan(0.35);
   expect(pinched.yaw).toBeCloseTo(tracked.yaw, 0);
   expect(pinched.pitch).toBeCloseTo(tracked.pitch, 0);
   expect(Math.abs(pinched.radius - tracked.radius)).toBeGreaterThan(0.5);

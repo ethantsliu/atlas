@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("react-force-graph-3d", () => ({ default: () => null }));
 
-import { FRAME_IDLE_WAIT, cameraControl, makeFrameIdle } from "./Space";
+import {
+  FRAME_IDLE_WAIT,
+  cameraControl,
+  enableCursorZoom,
+  makeFrameIdle,
+} from "./Space";
 
 type Pending = { callback: () => void; delay: number };
 
@@ -86,7 +91,21 @@ function setup() {
 describe("3D idle frames", () => {
   it("uses roll-free orbit controls for pointers and proven touch controls on mobile", () => {
     expect(cameraControl(1_440)).toBe("orbit");
+    expect(cameraControl(688)).toBe("orbit");
+    expect(cameraControl(521)).toBe("orbit");
+    expect(cameraControl(520)).toBe("trackball");
     expect(cameraControl(390)).toBe("trackball");
+  });
+
+  it("enables native cursor zoom only when the control supports it", () => {
+    const orbit = { zoomToCursor: false };
+    const trackball = {};
+
+    expect(enableCursorZoom(orbit)).toBe(true);
+    expect(enableCursorZoom(trackball)).toBe(false);
+
+    expect(orbit.zoomToCursor).toBe(true);
+    expect(trackball).not.toHaveProperty("zoomToCursor");
   });
 
   it("pauses only after the engine stops and the idle delay expires", () => {

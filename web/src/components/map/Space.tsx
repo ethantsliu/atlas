@@ -40,6 +40,7 @@ export const FRAME_IDLE_WAIT = 240;
 type FrameControl = {
   addEventListener?: (type: string, listener: () => void) => void;
   removeEventListener?: (type: string, listener: () => void) => void;
+  zoomToCursor?: boolean;
 };
 
 type FrameGraph = {
@@ -67,6 +68,12 @@ export type FrameIdle = {
   touch: () => void;
 };
 
+export function enableCursorZoom(control: FrameControl | null | undefined): boolean {
+  if (!control || !("zoomToCursor" in control)) return false;
+  control.zoomToCursor = true;
+  return true;
+}
+
 export function makeFrameIdle(
   graph: FrameGraph,
   timer: FrameTimer = {
@@ -80,6 +87,7 @@ export function makeFrameIdle(
 ): FrameIdle {
   const canvas = graph.renderer().domElement;
   const controls = graph.controls();
+  enableCursorZoom(controls);
   let running = true;
   let paused = false;
   let pending = 0;
@@ -170,6 +178,24 @@ function useFrameIdle(graphRef: GraphRef) {
   return frameRef;
 }
 
+function useCursorZoom(graphRef: GraphRef, width: number) {
+  useEffect(() => {
+    if (cameraControl(width) !== "orbit") return;
+    let frame = 0;
+    let active = true;
+    const configure = () => {
+      const control = graphRef.current?.controls() as FrameControl | undefined;
+      if (enableCursorZoom(control) || !active) return;
+      frame = window.requestAnimationFrame(configure);
+    };
+    configure();
+    return () => {
+      active = false;
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [graphRef, width]);
+}
+
 function useFrameTouch(frame: MutableRefObject<FrameIdle | null>, values: unknown[]) {
   useEffect(() => frame.current?.touch(), values);
 }
@@ -215,7 +241,7 @@ type SpaceProps = {
 };
 
 export function cameraControl(width: number): "orbit" | "trackball" {
-  return width <= 720 ? "trackball" : "orbit";
+  return width <= 520 ? "trackball" : "orbit";
 }
 
 function PointTips({
@@ -306,6 +332,7 @@ export function GraphSpace({
   const fitKeyRef = useRef<string>();
   const showView = useView(graphRef, camera, viewReady);
   const frameRef = useFrameIdle(graphRef);
+  useCursorZoom(graphRef, width);
   const cloudOpenRef = useRef(cloudSelected);
   useEffect(() => {
     cloudOpenRef.current = cloudSelected;
@@ -424,6 +451,7 @@ export function GraphSpace({
         d3VelocityDecay={0.24}
         enableNodeDrag={false}
         onEngineTick={() => {
+          enableCursorZoom(graphRef.current?.controls() as FrameControl | undefined);
           engineReadyRef.current = true;
           frameRef.current?.engineTick();
         }}
