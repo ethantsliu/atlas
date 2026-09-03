@@ -225,7 +225,7 @@ class PrivacyTests(unittest.TestCase):
 
 
 class ValidationTests(unittest.TestCase):
-    def test_committed_anchor_routes_match_published_atlas(self) -> None:
+    def test_anchor_routes(self) -> None:
         root = Path(__file__).resolve().parents[1]
         validate_anchor_routes(
             root / "data/source/anchors.npz",
