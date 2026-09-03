@@ -85,8 +85,8 @@ function setup() {
 
 describe("3D idle frames", () => {
   it("uses roll-free orbit controls for pointers and proven touch controls on mobile", () => {
-    expect(cameraControl(0)).toBe("orbit");
-    expect(cameraControl(1)).toBe("trackball");
+    expect(cameraControl(1_440)).toBe("orbit");
+    expect(cameraControl(390)).toBe("trackball");
   });
 
   it("pauses only after the engine stops and the idle delay expires", () => {

@@ -260,8 +260,8 @@ export function CloudDetailControl({ count, detail, onChange }: DetailProps) {
   );
 }
 
-export function cameraControl(touchPoints: number): "orbit" | "trackball" {
-  return touchPoints > 0 ? "trackball" : "orbit";
+export function cameraControl(width: number): "orbit" | "trackball" {
+  return width <= 720 ? "trackball" : "orbit";
 }
 
 function PointTips({
@@ -450,7 +450,7 @@ export function GraphSpace({
         graphData={sceneGraph}
         backgroundColor={theme === "dark" ? "#0f1511" : "#f0eadf"}
         showNavInfo={false}
-        controlType={cameraControl(navigator.maxTouchPoints)}
+        controlType={cameraControl(width)}
         numDimensions={3}
         nodeLabel={() => ""}
         nodeThreeObject={makeNode}
