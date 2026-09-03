@@ -81,38 +81,10 @@ function length(vector: readonly number[]) {
   return Math.hypot(...vector);
 }
 
-function sightline(view: CameraSnapshot): [number, number, number] {
-  const yaw = (view.yaw * Math.PI) / 180;
-  const pitch = (view.pitch * Math.PI) / 180;
-  return [
-    -Math.sin(yaw) * Math.cos(pitch),
-    -Math.sin(pitch),
-    -Math.cos(yaw) * Math.cos(pitch),
-  ];
-}
-
-function dot(left: readonly number[], right: readonly number[]) {
-  return left.reduce((total, value, index) => total + value * right[index], 0);
-}
-
 function expectOrbitPreserved(before: CameraSnapshot, after: CameraSnapshot) {
   expect(after.radius).toBeCloseTo(before.radius, 1);
   expect(Math.abs(after.yaw - before.yaw)).toBeLessThanOrEqual(1);
   expect(Math.abs(after.pitch - before.pitch)).toBeLessThanOrEqual(1);
-}
-
-function expectForwardFlight(
-  before: CameraSnapshot,
-  after: CameraSnapshot,
-  minimum = 0,
-) {
-  const delta = targetDelta(before, after);
-  const distance = length(delta);
-  const progress = dot(delta, sightline(before));
-  const sideways = Math.sqrt(Math.max(0, distance ** 2 - progress ** 2));
-  expect(progress).toBeGreaterThan(minimum);
-  expect(sideways).toBeLessThan(0.35);
-  expectOrbitPreserved(before, after);
 }
 
 async function wheelOnGraph(page: Page, deltaY: number, count = 1) {
@@ -222,13 +194,13 @@ test("navigation cancels a deferred camera restore", async ({
   expect(moved).not.toBe(view);
 });
 
-test("repeated wheel input flies through the target without losing orbit control", async ({
+test("wheel zoom preserves the orbit center before and after rotation", async ({
   context,
   page,
 }, testInfo) => {
   test.skip(
     !["chrome", "safari"].includes(testInfo.project.name),
-    "Desktop fly-through is covered in Chromium and WebKit",
+    "Desktop orbit zoom is covered in Chromium and WebKit",
   );
   await mockCopy(context);
   await page.goto(`/#?k=tri&c=${view}`);
@@ -238,13 +210,15 @@ test("repeated wheel input flies through the target without losing orbit control
   const initial = cameraSnapshot(view);
 
   await wheelOnGraph(page, -120, 6);
-  const crossedValue = await steadyCamera(page);
-  const crossed = cameraSnapshot(crossedValue);
-  const originalCameraDistance = initial.radius / Math.tan((25 * Math.PI) / 180);
-  expectForwardFlight(initial, crossed, originalCameraDistance);
+  const zoomedValue = await steadyCamera(page);
+  const zoomed = cameraSnapshot(zoomedValue);
+  expect(length(targetDelta(initial, zoomed))).toBeLessThan(0.35);
+  expect(zoomed.radius).toBeLessThan(initial.radius);
+  expect(zoomed.yaw).toBeCloseTo(initial.yaw, 0);
+  expect(zoomed.pitch).toBeCloseTo(initial.pitch, 0);
 
   await page.waitForTimeout(1_500);
-  expect(await copyCamera(page)).toBe(crossedValue);
+  expect(await copyCamera(page)).toBe(zoomedValue);
 
   const box = await graph.boundingBox();
   if (!box) throw new Error("Research graph has no bounds");
@@ -255,21 +229,24 @@ test("repeated wheel input flies through the target without losing orbit control
   await page.mouse.move(x + 90, y + 35, { steps: 8 });
   await page.mouse.up();
   const orbited = cameraSnapshot(await steadyCamera(page));
-  expect(length(targetDelta(crossed, orbited))).toBeLessThan(0.35);
-  expect(orbited.radius).toBeCloseTo(crossed.radius, 1);
+  expect(length(targetDelta(zoomed, orbited))).toBeLessThan(0.35);
+  expect(orbited.radius).toBeCloseTo(zoomed.radius, 1);
   expect(
-    Math.abs(orbited.yaw - crossed.yaw) + Math.abs(orbited.pitch - crossed.pitch),
+    Math.abs(orbited.yaw - zoomed.yaw) + Math.abs(orbited.pitch - zoomed.pitch),
   ).toBeGreaterThan(2);
 
-  await wheelOnGraph(page, -120);
-  const continuedValue = await steadyCamera(page);
-  const continued = cameraSnapshot(continuedValue);
-  expectForwardFlight(orbited, continued, 1);
+  await wheelOnGraph(page, 120, 6);
+  const restoredValue = await steadyCamera(page);
+  const restored = cameraSnapshot(restoredValue);
+  expect(length(targetDelta(orbited, restored))).toBeLessThan(0.35);
+  expect(restored.radius).toBeGreaterThan(orbited.radius);
+  expect(restored.yaw).toBeCloseTo(orbited.yaw, 0);
+  expect(restored.pitch).toBeCloseTo(orbited.pitch, 0);
   await page.waitForTimeout(1_500);
-  expect(await copyCamera(page)).toBe(continuedValue);
+  expect(await copyCamera(page)).toBe(restoredValue);
 });
 
-test("WebKit accumulates fractional trackpad deltas and keeps pinch zoom native", async ({
+test("WebKit keeps fractional trackpad and pinch zoom centered", async ({
   context,
   page,
 }, testInfo) => {
@@ -290,7 +267,10 @@ test("WebKit accumulates fractional trackpad deltas and keeps pinch zoom native"
   }
   const trackedValue = await steadyCamera(page);
   const tracked = cameraSnapshot(trackedValue);
-  expectForwardFlight(initial, tracked, 1);
+  expect(length(targetDelta(initial, tracked))).toBeLessThan(0.35);
+  expect(tracked.radius).toBeLessThan(initial.radius);
+  expect(tracked.yaw).toBeCloseTo(initial.yaw, 0);
+  expect(tracked.pitch).toBeCloseTo(initial.pitch, 0);
 
   await canvas.dispatchEvent("wheel", {
     deltaY: -120,

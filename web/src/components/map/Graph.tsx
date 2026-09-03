@@ -169,7 +169,7 @@ export function GraphCanvas({
   const graphRef = useRef<GraphRef["current"]>();
   const fallbackRef = useRef<FallbackRef["current"]>();
   const [planeReady, setPlaneReady] = useState(false);
-  const [cloudDetail, setCloudDetail] = useState<CloudDetail>("sample");
+  const [cloudDetail, setCloudDetail] = useState<CloudDetail>("full");
   const selectedId = selectedValue(graph, selected);
   const cloudReady = mode === "3d" || planeReady;
   const visibleCount = nodeCount(graph, cloud, cloudHidden, cloudMark, cloudReady);

@@ -55,10 +55,8 @@ test("3D cloud keeps a stable rotation level", async ({ page }, testInfo) => {
     (await page.locator(".filters .aside-copy").getAttribute("data-cloud-count")) ?? 0,
   );
   expect(expected).toBeGreaterThan(100_000);
-  const rendered = expected >= 3_000_000 ? 100_000 : expected;
-  await expect.poll(() => drawCount(page), { timeout: 60_000 }).toBe(rendered);
+  await expect.poll(() => drawCount(page), { timeout: 60_000 }).toBe(expected);
   const full = await drawCount(page);
-  const coarse = full <= 250_000 ? full : full >= 3_000_000 ? 100_000 : 72_000;
   await startTrace(page);
 
   const canvas = graph.locator("canvas").first();
@@ -69,22 +67,30 @@ test("3D cloud keeps a stable rotation level", async ({ page }, testInfo) => {
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + 120, y + 60, { steps: 12 });
-  await expect.poll(() => drawCount(page), { timeout: 10_000 }).toBe(coarse);
+  await expect.poll(() => drawCount(page), { timeout: 10_000 }).toBe(full);
   await page.mouse.up();
   await expect.poll(() => drawCount(page), { timeout: 10_000 }).toBe(full);
   await page.waitForTimeout(1_000);
   expect(await drawCount(page)).toBe(full);
-  expect(await stopTrace(page)).toEqual(
-    coarse === full ? [full] : [full, coarse, full],
-  );
+  expect(await stopTrace(page)).toEqual([full]);
 
   const density = page.getByRole("group", {
     name: "historical paper dot density",
   });
+  if (expected <= 250_000) {
+    await expect(density).toHaveCount(0);
+    return;
+  }
   const all = density.getByRole("button", { name: /^All / });
+  await expect(all).toHaveAttribute("aria-pressed", "true");
+  const overview = density.getByRole("button", { name: /^(72K|100K)$/ });
+  await overview.click();
+  await expect(overview).toHaveAttribute("aria-pressed", "true");
+  const reduced = expected >= 3_000_000 ? 100_000 : 72_000;
+  await expect.poll(() => drawCount(page), { timeout: 30_000 }).toBe(reduced);
   await all.click();
   await expect(all).toHaveAttribute("aria-pressed", "true");
-  await expect.poll(() => drawCount(page), { timeout: 30_000 }).toBe(expected);
+  await expect.poll(() => drawCount(page), { timeout: 30_000 }).toBe(full);
   await startTrace(page);
 
   await page.mouse.move(x, y);

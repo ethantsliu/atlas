@@ -19,7 +19,6 @@ import { useMarks } from "../../hooks/marks";
 import { useSwarm, type SwarmTip } from "../../hooks/swarm";
 import type { Theme } from "../../hooks/theme";
 import { useView } from "../../hooks/view";
-import { useFly } from "../../hooks/fly";
 import { useCore, type CoreTip } from "../../hooks/core";
 import { useBegin } from "../../hooks/begin";
 import { graphEndpointId, graphKey, largestGroup, splitPapers } from "../../lib/graph";
@@ -353,7 +352,6 @@ export function GraphSpace({
   const fitKeyRef = useRef<string>();
   const showView = useView(graphRef, camera, viewReady);
   const frameRef = useFrameIdle(graphRef);
-  useFly(graphRef);
   const cloudOpenRef = useRef(cloudSelected);
   useEffect(() => {
     cloudOpenRef.current = cloudSelected;
