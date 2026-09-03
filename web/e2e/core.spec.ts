@@ -416,7 +416,9 @@ test("history streams points without eager paper metadata", async ({ page }) => 
   const metadata: string[] = [];
   page.on("request", (request) => {
     const url = request.url();
-    if (/\/data\/cloud\/\d{4}-\d{2}\.bin(?:\?.*)?$/.test(url)) points.push(url);
+    if (/\/data\/cloud\/(?:\d{4}-\d{2}|p\d{3,})\.bin(?:\?.*)?$/.test(url)) {
+      points.push(url);
+    }
     if (/\/data\/cloud\/\d{4}-\d{2}\.json(?:\?.*)?$/.test(url)) metadata.push(url);
   });
   await loadMap(page, "/#?d=3");
@@ -793,6 +795,7 @@ test("touch opens a historical paper in the stacked inspector", async ({
       timeout: 20_000,
     },
   );
+  await fullNodes(page);
   await waitCamera(page, target.camera);
 
   const graph = page.getByLabel("Interactive 3D research graph");
