@@ -2,7 +2,6 @@ import { lazy, Suspense, useState } from "react";
 import { ChevronDown, SlidersHorizontal, X } from "lucide-react";
 import { getCoverageSnapshot } from "../../lib/coverage";
 import { ALL_NODE_KINDS, NODE_COLORS } from "../../lib/graph";
-import { labelOf } from "../../lib/text";
 import type { GraphNodeKind } from "../../types";
 import type { AtlasRead } from "../../lib/payload";
 
@@ -20,6 +19,13 @@ type MapFiltersProps = {
   onToggleKind: (kind: GraphNodeKind) => void;
   onMinFeasibilityChange: (score: number) => void;
   onClearFocus: () => void;
+};
+
+const KIND_LABELS: Record<GraphNodeKind, string> = {
+  topic: "Broad areas",
+  trick: "Technique families",
+  paper: "Papers",
+  idea: "Screened briefs",
 };
 
 function countForKind(
@@ -76,17 +82,11 @@ export function MapFilters({
       >
         <p className="aside-copy" data-cloud-count={archiveCount ?? 0}>
           {archiveCount
-            ? `${(atlas.meta.paper_count + archiveCount).toLocaleString()} papers mapped by semantic similarity. Select one to inspect its available details.`
-            : `${atlas.meta.paper_count.toLocaleString()} papers mapped with research areas, techniques, and ideas.`}
+            ? `${(atlas.meta.paper_count + archiveCount).toLocaleString()} mapped papers. Select one.`
+            : `${atlas.meta.paper_count.toLocaleString()} mapped papers.`}
         </p>
 
-        <Suspense
-          fallback={
-            <p className="range-copy catalog-copy">
-              Topics and tricks are curated lenses. Ideas are screened briefs.
-            </p>
-          }
-        >
+        <Suspense fallback={<p className="range-copy catalog-copy">Loading…</p>}>
           <CatalogCopy enabled={Boolean(archiveCount)} ideas={atlas.meta.idea_count} />
         </Suspense>
 
@@ -98,7 +98,7 @@ export function MapFilters({
             key={kind}
           >
             <span style={{ background: NODE_COLORS[kind] }} />
-            <span>{labelOf(kind)}</span>
+            <span>{KIND_LABELS[kind]}</span>
             <small>{countForKind(atlas, kind, archiveCount).toLocaleString()}</small>
           </button>
         ))}

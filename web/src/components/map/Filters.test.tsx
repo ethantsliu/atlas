@@ -20,9 +20,11 @@ describe("MapFilters", () => {
     );
 
     expect(markup).toContain("289</small>");
-    expect(markup).toContain("2 papers mapped");
-    expect(markup).toContain("curated lenses");
-    expect(markup).toContain("screened briefs");
+    expect(markup).toContain("2 mapped papers");
+    expect(markup).toContain("Broad areas");
+    expect(markup).toContain("Technique families");
+    expect(markup).toContain("Screened briefs");
+    expect(markup).toContain("Loading");
     expect(markup).not.toContain("historical arXiv records");
     expect(markup).not.toContain("foreground papers");
   });
