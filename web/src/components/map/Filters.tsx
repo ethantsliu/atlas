@@ -5,11 +5,13 @@ import { ALL_NODE_KINDS, NODE_COLORS } from "../../lib/graph";
 import { labelOf } from "../../lib/text";
 import type { GraphNodeKind } from "../../types";
 import type { AtlasRead } from "../../lib/payload";
+import type { CatalogSummary } from "../../lib/catalog";
 import { CoverageMini } from "../shared/Coverage";
 
 type MapFiltersProps = {
   atlas: AtlasRead;
   archiveCount?: number;
+  catalog?: CatalogSummary | null;
   kinds: ReadonlySet<GraphNodeKind>;
   focus: string | null;
   minFeasibility: number;
@@ -38,6 +40,7 @@ function countForKind(
 export function MapFilters({
   atlas,
   archiveCount,
+  catalog,
   kinds,
   focus,
   minFeasibility,
@@ -74,6 +77,12 @@ export function MapFilters({
           {archiveCount
             ? `${(atlas.meta.paper_count + archiveCount).toLocaleString()} papers mapped by semantic similarity. Select one to inspect its available details.`
             : `${atlas.meta.paper_count.toLocaleString()} papers mapped with research areas, techniques, and ideas.`}
+        </p>
+
+        <p className="range-copy catalog-copy">
+          {catalog
+            ? `${catalog.broadAreas.toLocaleString()} broad areas and ${catalog.techniqueFamilies.toLocaleString()} technique families are navigation lenses. The full ${catalog.sourceCount.toLocaleString()}-paper catalog adds ${catalog.arxivSubjects.toLocaleString()} arXiv subjects and ${catalog.candidateDirections.toLocaleString()} of ${catalog.eligibleDirections.toLocaleString()} qualifying candidate directions. The ${atlas.meta.idea_count.toLocaleString()} ideas remain separately screened briefs.`
+            : "Topics and tricks are curated navigation lenses, not one label per paper. Ideas are screened briefs rather than automatic claims."}
         </p>
 
         {ALL_NODE_KINDS.map((kind) => (

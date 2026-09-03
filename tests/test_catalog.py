@@ -63,8 +63,9 @@ class CatalogTests(unittest.TestCase):
             "pipeline/catalog.py",
             "tests.test_catalog",
             "web/public/data/catalog.json",
-            "git add \"$CATALOG_OUTPUT\"",
+            'git add "$CATALOG_OUTPUT"',
             "Main changed during catalog generation",
+            "gh workflow run check.yml --ref main",
         ):
             with self.subTest(text=text):
                 self.assertIn(text, workflow)
