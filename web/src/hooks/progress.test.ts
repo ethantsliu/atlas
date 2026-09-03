@@ -260,7 +260,7 @@ describe("progressive point mounting", () => {
     harness.unmount();
   });
 
-  it("retries one touch pick after camera motion settles", async () => {
+  it("keeps one touch pick through slow camera settling", async () => {
     const canvas = new EventTarget() as HTMLCanvasElement;
     canvas["getBoundingClientRect"] = () =>
       ({ height: 100, left: 0, top: 0, width: 100 }) as DOMRect;
@@ -314,8 +314,10 @@ describe("progressive point mounting", () => {
     controls.dispatchEvent(new Event("change"));
     expect(pick).not.toHaveBeenCalled();
 
-    retries.shift()?.();
-    expect(pick).not.toHaveBeenCalled();
+    for (let retry = 0; retry < 4; retry += 1) {
+      retries.shift()?.();
+      expect(pick).not.toHaveBeenCalled();
+    }
     points.userData.moving = false;
     retries.shift()?.();
     await Promise.resolve();

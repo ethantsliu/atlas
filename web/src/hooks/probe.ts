@@ -2,6 +2,8 @@ import type { CloudPick } from "../lib/cloud";
 import type { PickOrder } from "../lib/order";
 import { CLOUD_REST_MS, type CloudSwarm } from "../lib/swarm";
 
+const CLICK_SETTLE_TRIES = 20;
+
 export type PointTip = { depth: number; label: string; x: number; y: number };
 
 export type Claim = {
@@ -294,7 +296,7 @@ export function choosePoint(args: ClickInput): void {
   }
   if (refs.points.current?.userData?.moving) {
     const tries = args.tries ?? 0;
-    if (tries >= 4) {
+    if (tries >= CLICK_SETTLE_TRIES) {
       args.done?.();
       return;
     }
