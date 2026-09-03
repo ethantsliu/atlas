@@ -55,7 +55,7 @@ def shard(year: int, papers: list[dict]) -> dict:
 
 
 class CatalogTests(unittest.TestCase):
-    def test_workflow_publishes_only_the_compact_catalog(self) -> None:
+    def test_workflow_catalog(self) -> None:
         workflow = (ROOT / ".github/workflows/catalog.yml").read_text(encoding="utf-8")
         for text in (
             "contents: write",
@@ -90,7 +90,7 @@ class CatalogTests(unittest.TestCase):
             write_manifest(root)
             return build_catalog(root)
 
-    def test_streams_exact_counts_and_candidates(self) -> None:
+    def test_counts_candidates(self) -> None:
         value = self.build()
 
         self.assertIs(check_catalog(value), value)
@@ -115,7 +115,7 @@ class CatalogTests(unittest.TestCase):
             self.assertEqual(row["independent_author_groups_at_least"], 3)
             self.assertEqual(len(row["support_ids"]), 6)
 
-    def test_requires_evidence_across_years(self) -> None:
+    def test_year_evidence(self) -> None:
         value = self.build(two_years=False)
 
         self.assertEqual(value["counts"]["eligible_directions"], 0)
