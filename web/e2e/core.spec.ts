@@ -425,7 +425,7 @@ test("the initial map enables every lens", async ({ page }) => {
     { timeout: 20_000 },
   );
   await fullNodes(page);
-  await expect(page.getByRole("button", { name: /Paper\s+[,\d]+/ })).toHaveAttribute(
+  await expect(page.getByRole("button", { name: /Papers\s+[,\d]+/ })).toHaveAttribute(
     "aria-pressed",
     "true",
   );
@@ -455,7 +455,7 @@ test("the paper lens fetches its shard once", async ({ page }) => {
   const hits = trackShard(page);
   await loadMap(page);
   await showFilters(page);
-  const lens = page.getByRole("button", { name: /Paper\s+[,\d]+/ });
+  const lens = page.getByRole("button", { name: /Papers\s+[,\d]+/ });
   await lens.click();
   await fullNodes(page);
   expect(hits).toHaveLength(1);
@@ -664,7 +664,7 @@ test("historical paper points open the inline inspector", async ({
   await expect(inspector.getByRole("heading", { name: title })).toBeVisible();
 
   const picker = page.getByLabel("Choose a visible graph node");
-  await page.getByRole("button", { name: /Topic\s+17/ }).click();
+  await page.getByRole("button", { name: /Broad areas\s+17/ }).click();
   await picker.fill("pretraining");
   await page.getByRole("option", { name: /Topic\s+pretraining/i }).click();
   await expect(inspector.getByRole("heading", { name: "pretraining" })).toBeVisible();
@@ -954,7 +954,7 @@ test("2D hover and click use the same inline inspector", async ({ page }, testIn
     "2D archive interaction requires WebGL2",
   );
   await showFilters(page);
-  await page.getByRole("button", { name: /Paper\s+[,\d]+/ }).click();
+  await page.getByRole("button", { name: /Papers\s+[,\d]+/ }).click();
   const picker = page.getByLabel("Choose a visible graph node");
   const filters = page.locator(".filters");
   await expect(filters).toContainText("papers mapped");
@@ -1012,7 +1012,7 @@ test("copied view links include a camera snapshot", async ({ page, context }) =>
   });
   await loadMap(page);
   await showFilters(page);
-  await page.getByRole("button", { name: /Paper\s+[,\d]+/ }).click();
+  await page.getByRole("button", { name: /Papers\s+[,\d]+/ }).click();
   await fullNodes(page);
   const header = page.locator(".graph-header > div");
   await expect(header).toContainText(/[,\d]+ nodes/, { timeout: 20_000 });
@@ -1094,14 +1094,13 @@ test("URL state hydrates all map controls", async ({ page }) => {
     page.getByRole("button", { name: "connections", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   const filters = page.locator(".filters");
-  await expect(filters.getByRole("button", { name: /^Topic\s/ })).toHaveAttribute(
+  await expect(filters.getByRole("button", { name: /^Broad areas\s/ })).toHaveAttribute(
     "aria-pressed",
     "true",
   );
-  await expect(filters.getByRole("button", { name: /^Trick\s/ })).toHaveAttribute(
-    "aria-pressed",
-    "false",
-  );
+  await expect(
+    filters.getByRole("button", { name: /^Technique families\s/ }),
+  ).toHaveAttribute("aria-pressed", "false");
 });
 
 test("history restores pushed views", async ({ page }) => {

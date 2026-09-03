@@ -104,7 +104,9 @@ test("both dimensions share one cloud while 3D code stays lazy", async ({
   await page.goto("/");
   await overview(page);
   await selectTopic(page);
-  const trick = page.getByRole("button", { name: /^Trick\s+[\d,]+$/ });
+  const trick = page.getByRole("button", {
+    name: /^Technique families\s+[\d,]+$/,
+  });
   await trick.click();
   await expect(trick).toHaveAttribute("aria-pressed", "false");
 
