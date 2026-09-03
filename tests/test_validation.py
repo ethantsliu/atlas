@@ -19,6 +19,7 @@ from scholar import cache_text  # noqa: E402
 from privacy import public_reviewer_id, unsafe_public, validate_public  # noqa: E402
 from validate import (  # noqa: E402
     is_primary_url,
+    validate_anchor_routes,
     validate_competitor_panel,
     validate_experiment_plan,
     validate_feasibility,
@@ -224,6 +225,13 @@ class PrivacyTests(unittest.TestCase):
 
 
 class ValidationTests(unittest.TestCase):
+    def test_committed_anchor_routes_match_published_atlas(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        validate_anchor_routes(
+            root / "data/source/anchors.npz",
+            root / "web/public/data/atlas.json",
+        )
+
     def test_idea_shape(self) -> None:
         validate_idea_shape(valid_idea())
         cases = (

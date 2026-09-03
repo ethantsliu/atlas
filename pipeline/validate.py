@@ -42,6 +42,7 @@ from readings import (
     validate_reading,
     validate_source_routes,
 )
+from routes import load_anchors, load_node_ids
 from rules import check, is_primary_url, validate_competitor_panel
 from shapes import validate_idea_shape
 
@@ -51,6 +52,7 @@ __all__ = [
     "READINGS_DIR",
     "is_primary_url",
     "validate_atlas_contents",
+    "validate_anchor_routes",
     "validate_brief_protocols",
     "validate_clusters",
     "validate_competitor_panel",
@@ -67,6 +69,16 @@ __all__ = [
     "validate_researched_brief",
     "validate_review_queues",
 ]
+
+
+def validate_anchor_routes(
+    anchors_path: Path | None = None,
+    atlas_path: Path | None = None,
+) -> None:
+    """Require semantic route anchors to match the published graph exactly."""
+    anchors_path = anchors_path or ROOT / "data/source/anchors.npz"
+    atlas_path = atlas_path or ROOT / "web/public/data/atlas.json"
+    load_anchors(anchors_path, load_node_ids(atlas_path))
 
 
 def validate_atlas_metadata(
@@ -303,6 +315,7 @@ def main() -> None:
         readings,
         include_dist=not args.skip_dist,
     )
+    validate_anchor_routes()
     validate_feed(include_dist=not args.skip_dist)
     print(
         json.dumps(
