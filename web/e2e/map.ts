@@ -22,12 +22,14 @@ export async function fullNodes(page: Page): Promise<string> {
   const graph3d = page.getByLabel("Interactive 3D research graph");
   const plane = page.locator(".cloud-plane");
   const has3d = (await graph3d.count()) > 0;
-  if (!has3d && (await plane.count()) > 0) {
-    await expect(plane).toHaveAttribute("data-engine", /^(ready|unsupported)$/, {
-      timeout: 20_000,
-    });
+  let planeEngine: string | null = null;
+  if (!has3d) {
+    await expect
+      .poll(() => plane.getAttribute("data-engine"), { timeout: 20_000 })
+      .toMatch(/^(ready|unsupported)$/);
+    planeEngine = await plane.getAttribute("data-engine");
   }
-  const cloudVisible = has3d || (await plane.getAttribute("data-engine")) === "ready";
+  const cloudVisible = has3d || planeEngine === "ready";
   const toggles = filters.locator(".kind-toggle");
   const counts = await Promise.all(
     [0, 1, 2, 3].map(async (index) => {

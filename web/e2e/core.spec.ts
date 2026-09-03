@@ -128,21 +128,42 @@ async function cloudTarget(): Promise<CloudTarget> {
   const { manifest, positions, root } = await cloudLayout();
   const foreground = await layoutPoints();
 
-  const shard = manifest.shards.at(-1)!;
-  const start = manifest.count - shard.count;
-  const samples = Math.min(128, shard.count);
-  let best = start;
+  const stableSize = manifest.count >= 3_000_000 ? 100_000 : 0;
+  const stableIds = stableSize
+    ? Uint32Array.from({ length: stableSize }, (_, index) =>
+        Math.floor(((index + 0.5) * manifest.count) / stableSize),
+      )
+    : null;
+  const rendered = stableIds ? new Float32Array(stableIds.length * 3) : positions;
+  stableIds?.forEach((index, sample) => {
+    rendered.set(positions.subarray(index * 3, index * 3 + 3), sample * 3);
+  });
+  const last = manifest.shards.at(-1)!;
+  const lastStart = manifest.count - last.count;
+  const candidateCount = stableIds?.length ?? last.count;
+  const samples = Math.min(128, candidateCount);
+  let bestRendered = stableIds ? 0 : lastStart;
   let bestGap = -1;
   for (let sample = 0; sample < samples; sample += 1) {
-    const local = Math.floor((sample * (shard.count - 1)) / Math.max(1, samples - 1));
-    const candidate = start + local;
-    const gap = screenGap(positions, candidate, foreground);
+    const local = Math.floor(
+      (sample * (candidateCount - 1)) / Math.max(1, samples - 1),
+    );
+    const candidate = stableIds ? local : lastStart + local;
+    const gap = screenGap(rendered, candidate, foreground);
     if (gap > bestGap) {
-      best = candidate;
+      bestRendered = candidate;
       bestGap = gap;
     }
   }
 
+  const best = stableIds?.[bestRendered] ?? bestRendered;
+  let start = 0;
+  const shard = manifest.shards.find((candidate) => {
+    if (best < start + candidate.count) return true;
+    start += candidate.count;
+    return false;
+  });
+  if (!shard) throw new Error("Historical target is outside its manifest");
   const local = best - start;
   const metadata = JSON.parse(await readFile(join(root, shard.meta.path), "utf8")) as {
     papers: string[][];
@@ -806,27 +827,26 @@ test("touch opens a historical paper in the stacked inspector", async ({
   const selection = page.locator("#graph-selection");
   const canvas = await graph.locator("canvas:not(.cloud-plane)").boundingBox();
   if (!canvas) throw new Error("Research graph canvas has no bounds");
-  const offsets = [0, -24, 24, -48, 48];
-  for (const y of offsets) {
-    for (const x of offsets) {
+  const cloudSource = inspector.getByRole("link", { name: "View on arXiv" });
+  const fractions = [0.15, 0.3, 0.7, 0.85, 0.5];
+  for (const y of fractions) {
+    for (const x of fractions) {
       await page.touchscreen.tap(
-        canvas.x + canvas.width / 2 + x,
-        canvas.y + canvas.height / 2 + y,
+        canvas.x + canvas.width * x,
+        canvas.y + canvas.height * y,
       );
-      await page.waitForTimeout(300);
-      if ((await selection.textContent())?.startsWith("Paper selected:")) break;
+      await page.waitForTimeout(700);
+      if ((await cloudSource.count()) > 0) break;
     }
-    if ((await selection.textContent())?.startsWith("Paper selected:")) break;
+    if ((await cloudSource.count()) > 0) break;
   }
+  await expect(cloudSource).toBeVisible({ timeout: 20_000 });
   await expect(selection).toContainText("Paper selected:");
   const title =
     (await selection.textContent())?.replace(/^Paper selected:\s*/, "") ?? "";
   expect(title).not.toBe("");
   await expect(inspector.getByRole("heading", { name: title })).toBeVisible();
-  await expect(inspector.getByRole("link", { name: "View on arXiv" })).toHaveAttribute(
-    "href",
-    /^https:\/\/arxiv\.org\/abs\//,
-  );
+  await expect(cloudSource).toHaveAttribute("href", /^https:\/\/arxiv\.org\/abs\//);
   await expect(inspector).toHaveAccessibleName(title);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   const afterGraph = await graph.boundingBox();
