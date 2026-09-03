@@ -33,16 +33,21 @@ test("2D and non-map routes cannot reach the 3D entry", () => {
     (key) => manifest[key].src === "src/lib/relation.ts",
   );
   const rowKey = mapDynamic.find((key) => manifest[key].src === "src/lib/cloudrow.ts");
+  const catalogKey = mapDynamic.find(
+    (key) => manifest[key].src === "src/components/map/Catalog.tsx",
+  );
   assert.ok(relationKey);
   assert.ok(rowKey);
+  assert.ok(catalogKey);
   assert.deepEqual(
     new Set(mapDynamic),
-    new Set([keys.fallbackKey, keys.spaceKey, relationKey, rowKey]),
+    new Set([keys.fallbackKey, keys.spaceKey, relationKey, rowKey, catalogKey]),
   );
   assert.equal(manifest[keys.fallbackKey].isDynamicEntry, true);
   assert.equal(manifest[keys.spaceKey].isDynamicEntry, true);
   assert.equal(manifest[relationKey].isDynamicEntry, true);
   assert.equal(manifest[rowKey].isDynamicEntry, true);
+  assert.equal(manifest[catalogKey].isDynamicEntry, true);
 
   const threeDEntry = manifest[keys.spaceKey].file;
   const forcedTwoD = routeAssets(profile, [
@@ -53,6 +58,7 @@ test("2D and non-map routes cannot reach the 3D entry", () => {
   assert.equal(forcedTwoD.has(threeDEntry), false);
   assert.equal(forcedTwoD.has(manifest[relationKey].file), false);
   assert.equal(forcedTwoD.has(manifest[rowKey].file), false);
+  assert.equal(forcedTwoD.has(manifest[catalogKey].file), false);
 
   for (const key of keys.nonMapKeys) {
     const assets = routeAssets(profile, [keys.shellKey, key]);

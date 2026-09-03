@@ -13,7 +13,6 @@ import type { Theme } from "../hooks/theme";
 import type { CameraView } from "../lib/camera";
 import { resolvePaper } from "../lib/filters";
 import { useCloud, type CloudLoad } from "../hooks/cloud";
-import { useCatalogSummary } from "../hooks/catalog";
 import { useFocus } from "../hooks/focus";
 import type { RenderMode } from "../hooks/webgl";
 import "../hit.css";
@@ -129,7 +128,6 @@ export function MapView({
   const kinds = useMemo(() => new Set(url.kinds), [url.kinds]);
   const cloudEnabled = kinds.has("paper") && url.layout === "semantic";
   const history = useCloud(cloudEnabled);
-  const catalog = useCatalogSummary(Boolean(history.manifest));
   const ready = mapReady(
     kinds.has("paper"),
     cloudEnabled,
@@ -211,7 +209,6 @@ export function MapView({
       <MapFilters
         atlas={atlas}
         archiveCount={history.manifest?.count}
-        catalog={catalog}
         kinds={kinds}
         focus={url.focus}
         minFeasibility={url.minFeasibility}
