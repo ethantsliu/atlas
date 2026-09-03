@@ -1,6 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { CloudDetailControl, compactDots } from "./Detail";
+
+vi.mock("react-force-graph-3d", () => ({ default: () => null }));
+
+import { CloudDetailControl } from "./Space";
 
 describe("CloudDetailControl", () => {
   it("offers a stable overview and the complete cloud", () => {
@@ -8,7 +11,6 @@ describe("CloudDetailControl", () => {
       <CloudDetailControl count={3_145_393} detail="sample" onChange={vi.fn()} />,
     );
 
-    expect(compactDots(3_145_393)).toBe("3.15M");
     expect(html).toContain("historical paper dot density");
     expect(html).toContain("100K");
     expect(html).toContain("All 3.15M");

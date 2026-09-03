@@ -34,6 +34,10 @@ const GraphSpace = lazy(() =>
   import("./Space").then((module) => ({ default: module.GraphSpace })),
 );
 
+const CloudDetailControl = lazy(() =>
+  import("./Space").then((module) => ({ default: module.CloudDetailControl })),
+);
+
 type GraphCanvasProps = {
   graph: GraphData;
   cloud: CloudData | null;
@@ -113,15 +117,6 @@ function resetGraphView(
   else fallback.current?.zoomToFit(duration, 72);
 }
 
-function archiveVisible(
-  cloud: CloudData | null,
-  ready: boolean,
-  hidden: boolean,
-  layout: LayoutMode,
-): boolean {
-  return Boolean(ready && !hidden && cloud?.loaded && layout === "semantic");
-}
-
 function chooseGraphNode(
   node: GraphNode,
   onChoose: (node: GraphNode) => void,
@@ -129,6 +124,21 @@ function chooseGraphNode(
 ): void {
   onChoose(node);
   target?.focus({ preventScroll: true });
+}
+
+function cloudControl(
+  mode: RenderMode,
+  layout: LayoutMode,
+  count: number,
+  detail: CloudDetail,
+  onChange: (detail: CloudDetail) => void,
+) {
+  if (mode !== "3d" || layout !== "semantic") return null;
+  return (
+    <Suspense fallback={null}>
+      <CloudDetailControl count={count} detail={detail} onChange={onChange} />
+    </Suspense>
+  );
 }
 
 export function GraphCanvas({
@@ -165,6 +175,9 @@ export function GraphCanvas({
   const cloudReady = mode === "3d" || planeReady;
   const visibleCount = nodeCount(graph, cloud, cloudHidden, cloudMark, cloudReady);
   const hasContent = visibleCount > 0;
+  const archive = Boolean(
+    cloudReady && !cloudHidden && cloud?.loaded && layout === "semantic",
+  );
   const resetView = useCallback(
     () => resetGraphView(mode, graphRef, fallbackRef),
     [fallbackRef, graphRef, mode],
@@ -201,14 +214,18 @@ export function GraphCanvas({
             graphRef={graphRef}
             fallbackRef={fallbackRef}
             height={height}
-            cloudCount={cloud?.loaded ?? 0}
-            cloudDetail={cloudDetail}
+            cloudControl={cloudControl(
+              mode,
+              layout,
+              cloud?.loaded ?? 0,
+              cloudDetail,
+              setCloudDetail,
+            )}
             layout={layout}
             mode={mode}
             render={render}
             nodes={graph.nodes}
             onChoose={onChoose}
-            onCloudDetail={setCloudDetail}
             onLayout={onLayout}
             onRender={onRender}
             selected={selected}
@@ -298,11 +315,7 @@ export function GraphCanvas({
           </Suspense>
         )}
 
-        {hasContent && (
-          <GraphLegend
-            archive={archiveVisible(cloud, cloudReady, cloudHidden, layout)}
-          />
-        )}
+        {hasContent && <GraphLegend archive={archive} />}
       </section>
     </>
   );

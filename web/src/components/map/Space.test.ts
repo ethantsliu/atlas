@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("react-force-graph-3d", () => ({ default: () => null }));
 
-import { FRAME_IDLE_WAIT, makeFrameIdle } from "./Space";
+import { FRAME_IDLE_WAIT, cameraControl, makeFrameIdle } from "./Space";
 
 type Pending = { callback: () => void; delay: number };
 
@@ -84,6 +84,11 @@ function setup() {
 }
 
 describe("3D idle frames", () => {
+  it("uses roll-free orbit controls for pointers and proven touch controls on mobile", () => {
+    expect(cameraControl(0)).toBe("orbit");
+    expect(cameraControl(1)).toBe("trackball");
+  });
+
   it("pauses only after the engine stops and the idle delay expires", () => {
     const run = setup();
 

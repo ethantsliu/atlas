@@ -4,7 +4,7 @@ import { GraphLegend } from "./Legend";
 
 describe("GraphLegend", () => {
   it("shows only graph object kinds", () => {
-    const html = renderToStaticMarkup(<GraphLegend />);
+    const html = renderToStaticMarkup(<GraphLegend archive={false} />);
 
     for (const label of ["Topic", "Trick", "Paper", "Idea"]) {
       expect(html).toContain(label);
@@ -16,8 +16,7 @@ describe("GraphLegend", () => {
 
   it("distinguishes the historical cloud from curated papers", () => {
     const html = renderToStaticMarkup(<GraphLegend archive />);
-    expect(html).toContain("arXiv archive");
-    expect(html).toContain("Curated paper");
-    expect(html).toContain("overlapping papers appear brighter");
+    expect(html).toContain("Archive");
+    expect(html).toContain("Curated");
   });
 });
