@@ -1,4 +1,46 @@
+import { createHash } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
+
+const pointBytes = Buffer.alloc(25);
+pointBytes.write("ATLASPT1", 0, "ascii");
+pointBytes.writeUInt32LE(1, 8);
+pointBytes.writeFloatLE(1, 12);
+const pointHash = createHash("sha256").update(pointBytes).digest("hex");
+const zeroHash = "0".repeat(64);
+
+const cloud = {
+  schema_version: 1,
+  source: "arxiv",
+  model: "all-minilm",
+  model_digest: zeroHash,
+  model_revision: "0".repeat(40),
+  projection: "anchor-cosine-8-v1",
+  point_bytes: 13,
+  source_count: 1,
+  count: 1,
+  counts: { likely: 1, possible: 0, outside: 0 },
+  omitted_count: 0,
+  omitted_counts: { likely: 0, possible: 0, outside: 0 },
+  omitted_sha256: zeroHash,
+  foreground_sha256: zeroHash,
+  shards: [
+    {
+      month: "2026-08",
+      source_sha256: zeroHash,
+      source_count: 1,
+      source_counts: { likely: 1, possible: 0, outside: 0 },
+      foreground_sha256: zeroHash,
+      count: 1,
+      counts: { likely: 1, possible: 0, outside: 0 },
+      omitted_count: 0,
+      omitted_counts: { likely: 0, possible: 0, outside: 0 },
+      omitted_ids: [],
+      omitted_sha256: zeroHash,
+      points: { path: "2026-08.bin", sha256: pointHash, bytes: 25 },
+      meta: { path: "2026-08.json", sha256: zeroHash, bytes: 2 },
+    },
+  ],
+};
 
 const catalog = {
   schema_version: 1,
@@ -61,9 +103,19 @@ async function showMobileFilters(page: Page) {
   await toggle.click();
 }
 
+async function mockTinyCloud(page: Page) {
+  await page.route(/\/data\/cloud\/index\.json(?:\?.*)?$/, (route) =>
+    route.fulfill({ contentType: "application/json", json: cloud }),
+  );
+  await page.route(/\/data\/cloud\/2026-08\.bin(?:\?.*)?$/, (route) =>
+    route.fulfill({ contentType: "application/octet-stream", body: pointBytes }),
+  );
+}
+
 test("the corpus catalog exposes subjects, candidate directions, and evidence", async ({
   page,
 }) => {
+  await mockTinyCloud(page);
   await page.route(/\/data\/catalog\.json(?:\?.*)?$/, (route) =>
     route.fulfill({ contentType: "application/json", json: catalog }),
   );
@@ -94,6 +146,7 @@ test("the corpus catalog exposes subjects, candidate directions, and evidence", 
 test("a missing catalog is explicit and leaves curated lenses available", async ({
   page,
 }) => {
+  await mockTinyCloud(page);
   await page.route(/\/data\/catalog\.json(?:\?.*)?$/, (route) =>
     route.fulfill({ status: 503 }),
   );
