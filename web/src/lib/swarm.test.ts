@@ -316,7 +316,7 @@ describe("paper swarm", () => {
     }
   });
 
-  it("restores every one of 3.1M points after motion", () => {
+  it("keeps one stable sample for a 3.1M-point cloud", () => {
     const count = 3_100_000;
     const cloud = buildCloud(
       {
@@ -329,8 +329,8 @@ describe("paper swarm", () => {
       "light",
     );
     try {
-      expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.full);
-      expect(cloud.geometry.drawRange.count).toBe(count);
+      expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.coarse);
+      expect(cloud.geometry.drawRange.count).toBe(100_000);
 
       moveCloud(cloud);
       expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.coarse);
@@ -339,10 +339,10 @@ describe("paper swarm", () => {
       expect(cloud.material.uniforms.pointOpacity.value).toBeCloseTo(0.495);
 
       restCloud(cloud);
-      expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.full);
-      expect(cloud.geometry.drawRange.count).toBe(count);
-      expect(cloud.material.uniforms.pointSize.value).toBe(1.2);
-      expect(cloud.material.uniforms.pointOpacity.value).toBe(0.3);
+      expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.coarse);
+      expect(cloud.geometry.drawRange.count).toBe(100_000);
+      expect(cloud.material.uniforms.pointSize.value).toBeCloseTo(2.64);
+      expect(cloud.material.uniforms.pointOpacity.value).toBeCloseTo(0.495);
     } finally {
       dropCloud(cloud);
       cloud.geometry.dispose();

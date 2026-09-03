@@ -101,6 +101,16 @@ export function pickReady(source: Points<BufferGeometry, ShaderMaterial>): boole
   return source.userData.moving !== true;
 }
 
+export function pickIndex(
+  source: Points<BufferGeometry, ShaderMaterial>,
+  index: number,
+): number | null {
+  const ids = source.userData.coarseIds;
+  const coarse = source.userData.coarse;
+  if (source.geometry.getAttribute("position") !== coarse) return index;
+  return ids instanceof Uint32Array ? (ids[index] ?? null) : index;
+}
+
 function sameValues(left: number[], right: number[]): boolean {
   return left.every((value, index) => value === right[index]);
 }
@@ -342,7 +352,8 @@ export function makeGpuPick(
     }
     const count = Math.max(0, source.geometry.drawRange.count);
     const radius = pickRadius(hitSize, width, height, rect);
-    const index = readHit(bytes, pointX, pointY, left, top, count, radius);
+    const local = readHit(bytes, pointX, pointY, left, top, count, radius);
+    const index = local == null ? null : pickIndex(source, local);
     if (index == null || index * 3 + 2 >= positions.length) return null;
     world.fromArray(positions, index * 3).applyMatrix4(source.matrixWorld);
     camera.getWorldPosition(cameraAt);

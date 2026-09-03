@@ -9,6 +9,7 @@ import {
 import {
   ID_SIZE,
   PICK_SIZE,
+  pickIndex,
   pickRadius,
   pickReady,
   readHit,
@@ -33,6 +34,21 @@ describe("GPU pick alignment", () => {
     expect(pickReady(points)).toBe(false);
     points.userData.moving = false;
     expect(pickReady(points)).toBe(true);
+  });
+
+  it("maps a sampled point back to its full corpus index", () => {
+    const geometry = new BufferGeometry();
+    const full = new Float32BufferAttribute([0, 0, 0, 1, 1, 1], 3);
+    const coarse = new Float32BufferAttribute([1, 1, 1], 3);
+    geometry.setAttribute("position", coarse);
+    const points = new Points(geometry, new ShaderMaterial());
+    points.userData.full = full;
+    points.userData.coarse = coarse;
+    points.userData.coarseIds = new Uint32Array([1]);
+
+    expect(pickIndex(points, 0)).toBe(1);
+    geometry.setAttribute("position", full);
+    expect(pickIndex(points, 0)).toBe(0);
   });
 
   it("invalidates an asynchronous pick when the camera moves", () => {

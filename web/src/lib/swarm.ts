@@ -104,6 +104,7 @@ export type CloudSwarm = Points<BufferGeometry, ShaderMaterial> & {
 export const CLOUD_BATCH = 65_536;
 export const CLOUD_LOD_CAP = 100_000;
 export const CLOUD_LOD_MAX = 250_000;
+export const CLOUD_STABLE_LIMIT = 3_000_000;
 export const CLOUD_REST_MS = 160;
 export const CLOUD_SETTLE_MS = 280;
 export const CLOUD_LARGE_SETTLE_MS = 800;
@@ -115,7 +116,7 @@ export function cloudSettle(count: number): number {
 
 export function cloudLod(count: number): number {
   if (count <= CLOUD_LOD_MAX) return Math.max(0, count);
-  const floor = count >= 3_000_000 ? CLOUD_LOD_CAP : 72_000;
+  const floor = count >= CLOUD_STABLE_LIMIT ? CLOUD_LOD_CAP : 72_000;
   return Math.min(count, floor);
 }
 
@@ -155,12 +156,13 @@ function fillLod(store: CloudStore, start: number, end: number): [number, number
 
 function showCloud(points: CloudSwarm, coarse: boolean): void {
   const store = points.userData;
-  const position = coarse ? store.coarse : store.full;
+  const reduced = coarse || store.data.positions.length / 3 >= CLOUD_STABLE_LIMIT;
+  const position = reduced ? store.coarse : store.full;
   if (points.geometry.getAttribute("position") !== position) {
     points.geometry.setAttribute("position", position);
   }
-  points.geometry.setDrawRange(0, coarse ? store.coarseLoaded : store.loaded);
-  setTone(points, coarse);
+  points.geometry.setDrawRange(0, reduced ? store.coarseLoaded : store.loaded);
+  setTone(points, reduced);
 }
 
 function clearRest(store: CloudStore): void {
@@ -486,7 +488,10 @@ export function buildCloud(
     settling: false,
     view: null,
   };
-  if (!renderer && data.loaded > 0) fillLod(points.userData, 0, data.loaded);
+  if (!renderer && data.loaded > 0) {
+    fillLod(points.userData, 0, data.loaded);
+    showCloud(points, false);
+  }
   points.onBeforeRender = (_renderer, _scene, camera) => {
     if (viewMoved(points.userData, camera)) moveCloud(points, redraw);
   };
