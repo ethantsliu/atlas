@@ -783,7 +783,7 @@ test("core gestures preserve picking after camera movement", async ({
 test("touch opens a historical paper in the stacked inspector", async ({
   page,
 }, testInfo) => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
   test.skip(testInfo.project.name !== "iphone", "Dense touch picking uses iPhone");
   test.skip((await cloudSize()) <= 100_000, "Dense cloud touch needs the full corpus");
   const target = await cloudTarget();
@@ -796,16 +796,25 @@ test("touch opens a historical paper in the stacked inspector", async ({
     },
   );
   await fullNodes(page);
-  await waitCamera(page, target.camera);
 
   const graph = page.getByLabel("Interactive 3D research graph");
+  const firstCanvas = await graph.locator("canvas:not(.cloud-plane)").boundingBox();
+  if (!firstCanvas) throw new Error("Research graph canvas has no bounds");
+  const offset = offsetCamera(target, firstCanvas.width / firstCanvas.height);
+  await page.goto(`/?pick=touch#?k=p&c=${offset.camera}`);
+  await fullNodes(page);
+  await waitCamera(page, offset.camera);
+
   const inspector = page.locator("#map-inspector");
   const beforeGraph = await graph.boundingBox();
   if (!beforeGraph) throw new Error("Research graph has no bounds");
-  await page.touchscreen.tap(
-    beforeGraph.x + beforeGraph.width / 2 + 10,
-    beforeGraph.y + beforeGraph.height / 2,
-  );
+  const canvas = await graph.locator("canvas:not(.cloud-plane)").boundingBox();
+  if (!canvas) throw new Error("Research graph canvas has no bounds");
+  const point = {
+    x: canvas.x + ((offset.ndc.x + 1) * canvas.width) / 2,
+    y: canvas.y + ((1 - offset.ndc.y) * canvas.height) / 2,
+  };
+  await page.touchscreen.tap(point.x, point.y);
 
   await expect(inspector.getByRole("heading", { name: target.title })).toBeVisible({
     timeout: 20_000,

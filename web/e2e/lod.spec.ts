@@ -51,17 +51,11 @@ test("3D cloud keeps a stable rotation level", async ({ page }, testInfo) => {
     },
   );
 
-  await expect
-    .poll(
-      async () => {
-        const first = await drawCount(page);
-        if (first <= 100_000) return 0;
-        await page.waitForTimeout(3_000);
-        return (await drawCount(page)) === first ? first : 0;
-      },
-      { timeout: 45_000 },
-    )
-    .toBeGreaterThan(100_000);
+  const expected = Number(
+    (await page.locator(".filters .aside-copy").getAttribute("data-cloud-count")) ?? 0,
+  );
+  expect(expected).toBeGreaterThan(100_000);
+  await expect.poll(() => drawCount(page), { timeout: 60_000 }).toBe(expected);
   const full = await drawCount(page);
   const coarse = full <= 250_000 ? full : full >= 3_000_000 ? 100_000 : 72_000;
   await startTrace(page);
