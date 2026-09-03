@@ -13,7 +13,9 @@ export function GraphHelp({ cloudLabel, mode, selected }: HelpProps) {
     <>
       <p className="sr-only" id="graph-help">
         Arrow keys move between foreground nodes.
-        {mode === "3d" ? " Pointer or touch inspects historical papers." : ""}
+        {mode === "3d"
+          ? " Small pale dots are historical arXiv papers; larger paper dots are curated papers; overlaps appear brighter. Every rendered dot can be selected by pointer or touch."
+          : ""}
         {mode === "3d"
           ? " Drag rotates; scroll travels; pinch zooms."
           : " Drag pans; scroll or pinch zooms."}{" "}

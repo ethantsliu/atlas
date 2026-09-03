@@ -16,6 +16,7 @@ const swarmMocks = vi.hoisted(() => ({
   dropCloud: vi.fn(),
   growCloud: vi.fn(),
   paintCloud: vi.fn(),
+  setCloudDetail: vi.fn(() => false),
 }));
 const gpuMocks = vi.hoisted(() => ({ makeGpuPick: vi.fn() }));
 let activeHarness: HookHarness | null = null;

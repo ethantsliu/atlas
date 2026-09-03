@@ -14,6 +14,7 @@ import { findNextNode, type ArrowKey } from "../../lib/nav";
 import type { CameraView } from "../../lib/camera";
 import type { GraphData, GraphNode } from "../../types";
 import type { CloudData } from "../../lib/cloud";
+import type { CloudDetail } from "../../lib/cloudview";
 import type { CloudPick } from "../../lib/cloud";
 import type { CloudMark } from "../../lib/focus";
 import { GraphControls, type RenderMode } from "./Controls";
@@ -101,6 +102,35 @@ function arrowNode(
   return graph.nodes.find((node) => node.id === next?.id) ?? null;
 }
 
+function resetGraphView(
+  mode: RenderMode,
+  graph: GraphRef,
+  fallback: FallbackRef,
+): void {
+  const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const duration = layoutTime(Boolean(reduced), 700);
+  if (mode === "3d") graph.current?.zoomToFit(duration, 72);
+  else fallback.current?.zoomToFit(duration, 72);
+}
+
+function archiveVisible(
+  cloud: CloudData | null,
+  ready: boolean,
+  hidden: boolean,
+  layout: LayoutMode,
+): boolean {
+  return Boolean(ready && !hidden && cloud?.loaded && layout === "semantic");
+}
+
+function chooseGraphNode(
+  node: GraphNode,
+  onChoose: (node: GraphNode) => void,
+  target: HTMLElement | null,
+): void {
+  onChoose(node);
+  target?.focus({ preventScroll: true });
+}
+
 export function GraphCanvas({
   graph,
   cloud,
@@ -130,19 +160,15 @@ export function GraphCanvas({
   const graphRef = useRef<GraphRef["current"]>();
   const fallbackRef = useRef<FallbackRef["current"]>();
   const [planeReady, setPlaneReady] = useState(false);
+  const [cloudDetail, setCloudDetail] = useState<CloudDetail>("sample");
   const selectedId = selectedValue(graph, selected);
   const cloudReady = mode === "3d" || planeReady;
   const visibleCount = nodeCount(graph, cloud, cloudHidden, cloudMark, cloudReady);
   const hasContent = visibleCount > 0;
-  const resetView = useCallback(() => {
-    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const duration = layoutTime(Boolean(reduced), 700);
-    if (mode === "3d") {
-      graphRef.current?.zoomToFit(duration, 72);
-    } else {
-      fallbackRef.current?.zoomToFit(duration, 72);
-    }
-  }, [fallbackRef, graphRef, mode]);
+  const resetView = useCallback(
+    () => resetGraphView(mode, graphRef, fallbackRef),
+    [fallbackRef, graphRef, mode],
+  );
 
   return (
     <>
@@ -175,11 +201,14 @@ export function GraphCanvas({
             graphRef={graphRef}
             fallbackRef={fallbackRef}
             height={height}
+            cloudCount={cloud?.loaded ?? 0}
+            cloudDetail={cloudDetail}
             layout={layout}
             mode={mode}
             render={render}
             nodes={graph.nodes}
             onChoose={onChoose}
+            onCloudDetail={setCloudDetail}
             onLayout={onLayout}
             onRender={onRender}
             selected={selected}
@@ -216,6 +245,7 @@ export function GraphCanvas({
             <GraphSpace
               graph={graph}
               cloud={cloud}
+              cloudDetail={cloudDetail}
               cloudHidden={cloudHidden}
               cloudSelected={cloudSelected}
               cloudMark={cloudMark}
@@ -227,10 +257,7 @@ export function GraphCanvas({
               layout={layout}
               camera={camera}
               viewReady={cameraReady}
-              onChoose={(node) => {
-                onChoose(node);
-                containerRef.current?.focus({ preventScroll: true });
-              }}
+              onChoose={(node) => chooseGraphNode(node, onChoose, containerRef.current)}
               onCloudPick={onCloudPick}
               onFocus={onFocus}
               onClear={onClearSelection}
@@ -262,10 +289,7 @@ export function GraphCanvas({
               theme={theme}
               layout={layout}
               camera={camera}
-              onChoose={(node) => {
-                onChoose(node);
-                containerRef.current?.focus({ preventScroll: true });
-              }}
+              onChoose={(node) => chooseGraphNode(node, onChoose, containerRef.current)}
               onCloudPick={onCloudPick}
               onPlane={setPlaneReady}
               onFocus={onFocus}
@@ -274,7 +298,11 @@ export function GraphCanvas({
           </Suspense>
         )}
 
-        {hasContent && <GraphLegend />}
+        {hasContent && (
+          <GraphLegend
+            archive={archiveVisible(cloud, cloudReady, cloudHidden, layout)}
+          />
+        )}
       </section>
     </>
   );

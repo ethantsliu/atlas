@@ -8,8 +8,10 @@ import {
   CLOUD_LARGE_SETTLE_MS,
   CLOUD_SETTLE_MS,
   CLOUD_VIEW_EPS,
+  cloudDrawCount,
   cloudLod,
   cloudOpacity,
+  cloudReduced,
   cloudSize,
   cloudSettle,
   cloudTone,
@@ -19,6 +21,7 @@ import {
   moveCloud,
   motionTone,
   restCloud,
+  setCloudDetail,
   swarmNode,
 } from "./swarm";
 import type { GraphNode } from "../types";
@@ -57,7 +60,12 @@ describe("paper swarm", () => {
     expect([...lodIds(10, 4)]).toEqual([1, 3, 6, 8]);
     expect([...lodIds(10, 4)]).toEqual([...lodIds(10, 4)]);
     expect(cloudSettle(250_000)).toBe(CLOUD_SETTLE_MS);
-    expect(cloudSettle(3_150_000)).toBe(CLOUD_LARGE_SETTLE_MS);
+    expect(cloudDrawCount(3_150_000, "sample")).toBe(100_000);
+    expect(cloudDrawCount(3_150_000, "full")).toBe(3_150_000);
+    expect(cloudReduced(3_150_000, "sample", false)).toBe(true);
+    expect(cloudReduced(3_150_000, "full", true)).toBe(false);
+    expect(cloudSettle(3_150_000)).toBe(CLOUD_SETTLE_MS);
+    expect(cloudSettle(3_150_000, "full")).toBe(CLOUD_LARGE_SETTLE_MS);
   });
 
   it("caps motion-only density compensation", () => {
@@ -343,6 +351,40 @@ describe("paper swarm", () => {
       expect(cloud.geometry.drawRange.count).toBe(100_000);
       expect(cloud.material.uniforms.pointSize.value).toBeCloseTo(2.64);
       expect(cloud.material.uniforms.pointOpacity.value).toBeCloseTo(0.495);
+    } finally {
+      dropCloud(cloud);
+      cloud.geometry.dispose();
+      cloud.material.dispose();
+    }
+  });
+
+  it("keeps all 3.1M points stable when full detail is selected", () => {
+    const count = 3_100_000;
+    const cloud = buildCloud(
+      {
+        positions: new Float32Array(count * 3),
+        scopes: new Uint8Array(count),
+        ranges: [],
+        loaded: count,
+        radius: 1,
+      },
+      "light",
+    );
+    try {
+      expect(setCloudDetail(cloud, "full")).toBe(true);
+      expect(setCloudDetail(cloud, "full")).toBe(false);
+      expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.full);
+      expect(cloud.geometry.drawRange.count).toBe(count);
+      expect(cloud.material.uniforms.pointSize.value).toBe(1.2);
+      expect(cloud.material.uniforms.pointOpacity.value).toBe(0.3);
+
+      moveCloud(cloud);
+      expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.full);
+      expect(cloud.geometry.drawRange.count).toBe(count);
+
+      restCloud(cloud);
+      expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.full);
+      expect(cloud.geometry.drawRange.count).toBe(count);
     } finally {
       dropCloud(cloud);
       cloud.geometry.dispose();

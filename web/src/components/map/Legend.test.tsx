@@ -13,4 +13,11 @@ describe("GraphLegend", () => {
     expect(html).not.toContain("possible ML");
     expect(html).not.toContain("archive context");
   });
+
+  it("distinguishes the historical cloud from curated papers", () => {
+    const html = renderToStaticMarkup(<GraphLegend archive />);
+    expect(html).toContain("arXiv archive");
+    expect(html).toContain("Curated paper");
+    expect(html).toContain("overlapping papers appear brighter");
+  });
 });

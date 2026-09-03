@@ -15,6 +15,8 @@ import {
   dropCloud,
   growCloud,
   paintCloud,
+  setCloudDetail,
+  type CloudDetail,
   type CloudSwarm,
 } from "../lib/swarm";
 import type { GraphNode } from "../types";
@@ -48,6 +50,7 @@ type PointInput = {
     canvas: HTMLCanvasElement,
   ) => number;
   data: CloudData | null;
+  detail?: CloudDetail;
   active: boolean;
   theme: Theme;
   onPick: (pick: CloudPick) => void;
@@ -251,7 +254,7 @@ function mountPoints(
         if (input.graphRef.current !== graph) return;
         renderer.render(graph.scene(), graph.camera() as Camera);
       };
-  const points = buildCloud(data, input.theme, renderer, redraw);
+  const points = buildCloud(data, input.theme, renderer, redraw, input.detail);
   const dropControl = bindCloud(
     points,
     graph.controls?.(),
@@ -477,5 +480,11 @@ export function usePoints(input: PointInput): {
   useEffect(() => {
     if (pointsRef.current) paintCloud(pointsRef.current, input.theme);
   }, [input.theme]);
+  useEffect(() => {
+    const points = pointsRef.current;
+    const graph = input.graphRef.current;
+    if (!points || !graph || !setCloudDetail(points, input.detail ?? "sample")) return;
+    graph.renderer().render(graph.scene(), graph.camera() as Camera);
+  }, [input.detail, input.graphRef]);
   return { tip, probing, block, drop, take };
 }

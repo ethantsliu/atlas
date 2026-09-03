@@ -22,7 +22,7 @@ async function stopTrace(page: Page): Promise<number[]> {
 
 test("3D cloud keeps a stable rotation level", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chrome", "Chromium traces WebGL draw levels");
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
   await page.setViewportSize({ width: 1_440, height: 900 });
   await page.addInitScript(() => {
     const host = window as TraceHost;
@@ -77,4 +77,21 @@ test("3D cloud keeps a stable rotation level", async ({ page }, testInfo) => {
   expect(await stopTrace(page)).toEqual(
     coarse === full ? [full] : [full, coarse, full],
   );
+
+  const density = page.getByRole("group", {
+    name: "historical paper dot density",
+  });
+  const all = density.getByRole("button", { name: /^All / });
+  await all.click();
+  await expect(all).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => drawCount(page), { timeout: 30_000 }).toBe(expected);
+  await startTrace(page);
+
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x - 100, y + 50, { steps: 10 });
+  await expect.poll(() => drawCount(page), { timeout: 10_000 }).toBe(expected);
+  await page.mouse.up();
+  await page.waitForTimeout(1_000);
+  expect(await stopTrace(page)).toEqual([expected]);
 });

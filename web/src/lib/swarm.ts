@@ -15,6 +15,38 @@ import {
 import type { Theme } from "../hooks/theme";
 import type { GraphNode } from "../types";
 import type { CloudData } from "./cloud";
+import {
+  CLOUD_LOD_MAX,
+  CLOUD_REST_MS,
+  cloudOpacity,
+  cloudReduced,
+  cloudSettle,
+  cloudSize,
+  cloudTone,
+  lodIds,
+  motionTone,
+  type CloudDetail,
+} from "./cloudview";
+
+export {
+  CLOUD_LARGE_SETTLE_MS,
+  CLOUD_LOD_CAP,
+  CLOUD_LOD_MAX,
+  CLOUD_REST_MS,
+  CLOUD_SETTLE_MS,
+  CLOUD_STABLE_LIMIT,
+  cloudDrawCount,
+  cloudLod,
+  cloudOpacity,
+  cloudReduced,
+  cloudSettle,
+  cloudSize,
+  cloudTone,
+  lodIds,
+  motionTone,
+  type CloudDetail,
+  type CloudTone,
+} from "./cloudview";
 
 const VERTEX = `
   attribute float scale;
@@ -80,6 +112,7 @@ type CloudStore = {
   coarseIds: Uint32Array;
   coarseLoaded: number;
   data: CloudData;
+  detail: CloudDetail;
   dropped: boolean;
   frame: number;
   full: BufferAttribute;
@@ -102,32 +135,7 @@ export type CloudSwarm = Points<BufferGeometry, ShaderMaterial> & {
 };
 
 export const CLOUD_BATCH = 65_536;
-export const CLOUD_LOD_CAP = 100_000;
-export const CLOUD_LOD_MAX = 250_000;
-export const CLOUD_STABLE_LIMIT = 3_000_000;
-export const CLOUD_REST_MS = 160;
-export const CLOUD_SETTLE_MS = 280;
-export const CLOUD_LARGE_SETTLE_MS = 800;
 export const CLOUD_VIEW_EPS = 1e-6;
-
-export function cloudSettle(count: number): number {
-  return count > CLOUD_LOD_MAX ? CLOUD_LARGE_SETTLE_MS : CLOUD_SETTLE_MS;
-}
-
-export function cloudLod(count: number): number {
-  if (count <= CLOUD_LOD_MAX) return Math.max(0, count);
-  const floor = count >= CLOUD_STABLE_LIMIT ? CLOUD_LOD_CAP : 72_000;
-  return Math.min(count, floor);
-}
-
-export function lodIds(count: number, sample = cloudLod(count)): Uint32Array {
-  const size = Math.max(0, Math.min(count, Math.floor(sample)));
-  const ids = new Uint32Array(size);
-  for (let index = 0; index < size; index += 1) {
-    ids[index] = Math.floor(((index + 0.5) * count) / size);
-  }
-  return ids;
-}
 
 function lowerId(ids: Uint32Array, target: number): number {
   let low = 0;
@@ -156,7 +164,7 @@ function fillLod(store: CloudStore, start: number, end: number): [number, number
 
 function showCloud(points: CloudSwarm, coarse: boolean): void {
   const store = points.userData;
-  const reduced = coarse || store.data.positions.length / 3 >= CLOUD_STABLE_LIMIT;
+  const reduced = cloudReduced(store.data.positions.length / 3, store.detail, coarse);
   const position = reduced ? store.coarse : store.full;
   if (points.geometry.getAttribute("position") !== position) {
     points.geometry.setAttribute("position", position);
@@ -175,7 +183,7 @@ function armRest(points: CloudSwarm): void {
   clearRest(store);
   if (store.held) return;
   const delay = store.settling
-    ? cloudSettle(store.data.positions.length / 3)
+    ? cloudSettle(store.data.positions.length / 3, store.detail)
     : CLOUD_REST_MS;
   store.rest = setTimeout(() => restCloud(points), delay);
 }
@@ -307,43 +315,6 @@ function paperColor(theme: Theme): Color {
   return new Color(theme === "dark" ? "#83b5bf" : "#4f7f89");
 }
 
-export function cloudSize(count: number): number {
-  if (count >= 5_000_000) return 1;
-  if (count >= 3_000_000) return 1.2;
-  if (count >= 1_000_000) return 1.8;
-  if (count >= 250_000) return 2.4;
-  if (count >= 100_000) return 2.8;
-  return 4.8;
-}
-
-export function cloudOpacity(count: number): number {
-  if (count >= 5_000_000) return 0.24;
-  if (count >= 3_000_000) return 0.3;
-  if (count >= 1_000_000) return 0.42;
-  if (count >= 250_000) return 0.6;
-  if (count >= 100_000) return 0.78;
-  return 0.96;
-}
-
-export type CloudTone = { opacity: number; size: number };
-
-export function cloudTone(count: number): CloudTone {
-  return { opacity: cloudOpacity(count), size: cloudSize(count) };
-}
-
-export function motionTone(count: number): CloudTone {
-  const base = cloudTone(count);
-  const sample = Math.max(1, cloudLod(count));
-  if (sample >= count) return base;
-  const density = Math.max(1, count / sample);
-  const sizeScale = Math.min(2.2, density ** 0.25);
-  const alphaScale = Math.min(1.65, density ** 0.15);
-  return {
-    opacity: Math.min(Math.max(base.opacity, 0.72), base.opacity * alphaScale),
-    size: Math.min(Math.max(base.size, 3.4), base.size * sizeScale),
-  };
-}
-
 function setTone(points: CloudSwarm, moving: boolean): void {
   const tone = moving
     ? motionTone(points.userData.data.scopes.length)
@@ -407,6 +378,7 @@ export function buildCloud(
   theme: Theme,
   renderer?: WebGLRenderer,
   redraw?: () => void,
+  detail: CloudDetail = "sample",
 ): CloudSwarm {
   const count = data.scopes.length;
   const geometry = new BufferGeometry();
@@ -477,6 +449,7 @@ export function buildCloud(
     coarseIds,
     coarseLoaded: 0,
     data,
+    detail,
     dropped: false,
     frame: 0,
     full,
@@ -496,6 +469,13 @@ export function buildCloud(
     if (viewMoved(points.userData, camera)) moveCloud(points, redraw);
   };
   return points;
+}
+
+export function setCloudDetail(points: CloudSwarm, detail: CloudDetail): boolean {
+  if (points.userData.detail === detail) return false;
+  points.userData.detail = detail;
+  showCloud(points, points.userData.moving);
+  return true;
 }
 
 export function growCloud(points: CloudSwarm, data: CloudData): void {

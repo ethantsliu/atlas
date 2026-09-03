@@ -511,7 +511,7 @@ test("hover labels a node and click keeps details in the inspector", async ({
   const graph = page.getByLabel(/Interactive (3D )?research graph/);
   const box = await graph.locator("canvas:not(.cloud-plane)").boundingBox();
   if (!box) throw new Error("Research graph has no bounds");
-  const entry = await otherNode(page, box, "\u0000");
+  const entry = await otherNode(page, box, "^@");
   const tooltip = page
     .locator(".core-tip:visible, .swarm-tip:visible, .float-tooltip-kap:visible")
     .filter({ hasText: entry.label })
@@ -570,6 +570,14 @@ test("historical paper points open the inline inspector", async ({
   const beforeGraph = await graph.boundingBox();
   const beforePanel = await inspector.boundingBox();
   const fullState = await fullNodes(page);
+  if (target && size >= 3_000_000 && testInfo.project.name === "chrome") {
+    const all = page
+      .getByRole("group", { name: "historical paper dot density" })
+      .getByRole("button", { name: /^All / });
+    await all.click();
+    await expect(all).toHaveAttribute("aria-pressed", "true");
+    await page.waitForTimeout(900);
+  }
 
   let title: string;
   if (!target) {
@@ -785,7 +793,7 @@ test("core gestures preserve picking after camera movement", async ({
   await page.getByRole("button", { name: "Center selected" }).click();
   await page.waitForTimeout(300);
 
-  const first = await otherNode(page, box, "\u0000");
+  const first = await otherNode(page, box, "^@");
   expect(first.depth).toBeGreaterThan(0);
   const firstTitle = first.label.replace(/^\w+\s·\s/, "");
   await page.mouse.click(first.x, first.y);
@@ -977,7 +985,7 @@ test("2D hover and click use the same inline inspector", async ({ page }, testIn
   const graph = page.getByLabel("Interactive research graph");
   const box = await graph.boundingBox();
   if (!box) throw new Error("2D research graph has no bounds");
-  const entry = await otherNode(page, box, "\u0000", "Paper");
+  const entry = await otherNode(page, box, "^@", "Paper");
   const tooltip = page
     .locator(".core-tip:visible, .swarm-tip:visible, .float-tooltip-kap:visible")
     .filter({ hasText: entry.label })

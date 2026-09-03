@@ -29,6 +29,7 @@ import { buildNode } from "../../lib/scene";
 import { labelOf } from "../../lib/text";
 import type { GraphData, GraphLink, GraphNode } from "../../types";
 import type { CloudData, CloudPick } from "../../lib/cloud";
+import type { CloudDetail } from "../../lib/cloudview";
 import type { CloudMark } from "../../lib/focus";
 import { nodeDepth, usePoints, type PointTip } from "../../hooks/points";
 import type { GraphRef } from "./Driver";
@@ -199,6 +200,7 @@ type SpaceProps = {
   graph: GraphData;
   cloud: CloudData | null;
   cloudHidden: boolean;
+  cloudDetail: CloudDetail;
   cloudSelected: boolean;
   cloudMark: CloudMark | null;
   graphRef: GraphRef;
@@ -278,6 +280,7 @@ export function GraphSpace({
   graph,
   cloud,
   cloudHidden,
+  cloudDetail,
   cloudSelected,
   cloudMark,
   graphRef,
@@ -324,6 +327,7 @@ export function GraphSpace({
     graphRef,
     data: layout === "semantic" ? cloud : null,
     active: !cloudHidden,
+    detail: cloudDetail,
     theme,
     onPick: (pick) => {
       cloudOpenRef.current = true;
@@ -399,6 +403,7 @@ export function GraphSpace({
         graphData={sceneGraph}
         backgroundColor={theme === "dark" ? "#0f1511" : "#f0eadf"}
         showNavInfo={false}
+        controlType="orbit"
         numDimensions={3}
         nodeLabel={() => ""}
         nodeThreeObject={makeNode}
