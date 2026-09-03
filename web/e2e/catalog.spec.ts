@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const catalog = {
   schema_version: 1,
@@ -54,14 +54,21 @@ const catalog = {
   notice: "Candidate directions are not reviewed claims.",
 };
 
+async function showMobileFilters(page: Page) {
+  if ((page.viewportSize()?.width ?? 1_000) > 720) return;
+  const toggle = page.getByRole("button", { name: "Show filters" });
+  await expect(toggle).toBeVisible();
+  await toggle.click();
+}
+
 test("the corpus catalog exposes subjects, candidate directions, and evidence", async ({
   page,
 }) => {
   await page.route(/\/data\/catalog\.json(?:\?.*)?$/, (route) =>
     route.fulfill({ contentType: "application/json", json: catalog }),
   );
-  await page.route(/\/data\/cloud\/.*\.bin(?:\?.*)?$/, (route) => route.abort());
   await page.goto("/#?d=2&k=trpi");
+  await showMobileFilters(page);
 
   const explore = page.getByRole("button", { name: "Explore corpus" });
   await expect(explore).toBeVisible({ timeout: 20_000 });
@@ -91,6 +98,7 @@ test("a missing catalog is explicit and leaves curated lenses available", async 
     route.fulfill({ status: 503 }),
   );
   await page.goto("/#?d=2&k=trpi");
+  await showMobileFilters(page);
 
   await expect(page.locator(".catalog-copy")).toContainText(
     "full-corpus taxonomy is temporarily unavailable",
