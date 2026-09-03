@@ -570,15 +570,6 @@ test("historical paper points open the inline inspector", async ({
   const beforeGraph = await graph.boundingBox();
   const beforePanel = await inspector.boundingBox();
   const fullState = await fullNodes(page);
-  if (target && size >= 3_000_000 && testInfo.project.name === "chrome") {
-    const all = page
-      .getByRole("group", { name: "historical paper dot density" })
-      .getByRole("button", { name: /^All / });
-    await all.click();
-    await expect(all).toHaveAttribute("aria-pressed", "true");
-    await page.waitForTimeout(900);
-  }
-
   let title: string;
   if (!target) {
     const point = await cloudPoint(page);

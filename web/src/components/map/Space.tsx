@@ -28,7 +28,6 @@ import { buildNode } from "../../lib/scene";
 import { labelOf } from "../../lib/text";
 import type { GraphData, GraphLink, GraphNode } from "../../types";
 import type { CloudData, CloudPick } from "../../lib/cloud";
-import { cloudLod, type CloudDetail } from "../../lib/cloudview";
 import type { CloudMark } from "../../lib/focus";
 import { nodeDepth, usePoints, type PointTip } from "../../hooks/points";
 import type { GraphRef } from "./Driver";
@@ -199,7 +198,6 @@ type SpaceProps = {
   graph: GraphData;
   cloud: CloudData | null;
   cloudHidden: boolean;
-  cloudDetail: CloudDetail;
   cloudSelected: boolean;
   cloudMark: CloudMark | null;
   graphRef: GraphRef;
@@ -215,49 +213,6 @@ type SpaceProps = {
   onFocus: (nodeId: string) => void;
   onClear: () => void;
 };
-
-type DetailProps = {
-  count: number;
-  detail: CloudDetail;
-  onChange: (detail: CloudDetail) => void;
-};
-
-function compactDots(count: number): string {
-  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(2)}M`;
-  if (count >= 1_000) return `${Math.round(count / 1_000)}K`;
-  return count.toLocaleString();
-}
-
-export function CloudDetailControl({ count, detail, onChange }: DetailProps) {
-  const sample = cloudLod(count);
-  if (sample >= count) return null;
-  return (
-    <div
-      className="layout-control"
-      role="group"
-      aria-label="historical paper dot density"
-    >
-      <button
-        aria-pressed={detail === "sample"}
-        className={detail === "sample" ? "active" : ""}
-        onClick={() => onChange("sample")}
-        title={`Render a stable ${sample.toLocaleString()}-paper overview`}
-        type="button"
-      >
-        {compactDots(sample)}
-      </button>
-      <button
-        aria-pressed={detail === "full"}
-        className={detail === "full" ? "active" : ""}
-        onClick={() => onChange("full")}
-        title={`Render every ${count.toLocaleString()} historical paper; this may reduce frame rate`}
-        type="button"
-      >
-        All {compactDots(count)}
-      </button>
-    </div>
-  );
-}
 
 export function cameraControl(width: number): "orbit" | "trackball" {
   return width <= 720 ? "trackball" : "orbit";
@@ -326,7 +281,6 @@ export function GraphSpace({
   graph,
   cloud,
   cloudHidden,
-  cloudDetail,
   cloudSelected,
   cloudMark,
   graphRef,
@@ -372,7 +326,7 @@ export function GraphSpace({
     graphRef,
     data: layout === "semantic" ? cloud : null,
     active: !cloudHidden,
-    detail: cloudDetail,
+    detail: "full",
     theme,
     onPick: (pick) => {
       cloudOpenRef.current = true;

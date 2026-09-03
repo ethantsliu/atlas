@@ -14,7 +14,6 @@ import { findNextNode, type ArrowKey } from "../../lib/nav";
 import type { CameraView } from "../../lib/camera";
 import type { GraphData, GraphNode } from "../../types";
 import type { CloudData } from "../../lib/cloud";
-import type { CloudDetail } from "../../lib/cloudview";
 import type { CloudPick } from "../../lib/cloud";
 import type { CloudMark } from "../../lib/focus";
 import { GraphControls, type RenderMode } from "./Controls";
@@ -32,10 +31,6 @@ const GraphFallback = lazy(() =>
 
 const GraphSpace = lazy(() =>
   import("./Space").then((module) => ({ default: module.GraphSpace })),
-);
-
-const CloudDetailControl = lazy(() =>
-  import("./Space").then((module) => ({ default: module.CloudDetailControl })),
 );
 
 type GraphCanvasProps = {
@@ -126,20 +121,6 @@ function chooseGraphNode(
   target?.focus({ preventScroll: true });
 }
 
-function cloudControl(
-  show: boolean,
-  count: number,
-  detail: CloudDetail,
-  onChange: (detail: CloudDetail) => void,
-) {
-  if (!show) return null;
-  return (
-    <Suspense fallback={null}>
-      <CloudDetailControl count={count} detail={detail} onChange={onChange} />
-    </Suspense>
-  );
-}
-
 export function GraphCanvas({
   graph,
   cloud,
@@ -169,7 +150,6 @@ export function GraphCanvas({
   const graphRef = useRef<GraphRef["current"]>();
   const fallbackRef = useRef<FallbackRef["current"]>();
   const [planeReady, setPlaneReady] = useState(false);
-  const [cloudDetail, setCloudDetail] = useState<CloudDetail>("full");
   const selectedId = selectedValue(graph, selected);
   const cloudReady = mode === "3d" || planeReady;
   const visibleCount = nodeCount(graph, cloud, cloudHidden, cloudMark, cloudReady);
@@ -213,12 +193,6 @@ export function GraphCanvas({
             graphRef={graphRef}
             fallbackRef={fallbackRef}
             height={height}
-            cloudControl={cloudControl(
-              mode === "3d" && layout === "semantic" && width > 720,
-              cloud?.loaded ?? 0,
-              cloudDetail,
-              setCloudDetail,
-            )}
             layout={layout}
             mode={mode}
             render={render}
@@ -260,7 +234,6 @@ export function GraphCanvas({
             <GraphSpace
               graph={graph}
               cloud={cloud}
-              cloudDetail={cloudDetail}
               cloudHidden={cloudHidden}
               cloudSelected={cloudSelected}
               cloudMark={cloudMark}

@@ -74,21 +74,7 @@ test("3D cloud keeps a stable rotation level", async ({ page }, testInfo) => {
   expect(await drawCount(page)).toBe(full);
   expect(await stopTrace(page)).toEqual([full]);
 
-  const density = page.getByRole("group", {
-    name: "historical paper dot density",
-  });
-  if (expected <= 250_000) {
-    await expect(density).toHaveCount(0);
-    return;
-  }
-  const all = density.getByRole("button", { name: /^All / });
-  await expect(all).toHaveAttribute("aria-pressed", "true");
-  const overview = density.getByRole("button", { name: /^(72K|100K)$/ });
-  await overview.click();
-  await expect(overview).toHaveAttribute("aria-pressed", "true");
-  const reduced = expected >= 3_000_000 ? 100_000 : 72_000;
-  await expect.poll(() => drawCount(page), { timeout: 30_000 }).toBe(reduced);
-  await all.click();
-  await expect(all).toHaveAttribute("aria-pressed", "true");
-  await expect.poll(() => drawCount(page), { timeout: 30_000 }).toBe(full);
+  await expect(
+    page.getByRole("group", { name: "historical paper dot density" }),
+  ).toHaveCount(0);
 });
