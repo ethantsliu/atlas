@@ -828,6 +828,9 @@ test("touch opens a historical paper in the stacked inspector", async ({
 
   const graph = page.getByLabel("Interactive 3D research graph");
   await waitCamera(page, target.camera);
+  await expect(
+    page.getByRole("group", { name: "historical paper dot density" }),
+  ).toHaveCount(0);
 
   const inspector = page.locator("#map-inspector");
   const beforeGraph = await graph.boundingBox();

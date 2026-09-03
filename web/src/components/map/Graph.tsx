@@ -127,13 +127,12 @@ function chooseGraphNode(
 }
 
 function cloudControl(
-  mode: RenderMode,
-  layout: LayoutMode,
+  show: boolean,
   count: number,
   detail: CloudDetail,
   onChange: (detail: CloudDetail) => void,
 ) {
-  if (mode !== "3d" || layout !== "semantic") return null;
+  if (!show) return null;
   return (
     <Suspense fallback={null}>
       <CloudDetailControl count={count} detail={detail} onChange={onChange} />
@@ -215,8 +214,7 @@ export function GraphCanvas({
             fallbackRef={fallbackRef}
             height={height}
             cloudControl={cloudControl(
-              mode,
-              layout,
+              mode === "3d" && layout === "semantic" && width > 720,
               cloud?.loaded ?? 0,
               cloudDetail,
               setCloudDetail,
