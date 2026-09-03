@@ -216,14 +216,14 @@ export function bindCloud(
   control?.addEventListener?.("start", hold);
   control?.addEventListener?.("end", release);
   target?.addEventListener("pointerdown", press);
-  releaseTarget?.addEventListener("pointerup", lift);
-  releaseTarget?.addEventListener("pointercancel", lift);
+  releaseTarget?.addEventListener("pointerup", lift, true);
+  releaseTarget?.addEventListener("pointercancel", lift, true);
   return () => {
     control?.removeEventListener?.("start", hold);
     control?.removeEventListener?.("end", release);
     target?.removeEventListener("pointerdown", press);
-    releaseTarget?.removeEventListener("pointerup", lift);
-    releaseTarget?.removeEventListener("pointercancel", lift);
+    releaseTarget?.removeEventListener("pointerup", lift, true);
+    releaseTarget?.removeEventListener("pointercancel", lift, true);
   };
 }
 
