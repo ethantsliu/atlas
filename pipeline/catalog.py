@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import math
+import re
 import unicodedata
 from collections import Counter
 from pathlib import Path
@@ -41,6 +42,12 @@ def file_hash(path: Path) -> str:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def catalog_text(value: dict) -> str:
+    """Serialize stable JSON without zero-padded scientific exponents."""
+    rendered = json.dumps(value, ensure_ascii=False, indent=2) + "\n"
+    return re.sub(r"e([+-])0+(\d+)", r"e\1\2", rendered)
 
 
 def identifiers(rows: object, ontology: dict[str, list[str]]) -> set[str]:
@@ -394,10 +401,7 @@ def main() -> None:
             raise ValueError("Catalog does not describe this promoted corpus")
         return
     value = build_catalog(args.archive, args.limit)
-    atomic_write_text(
-        args.output,
-        json.dumps(value, ensure_ascii=False, indent=2) + "\n",
-    )
+    atomic_write_text(args.output, catalog_text(value))
 
 
 if __name__ == "__main__":

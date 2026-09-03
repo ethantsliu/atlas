@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "pipeline"))
 
 from archive import write_manifest, write_shard  # noqa: E402
-from catalog import build_catalog, check_catalog  # noqa: E402
+from catalog import build_catalog, catalog_text, check_catalog  # noqa: E402
 
 
 def route(identifier: str) -> dict:
@@ -135,6 +135,10 @@ class CatalogTests(unittest.TestCase):
 
     def test_is_deterministic(self) -> None:
         self.assertEqual(self.build(), self.build())
+
+    def test_json_format(self) -> None:
+        self.assertIn('"tiny": 1e-6', catalog_text({"tiny": 1e-6}))
+        self.assertNotIn("e-0", catalog_text({"tiny": 1e-6}))
 
 
 if __name__ == "__main__":
