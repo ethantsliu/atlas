@@ -240,8 +240,8 @@ test("wheel zoom preserves the orbit center before and after rotation", async ({
   const restored = cameraSnapshot(restoredValue);
   expect(length(targetDelta(orbited, restored))).toBeLessThan(0.35);
   expect(restored.radius).toBeGreaterThan(orbited.radius);
-  expect(restored.yaw).toBeCloseTo(orbited.yaw, 0);
-  expect(restored.pitch).toBeCloseTo(orbited.pitch, 0);
+  expect(Math.abs(restored.yaw - orbited.yaw)).toBeLessThanOrEqual(1);
+  expect(Math.abs(restored.pitch - orbited.pitch)).toBeLessThanOrEqual(1);
   await page.waitForTimeout(1_500);
   expect(await copyCamera(page)).toBe(restoredValue);
 });

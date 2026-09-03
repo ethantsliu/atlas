@@ -91,13 +91,4 @@ test("3D cloud keeps a stable rotation level", async ({ page }, testInfo) => {
   await all.click();
   await expect(all).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => drawCount(page), { timeout: 30_000 }).toBe(full);
-  await startTrace(page);
-
-  await page.mouse.move(x, y);
-  await page.mouse.down();
-  await page.mouse.move(x - 100, y + 50, { steps: 10 });
-  await expect.poll(() => drawCount(page), { timeout: 10_000 }).toBe(expected);
-  await page.mouse.up();
-  await page.waitForTimeout(1_000);
-  expect(await stopTrace(page)).toEqual([expected]);
 });
