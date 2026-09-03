@@ -786,9 +786,8 @@ test("touch opens a historical paper in the stacked inspector", async ({
   test.setTimeout(120_000);
   test.skip(testInfo.project.name !== "iphone", "Dense touch picking uses iPhone");
   test.skip((await cloudSize()) <= 100_000, "Dense cloud touch needs the full corpus");
-  const target = await cloudTarget();
   await watchCopy(page);
-  await page.goto(`/#?k=p&c=${target.camera}`);
+  await page.goto("/#?d=3&k=p");
   await expect(page.locator(".filters")).toContainText(
     "papers mapped by semantic similarity",
     {
@@ -798,22 +797,15 @@ test("touch opens a historical paper in the stacked inspector", async ({
   await fullNodes(page);
 
   const graph = page.getByLabel("Interactive 3D research graph");
-  const firstCanvas = await graph.locator("canvas:not(.cloud-plane)").boundingBox();
-  if (!firstCanvas) throw new Error("Research graph canvas has no bounds");
-  const offset = offsetCamera(target, firstCanvas.width / firstCanvas.height);
-  await page.goto(`/?pick=touch#?k=p&c=${offset.camera}`);
-  await fullNodes(page);
-  await waitCamera(page, offset.camera);
+  await page.getByRole("button", { name: "Reset 3D view" }).click();
+  await waitCameraIdle(page);
+  const point = await cloudPoint(page);
+  await page.mouse.move(2, 2);
+  await expect(page.locator(".cloud-tip")).toBeHidden();
 
   const inspector = page.locator("#map-inspector");
   const beforeGraph = await graph.boundingBox();
   if (!beforeGraph) throw new Error("Research graph has no bounds");
-  const canvas = await graph.locator("canvas:not(.cloud-plane)").boundingBox();
-  if (!canvas) throw new Error("Research graph canvas has no bounds");
-  const point = {
-    x: canvas.x + ((offset.ndc.x + 1) * canvas.width) / 2,
-    y: canvas.y + ((1 - offset.ndc.y) * canvas.height) / 2,
-  };
   await page.touchscreen.tap(point.x, point.y);
 
   const selection = page.locator("#graph-selection");
