@@ -257,14 +257,17 @@ describe("paper cloud", () => {
     const second = pointBytes(7);
     const packed = packBytes([first, second]);
     const index = manifest(first);
+    index.shards[0].month = "2020-02";
+    index.shards[0].points.path = "2020-02.bin";
+    index.shards[0].meta.path = "2020-02.json";
     const next = structuredClone(index.shards[0]);
-    next.month = "2020-02";
+    next.month = "2020-03";
     next.points = {
-      path: "2020-02.bin",
+      path: "2020-03.bin",
       sha256: createHash("sha256").update(Buffer.from(second)).digest("hex"),
       bytes: second.byteLength,
     };
-    next.meta = { ...next.meta, path: "2020-02.json" };
+    next.meta = { ...next.meta, path: "2020-03.json" };
     index.shards.push(next);
     index.source_count = 6;
     index.count = 4;
@@ -275,11 +278,11 @@ describe("paper cloud", () => {
     index.pack_months = 14;
     index.packs = [
       {
-        months: ["2020-01", "2020-02"],
+        months: ["2020-02", "2020-03"],
         count: 4,
         counts: { likely: 2, possible: 0, outside: 2 },
         points: {
-          path: "p024.bin",
+          path: "p029.bin",
           sha256: createHash("sha256").update(Buffer.from(packed)).digest("hex"),
           bytes: packed.byteLength,
         },
@@ -298,8 +301,8 @@ describe("paper cloud", () => {
     );
 
     expect(request).toHaveBeenCalledOnce();
-    expect(String(request.mock.calls[0][0])).toContain("p024.bin");
-    expect(data.ranges.map((range) => range.month)).toEqual(["2020-01", "2020-02"]);
+    expect(String(request.mock.calls[0][0])).toContain("p029.bin");
+    expect(data.ranges.map((range) => range.month)).toEqual(["2020-02", "2020-03"]);
     expect(data.ranges.map((range) => range.start)).toEqual([0, 2]);
     expect([...data.positions]).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
     expect([...data.scopes]).toEqual([0, 2, 0, 2]);

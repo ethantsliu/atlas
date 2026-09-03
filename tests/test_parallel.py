@@ -250,10 +250,10 @@ class ParallelTests(unittest.TestCase):
             archive = root / "archive"
             cloud = root / "cloud"
             anchors = root / "anchors.npz"
-            rows = [paper("2001.00001", "2020-01-02")]
-            add_day(archive, date(2020, 1, 2), intake(rows, "2020-01-02"), RULES)
             rows = [paper("2002.00001", "2020-02-02")]
             add_day(archive, date(2020, 2, 2), intake(rows, "2020-02-02"), RULES)
+            rows = [paper("2003.00001", "2020-03-02")]
+            add_day(archive, date(2020, 3, 2), intake(rows, "2020-03-02"), RULES)
             vectors = save_anchors(anchors)
             plan = make_plan(archive, cloud, 2, anchors=anchors)
             plan_path = root / "plan.json"
@@ -275,11 +275,11 @@ class ParallelTests(unittest.TestCase):
 
             self.assertEqual(manifest["count"], 2)
             self.assertEqual(
-                [row["month"] for row in manifest["shards"]], ["2020-01", "2020-02"]
+                [row["month"] for row in manifest["shards"]], ["2020-02", "2020-03"]
             )
             self.assertEqual(
                 [month for pack in manifest["packs"] for month in pack["months"]],
-                ["2020-01", "2020-02"],
+                ["2020-02", "2020-03"],
             )
             self.assertEqual(manifest["packs"][0]["points"]["bytes"], 12 + 2 * 13)
             legacy = root / "legacy"
@@ -294,7 +294,7 @@ class ParallelTests(unittest.TestCase):
             self.assertEqual(migration["changed_count"], 1)
             self.assertEqual(
                 [month for part in migration["partitions"] for month in part["months"]],
-                ["2020-02"],
+                ["2020-03"],
             )
             equal_plan = make_plan(archive, cloud, 16, anchors=anchors)
             equal_path = root / "equal.json"
@@ -311,8 +311,8 @@ class ParallelTests(unittest.TestCase):
             smaller = root / "smaller"
             add_day(
                 smaller,
-                date(2020, 1, 2),
-                intake([paper("2001.00001", "2020-01-02")], "2020-01-02"),
+                date(2020, 2, 2),
+                intake([paper("2002.00001", "2020-02-02")], "2020-02-02"),
                 RULES,
             )
             smaller_plan = make_plan(smaller, cloud, 16, anchors=anchors)

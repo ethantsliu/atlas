@@ -30,7 +30,7 @@ function packCase(): {
 } {
   const bytes = packBytes();
   const pack: CloudPack = {
-    months: ["1991-08", "1991-09"],
+    months: ["1986-04", "1986-05"],
     count: 3,
     counts: { likely: 1, possible: 1, outside: 1 },
     points: {
@@ -41,12 +41,12 @@ function packCase(): {
   };
   const shards = [
     {
-      month: "1991-08",
+      month: "1986-04",
       count: 1,
       counts: { likely: 1, possible: 0, outside: 0 },
     },
     {
-      month: "1991-09",
+      month: "1986-05",
       count: 2,
       counts: { likely: 0, possible: 1, outside: 1 },
     },
@@ -66,10 +66,11 @@ function isAsset(value: unknown): value is PackAsset {
 
 describe("point packs", () => {
   it("uses stable fourteen-month calendar buckets", () => {
-    expect(packKey("1991-08")).toBe(0);
-    expect(packKey("1992-09")).toBe(0);
-    expect(packKey("1992-10")).toBe(1);
-    expect(packKey("1991-07")).toBeNull();
+    expect(packKey("1986-04")).toBe(0);
+    expect(packKey("1987-05")).toBe(0);
+    expect(packKey("1987-06")).toBe(1);
+    expect(packKey("1991-08")).toBe(4);
+    expect(packKey("1986-03")).toBeNull();
   });
 
   it("validates exact month and lane coverage", () => {
@@ -104,7 +105,7 @@ describe("point packs", () => {
     );
 
     expect(units).toHaveLength(1);
-    expect(units[0].shards.map((shard) => shard.month)).toEqual(["1991-08", "1991-09"]);
+    expect(units[0].shards.map((shard) => shard.month)).toEqual(["1986-04", "1986-05"]);
     expect([...loaded.positions!]).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
     expect([...loaded.scopes]).toEqual([0, 1, 2]);
     expect(fetcher).toHaveBeenCalledOnce();

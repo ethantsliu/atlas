@@ -40,7 +40,7 @@ type Digest = (bytes: ArrayBuffer) => Promise<string>;
 
 export const PACK_MODE = "month-14-v1";
 export const PACK_MONTHS = 14;
-const EPOCH = 1991 * 12 + 7;
+const EPOCH = 1986 * 12 + 3;
 const PATH = /^p\d{3,}\.bin$/;
 const LITTLE_ENDIAN = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
 

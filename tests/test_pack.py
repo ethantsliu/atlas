@@ -13,13 +13,14 @@ from pack import (
     check_bytes,
     check_packs,
     pack_groups,
+    pack_key,
     write_packs,
 )
 
 
 def month_at(index: int) -> str:
-    """Return one month after the arXiv epoch."""
-    ordinal = 1991 * 12 + 7 + index
+    """Return one month after the authenticated corpus epoch."""
+    ordinal = 1986 * 12 + 3 + index
     return f"{ordinal // 12:04d}-{ordinal % 12 + 1:02d}"
 
 
@@ -53,6 +54,14 @@ def point_row(root: Path, month: str, values: list[tuple]) -> dict:
 
 
 class PackTests(unittest.TestCase):
+    def test_corpus_epoch(self) -> None:
+        self.assertEqual(pack_key("1986-04"), 0)
+        self.assertEqual(pack_key("1987-05"), 0)
+        self.assertEqual(pack_key("1987-06"), 1)
+        self.assertEqual(pack_key("1991-08"), 4)
+        with self.assertRaisesRegex(ValueError, "corpus epoch"):
+            pack_key("1986-03")
+
     def test_fixed_groups(self) -> None:
         rows = [{"month": month_at(index)} for index in range(421)]
         groups = pack_groups(rows)

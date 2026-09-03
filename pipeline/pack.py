@@ -16,7 +16,10 @@ from files import atomic_write_bytes
 PACK_MAGIC = b"ATLASPK1"
 PACK_MODE = "month-14-v1"
 PACK_MONTHS = 14
-EPOCH = 1991 * 12 + 7
+# The authenticated corpus includes legacy records back to 1986-04.  Bind pack
+# numbering to that immutable release boundary so every published month has a
+# stable non-negative bucket.
+EPOCH = 1986 * 12 + 3
 PACK_PATH = re.compile(r"p\d{3,}\.bin")
 
 
@@ -41,7 +44,7 @@ def pack_key(month: str) -> int:
     """Return the immutable fourteen-month bucket for one month."""
     delta = month_ord(month) - EPOCH
     if delta < 0:
-        raise ValueError("Point pack month predates arXiv")
+        raise ValueError("Point pack month predates the corpus epoch")
     return delta // PACK_MONTHS
 
 
