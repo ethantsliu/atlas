@@ -58,6 +58,7 @@ type IdleState = {
   controlActive: boolean;
   drawPending: number;
   hidden: boolean;
+  hoverActive: boolean;
   hoverPending: number;
   keys: Set<string>;
   paused: boolean;
@@ -160,10 +161,16 @@ function makeIdleLifecycle(
     wake();
     armRotate();
   };
-  // Hover labels do not pin the scene. Pointer motion already opens a brief,
-  // stable picking window; once the pointer rests, full-cloud rotation may
-  // continue beneath it until an actual drag, wheel, key, or touch begins.
-  const hover = () => undefined;
+  const hover = (active: boolean) => {
+    if (active === state.hoverActive) return;
+    state.hoverActive = active;
+    if (active) {
+      stopRotate();
+      pause();
+    } else {
+      armRotate();
+    }
+  };
   const engineTick = () => {
     state.running = true;
     stopRotate();
@@ -200,6 +207,7 @@ function makeIdleLifecycle(
       state.keys.clear();
       state.pointers.clear();
       state.controlActive = false;
+      state.hoverActive = false;
       stopRotate();
       pause();
       return;
@@ -291,6 +299,7 @@ function makeIdleCore(
     !state.ready ||
     state.running ||
     state.controlActive ||
+    state.hoverActive ||
     state.keys.size > 0 ||
     state.pointers.size > 0;
   const beginRotate = () => {
@@ -492,6 +501,7 @@ export function makeFrameIdle(
     controlActive: false,
     drawPending: 0,
     hidden: false,
+    hoverActive: false,
     hoverPending: 0,
     keys: new Set(),
     paused: false,

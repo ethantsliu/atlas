@@ -286,7 +286,8 @@ test("paper lens and arrow-key graph navigation stay concise", async ({ page }) 
   const picker = page.getByLabel("Choose a visible graph node");
   await expect(graph.locator("canvas:not(.cloud-plane)")).toBeVisible();
   await expect(page.getByRole("button", { name: /Reset (3D )?view/ })).toBeVisible();
-  await expect(graph).toContainText(/drag (rotates|pans)/);
+  await expect(graph).not.toContainText("Arrows select");
+  await expect(graph).not.toContainText("scroll travels");
   let selected: string;
   if ((await picker.evaluate((element) => element.tagName)) === "SELECT") {
     const option = picker.locator("option").filter({ hasText: /Paper · AI4AI-Bench/ });

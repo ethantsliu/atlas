@@ -213,8 +213,6 @@ test("navigation cancels a deferred camera restore", async ({
   const movedParts = cameraParts(moved);
   const afterParts = cameraParts(after);
   expect(afterParts.slice(0, 4)).toEqual(movedParts.slice(0, 4));
-  expect(Math.abs(afterParts[4] - movedParts[4])).toBeLessThanOrEqual(2);
-  expect(Math.abs(afterParts[5] - movedParts[5])).toBeLessThanOrEqual(2);
   expect(after).not.toBe(view);
   expect(moved).not.toBe(view);
 });

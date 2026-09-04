@@ -362,18 +362,17 @@ describe("3D idle frames", () => {
       FRAME_HOVER_ROTATE_WAIT,
     ]);
     run.idle.hover(true);
-    expect([...run.pending.values()].map(({ delay }) => delay).sort()).toEqual([
-      0,
-      FRAME_HOVER_ROTATE_WAIT,
-    ]);
+    expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([0]);
     expect(run.controls.autoRotate).toBe(false);
     run.flushDelay(0);
-    run.flushDelay(FRAME_HOVER_ROTATE_WAIT);
-    expect(run.controls.autoRotate).toBe(true);
+    expect(run.controls.autoRotate).toBe(false);
 
     run.idle.hover(false);
+    expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
+      FRAME_ROTATE_WAIT,
+    ]);
+    run.flushDelay(FRAME_ROTATE_WAIT);
     expect(run.controls.autoRotate).toBe(true);
-    expect(run.pending.size).toBe(0);
   });
 
   it("stops on keyboard focus, holds through activation, and re-arms", () => {

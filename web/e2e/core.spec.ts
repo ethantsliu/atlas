@@ -954,7 +954,7 @@ test("2D hover and click use the same inline inspector", async ({ page }, testIn
   await page.getByRole("button", { name: /Papers\s+[,\d]+/ }).click();
   const picker = page.getByLabel("Choose a visible graph node");
   const filters = page.locator(".filters");
-  await expect(filters).toContainText("papers mapped");
+  await archivePapers(page);
   const fullState = await fullNodes(page);
   const fullCount = Number(fullState.match(/[\d,]+/)?.[0].replaceAll(",", ""));
   expect(fullCount).toBeGreaterThan(200_000);
