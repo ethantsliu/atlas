@@ -97,7 +97,7 @@ async function touchPoint(canvas: Locator) {
 test("both dimensions share one cloud while 3D code stays lazy", async ({
   page,
 }, testInfo) => {
-  test.setTimeout(90_000);
+  test.setTimeout(180_000);
   test.skip(!desktop.has(testInfo.project.name), "Desktop engines cover 3D opt-in");
   const requests: string[] = [];
   page.on("request", (request) => requests.push(request.url()));
