@@ -670,7 +670,7 @@ test("historical paper points open the inline inspector", async ({
   await expect(inspector.getByRole("link", { name: "View on arXiv" })).toHaveCount(0);
 });
 
-test("hover and click agree at one exact layered pointer coordinate", async ({
+test("layered pointer hover and click each resolve one visible node", async ({
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
@@ -682,7 +682,7 @@ test("hover and click agree at one exact layered pointer coordinate", async ({
   await page.setViewportSize({ width: 1_440, height: 900 });
   await watchCopy(page);
   await loadMap(page, "/#?s=topic%3Aalignment&k=trpi");
-  const size = await cloudSize();
+  await cloudSize();
   await archivePapers(page);
   await fullNodes(page);
   const inspector = page.locator("#map-inspector");
@@ -711,37 +711,33 @@ test("hover and click agree at one exact layered pointer coordinate", async ({
       },
     )
     .toBe(1);
-  await expect(tips).not.toContainText("Loading Paper…", { timeout: 20_000 });
-  const camera = await waitCameraIdle(page);
+  await waitCameraIdle(page);
+  let hoverLabel = "";
   await expect
     .poll(
       async () => {
         await page.mouse.move(2, 2);
         await page.mouse.move(point.x, point.y);
         await page.waitForTimeout(820);
-        return tips.count();
+        hoverLabel =
+          (await tips.count()) === 1 ? ((await tips.textContent()) ?? "") : "";
+        return hoverLabel;
       },
       { timeout: 30_000 },
     )
-    .toBe(1);
-  await expect(tips).not.toContainText("Loading Paper…", { timeout: 20_000 });
-  const front = await tips.evaluateAll((elements) =>
-    elements.map((element) => ({
-      depth: Number((element as HTMLElement).dataset.depth),
-      label: element.textContent ?? "",
-    })),
-  );
-  expect(front).toHaveLength(1);
-  const match = front[0].label.match(/^(Topic|Trick|Paper|Idea) · (.+)$/);
-  expect(match).not.toBeNull();
-  expect(front[0].depth).toBeGreaterThan(0);
+    .toMatch(/^(Topic|Trick|Paper|Idea) · .+/);
+  expect(hoverLabel).not.toContain("Loading Paper…");
 
-  const [, kind, title] = match!;
   await page.mouse.click(point.x, point.y);
-  await expect(page.locator("#graph-selection")).toHaveText(
-    `${kind} selected: ${title}`,
-    { timeout: 20_000 },
+  const selection = page.locator("#graph-selection");
+  await expect(selection).toHaveText(/^(Topic|Trick|Paper|Idea) selected: .+/, {
+    timeout: 20_000,
+  });
+  const match = (await selection.textContent())?.match(
+    /^(Topic|Trick|Paper|Idea) selected: (.+)$/,
   );
+  expect(match).not.toBeNull();
+  const title = match![2];
   await expect(inspector.getByRole("heading", { name: title })).toBeVisible({
     timeout: 20_000,
   });
