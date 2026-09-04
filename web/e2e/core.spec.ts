@@ -128,35 +128,20 @@ async function cloudTarget(): Promise<CloudTarget> {
   const { manifest, positions, root } = await cloudLayout();
   const foreground = await layoutPoints();
 
-  const stableSize = manifest.count >= 3_000_000 ? 100_000 : 0;
-  const stableIds = stableSize
-    ? Uint32Array.from({ length: stableSize }, (_, index) =>
-        Math.floor(((index + 0.5) * manifest.count) / stableSize),
-      )
-    : null;
-  const rendered = stableIds ? new Float32Array(stableIds.length * 3) : positions;
-  stableIds?.forEach((index, sample) => {
-    rendered.set(positions.subarray(index * 3, index * 3 + 3), sample * 3);
-  });
-  const last = manifest.shards.at(-1)!;
-  const lastStart = manifest.count - last.count;
-  const candidateCount = stableIds?.length ?? last.count;
-  const samples = Math.min(128, candidateCount);
-  let bestRendered = stableIds ? 0 : lastStart;
+  const samples = Math.min(32, manifest.count);
+  let best = 0;
   let bestGap = -1;
   for (let sample = 0; sample < samples; sample += 1) {
-    const local = Math.floor(
-      (sample * (candidateCount - 1)) / Math.max(1, samples - 1),
+    const candidate = Math.floor(
+      (sample * (manifest.count - 1)) / Math.max(1, samples - 1),
     );
-    const candidate = stableIds ? local : lastStart + local;
-    const gap = screenGap(rendered, candidate, foreground);
+    const gap = screenGap(positions, candidate, foreground);
     if (gap > bestGap) {
-      bestRendered = candidate;
+      best = candidate;
       bestGap = gap;
     }
   }
 
-  const best = stableIds?.[bestRendered] ?? bestRendered;
   let start = 0;
   const shard = manifest.shards.find((candidate) => {
     if (best < start + candidate.count) return true;
