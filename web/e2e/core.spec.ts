@@ -434,10 +434,9 @@ test("the initial map enables every lens", async ({ page }) => {
     { timeout: 20_000 },
   );
   await fullNodes(page);
-  await expect(page.getByRole("button", { name: /Papers\s+[,\d]+/ })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expect(
+    page.getByRole("button", { name: /Papers in map\s+[,\d]+/ }),
+  ).toHaveAttribute("aria-pressed", "true");
   expect(hits).toHaveLength(1);
 });
 
@@ -464,7 +463,9 @@ test("the paper lens fetches its shard once", async ({ page }) => {
   const hits = trackShard(page);
   await loadMap(page);
   await showFilters(page);
-  const lens = page.getByRole("button", { name: /Papers\s+[,\d]+/ });
+  const lens = page.getByRole("button", {
+    name: /Papers in map\s+[,\d]+/,
+  });
   await lens.click();
   await fullNodes(page);
   expect(hits).toHaveLength(1);
@@ -975,7 +976,7 @@ test("2D hover and click use the same inline inspector", async ({ page }, testIn
     "2D archive interaction requires WebGL2",
   );
   await showFilters(page);
-  await page.getByRole("button", { name: /Papers\s+[,\d]+/ }).click();
+  await page.getByRole("button", { name: /Papers in map\s+[,\d]+/ }).click();
   const picker = page.getByLabel("Choose a visible graph node");
   const filters = page.locator(".filters");
   await expect(filters).toContainText("papers mapped");
@@ -1033,7 +1034,7 @@ test("copied view links include a camera snapshot", async ({ page, context }) =>
   });
   await loadMap(page);
   await showFilters(page);
-  await page.getByRole("button", { name: /Papers\s+[,\d]+/ }).click();
+  await page.getByRole("button", { name: /Papers in map\s+[,\d]+/ }).click();
   await fullNodes(page);
   const header = page.locator(".graph-header > div");
   await expect(header).toContainText(/[,\d]+ nodes/, { timeout: 20_000 });

@@ -278,9 +278,11 @@ test("paper lens and arrow-key graph navigation stay concise", async ({ page }) 
     await showFilters.tap();
     await expect(showFilters).toHaveAttribute("aria-expanded", "true");
   }
-  await expect(filters.getByText("Papers", { exact: true })).toBeVisible();
+  await expect(filters.getByText("Papers in map", { exact: true })).toBeVisible();
   await expect(filters).not.toContainText("Paper / context");
-  const paperLens = filters.getByRole("button", { name: /Papers\s+[,\d]+/ });
+  const paperLens = filters.getByRole("button", {
+    name: /Papers in map\s+[,\d]+/,
+  });
   await paperLens.click();
   await expect(paperLens).toHaveAttribute("aria-pressed", "true");
   await fullNodes(page);
