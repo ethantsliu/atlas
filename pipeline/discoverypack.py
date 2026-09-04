@@ -87,7 +87,9 @@ def make_browser(
     )
     manifest = check_manifest(artifact["corpus"])
     candidates = artifact["candidates"]
-    require(isinstance(candidates, list) and 0 < len(candidates) <= 48, "count is invalid")
+    require(
+        isinstance(candidates, list) and 0 < len(candidates) <= 48, "count is invalid"
+    )
     for candidate in candidates:
         check_candidate(candidate, manifest)
         require(
@@ -155,7 +157,9 @@ def check_browser(value: object) -> dict:
         "version or status is invalid",
     )
     source = value["source"]
-    require(isinstance(source, dict) and set(source) == SOURCE_KEYS, "source is invalid")
+    require(
+        isinstance(source, dict) and set(source) == SOURCE_KEYS, "source is invalid"
+    )
     for field in ("run_id", "artifact_id", "manifest_papers", "loaded_papers"):
         parse_positive(source[field], field)
     require(
@@ -176,14 +180,14 @@ def check_browser(value: object) -> dict:
     check_gate(gate)
     rows = value["candidates"]
     require(
-        isinstance(rows, list)
-        and len(rows) == value["count"]
-        and 0 < len(rows) <= 48,
+        isinstance(rows, list) and len(rows) == value["count"] and 0 < len(rows) <= 48,
         "candidate count is invalid",
     )
     ids = []
     for row in rows:
-        require(isinstance(row, dict) and set(row) == ROW_KEYS, "candidate fields are stale")
+        require(
+            isinstance(row, dict) and set(row) == ROW_KEYS, "candidate fields are stale"
+        )
         require(
             isinstance(row["id"], str)
             and bool(IDEA_ID.fullmatch(row["id"]))
@@ -197,7 +201,9 @@ def check_browser(value: object) -> dict:
             isinstance(identity, dict)
             and set(identity) == {"target", "intervention", "mechanism", "outcome"}
             and all(
-                isinstance(text, str) and bool(text) and text == text.strip()
+                isinstance(text, str)
+                and bool(text)
+                and text == text.strip()
                 and len(text) <= 240
                 and not unsafe_public(text)
                 for text in identity.values()
@@ -209,11 +215,15 @@ def check_browser(value: object) -> dict:
             isinstance(supports, list)
             and len(supports) >= 2
             and supports == sorted(set(supports))
-            and all(isinstance(item, str) and ARXIV_ID.fullmatch(item) for item in supports),
+            and all(
+                isinstance(item, str) and ARXIV_ID.fullmatch(item) for item in supports
+            ),
             "candidate supports are invalid",
         )
         ids.append(row["id"])
-    require(ids == sorted(ids) and len(ids) == len(set(ids)), "candidate IDs are invalid")
+    require(
+        ids == sorted(ids) and len(ids) == len(set(ids)), "candidate IDs are invalid"
+    )
     return value
 
 

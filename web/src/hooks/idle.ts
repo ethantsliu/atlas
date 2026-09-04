@@ -230,6 +230,19 @@ export function makeFrameIdle(
     if (keys.size > 0 || pointers.size > 0 || controlActive) return;
     touch();
   };
+  // Keyboard focus is user activity in its own right. An unrestricted cloud
+  // frame can take seconds in software WebGL, so pause synchronously when focus
+  // interrupts autorotation instead of leaving the normal 240 ms rest window.
+  // During an initial force simulation, keep the ordinary touch semantics.
+  const focus = () => {
+    if (!controls.autoRotate) {
+      touch();
+      return;
+    }
+    stopRotate();
+    pause();
+    armRotate();
+  };
   const wheel = () => touch();
   const change = () => {
     if (!controls.autoRotate) touch();
@@ -239,6 +252,7 @@ export function makeFrameIdle(
   controls.addEventListener?.("end", finish);
   canvas.addEventListener("pointermove", probe, true);
   pressTarget.addEventListener("pointerdown", press, true);
+  pressTarget.addEventListener("focusin", focus, true);
   pressTarget.addEventListener("keydown", keyPress, true);
   releaseTarget.addEventListener("pointerup", release, true);
   releaseTarget.addEventListener("pointercancel", release, true);
@@ -260,6 +274,7 @@ export function makeFrameIdle(
       controls.removeEventListener?.("end", finish);
       canvas.removeEventListener("pointermove", probe, true);
       pressTarget.removeEventListener("pointerdown", press, true);
+      pressTarget.removeEventListener("focusin", focus, true);
       pressTarget.removeEventListener("keydown", keyPress, true);
       releaseTarget.removeEventListener("pointerup", release, true);
       releaseTarget.removeEventListener("pointercancel", release, true);

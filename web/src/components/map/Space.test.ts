@@ -106,6 +106,7 @@ function setup(rotate = false) {
     if (type === "keydown") documentEvents.emit(type, event);
     else windowEvents.emit(type, event);
   };
+  const focus = () => documentEvents.emit("focusin");
   return {
     canvas,
     controls,
@@ -119,6 +120,7 @@ function setup(rotate = false) {
     flushDelay,
     flushFrames,
     frames,
+    focus,
     key,
     pointer,
   };
@@ -148,7 +150,7 @@ describe("3D idle frames", () => {
     const run = setup();
 
     run.idle.engineTick();
-    run.idle.touch();
+    run.focus();
     expect(run.pending.size).toBe(0);
     expect(run.pauseAnimation).not.toHaveBeenCalled();
 
@@ -185,6 +187,7 @@ describe("3D idle frames", () => {
     run.idle.dispose();
     run.emitCanvas("pointermove");
     run.emitControl("start");
+    run.focus();
     expect(run.resumeAnimation).toHaveBeenCalledOnce();
     expect(run.pending.size).toBe(0);
     expect(run.frames.size).toBe(0);
@@ -284,9 +287,18 @@ describe("3D idle frames", () => {
     expect(run.pending.size).toBe(0);
   });
 
-  it("holds rotation through keyboard activation and re-arms on key release", () => {
+  it("stops on keyboard focus, holds through activation, and re-arms", () => {
     const run = setup(true);
     run.idle.engineStop();
+    run.flushDelay(FRAME_ROTATE_WAIT);
+    expect(run.controls.autoRotate).toBe(true);
+
+    run.focus();
+    expect(run.controls.autoRotate).toBe(false);
+    expect(run.pauseAnimation).toHaveBeenCalledOnce();
+    expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
+      FRAME_ROTATE_WAIT,
+    ]);
     run.flushDelay(FRAME_ROTATE_WAIT);
     expect(run.controls.autoRotate).toBe(true);
 
