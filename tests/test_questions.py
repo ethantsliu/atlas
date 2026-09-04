@@ -90,6 +90,8 @@ class QuestionTests(unittest.TestCase):
     def test_workflow(self) -> None:
         workflow = (ROOT / ".github/workflows/catalog.yml").read_text(encoding="utf-8")
         for text in (
+            "timeout-minutes: 180",
+            "python -m pip install -r dev.txt",
             "pipeline/questions.py",
             "tests.test_questions",
             "atlas-question-candidates-",

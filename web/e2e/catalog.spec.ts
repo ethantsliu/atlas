@@ -126,8 +126,11 @@ const catalog = {
 
 async function showMobileFilters(page: Page) {
   if ((page.viewportSize()?.width ?? 1_000) > 720) return;
-  const toggle = page.getByRole("button", { name: "Show filters" });
-  if (await toggle.isVisible()) await toggle.click();
+  const toggle = page.getByRole("button", { name: /(?:Show|Hide) filters/ });
+  await expect(toggle).toBeVisible({ timeout: 20_000 });
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") {
+    await toggle.click();
+  }
 }
 
 async function mockTinyCloud(page: Page) {
