@@ -9,8 +9,20 @@ import {
 function payload() {
   return {
     schema_version: 1,
-    generator_version: "catalog-1",
+    generator_version: "catalog-2",
     status: "corpus-derived",
+    content_sha256: "b".repeat(64),
+    policy: {
+      digest: "c".repeat(64),
+      identity_version: "catalog-1",
+      ontology_sha256: "d".repeat(64),
+      scopes: ["likely", "possible"],
+      min_direction_support: 10,
+      min_direction_years: 2,
+      min_author_groups: 3,
+      max_directions: 2_000,
+      published_supports: 6,
+    },
     corpus: {
       manifest_sha256: "a".repeat(64),
       source_count: 3_148_342,
@@ -72,7 +84,7 @@ function detail() {
     ],
     directions: [
       {
-        id: "direction:1234567890abcdef",
+        id: `direction:${"1".repeat(64)}`,
         status: "candidate",
         subject_id: "cs.LG",
         technique_id: "retrieval-and-memory",
@@ -81,6 +93,22 @@ function detail() {
         independent_author_groups_at_least: 3,
         npmi: 0.2,
         support_ids: ["arxiv:2401.00001", "arxiv:2501.00002"],
+        support_refs: [
+          {
+            id: "arxiv:2401.00001",
+            month: "2024-01",
+            path: "2024-01.json.gz",
+            sha256: "e".repeat(64),
+            row: 1,
+          },
+          {
+            id: "arxiv:2501.00002",
+            month: "2025-01",
+            path: "2025-01-1234567890abcdef.json.gz",
+            sha256: "f".repeat(64),
+            row: 2,
+          },
+        ],
       },
     ],
   };
@@ -89,6 +117,9 @@ function detail() {
 describe("full-corpus catalog", () => {
   it("reads only the compact public inventory", () => {
     expect(readCatalogSummary(payload())).toEqual({
+      corpusDigest: "a".repeat(64),
+      catalogDigest: "b".repeat(64),
+      policyDigest: "c".repeat(64),
       sourceCount: 3_148_342,
       broadAreas: 17,
       techniqueFamilies: 24,
@@ -139,7 +170,7 @@ describe("full-corpus catalog", () => {
     const fetcher = vi.fn(async () => new Response(JSON.stringify(detail())));
     await expect(fetchCatalog(undefined, fetcher, "/atlas/")).resolves.toMatchObject({
       subjects: [{ id: "cs.LG" }],
-      directions: [{ id: "direction:1234567890abcdef" }],
+      directions: [{ id: `direction:${"1".repeat(64)}` }],
     });
   });
 });

@@ -12,6 +12,8 @@ const ROOT_KEYS = new Set([
   "schema_version",
   "generator_version",
   "status",
+  "content_sha256",
+  "policy",
   "corpus",
   "coverage",
   "counts",
@@ -20,6 +22,18 @@ const ROOT_KEYS = new Set([
   "subjects",
   "directions",
   "notice",
+]);
+const CORPUS_KEYS = new Set(["manifest_sha256", "source_count", "month_count"]);
+const POLICY_KEYS = new Set([
+  "digest",
+  "identity_version",
+  "ontology_sha256",
+  "scopes",
+  "min_direction_support",
+  "min_direction_years",
+  "min_author_groups",
+  "max_directions",
+  "published_supports",
 ]);
 const COUNT_KEYS = new Set([
   "broad_areas",
@@ -40,12 +54,20 @@ const DIRECTION_KEYS = new Set([
   "independent_author_groups_at_least",
   "npmi",
   "support_ids",
+  "support_refs",
 ]);
+const SUPPORT_KEYS = new Set(["id", "month", "path", "sha256", "row"]);
 const SUBJECT_ID = /^[A-Za-z][A-Za-z0-9.-]{1,31}$/;
-const DIRECTION_ID = /^direction:[0-9a-f]{16}$/;
+const DIRECTION_ID = /^direction:[0-9a-f]{64}$/;
 const SUPPORT_ID = /^arxiv:\S+$/;
+const DIGEST = /^[0-9a-f]{64}$/;
+const MONTH = /^[0-9]{4}-[0-9]{2}$/;
+const SHARD = /^[0-9]{4}-[0-9]{2}(?:-[0-9a-f]{16})?\.json\.gz$/;
 
 export type CatalogSummary = {
+  corpusDigest: string;
+  catalogDigest: string;
+  policyDigest: string;
   sourceCount: number;
   broadAreas: number;
   techniqueFamilies: number;
@@ -77,6 +99,14 @@ export type CatalogDirection = {
   yearCount: number;
   npmi: number;
   supportIds: string[];
+};
+
+type CatalogSupport = {
+  id: string;
+  month: string;
+  path: string;
+  sha256: string;
+  row: number;
 };
 
 export type Catalog = {
@@ -146,6 +176,7 @@ function readDirection(
   subjects: ReadonlySet<string>,
   techniques: ReadonlySet<string>,
 ): CatalogDirection | null {
+  const supports = isRecord(value) ? value.support_refs : null;
   if (
     !isRecord(value) ||
     !exact(value, DIRECTION_KEYS) ||
@@ -168,8 +199,33 @@ function readDirection(
     value.support_ids.length < 1 ||
     value.support_ids.length > 6 ||
     value.support_ids.some((id) => !SUPPORT_ID.test(id)) ||
-    new Set(value.support_ids).size !== value.support_ids.length
+    new Set(value.support_ids).size !== value.support_ids.length ||
+    !Array.isArray(supports) ||
+    supports.length !== value.support_ids.length
   ) {
+    return null;
+  }
+  const supportIds = value.support_ids;
+  const references: CatalogSupport[] = [];
+  for (const support of supports) {
+    if (
+      !isRecord(support) ||
+      !exact(support, SUPPORT_KEYS) ||
+      !isString(support.id) ||
+      !SUPPORT_ID.test(support.id) ||
+      !isString(support.month) ||
+      !MONTH.test(support.month) ||
+      !isString(support.path) ||
+      !SHARD.test(support.path) ||
+      !isString(support.sha256) ||
+      !DIGEST.test(support.sha256) ||
+      !whole(support.row)
+    ) {
+      return null;
+    }
+    references.push(support as CatalogSupport);
+  }
+  if (references.some((support, index) => support.id !== supportIds[index])) {
     return null;
   }
   return {
@@ -179,7 +235,7 @@ function readDirection(
     supportCount: value.support_count,
     yearCount: value.year_count,
     npmi: value.npmi,
-    supportIds: value.support_ids,
+    supportIds,
   };
 }
 
@@ -190,12 +246,20 @@ export function readCatalogSummary(value: unknown): CatalogSummary | null {
     value.schema_version !== 1 ||
     value.status !== "corpus-derived" ||
     !isRecord(value.corpus) ||
+    !exact(value.corpus, CORPUS_KEYS) ||
+    !isRecord(value.policy) ||
+    !exact(value.policy, POLICY_KEYS) ||
     !isRecord(value.counts) ||
     !hasOnlyKeys(value.counts, COUNT_KEYS) ||
     !isString(value.notice)
   ) {
     return null;
   }
+  const corpusDigest = value.corpus.manifest_sha256;
+  const catalogDigest = value.content_sha256;
+  const policyDigest = value.policy.digest;
+  const identityVersion = value.policy.identity_version;
+  const ontologyDigest = value.policy.ontology_sha256;
   const sourceCount = value.corpus.source_count;
   const broadAreas = value.counts.broad_areas;
   const techniqueFamilies = value.counts.technique_families;
@@ -203,6 +267,27 @@ export function readCatalogSummary(value: unknown): CatalogSummary | null {
   const eligibleDirections = value.counts.eligible_directions;
   const candidateDirections = value.counts.candidate_directions;
   if (
+    !isString(corpusDigest) ||
+    !DIGEST.test(corpusDigest) ||
+    !isString(catalogDigest) ||
+    !DIGEST.test(catalogDigest) ||
+    !isString(policyDigest) ||
+    !DIGEST.test(policyDigest) ||
+    identityVersion !== "catalog-1" ||
+    !isString(ontologyDigest) ||
+    !DIGEST.test(ontologyDigest) ||
+    value.generator_version !== "catalog-2" ||
+    !Array.isArray(value.policy.scopes) ||
+    value.policy.scopes.length !== 2 ||
+    value.policy.scopes[0] !== "likely" ||
+    value.policy.scopes[1] !== "possible" ||
+    value.policy.min_direction_support !== 10 ||
+    value.policy.min_direction_years !== 2 ||
+    value.policy.min_author_groups !== 3 ||
+    !whole(value.policy.max_directions) ||
+    value.policy.max_directions < 1 ||
+    value.policy.max_directions > 10_000 ||
+    value.policy.published_supports !== 6 ||
     !whole(sourceCount) ||
     !whole(broadAreas) ||
     !whole(techniqueFamilies) ||
@@ -214,6 +299,7 @@ export function readCatalogSummary(value: unknown): CatalogSummary | null {
   }
   if (
     candidateDirections > eligibleDirections ||
+    candidateDirections > value.policy.max_directions ||
     broadAreas < 1 ||
     techniqueFamilies < 1 ||
     arxivSubjects < 1
@@ -221,6 +307,9 @@ export function readCatalogSummary(value: unknown): CatalogSummary | null {
     return null;
   }
   return {
+    corpusDigest,
+    catalogDigest,
+    policyDigest,
     sourceCount,
     broadAreas,
     techniqueFamilies,
