@@ -11,7 +11,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "pipeline"))
 
 from archive import write_manifest, write_shard  # noqa: E402
-from catalog import build_catalog, catalog_text, check_catalog  # noqa: E402
+from catalog import (  # noqa: E402
+    build_catalog,
+    catalog_hash,
+    catalog_text,
+    check_archive_supports,
+    check_catalog,
+)
 
 
 def route(identifier: str) -> dict:
@@ -76,19 +82,22 @@ class CatalogTests(unittest.TestCase):
     def build(self, *, two_years: bool = True) -> dict:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            first = [
-                paper(f"2301.{index:05d}", 2023, f"Author {index % 3}")
+            self.write_archive(root, two_years=two_years)
+            return build_catalog(root)
+
+    def write_archive(self, root: Path, *, two_years: bool = True) -> None:
+        first = [
+            paper(f"2301.{index:05d}", 2023, f"Author {index % 3}")
+            for index in range(1, 7)
+        ]
+        write_shard(root, shard(2023, first))
+        if two_years:
+            second = [
+                paper(f"2401.{index:05d}", 2024, f"Author {index % 4}")
                 for index in range(1, 7)
             ]
-            write_shard(root, shard(2023, first))
-            if two_years:
-                second = [
-                    paper(f"2401.{index:05d}", 2024, f"Author {index % 4}")
-                    for index in range(1, 7)
-                ]
-                write_shard(root, shard(2024, second))
-            write_manifest(root)
-            return build_catalog(root)
+            write_shard(root, shard(2024, second))
+        write_manifest(root)
 
     def test_counts_candidates(self) -> None:
         value = self.build()
@@ -99,6 +108,11 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(value["counts"]["arxiv_subjects"], 2)
         self.assertEqual(value["counts"]["candidate_directions"], 2)
         self.assertEqual(value["counts"]["eligible_directions"], 2)
+        self.assertRegex(value["content_sha256"], r"^[0-9a-f]{64}$")
+        self.assertEqual(value["content_sha256"], catalog_hash(value))
+        self.assertRegex(value["policy"]["digest"], r"^[0-9a-f]{64}$")
+        self.assertEqual(value["policy"]["identity_version"], "catalog-1")
+        self.assertRegex(value["policy"]["ontology_sha256"], r"^[0-9a-f]{64}$")
         self.assertEqual(
             {row["paper_count"] for row in value["subjects"]},
             {12},
@@ -114,6 +128,11 @@ class CatalogTests(unittest.TestCase):
             self.assertEqual(row["year_count"], 2)
             self.assertEqual(row["independent_author_groups_at_least"], 3)
             self.assertEqual(len(row["support_ids"]), 6)
+            self.assertEqual(
+                row["support_ids"],
+                [support["id"] for support in row["support_refs"]],
+            )
+            self.assertRegex(row["id"], r"^direction:[0-9a-f]{64}$")
 
     def test_year_evidence(self) -> None:
         value = self.build(two_years=False)
@@ -149,6 +168,37 @@ class CatalogTests(unittest.TestCase):
         changed["directions"][0]["subject_id"] = "cs.MISSING"
         with self.assertRaisesRegex(ValueError, "candidate direction"):
             check_catalog(changed)
+
+        changed = copy.deepcopy(value)
+        changed["notice"] = f"{changed['notice']} Tampered."
+        with self.assertRaisesRegex(ValueError, "content digest"):
+            check_catalog(changed)
+
+        changed = copy.deepcopy(value)
+        changed["policy"]["min_direction_support"] += 1
+        changed["content_sha256"] = catalog_hash(changed)
+        with self.assertRaisesRegex(ValueError, "policy digest"):
+            check_catalog(changed)
+
+    def test_support_lineage(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.write_archive(root)
+            value = build_catalog(root)
+            check_archive_supports(value, root)
+
+            changed = copy.deepcopy(value)
+            changed["directions"][0]["support_refs"][0]["row"] = 999
+            changed["content_sha256"] = catalog_hash(changed)
+            check_catalog(changed)
+            with self.assertRaisesRegex(ValueError, "outside its shard"):
+                check_archive_supports(changed, root)
+
+            support = value["directions"][0]["support_refs"][0]
+            path = root / support["path"]
+            path.write_bytes(path.read_bytes() + b"drift")
+            with self.assertRaisesRegex(ValueError, "missing or drifted"):
+                check_archive_supports(value, root)
 
     def test_is_deterministic(self) -> None:
         self.assertEqual(self.build(), self.build())

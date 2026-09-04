@@ -13,44 +13,23 @@ from collections import Counter
 from pathlib import Path
 
 from archive import MANIFEST_NAME, read_manifest, read_shard
+from catalogproof import (
+    MAX_DIRECTIONS,
+    MAX_SUPPORTS,
+    MIN_AUTHOR_GROUPS,
+    MIN_DIRECTION_SUPPORT,
+    MIN_DIRECTION_YEARS,
+    PUBLISHED_SUPPORTS,
+    SCOPES,
+    VERSION,
+    catalog_hash,
+    check_archive_supports,
+    check_catalog,
+    direction_key,
+    policy_contract,
+)
 from files import atomic_write_text
 from ontology import TOPICS, TRICKS
-
-
-VERSION = "catalog-1"
-MIN_DIRECTION_SUPPORT = 10
-MAX_DIRECTIONS = 2_000
-MAX_SUPPORTS = 24
-SCOPES = frozenset({"likely", "possible"})
-SHA256 = "0123456789abcdef"
-SUBJECT_ID = re.compile(r"^[A-Za-z][A-Za-z0-9.-]{1,31}$")
-SUPPORT_ID = re.compile(r"^arxiv:\S+$")
-CORPUS_KEYS = {"manifest_sha256", "source_count", "month_count"}
-COVERAGE_KEYS = {
-    "scanned_papers",
-    "eligible_direction_papers",
-    "scanned_months",
-}
-COUNT_KEYS = {
-    "broad_areas",
-    "technique_families",
-    "arxiv_subjects",
-    "eligible_directions",
-    "candidate_directions",
-}
-FAMILY_KEYS = {"id", "label", "all_paper_count", "in_scope_paper_count"}
-SUBJECT_KEYS = {"id", "label", "paper_count", "primary_paper_count"}
-DIRECTION_KEYS = {
-    "id",
-    "status",
-    "subject_id",
-    "technique_id",
-    "support_count",
-    "year_count",
-    "independent_author_groups_at_least",
-    "npmi",
-    "support_ids",
-}
 
 
 def parse_args() -> argparse.Namespace:
@@ -103,17 +82,6 @@ def keep_smallest(values: set[str], value: str, limit: int) -> None:
         values.remove(max(values))
 
 
-def direction_key(subject: str, technique: str) -> str:
-    """Build one stable corpus-independent candidate identity."""
-    body = f"{VERSION}\0{subject}\0{technique}".encode()
-    return f"direction:{hashlib.sha256(body).hexdigest()[:16]}"
-
-
-def whole(value: object) -> bool:
-    """Return whether a public count is a non-negative integer, excluding bools."""
-    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
-
-
 def association(joint: int, subject: int, technique: int, total: int) -> float:
     """Return normalized pointwise mutual information for exact paper counts."""
     if min(joint, subject, technique, total) <= 0:
@@ -126,20 +94,38 @@ def association(joint: int, subject: int, technique: int, total: int) -> float:
     return round(max(-1.0, min(1.0, value)), 6)
 
 
-def update_direction(group: dict, paper: dict, manifest_hash: str) -> None:
+def update_direction(
+    group: dict,
+    paper: dict,
+    manifest_hash: str,
+    shard: dict,
+    row: int,
+) -> None:
     """Add one distinct paper to a bounded candidate-direction aggregate."""
     group["support_count"] += 1
     year = str(paper["published"])[:4]
     group["years"].add(year)
-    keep_smallest(group["authors"], author_signature(paper), 3)
+    keep_smallest(group["authors"], author_signature(paper), MIN_AUTHOR_GROUPS)
     canonical = f"arxiv:{paper['id']}"
     rank = hashlib.sha256(f"{manifest_hash}\0{canonical}".encode()).hexdigest()
-    keep_smallest(group["supports"], f"{rank}\0{canonical}", MAX_SUPPORTS)
+    group["supports"][rank] = {
+        "id": canonical,
+        "month": shard["month"],
+        "path": shard["path"],
+        "sha256": shard["sha256"],
+        "row": row,
+    }
+    if len(group["supports"]) > MAX_SUPPORTS:
+        del group["supports"][max(group["supports"])]
 
 
-def chosen_supports(group: dict) -> list[str]:
-    """Project the bounded min-hash reservoir into six stable public IDs."""
-    return sorted(value.split("\0", 1)[1] for value in sorted(group["supports"])[:6])
+def chosen_supports(group: dict) -> list[dict]:
+    """Project the bounded min-hash reservoir into exact archive references."""
+    chosen = [
+        group["supports"][rank]
+        for rank in sorted(group["supports"])[:PUBLISHED_SUPPORTS]
+    ]
+    return sorted(chosen, key=lambda value: value["id"])
 
 
 def build_catalog(root: Path, limit: int = MAX_DIRECTIONS) -> dict:  # noqa: C901
@@ -181,7 +167,7 @@ def build_catalog(root: Path, limit: int = MAX_DIRECTIONS) -> dict:  # noqa: C90
             raise ValueError(f"Catalog shard is missing or drifted: {relative}")
         payload = read_shard(path)
         months.append(month)
-        for paper in payload["papers"]:
+        for row, paper in enumerate(payload["papers"]):
             scanned += 1
             categories = set(paper["categories"])
             topics = identifiers(paper["topics"], TOPICS)
@@ -205,10 +191,10 @@ def build_catalog(root: Path, limit: int = MAX_DIRECTIONS) -> dict:  # noqa: C90
                             "support_count": 0,
                             "years": set(),
                             "authors": set(),
-                            "supports": set(),
+                            "supports": {},
                         },
                     )
-                    update_direction(group, paper, manifest_hash)
+                    update_direction(group, paper, manifest_hash, shard, row)
     source_count = manifest.get("counts", {}).get("all")
     if scanned != source_count or months != sorted(set(months)):
         raise ValueError("Catalog coverage does not match the promoted corpus")
@@ -217,10 +203,11 @@ def build_catalog(root: Path, limit: int = MAX_DIRECTIONS) -> dict:  # noqa: C90
     for (subject, technique), group in directions.items():
         if (
             group["support_count"] < MIN_DIRECTION_SUPPORT
-            or len(group["years"]) < 2
-            or len(group["authors"]) < 3
+            or len(group["years"]) < MIN_DIRECTION_YEARS
+            or len(group["authors"]) < MIN_AUTHOR_GROUPS
         ):
             continue
+        support_refs = chosen_supports(group)
         candidates.append(
             {
                 "id": direction_key(subject, technique),
@@ -229,14 +216,15 @@ def build_catalog(root: Path, limit: int = MAX_DIRECTIONS) -> dict:  # noqa: C90
                 "technique_id": technique,
                 "support_count": group["support_count"],
                 "year_count": len(group["years"]),
-                "independent_author_groups_at_least": 3,
+                "independent_author_groups_at_least": MIN_AUTHOR_GROUPS,
                 "npmi": association(
                     group["support_count"],
                     eligible_subjects[subject],
                     eligible_techniques[technique],
                     eligible,
                 ),
-                "support_ids": chosen_supports(group),
+                "support_ids": [support["id"] for support in support_refs],
+                "support_refs": support_refs,
             }
         )
     candidates.sort(
@@ -264,6 +252,7 @@ def build_catalog(root: Path, limit: int = MAX_DIRECTIONS) -> dict:  # noqa: C90
         "schema_version": 1,
         "generator_version": VERSION,
         "status": "corpus-derived",
+        "policy": policy_contract(limit),
         "corpus": {
             "manifest_sha256": manifest_hash,
             "source_count": source_count,
@@ -298,175 +287,8 @@ def build_catalog(root: Path, limit: int = MAX_DIRECTIONS) -> dict:  # noqa: C90
             "not reviewed novelty or feasibility claims."
         ),
     }
+    result["content_sha256"] = catalog_hash(result)
     return check_catalog(result)
-
-
-def check_catalog(value: object) -> dict:  # noqa: C901
-    """Validate the compact public catalog without trusting its producer."""
-    if not isinstance(value, dict):
-        raise ValueError("Catalog root is invalid")
-    required = {
-        "schema_version",
-        "generator_version",
-        "status",
-        "corpus",
-        "coverage",
-        "counts",
-        "areas",
-        "techniques",
-        "subjects",
-        "directions",
-        "notice",
-    }
-    if (
-        set(value) != required
-        or value.get("schema_version") != 1
-        or value.get("generator_version") != VERSION
-        or value.get("status") != "corpus-derived"
-        or not isinstance(value.get("notice"), str)
-        or not value["notice"].strip()
-    ):
-        raise ValueError("Catalog contract is invalid")
-    corpus = value.get("corpus")
-    coverage = value.get("coverage")
-    counts = value.get("counts")
-    if (
-        not all(isinstance(row, dict) for row in (corpus, coverage, counts))
-        or set(corpus) != CORPUS_KEYS
-        or set(coverage) != COVERAGE_KEYS
-        or set(counts) != COUNT_KEYS
-    ):
-        raise ValueError("Catalog metadata is invalid")
-    digest = corpus.get("manifest_sha256")
-    if (
-        not isinstance(digest, str)
-        or len(digest) != 64
-        or any(c not in SHA256 for c in digest)
-    ):
-        raise ValueError("Catalog corpus digest is invalid")
-    integers = [
-        corpus.get("source_count"),
-        corpus.get("month_count"),
-        coverage.get("scanned_papers"),
-        coverage.get("eligible_direction_papers"),
-        coverage.get("scanned_months"),
-        *counts.values(),
-    ]
-    if not all(whole(item) for item in integers):
-        raise ValueError("Catalog counts are invalid")
-    if (
-        corpus["source_count"] != coverage["scanned_papers"]
-        or corpus["month_count"] != coverage["scanned_months"]
-        or counts.get("broad_areas") != len(TOPICS)
-        or counts.get("technique_families") != len(TRICKS)
-        or coverage["eligible_direction_papers"] > corpus["source_count"]
-        or counts["candidate_directions"] > counts["eligible_directions"]
-    ):
-        raise ValueError("Catalog coverage counts disagree")
-    areas = value.get("areas")
-    techniques = value.get("techniques")
-    subjects = value.get("subjects")
-    directions = value.get("directions")
-    if not all(
-        isinstance(rows, list) for rows in (areas, techniques, subjects, directions)
-    ):
-        raise ValueError("Catalog collections are invalid")
-    if not all(
-        isinstance(row, dict)
-        for rows in (areas, techniques, subjects, directions)
-        for row in rows
-    ):
-        raise ValueError("Catalog rows are invalid")
-    if [row.get("id") for row in areas] != sorted(TOPICS):
-        raise ValueError("Catalog broad areas are invalid")
-    if [row.get("id") for row in techniques] != sorted(TRICKS):
-        raise ValueError("Catalog technique families are invalid")
-    subject_ids = [row.get("id") for row in subjects]
-    if (
-        not all(isinstance(identifier, str) for identifier in subject_ids)
-        or subject_ids != sorted(set(subject_ids))
-        or counts.get("arxiv_subjects") != len(subjects)
-    ):
-        raise ValueError("Catalog subjects are invalid")
-    for row in subjects:
-        identifier = row.get("id")
-        if (
-            set(row) != SUBJECT_KEYS
-            or not isinstance(identifier, str)
-            or not SUBJECT_ID.fullmatch(identifier)
-            or row.get("label") != identifier
-            or not whole(row.get("paper_count"))
-            or not whole(row.get("primary_paper_count"))
-            or row["primary_paper_count"] > row["paper_count"]
-            or row["paper_count"] > corpus["source_count"]
-        ):
-            raise ValueError("Catalog subject row is invalid")
-    expected_directions = sorted(
-        directions,
-        key=lambda row: (
-            -row.get("support_count", -1),
-            -row.get("npmi", -2),
-            row.get("subject_id", ""),
-            row.get("technique_id", ""),
-        ),
-    )
-    direction_ids = [row.get("id") for row in directions]
-    direction_pairs = [
-        (row.get("subject_id"), row.get("technique_id")) for row in directions
-    ]
-    if (
-        not all(isinstance(identifier, str) for identifier in direction_ids)
-        or not all(
-            isinstance(subject, str) and isinstance(technique, str)
-            for subject, technique in direction_pairs
-        )
-        or directions != expected_directions
-        or counts.get("candidate_directions") != len(directions)
-        or counts.get("eligible_directions", 0) < len(directions)
-        or len(set(direction_ids)) != len(direction_ids)
-        or len(set(direction_pairs)) != len(direction_pairs)
-    ):
-        raise ValueError("Catalog direction counts are invalid")
-    for row in [*areas, *techniques]:
-        if (
-            set(row) != FAMILY_KEYS
-            or not isinstance(row.get("label"), str)
-            or not row["label"]
-            or not whole(row.get("all_paper_count"))
-            or not whole(row.get("in_scope_paper_count"))
-            or row["in_scope_paper_count"] > row["all_paper_count"]
-            or row["all_paper_count"] > corpus["source_count"]
-            or row["in_scope_paper_count"] > coverage["eligible_direction_papers"]
-        ):
-            raise ValueError("Catalog family counts are invalid")
-    for row in directions:
-        supports = row.get("support_ids")
-        if (
-            set(row) != DIRECTION_KEYS
-            or row.get("status") != "candidate"
-            or row.get("subject_id") not in set(subject_ids)
-            or row.get("technique_id") not in TRICKS
-            or row.get("id") != direction_key(row["subject_id"], row["technique_id"])
-            or not whole(row.get("support_count"))
-            or row["support_count"] < MIN_DIRECTION_SUPPORT
-            or row["support_count"] > coverage["eligible_direction_papers"]
-            or not whole(row.get("year_count"))
-            or row["year_count"] < 2
-            or row.get("independent_author_groups_at_least") != 3
-            or not isinstance(row.get("npmi"), (int, float))
-            or isinstance(row.get("npmi"), bool)
-            or not math.isfinite(row["npmi"])
-            or not -1 <= row["npmi"] <= 1
-            or not isinstance(supports, list)
-            or not 1 <= len(supports) <= 6
-            or supports != sorted(set(supports))
-            or not all(
-                isinstance(item, str) and SUPPORT_ID.fullmatch(item)
-                for item in supports
-            )
-        ):
-            raise ValueError("Catalog candidate direction is invalid")
-    return value
 
 
 def main() -> None:
@@ -483,6 +305,7 @@ def main() -> None:
             or value["corpus"]["month_count"] != len(manifest.get("shards", []))
         ):
             raise ValueError("Catalog does not describe this promoted corpus")
+        check_archive_supports(value, args.archive)
         return
     value = build_catalog(args.archive, args.limit)
     atomic_write_text(args.output, catalog_text(value))
