@@ -329,6 +329,8 @@ export function GraphSpace({
 }: SpaceProps) {
   const [swarmHovered, setSwarmHovered] = useState<GraphNode | null>(null);
   const core = useCore(graphRef);
+  const visibleCoreRef = useRef<GraphNode | null>(null);
+  const pressedCoreRef = useRef<GraphNode | null>(null);
   const order = useMemo(() => makeOrder(), []);
   useBegin(graphRef, order);
   const quality = useSpaceQuality(graph, cloud, width, height);
@@ -382,9 +384,19 @@ export function GraphSpace({
   });
   const tip = swarmHit.tip;
   const hoverRank = hoverFront(core.tip, tip, cloudHit.tip, cloudHit.probing);
+  visibleCoreRef.current = hoverRank === 3 ? (core.tip?.node ?? null) : null;
   const hovered =
     hoverRank === 3 ? (core.tip?.node ?? null) : hoverRank === 2 ? swarmHovered : null;
   useFrameHover(frameRef, cloudHit.probing);
+  useEffect(() => {
+    const canvas = graphRef.current?.renderer().domElement;
+    if (!canvas) return;
+    const press = () => {
+      pressedCoreRef.current = visibleCoreRef.current;
+    };
+    canvas.addEventListener("pointerdown", press, true);
+    return () => canvas.removeEventListener("pointerdown", press, true);
+  }, [graphRef]);
   useMarks({
     graphRef,
     nodes: sceneGraph.nodes,
@@ -450,7 +462,8 @@ export function GraphSpace({
           stopFrames(frameRef, graphRef, camera, fitRef, showView, coreIds)
         }
         onNodeClick={(node) => {
-          const visible = hoverRank === 3 ? (core.tip?.node ?? node) : node;
+          const visible = pressedCoreRef.current ?? node;
+          pressedCoreRef.current = null;
           order.claim(3, nodeDepth(graphRef.current, visible), () =>
             pickFront(cloudHit, cloudOpenRef, onChoose, visible),
           );

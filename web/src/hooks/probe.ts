@@ -200,11 +200,11 @@ function queueClaim(
   });
 }
 
-export async function showPoint(args: ShowInput): Promise<void> {
+export async function showPoint(args: ShowInput): Promise<boolean> {
   const { event, hit, load, refs, setProbing, setTip } = args;
   if (isHidden(refs) || performance.now() < refs.block.current) {
     setProbing(false);
-    return;
+    return false;
   }
   const token = ++refs.request.current;
   let match: PointMatch;
@@ -215,19 +215,19 @@ export async function showPoint(args: ShowInput): Promise<void> {
       clearHover(refs, setTip);
       setProbing(false);
     }
-    return;
+    return false;
   }
   if (
     token !== refs.request.current ||
     isHidden(refs) ||
     performance.now() < refs.block.current
   ) {
-    return;
+    return false;
   }
   if (match.index == null) {
     setProbing(false);
     clearHover(refs, setTip);
-    return;
+    return false;
   }
   const index = match.index;
   const picked = { distance: match.distance, index, valid: match.valid };
@@ -258,6 +258,7 @@ export async function showPoint(args: ShowInput): Promise<void> {
     .finally(() => {
       if (token === refs.request.current) setProbing(false);
     });
+  return true;
 }
 
 function claimPoint(args: ClickInput, match: PointMatch): void {

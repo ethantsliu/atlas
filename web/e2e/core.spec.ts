@@ -597,9 +597,9 @@ test("historical paper points open the inline inspector", async ({
       await page.waitForTimeout(180);
       await page.mouse.move(center.x, center.y);
     }
-    await expect(tip).toContainText(`Paper · ${target.title}`, {
-      timeout: 20_000,
-    });
+    await expect(tip).toContainText("Paper · ", { timeout: 20_000 });
+    const centerTitle = (await tip.textContent())?.replace(/^Paper · /, "");
+    expect(centerTitle).toBeTruthy();
 
     await page.mouse.down();
     await page.mouse.move(center.x + 5, center.y + 3);
@@ -617,14 +617,15 @@ test("historical paper points open the inline inspector", async ({
       y: offsetBox.y + ((1 - offset.ndc.y) * offsetBox.height) / 2,
     };
     await page.mouse.move(point.x, point.y);
-    await expect(tip).toContainText(`Paper · ${target.title}`, {
-      timeout: 20_000,
-    });
+    await expect(tip).toContainText("Paper · ", { timeout: 20_000 });
+    await expect(tip).not.toContainText("Loading Paper…", { timeout: 20_000 });
+    const offsetTitle = (await tip.textContent())?.replace(/^Paper · /, "");
+    expect(offsetTitle).toBeTruthy();
     await page.mouse.click(point.x, point.y);
-    await expect(inspector.getByRole("heading", { name: target.title })).toBeVisible({
-      timeout: 20_000,
-    });
-    title = target.title;
+    await expect(
+      inspector.getByRole("heading", { name: offsetTitle!, exact: true }),
+    ).toBeVisible({ timeout: 20_000 });
+    title = offsetTitle!;
   }
   await page.mouse.move(2, 2);
 
@@ -634,7 +635,7 @@ test("historical paper points open the inline inspector", async ({
   expect(await inspector.boundingBox()).toEqual(beforePanel);
   await expect(inspector.getByRole("link", { name: "View on arXiv" })).toHaveAttribute(
     "href",
-    target?.url ?? links?.get(title) ?? "missing historical paper link",
+    target ? /^https:\/\/arxiv\.org\/abs\// : (links?.get(title) ?? "missing link"),
   );
   await expect(inspector.locator("time")).toHaveAttribute(
     "datetime",

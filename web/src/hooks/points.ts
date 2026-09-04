@@ -39,6 +39,7 @@ import type { PickOrder } from "../lib/order";
 const HOVER_WAIT = 120;
 const DENSE_HOVER_WAIT = 700;
 const HOVER_SETTLE_TRIES = 14;
+const HOVER_EMPTY_TRIES = 3;
 const META_LIMIT = 2;
 export const CLOUD_HOVER_LIMIT = 100_000;
 export { clearHover, pickBound, reuseHit, shownHit, type PointTip } from "./probe";
@@ -117,7 +118,7 @@ async function gpuHit(
 }
 
 export function pickSize(pointer?: string): number {
-  return pointer === "touch" ? 44 : 8;
+  return pointer === "touch" ? 44 : 12;
 }
 
 export function hoverWait(count: number): number {
@@ -284,7 +285,7 @@ function mountPoints(
   let released: Down | null = null;
   let choosing: number | null = null;
   let pressed = false;
-  const show = (event: PointerEvent, tries = 0) => {
+  const show = (event: PointerEvent, tries = 0, misses = 0) => {
     if (waitHoverRest(points.userData.moving, tries)) {
       timer = setTimeout(() => {
         timer = undefined;
@@ -292,7 +293,13 @@ function mountPoints(
       }, CLOUD_REST_MS + 20);
       return;
     }
-    void showPoint({ event, hit, load, refs, setProbing, setTip });
+    void showPoint({ event, hit, load, refs, setProbing, setTip }).then((found) => {
+      if (found || moved !== event || pressed || misses >= HOVER_EMPTY_TRIES) return;
+      timer = setTimeout(() => {
+        timer = undefined;
+        if (moved === event) show(event, tries, misses + 1);
+      }, CLOUD_REST_MS + 20);
+    });
   };
   const stop = () => {
     if (timer) clearTimeout(timer);
