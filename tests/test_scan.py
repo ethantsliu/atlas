@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "pipeline"))
 
 from archive import write_manifest, write_shard  # noqa: E402
-from scan import scan_archive  # noqa: E402
+from scan import add_source, open_db, scan_archive  # noqa: E402
 from synth import make_manifest  # noqa: E402
 
 
@@ -67,6 +67,25 @@ def setup(root: Path, papers: list[dict]) -> tuple[dict, dict]:
 
 
 class ScanTests(unittest.TestCase):
+    def test_source_rank(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            db = open_db(Path(directory) / "scan.sqlite")
+            try:
+                add_source(db, "candidate", "arxiv:1", "title", 8, 12, "ßeta", 12)
+                add_source(db, "candidate", "arxiv:1", "title", 2, 7, "ZZZ", 12)
+                add_source(db, "candidate", "arxiv:1", "title", 1, 6, "SSalpha", 12)
+                row = db.execute(
+                    """
+                    SELECT start, end, text FROM trick_sources
+                    WHERE label = ? AND canonical = ? AND field = ?
+                    """,
+                    ("candidate", "arxiv:1", "title"),
+                ).fetchone()
+            finally:
+                db.close()
+
+        self.assertEqual((row["start"], row["end"], row["text"]), (1, 6, "SSalpha"))
+
     def test_stream(self) -> None:
         papers = [paper(f"2401.{index:05d}") for index in range(1, 21)]
         with tempfile.TemporaryDirectory() as directory:

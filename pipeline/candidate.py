@@ -185,9 +185,13 @@ def method_signals(text: str) -> list[str]:
     return [name for name, pattern in SIGNALS if pattern.search(text)]
 
 
-def label_clause(text: str) -> tuple[str, list[str]] | None:
+def label_clause(
+    text: str,
+    *,
+    prechecked: bool = False,
+) -> tuple[str, list[str]] | None:
     """Return one bounded safe label and its auditable method signals."""
-    if unsafe_text(text) or len(text) > MAX_SOURCE_CHARS:
+    if (not prechecked and unsafe_text(text)) or len(text) > MAX_SOURCE_CHARS:
         return None
     signals = method_signals(text)
     label = normalize(text)
@@ -374,7 +378,7 @@ def build_candidates(records: Sequence[Mapping[str, object]]) -> list[dict]:
             if unsafe_text(value):
                 continue
             for start, end, text in clause_rows(value):
-                candidate = label_clause(text)
+                candidate = label_clause(text, prechecked=True)
                 if candidate is None:
                     continue
                 label, signals = candidate

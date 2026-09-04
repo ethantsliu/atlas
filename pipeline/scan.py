@@ -171,6 +171,17 @@ def add_source(
     limit: int,
 ) -> None:
     """Retain the best exact span for one paper field and clause."""
+    inserted = db.execute(
+        """
+        INSERT OR IGNORE INTO trick_sources(
+            label, canonical, field, start, end, text
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (label, canonical, field, start, end, text),
+    ).rowcount
+    if inserted:
+        trim_sources(db, label, limit)
+        return
     prior = db.execute(
         """
         SELECT start, end, text FROM trick_sources
@@ -180,25 +191,19 @@ def add_source(
     ).fetchone()
     rank = (text.casefold(), start, end, text)
     old = (
-        None
-        if prior is None
-        else (
-            prior["text"].casefold(),
-            prior["start"],
-            prior["end"],
-            prior["text"],
-        )
+        prior["text"].casefold(),
+        prior["start"],
+        prior["end"],
+        prior["text"],
     )
-    if old is not None and old <= rank:
+    if old <= rank:
         return
     db.execute(
         """
-        INSERT INTO trick_sources(label, canonical, field, start, end, text)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(label, canonical, field) DO UPDATE SET
-            start=excluded.start, end=excluded.end, text=excluded.text
+        UPDATE trick_sources SET start = ?, end = ?, text = ?
+        WHERE label = ? AND canonical = ? AND field = ?
         """,
-        (label, canonical, field, start, end, text),
+        (start, end, text, label, canonical, field),
     )
     trim_sources(db, label, limit)
 
@@ -215,7 +220,7 @@ def add_tricks(
         if not isinstance(value, str) or unsafe_text(value):
             continue
         for start, end, text in clause_rows(value):
-            found = label_clause(text)
+            found = label_clause(text, prechecked=True)
             if found is None:
                 continue
             label, _ = found

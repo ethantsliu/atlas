@@ -49,7 +49,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--check", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--check", action="store_true")
+    mode.add_argument("--defer-check", action="store_true")
     parser.add_argument("--limit", type=int, default=48)
     return parser.parse_args()
 
@@ -247,12 +249,14 @@ def main() -> None:
     if value is None:
         print("No promoted corpus is available; discovery has no work")
         return
-    check_artifact(value, args.archive)
+    if not args.defer_check:
+        check_artifact(value, args.archive)
     atomic_write_text(
         args.output,
         json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
     )
-    print(f"Built {len(value['candidates']):,} provisional candidates")
+    state = "unvalidated " if args.defer_check else ""
+    print(f"Built {len(value['candidates']):,} {state}provisional candidates")
 
 
 if __name__ == "__main__":

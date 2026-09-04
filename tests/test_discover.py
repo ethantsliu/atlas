@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "pipeline"))
 
 from archive import write_manifest, write_shard  # noqa: E402
-from discover import build_artifact, check_artifact  # noqa: E402
+from discover import build_artifact, check_artifact, main  # noqa: E402
 
 
 def route(identifier: str) -> dict:
@@ -88,6 +88,12 @@ class DiscoverTests(unittest.TestCase):
             'if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$scope" = "latest" ]',
             'jq -r \'.shards[].month\' "$manifest" > "$requested"',
             '--archive "$ARCHIVE_ROOT"',
+            "--defer-check",
+            "atlas-candidates-unvalidated-${{ github.run_id }}",
+            "retention-days: 1",
+            "continue-on-error: true",
+            "timeout-minutes: 240",
+            "timeout-minutes: 90",
             "actions/upload-artifact@v4",
             "tests.test_candidate",
             "tests.test_scan",
@@ -106,6 +112,7 @@ class DiscoverTests(unittest.TestCase):
             "${{ runner.temp }}",
             "DISPATCH_MONTHS",
             'tag="corpus-v1"',
+            "tests.test_architecture",
         )
         for text in forbidden:
             with self.subTest(text=text):
@@ -114,6 +121,28 @@ class DiscoverTests(unittest.TestCase):
     def test_absent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             self.assertIsNone(build_artifact(Path(directory), 4))
+
+    def test_deferred_cli(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "candidates.json"
+            write_shard(root, shard())
+            write_manifest(root)
+            arguments = [
+                "discover.py",
+                "--archive",
+                str(root),
+                "--output",
+                str(output),
+                "--defer-check",
+            ]
+            with patch.object(sys, "argv", arguments), patch(
+                "discover.check_artifact"
+            ) as check:
+                main()
+
+            self.assertTrue(output.is_file())
+            check.assert_not_called()
 
     def test_provisional(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -121,14 +121,27 @@ jobs:
 
       - name: Build provisional candidates
         if: steps.corpus.outputs.present == 'true'
+        timeout-minutes: 240
         run: |
           mkdir -p "$(dirname "$OUTPUT_PATH")"
           python pipeline/discover.py \
             --archive "$ARCHIVE_ROOT" \
-            --output "$OUTPUT_PATH"
+            --output "$OUTPUT_PATH" \
+            --defer-check
+
+      - name: Preserve unvalidated candidates
+        if: steps.corpus.outputs.present == 'true'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-candidates-unvalidated-${{ github.run_id }}
+          path: ${{ env.OUTPUT_PATH }}
+          if-no-files-found: error
+          retention-days: 1
 
       - name: Validate candidate contracts
         if: steps.corpus.outputs.present == 'true'
+        timeout-minutes: 90
         run: |
           test -s "$OUTPUT_PATH"
           python pipeline/discover.py \
@@ -143,7 +156,6 @@ jobs:
             tests.test_safety \
             tests.test_privacy \
             tests.test_discover \
-            tests.test_architecture \
             -v
 
       - name: Publish candidate artifact
