@@ -183,6 +183,7 @@ test("navigation cancels a deferred camera restore", async ({
     !["chrome", "safari"].includes(testInfo.project.name),
     "Deferred camera navigation is covered in Chromium and WebKit",
   );
+  await page.emulateMedia({ reducedMotion: "reduce" });
   let release = () => {};
   const gate = new Promise<void>((resolve) => {
     release = resolve;
