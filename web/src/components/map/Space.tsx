@@ -208,11 +208,10 @@ function hoverFront(
   cloud: PointTip | null,
   probing: boolean,
 ) {
-  if (probing) return 0;
   return frontRank([
     ...(core ? [{ depth: core.depth, rank: 3 as const }] : []),
     ...(tip ? [{ depth: tip.depth, rank: 2 as const }] : []),
-    ...(cloud ? [{ depth: cloud.depth, rank: 1 as const }] : []),
+    ...(!probing && cloud ? [{ depth: cloud.depth, rank: 1 as const }] : []),
   ]);
 }
 
@@ -391,11 +390,13 @@ export function GraphSpace({
   useEffect(() => {
     const canvas = graphRef.current?.renderer().domElement;
     if (!canvas) return;
-    const press = () => {
+    const target = canvas.ownerDocument ?? document;
+    const press = (event: Event) => {
+      if (event.target !== canvas) return;
       pressedCoreRef.current = visibleCoreRef.current;
     };
-    canvas.addEventListener("pointerdown", press, true);
-    return () => canvas.removeEventListener("pointerdown", press, true);
+    target.addEventListener("pointerdown", press, true);
+    return () => target.removeEventListener("pointerdown", press, true);
   }, [graphRef]);
   useMarks({
     graphRef,

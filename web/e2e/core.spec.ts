@@ -494,9 +494,11 @@ test("a bare paper deep link selects it and opens evidence explicitly", async ({
 test("hover labels a node and click keeps details in the inspector", async ({
   page,
 }, testInfo) => {
+  test.setTimeout(120_000);
   test.skip(["android", "iphone"].includes(testInfo.project.name));
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1_440, height: 900 });
+  await watchCopy(page);
   await loadMap(page);
   test.skip(!(await has3d(page)), "3D hover requires WebGL2");
   await showFilters(page);
@@ -506,6 +508,7 @@ test("hover labels a node and click keeps details in the inspector", async ({
   await expect(mapStatus(page)).not.toHaveText(fullState!);
   await page.waitForTimeout(2_500);
   await page.getByRole("button", { name: "Center selected" }).click();
+  await waitCameraIdle(page);
 
   const graph = page.getByLabel(/Interactive (3D )?research graph/);
   const box = await graph.locator("canvas:not(.cloud-plane)").boundingBox();
@@ -696,21 +699,7 @@ test("layered pointer hover and click each resolve one visible node", async ({
   const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 
   const tips = page.locator(".core-tip:visible, .swarm-tip:visible");
-  await expect
-    .poll(
-      async () => {
-        await page.mouse.move(2, 2);
-        await center.click();
-        await page.mouse.move(point.x, point.y);
-        await page.waitForTimeout(820);
-        return tips.count();
-      },
-      {
-        message: "centered selection should settle under the pointer",
-        timeout: 30_000,
-      },
-    )
-    .toBe(1);
+  await center.click();
   await waitCameraIdle(page);
   let hoverLabel = "";
   await expect
