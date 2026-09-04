@@ -209,9 +209,12 @@ async function foregroundTarget(): Promise<CloudTarget> {
   };
 }
 
-function offsetCamera(target: CloudTarget, aspect: number) {
+function offsetCamera(
+  target: CloudTarget,
+  aspect: number,
+  intended = { x: 0.27, y: -0.21 },
+) {
   const radius = 16;
-  const intended = { x: 0.27, y: -0.21 };
   const [x, y, z] = target.point;
   const view = {
     x: Number(cameraPart(x - intended.x * radius * aspect)),
@@ -810,6 +813,14 @@ test("touch opens a historical paper in the stacked inspector", async ({
 
   const graph = page.getByLabel("Interactive 3D research graph");
   await waitCamera(page, target.camera);
+  const initialCanvas = await graph.locator("canvas:not(.cloud-plane)").boundingBox();
+  if (!initialCanvas) throw new Error("Research graph canvas has no bounds");
+  const offset = offsetCamera(target, initialCanvas.width / initialCanvas.height, {
+    x: 0,
+    y: 0.45,
+  });
+  await page.goto(`/#?k=p&c=${offset.camera}`);
+  await waitCamera(page, offset.camera);
   await expect(
     page.getByRole("group", { name: "historical paper dot density" }),
   ).toHaveCount(0);
@@ -822,7 +833,10 @@ test("touch opens a historical paper in the stacked inspector", async ({
   if (!canvas) throw new Error("Research graph canvas has no bounds");
   const cloudSource = inspector.getByRole("link", { name: "View on arXiv" });
   await page.waitForTimeout(900);
-  await page.touchscreen.tap(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2);
+  await page.touchscreen.tap(
+    canvas.x + ((offset.ndc.x + 1) * canvas.width) / 2,
+    canvas.y + ((1 - offset.ndc.y) * canvas.height) / 2,
+  );
 
   await expect(inspector.getByRole("heading", { name: target.title })).toBeVisible({
     timeout: 20_000,
