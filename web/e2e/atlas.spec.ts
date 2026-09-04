@@ -45,7 +45,7 @@ for (const viewport of viewports) {
       expect(graphBox!.width).toBeGreaterThanOrEqual(viewport.width - 2);
     }
 
-    for (const view of ["Daily", "Library", "Briefs"]) {
+    for (const view of ["Daily", "Library", "Ideas"]) {
       await page.getByRole("button", { name: view, exact: true }).click();
       const viewOverflow = await page.evaluate(
         () => document.documentElement.scrollWidth > window.innerWidth + 1,
@@ -278,10 +278,10 @@ test("paper lens and arrow-key graph navigation stay concise", async ({ page }) 
     await showFilters.tap();
     await expect(showFilters).toHaveAttribute("aria-expanded", "true");
   }
-  await expect(filters.getByText("Papers in map", { exact: true })).toBeVisible();
+  await expect(filters.getByText("Papers", { exact: true })).toBeVisible();
   await expect(filters).not.toContainText("Paper / context");
   const paperLens = filters.getByRole("button", {
-    name: /Papers in map\s+[,\d]+/,
+    name: /Papers\s+[,\d]+/,
   });
   await paperLens.click();
   await expect(paperLens).toHaveAttribute("aria-pressed", "true");
@@ -396,14 +396,14 @@ test("search views announce empty results and offer working resets", async ({
   ).toBeVisible();
   await scan(page);
 
-  await page.getByRole("button", { name: "Briefs", exact: true }).click();
+  await page.getByRole("button", { name: "Ideas", exact: true }).click();
   await search.fill("zzzz-no-results-zzzz");
-  await expect(page.getByText(/No briefs match/)).toBeVisible();
+  await expect(page.getByText(/No ideas match/)).toBeVisible();
   await expect(page.getByRole("status")).toContainText(
-    "0 research or blog briefs match",
+    "0 research or blog ideas match",
   );
   await page.getByRole("button", { name: "Clear search" }).click();
-  await expect(page.getByRole("button", { name: "Open brief" }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Open idea" }).first()).toBeVisible();
   await scan(page);
 });
 
@@ -411,15 +411,15 @@ test("brief dialog exposes provenance, traps focus, and restores focus", async (
   page,
 }) => {
   await page.goto(corePath);
-  await page.getByRole("button", { name: "Briefs", exact: true }).click();
-  const trigger = page.getByRole("button", { name: "Open brief" }).first();
+  await page.getByRole("button", { name: "Ideas", exact: true }).click();
+  const trigger = page.getByRole("button", { name: "Open idea" }).first();
   await trigger.click();
 
   const dialog = page.getByRole("dialog", { name: /.+/ });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByLabel("Evidence basis")).toBeVisible();
   await expect(
-    dialog.getByRole("button", { name: "Close research brief" }),
+    dialog.getByRole("button", { name: "Close research idea" }),
   ).toBeFocused();
   await scan(page);
 
@@ -442,7 +442,7 @@ test("alternate-source paper dialog passes an accessibility scan", async ({ page
 
 test("researched briefs are ranked by one-decimal feasibility", async ({ page }) => {
   await page.goto(corePath);
-  await page.getByRole("button", { name: "Briefs", exact: true }).click();
+  await page.getByRole("button", { name: "Ideas", exact: true }).click();
 
   const scoreCards = page.locator(".featured-briefs .card-score");
   await expect(scoreCards.first()).toBeVisible({ timeout: 15_000 });
@@ -457,12 +457,12 @@ test("cross-scale calibration exposes its complete validation protocol", async (
   page,
 }) => {
   await page.goto(corePath);
-  await page.getByRole("button", { name: "Briefs", exact: true }).click();
+  await page.getByRole("button", { name: "Ideas", exact: true }).click();
 
   const card = page
     .locator(".brief-card")
     .filter({ hasText: "Prospective cross-scale calibration" });
-  await card.getByRole("button", { name: "Open brief" }).click();
+  await card.getByRole("button", { name: "Open idea" }).click();
 
   const dialog = page.getByRole("dialog", {
     name: /Prospective cross-scale calibration/,

@@ -76,7 +76,7 @@ export function AppHeader({
             aria-current={view === item ? "page" : undefined}
             key={item}
           >
-            {labelOf(item)}
+            {item === "briefs" ? "Ideas" : labelOf(item)}
           </button>
         ))}
       </nav>

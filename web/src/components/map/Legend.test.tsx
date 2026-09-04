@@ -6,7 +6,7 @@ describe("GraphLegend", () => {
   it("shows only graph object kinds", () => {
     const html = renderToStaticMarkup(<GraphLegend archive={false} />);
 
-    for (const label of ["Topic", "Trick", "Paper", "Idea"]) {
+    for (const label of ["Topics", "Techniques", "Papers", "Ideas"]) {
       expect(html).toContain(label);
     }
     expect(html).not.toContain("likely ML");
@@ -14,9 +14,10 @@ describe("GraphLegend", () => {
     expect(html).not.toContain("archive context");
   });
 
-  it("distinguishes the historical cloud from curated papers", () => {
+  it("distinguishes archive papers from foreground papers", () => {
     const html = renderToStaticMarkup(<GraphLegend archive />);
-    expect(html).toContain("Archive");
-    expect(html).toContain("Curated");
+    expect(html).toContain("Archive papers");
+    expect(html).toContain("Papers");
+    expect(html).not.toContain("Curated");
   });
 });

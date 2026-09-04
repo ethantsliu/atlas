@@ -33,12 +33,12 @@ const queue: DiscoveryQueue = {
 };
 
 describe("discovery review queue presentation", () => {
-  it("never presents provisional candidates as screened or ranked briefs", () => {
+  it("never presents provisional candidates as screened or ranked ideas", () => {
     const markup = renderToStaticMarkup(<DiscoveryQueueList queue={queue} query="" />);
 
     expect(candidateLabel(candidate)).toBe("retrieval and memory × evaluation");
     expect(markup).toContain("1 unreviewed discovery");
-    expect(markup).toContain("not part of the curated brief count");
+    expect(markup).toContain("not part of the Atlas idea count");
     expect(markup).toContain("novelty and feasibility not assessed");
     expect(markup).toContain("3,148,342-paper manifest");
     expect(markup).toContain("1,612,535 records in its configured scope");
@@ -47,7 +47,7 @@ describe("discovery review queue presentation", () => {
     expect(markup).not.toMatch(/#[0-9]+ portfolio/);
   });
 
-  it("filters independently from curated Atlas ideas", () => {
+  it("filters independently from Atlas ideas", () => {
     const markup = renderToStaticMarkup(
       <DiscoveryQueueList queue={queue} query="unrelated" />,
     );

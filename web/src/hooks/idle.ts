@@ -1,12 +1,12 @@
 import { beginAutoChange } from "./control";
 
 export const FRAME_IDLE_WAIT = 240;
-export const FRAME_ROTATE_WAIT = 5_000;
-export const FRAME_HOVER_ROTATE_WAIT = 3_200;
+export const FRAME_ROTATE_WAIT = 2_500;
+export const FRAME_HOVER_ROTATE_WAIT = 1_800;
 export const FRAME_ROTATE_PACE = 16;
 export const FRAME_ROTATE_SLOW_PACE = 240;
 export const FRAME_ROTATE_SLOW_FRAME = 48;
-export const FRAME_ROTATE_SPEED = 0.3;
+export const FRAME_ROTATE_SPEED = 1;
 const FRAME_ROTATE_PACE_RATIO = 2;
 const FRAME_ROTATE_SPEED_CAP = 4;
 

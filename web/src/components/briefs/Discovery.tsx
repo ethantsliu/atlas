@@ -49,9 +49,9 @@ export function DiscoveryQueueList({
           Machine-generated combinations awaiting review
         </h2>
         <p>
-          This is a separate review queue, not part of the curated brief count. It has
-          no feasibility score, recommendation, or finding of novelty. The run was bound
-          to a {source.manifestPapers.toLocaleString()}-paper manifest and evaluated{" "}
+          This is a separate review queue, not part of the Atlas idea count. It has no
+          feasibility score, recommendation, or finding of novelty. The run was bound to
+          a {source.manifestPapers.toLocaleString()}-paper manifest and evaluated{" "}
           {source.loadedPapers.toLocaleString()} records in its configured scope.
         </p>
         <a
@@ -113,7 +113,10 @@ export function DiscoveryQueueList({
             : `Show all ${matching.length.toLocaleString()} unreviewed candidates`}
         </button>
       )}
-      <p className="discovery-notice">{queue.notice}</p>
+      <p className="discovery-notice">
+        These candidates are unreviewed and are not recommendations, novelty findings,
+        or feasibility assessments.
+      </p>
     </section>
   );
 }

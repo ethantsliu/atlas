@@ -17,12 +17,12 @@ const Methods = lazy(() => import("./Methods"));
 type CatalogTab = "subjects" | "directions" | "questions" | "methods";
 
 const QUESTION_NOTICE =
-  "These are automatically projected research-question candidates, not reviewed ideas, recommendations, novelty findings, or feasibility assessments. The curated Atlas brief collection remains separate, with review status shown per brief.";
+  "These are automatically projected research-question candidates, not reviewed ideas, recommendations, novelty findings, or feasibility assessments. Atlas ideas remain separate, with review status shown for each idea.";
 const QUESTION_EVIDENCE =
-  "The references establish only corpus co-occurrence between this arXiv subject and curated technique family; they do not establish novelty, causality, feasibility, or effectiveness.";
+  "The references establish only corpus co-occurrence between this arXiv subject and technique family; they do not establish novelty, causality, feasibility, or effectiveness.";
 
 export function catalogDescription(summary: CatalogSummary, ideas: number): string {
-  return `${summary.broadAreas.toLocaleString()} curated broad-topic lenses and ${summary.techniqueFamilies.toLocaleString()} curated technique-family lenses organize the map; they are not corpus totals. Corpus-derived layers cover ${summary.sourceCount.toLocaleString()} papers, ${summary.arxivSubjects.toLocaleString()} arXiv subjects, and ${summary.candidateDirections.toLocaleString()} of ${summary.eligibleDirections.toLocaleString()} qualifying unreviewed research-question candidates. The ${ideas.toLocaleString()} curated briefs remain separate, with review status shown per brief.`;
+  return `${summary.broadAreas.toLocaleString()} topics and ${summary.techniqueFamilies.toLocaleString()} techniques organize the map; they are categories, not corpus totals. Corpus-derived layers cover ${summary.sourceCount.toLocaleString()} papers, ${summary.arxivSubjects.toLocaleString()} arXiv subjects, and ${summary.candidateDirections.toLocaleString()} of ${summary.eligibleDirections.toLocaleString()} qualifying unreviewed research-question candidates. The ${ideas.toLocaleString()} Atlas ideas are separately reviewed or marked provisional.`;
 }
 
 function includes(value: string, query: string): boolean {
@@ -297,7 +297,7 @@ export default function CatalogCopy({
         {catalog
           ? catalogDescription(catalog.summary, ideas)
           : failed
-            ? "The full-corpus taxonomy is temporarily unavailable. Curated map lenses and briefs remain available."
+            ? "The full-corpus taxonomy is temporarily unavailable. Topics, techniques, papers, and ideas remain available."
             : "Loading full-corpus taxonomy…"}
       </p>
       {catalog && (

@@ -29,14 +29,14 @@ describe("search states", () => {
     expect(markup).not.toContain("<table");
   });
 
-  it("announces and explains empty Brief results", () => {
+  it("announces and explains empty Idea results", () => {
     const markup = renderToStaticMarkup(
       <BriefsView atlas={makeAtlas()} query="missing" onClearQuery={vi.fn()} />,
     );
 
     expect(markup).toContain('role="status"');
-    expect(markup).toContain("0 research or blog briefs match “missing”.");
-    expect(markup).toContain("No briefs match “missing”");
+    expect(markup).toContain("0 research or blog ideas match “missing”.");
+    expect(markup).toContain("No ideas match “missing”");
     expect(markup).toContain("Clear search");
   });
 
@@ -99,7 +99,7 @@ describe("search states", () => {
     expect(markup).toContain("Automatically synthesized from corpus routes");
     expect(markup).toContain("Researched draft · Related work checked");
     expect(markup).toContain(
-      "rank across all independently scored research and blog briefs",
+      "rank across all independently scored research and blog ideas",
     );
     expect(markup).toContain("#1 portfolio");
   });

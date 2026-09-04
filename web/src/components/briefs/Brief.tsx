@@ -61,7 +61,7 @@ export function BriefModal({
               <span className="type-pill brief-status">{ideaStage(idea)}</span>
               <h1 id="brief-modal-title">{detail.title}</h1>
             </div>
-            <button onClick={close} aria-label="Close research brief">
+            <button onClick={close} aria-label="Close research idea">
               <X />
             </button>
           </header>

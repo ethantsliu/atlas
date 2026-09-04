@@ -20,10 +20,10 @@ type MapFiltersProps = {
 };
 
 const KIND_LABELS: Record<GraphNodeKind, string> = {
-  topic: "Curated topic lenses",
-  trick: "Curated technique lenses",
-  paper: "Papers in map",
-  idea: "Curated briefs",
+  topic: "Topics",
+  trick: "Techniques",
+  paper: "Papers",
+  idea: "Ideas",
 };
 
 function countForKind(

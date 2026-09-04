@@ -86,14 +86,14 @@ export function BriefsView({ atlas, query, onClearQuery }: BriefsViewProps) {
         title={`${researchedCount} researched ${researchedCount === 1 ? "draft" : "drafts"} · ${screeningCount} screening ${screeningCount === 1 ? "candidate" : "candidates"} · ${blogCount} blog ${blogCount === 1 ? "lead" : "leads"}`}
         copy="Scores measure how readily a decisive first experiment can run, not scientific importance. Researched drafts include competitor review; screening research candidates and blog leads remain provisional routes."
       />
-      <ResultStatus count={ideas.length} label="research or blog brief" query={query} />
+      <ResultStatus count={ideas.length} label="research or blog idea" query={query} />
 
       <DiscoveryReviewQueue query={query} />
 
       {ideas.length === 0 && (
         <EmptyState
           title={
-            query.trim() ? `No briefs match “${query.trim()}”` : "No briefs available"
+            query.trim() ? `No ideas match “${query.trim()}”` : "No ideas available"
           }
           copy="Try a broader research area, technique, or paper name."
           action={query.trim() ? "Clear search" : undefined}
@@ -112,7 +112,7 @@ export function BriefsView({ atlas, query, onClearQuery }: BriefsViewProps) {
               Work-package scores estimate execution feasibility inside their parent
               program. They are shown in context and are not ranked as independent
               research programs; the parent card retains its rank across all
-              independently scored research and blog briefs.
+              independently scored research and blog ideas.
             </p>
           </header>
           <div className="portfolio-program-list">
@@ -162,7 +162,7 @@ export function BriefsView({ atlas, query, onClearQuery }: BriefsViewProps) {
             </span>
             <h2>Deeper evidence, ranked without hiding uncertainty</h2>
             <p>
-              These briefs include field comparison and a developed validation protocol.
+              These ideas include field comparison and a developed validation protocol.
               Their honest feasibility score may be lower than a quick screening
               estimate.
             </p>
@@ -316,7 +316,7 @@ function BriefCard({
           onOpen();
         }}
       >
-        Open brief <ChevronRight size={15} />
+        Open idea <ChevronRight size={15} />
       </button>
     </article>
   );

@@ -287,7 +287,7 @@ test("idle orbit yields to input and resumes around the same target", async ({
       },
       { timeout: 15_000 },
     )
-    .toBeGreaterThan(1);
+    .toBeGreaterThan(8);
   expect(length(targetDelta(initial, rotating))).toBeLessThan(0.35);
   expect(rotating.radius).toBeCloseTo(initial.radius, 1);
   expect(rotating.pitch).toBeCloseTo(initial.pitch, 0);
@@ -318,7 +318,7 @@ test("idle orbit yields to input and resumes around the same target", async ({
       },
       { timeout: 15_000 },
     )
-    .toBeGreaterThan(1);
+    .toBeGreaterThan(8);
 
   const beforeWheel = cameraSnapshot(await readCameraQuiet(page));
   await wheelOnGraph(page, -120, 2, { x: 0.7, y: 0.35 });
@@ -358,7 +358,7 @@ test("keyboard Center selected interrupts and later resumes idle orbit", async (
       },
       { timeout: 15_000 },
     )
-    .toBeGreaterThan(1);
+    .toBeGreaterThan(8);
 
   await center.focus();
   await page.keyboard.press("Enter");

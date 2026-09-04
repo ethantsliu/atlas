@@ -9,7 +9,7 @@ import {
 import catalogSource from "./Catalog.tsx?raw";
 
 describe("full-corpus catalog copy", () => {
-  it("keeps archive-derived directions separate from curated briefs", () => {
+  it("keeps archive-derived directions separate from Atlas ideas", () => {
     const copy = catalogDescription(
       {
         corpusDigest: "a".repeat(64),
@@ -26,13 +26,15 @@ describe("full-corpus catalog copy", () => {
       310,
     );
 
-    expect(copy).toContain("17 curated broad-topic lenses");
-    expect(copy).toContain("not corpus totals");
+    expect(copy).toContain("17 topics and 24 techniques");
+    expect(copy).toContain("categories, not corpus totals");
     expect(copy).toContain("176 arXiv subjects");
     expect(copy).toContain(
       "1,710 of 1,710 qualifying unreviewed research-question candidates",
     );
-    expect(copy).toContain("310 curated briefs remain separate");
+    expect(copy).toContain(
+      "310 Atlas ideas are separately reviewed or marked provisional",
+    );
   });
 
   it("projects neutral questions without calling them reviewed ideas", () => {

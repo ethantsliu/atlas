@@ -177,7 +177,7 @@ test("the corpus catalog exposes subjects, candidate directions, and evidence", 
   ).toBeVisible();
 });
 
-test("a missing catalog is explicit and leaves curated lenses available", async ({
+test("a missing catalog is explicit and leaves map categories available", async ({
   page,
 }) => {
   await mockTinyCloud(page);
@@ -191,10 +191,8 @@ test("a missing catalog is explicit and leaves curated lenses available", async 
     "full-corpus taxonomy is temporarily unavailable",
     { timeout: 20_000 },
   );
-  await expect(
-    page.getByRole("button", { name: /Curated topic lenses/ }),
-  ).toBeVisible();
-  await expect(page.getByRole("button", { name: /Curated briefs/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Topics\s+[\d,]+$/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Ideas\s+[\d,]+$/ })).toBeVisible();
 });
 
 test("2D, 3D, and an open catalog never preload method assets", async ({ page }) => {
