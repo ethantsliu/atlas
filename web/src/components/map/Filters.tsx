@@ -77,17 +77,12 @@ export function MapFilters({
         id="atlas-filter-content"
         className={`filter-content ${mobileExpanded ? "mobile-open" : ""}`}
       >
-        <p className="aside-copy" data-cloud-count={archiveCount ?? 0}>
-          {archiveCount
-            ? `${(atlas.meta.paper_count + archiveCount).toLocaleString()} papers mapped by semantic similarity.`
-            : `${atlas.meta.paper_count.toLocaleString()} mapped papers.`}
-        </p>
-
         {ALL_NODE_KINDS.map((kind) => (
           <button
             className={`kind-toggle ${kinds.has(kind) ? "on" : ""}`}
             onClick={() => onToggleKind(kind)}
             aria-pressed={kinds.has(kind)}
+            data-archive-count={kind === "paper" ? archiveCount : undefined}
             key={kind}
           >
             <span style={{ background: NODE_COLORS[kind] }} />

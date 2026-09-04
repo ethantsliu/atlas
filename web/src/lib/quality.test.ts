@@ -73,6 +73,19 @@ describe("adaptive quality", () => {
     });
   });
 
+  it("reduces only canvas resolution for million-point archives", () => {
+    const quality = qualityFor({
+      nodeCount: 3_145_393,
+      width: 1_440,
+      height: 800,
+      deviceMemory: 16,
+      cores: 12,
+      pixelRatio: 2,
+    });
+
+    expect(quality.pixelRatioCap).toBe(0.75);
+  });
+
   it("shortens motion while preserving focused content", () => {
     const quality = qualityFor({
       nodeCount: 2_319,

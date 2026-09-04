@@ -121,6 +121,120 @@ function chooseGraphNode(
   target?.focus({ preventScroll: true });
 }
 
+type GraphViewportProps = Pick<
+  GraphCanvasProps,
+  | "camera"
+  | "cameraReady"
+  | "cloud"
+  | "cloudHidden"
+  | "cloudMark"
+  | "cloudSelected"
+  | "graph"
+  | "layout"
+  | "onChoose"
+  | "onCloudPick"
+  | "onFocus"
+  | "selected"
+  | "theme"
+> & {
+  fallbackRef: FallbackRef;
+  graphRef: GraphRef;
+  hasContent: boolean;
+  height: number;
+  mode: RenderMode;
+  onClear: () => void;
+  onPlane: (ready: boolean) => void;
+  target: HTMLElement | null;
+  top: number;
+  width: number;
+};
+
+function GraphViewport(props: GraphViewportProps) {
+  const {
+    camera,
+    cameraReady,
+    cloud,
+    cloudHidden,
+    cloudMark,
+    cloudSelected,
+    fallbackRef,
+    graph,
+    graphRef,
+    hasContent,
+    height,
+    layout,
+    mode,
+    onChoose,
+    onClear,
+    onCloudPick,
+    onFocus,
+    onPlane,
+    selected,
+    target,
+    theme,
+    top,
+    width,
+  } = props;
+  const choose = (node: GraphNode) => chooseGraphNode(node, onChoose, target);
+  const visible = hasContent && width > 0 && height > 0;
+  return (
+    <div className="graph-viewport" style={{ top }}>
+      {mode === "3d" && visible && (
+        <Suspense fallback={null}>
+          <GraphSpace
+            graph={graph}
+            cloud={cloud}
+            cloudHidden={cloudHidden}
+            cloudSelected={cloudSelected}
+            cloudMark={cloudMark}
+            graphRef={graphRef}
+            width={width}
+            height={height}
+            selected={selected}
+            theme={theme}
+            layout={layout}
+            camera={camera}
+            idleReady={Boolean(
+              cameraReady &&
+              (cloudHidden ||
+                layout !== "semantic" ||
+                !cloud ||
+                cloud.loaded === cloud.positions.length / 3),
+            )}
+            viewReady={cameraReady}
+            onChoose={choose}
+            onCloudPick={onCloudPick}
+            onFocus={onFocus}
+            onClear={onClear}
+          />
+        </Suspense>
+      )}
+      {mode === "2d" && visible && (
+        <Suspense fallback={null}>
+          <GraphFallback
+            graph={graph}
+            cloud={cloud}
+            cloudHidden={cloudHidden}
+            cloudMark={cloudMark}
+            graphRef={fallbackRef}
+            width={width}
+            height={height}
+            selected={selected}
+            theme={theme}
+            layout={layout}
+            camera={camera}
+            onChoose={choose}
+            onCloudPick={onCloudPick}
+            onPlane={onPlane}
+            onFocus={onFocus}
+            onClear={onClear}
+          />
+        </Suspense>
+      )}
+    </div>
+  );
+}
+
 export function GraphCanvas({
   graph,
   cloud,
@@ -146,6 +260,7 @@ export function GraphCanvas({
   viewReady,
 }: GraphCanvasProps) {
   const { ref: containerRef, width, height } = useElementSize<HTMLElement>();
+  const { ref: chromeRef, height: chromeHeight } = useElementSize<HTMLDivElement>();
   const { mode, status, retry } = useWebgl(containerRef, render);
   const graphRef = useRef<GraphRef["current"]>();
   const fallbackRef = useRef<FallbackRef["current"]>();
@@ -154,6 +269,8 @@ export function GraphCanvas({
   const cloudReady = mode === "3d" || planeReady;
   const visibleCount = nodeCount(graph, cloud, cloudHidden, cloudMark, cloudReady);
   const hasContent = visibleCount > 0;
+  const viewportTop = chromeHeight ? chromeHeight + 24 : width <= 480 ? 268 : 100;
+  const viewportHeight = Math.max(0, height - viewportTop);
   const archive = Boolean(
     cloudReady && !cloudHidden && cloud?.loaded && layout === "semantic",
   );
@@ -182,29 +299,31 @@ export function GraphCanvas({
           if (source) onChoose(source);
         }}
       >
-        <GraphHelp cloudLabel={cloudLabel} mode={mode} selected={selected} />
-        <GraphControls
-          count={visibleCount}
-          mode={mode}
-          layout={layout}
-          onReset={resetView}
-        >
-          <GraphTools
-            graphRef={graphRef}
-            fallbackRef={fallbackRef}
-            height={height}
-            layout={layout}
+        <GraphHelp cloudLabel={cloudLabel} selected={selected} />
+        <div className="graph-chrome" ref={chromeRef}>
+          <GraphControls
+            count={visibleCount}
             mode={mode}
-            render={render}
-            nodes={graph.nodes}
-            onChoose={onChoose}
-            onLayout={onLayout}
-            onRender={onRender}
-            selected={selected}
-            selectedId={selectedId}
-            shareUrl={shareUrl}
-          />
-        </GraphControls>
+            layout={layout}
+            onReset={resetView}
+          >
+            <GraphTools
+              graphRef={graphRef}
+              fallbackRef={fallbackRef}
+              height={viewportHeight}
+              layout={layout}
+              mode={mode}
+              render={render}
+              nodes={graph.nodes}
+              onChoose={onChoose}
+              onLayout={onLayout}
+              onRender={onRender}
+              selected={selected}
+              selectedId={selectedId}
+              shareUrl={shareUrl}
+            />
+          </GraphControls>
+        </div>
         <WebglStatus status={status} requested={render} onRetry={retry} />
         {!hasContent && viewReady && (
           <EmptyState
@@ -218,73 +337,31 @@ export function GraphCanvas({
             onReset={onReset}
           />
         )}
-        {mode === "3d" && hasContent && width > 0 && height > 0 && (
-          <Suspense
-            fallback={
-              <p
-                className="graph-loading"
-                role="status"
-                aria-live="polite"
-                aria-busy="true"
-              >
-                Loading 3D space…
-              </p>
-            }
-          >
-            <GraphSpace
-              graph={graph}
-              cloud={cloud}
-              cloudHidden={cloudHidden}
-              cloudSelected={cloudSelected}
-              cloudMark={cloudMark}
-              graphRef={graphRef}
-              width={width}
-              height={height}
-              selected={selected}
-              theme={theme}
-              layout={layout}
-              camera={camera}
-              viewReady={cameraReady}
-              onChoose={(node) => chooseGraphNode(node, onChoose, containerRef.current)}
-              onCloudPick={onCloudPick}
-              onFocus={onFocus}
-              onClear={onClearSelection}
-            />
-          </Suspense>
-        )}
-        {mode === "2d" && hasContent && width > 0 && height > 0 && (
-          <Suspense
-            fallback={
-              <p
-                className="graph-loading"
-                role="status"
-                aria-live="polite"
-                aria-busy="true"
-              >
-                Loading 2D overview…
-              </p>
-            }
-          >
-            <GraphFallback
-              graph={graph}
-              cloud={cloud}
-              cloudHidden={cloudHidden}
-              cloudMark={cloudMark}
-              graphRef={fallbackRef}
-              width={width}
-              height={height}
-              selected={selected}
-              theme={theme}
-              layout={layout}
-              camera={camera}
-              onChoose={(node) => chooseGraphNode(node, onChoose, containerRef.current)}
-              onCloudPick={onCloudPick}
-              onPlane={setPlaneReady}
-              onFocus={onFocus}
-              onClear={onClearSelection}
-            />
-          </Suspense>
-        )}
+        <GraphViewport
+          graph={graph}
+          cloud={cloud}
+          cloudHidden={cloudHidden}
+          cloudSelected={cloudSelected}
+          cloudMark={cloudMark}
+          fallbackRef={fallbackRef}
+          graphRef={graphRef}
+          hasContent={hasContent}
+          width={width}
+          height={viewportHeight}
+          top={viewportTop}
+          mode={mode}
+          selected={selected}
+          theme={theme}
+          layout={layout}
+          camera={camera}
+          cameraReady={cameraReady}
+          target={containerRef.current}
+          onChoose={onChoose}
+          onCloudPick={onCloudPick}
+          onPlane={setPlaneReady}
+          onFocus={onFocus}
+          onClear={onClearSelection}
+        />
 
         {hasContent && <GraphLegend archive={archive} />}
       </section>

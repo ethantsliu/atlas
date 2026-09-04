@@ -294,7 +294,7 @@ describe("paper cloud scale boundaries", () => {
     );
   });
 
-  it("keeps both worker slots busy while commits wait for manifest order", async () => {
+  it("keeps all worker slots busy while commits wait for manifest order", async () => {
     const { assets, manifest } = scaleCase(Array.from({ length: 9 }, () => 2));
     const gates = new Map(
       [...assets].map(([path, asset]) => [
@@ -326,15 +326,15 @@ describe("paper cloud scale boundaries", () => {
     );
     await vi.waitFor(() => expect(started).toHaveLength(CLOUD_WINDOW));
 
-    const second = manifest.shards[1].points.path;
-    gates.get(second)!.response.resolve(new Response(gates.get(second)!.asset.bytes));
+    const third = manifest.shards[2].points.path;
+    gates.get(third)!.response.resolve(new Response(gates.get(third)!.asset.bytes));
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(started).toHaveLength(CLOUD_WINDOW);
 
     expect(steps).toHaveLength(0);
     const first = manifest.shards[0].points.path;
     gates.get(first)!.response.resolve(new Response(gates.get(first)!.asset.bytes));
-    await vi.waitFor(() => expect(started).toContain(manifest.shards[2].points.path));
+    await vi.waitFor(() => expect(started).toContain(manifest.shards[3].points.path));
     for (const shard of manifest.shards) {
       const gate = gates.get(shard.points.path)!;
       gate.response.resolve(new Response(gate.asset.bytes));
@@ -451,7 +451,7 @@ describe("paper cloud scale boundaries", () => {
     await Promise.resolve();
     expect(started).toHaveLength(CLOUD_WINDOW);
 
-    // Abort before any response is available, while both worker slots are busy.
+    // Abort before any response is available, while every worker slot is busy.
     controller.abort();
 
     await expect(loading).rejects.toMatchObject({ name: "AbortError" });

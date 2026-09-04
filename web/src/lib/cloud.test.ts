@@ -206,7 +206,7 @@ describe("paper cloud", () => {
   });
 
   it("commits concurrent shard responses in manifest order", async () => {
-    expect(CLOUD_WINDOW).toBe(2);
+    expect(CLOUD_WINDOW).toBe(4);
     const first = pointBytes();
     const second = pointBytes(7);
     const index = manifest(first);
@@ -254,8 +254,14 @@ describe("paper cloud", () => {
     expect([...data.scopes]).toEqual([0, 2, 0, 2]);
   });
 
-  it("retains no more than two uncommitted point packs", async () => {
-    const assets = [pointBytes(), pointBytes(7), pointBytes(13)];
+  it("retains no more than four uncommitted point packs", async () => {
+    const assets = [
+      pointBytes(),
+      pointBytes(7),
+      pointBytes(13),
+      pointBytes(19),
+      pointBytes(25),
+    ];
     const index = manifest(assets[0]);
     const first = index.shards[0];
     index.shards = assets.map((bytes, item) => {
@@ -271,11 +277,11 @@ describe("paper cloud", () => {
         meta: { ...first.meta, path: `${month}.json` },
       };
     });
-    index.count = 6;
-    index.source_count = 9;
-    index.counts = { likely: 3, possible: 0, outside: 3 };
-    index.omitted_count = 3;
-    index.omitted_counts = { likely: 0, possible: 3, outside: 0 };
+    index.count = 10;
+    index.source_count = 15;
+    index.counts = { likely: 5, possible: 0, outside: 5 };
+    index.omitted_count = 5;
+    index.omitted_counts = { likely: 0, possible: 5, outside: 0 };
     const releases: (() => void)[] = [];
     const request = vi.fn(
       (_input: RequestInfo | URL) =>
@@ -293,13 +299,15 @@ describe("paper cloud", () => {
       request as unknown as typeof fetch,
     );
     await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(CLOUD_WINDOW));
-    expect(releases).toHaveLength(2);
+    expect(releases).toHaveLength(4);
 
     releases[0]();
-    await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(3));
+    await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(5));
     releases[1]();
     releases[2]();
-    await expect(loading).resolves.toMatchObject({ loaded: 6 });
+    releases[3]();
+    releases[4]();
+    await expect(loading).resolves.toMatchObject({ loaded: 10 });
   });
 
   it("prefers one verified point pack while retaining monthly ranges", async () => {

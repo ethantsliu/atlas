@@ -81,13 +81,18 @@ export function qualityFor(input: QualityInput): QualityProfile {
   const tier = qualityTier(input);
   const base = PROFILES[tier];
   const dense = input.nodeCount >= 1_800;
+  const archive = input.nodeCount >= 1_000_000;
   return {
     ...base,
     tier,
     linkMode: dense ? "active" : base.linkMode,
     linkOpacity: dense ? Math.min(base.linkOpacity, 0.16) : base.linkOpacity,
     geometryDetail: dense ? 6 : base.geometryDetail,
-    pixelRatioCap: dense ? Math.min(base.pixelRatioCap, 1) : base.pixelRatioCap,
+    pixelRatioCap: archive
+      ? Math.min(base.pixelRatioCap, 0.75)
+      : dense
+        ? Math.min(base.pixelRatioCap, 1)
+        : base.pixelRatioCap,
     cooldownTicks: input.reducedMotion
       ? Math.min(base.cooldownTicks, 30)
       : base.cooldownTicks,

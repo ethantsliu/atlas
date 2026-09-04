@@ -86,7 +86,7 @@ function DensePicker({ nodes, selectedId, onChoose }: PickerProps) {
         aria-controls="node-results"
         aria-autocomplete="list"
         aria-activedescendant={expanded ? `node-result-${active}` : undefined}
-        placeholder="Find a paper or node…"
+        placeholder="Find a node…"
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
         onChange={(event) => {

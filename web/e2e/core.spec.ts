@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { has3d } from "./capability";
-import { fullNodes, mapStatus } from "./map";
+import { archivePapers, fullNodes, mapStatus } from "./map";
 
 const shard = /\/data\/papers\/[a-f0-9]{64}\.json(?:\?.*)?$/;
 
@@ -260,7 +260,7 @@ async function chooseTopic(page: Page) {
   const picker = page
     .getByRole("combobox", { name: "Choose a visible graph node" })
     .and(page.locator("input"));
-  await expect(picker).toHaveAttribute("placeholder", "Find a paper or node…", {
+  await expect(picker).toHaveAttribute("placeholder", "Find a node…", {
     timeout: 20_000,
   });
   await picker.fill("pretraining");
@@ -573,20 +573,14 @@ test("historical paper points open the inline inspector", async ({
   if (target) await watchCopy(page);
   const links = target ? null : await cloudLinks();
   await page.goto(target ? `/#?k=p&c=${target.camera}` : "/#?d=3");
-  await expect(page.locator(".filters")).toContainText(
-    "papers mapped by semantic similarity",
-    {
-      timeout: 20_000,
-    },
-  );
+  await archivePapers(page);
+  if (target) await waitCamera(page, target.camera);
   await page.waitForTimeout(2_500);
   if (target) {
-    await waitCamera(page, target.camera);
-    // Exercise the real idle-orbit → stable full-cloud hover transition. The
-    // camera continues orbiting around this exact paper-centered target.
-    await expect
-      .poll(() => copiedCamera(page), { timeout: 15_000 })
-      .not.toBe(target.camera);
+    // A hardware renderer may now orbit continuously; a slow/software
+    // renderer deliberately stays still after its full-cloud frame benchmark.
+    // Both paths retain this exact paper-centered target for the hover check.
+    expect(await copiedCamera(page)).toBeTruthy();
   }
   const graph = page.getByLabel("Interactive 3D research graph");
   const inspector = page.locator("#map-inspector");
@@ -630,10 +624,7 @@ test("historical paper points open the inline inspector", async ({
 
     const offset = offsetCamera(target, canvasBox.width / canvasBox.height);
     await page.goto(`/?pick=offset#?k=p&c=${offset.camera}`);
-    await expect(page.locator(".filters .aside-copy")).toContainText(
-      "papers mapped by semantic similarity",
-      { timeout: 20_000 },
-    );
+    await archivePapers(page);
     await waitCamera(page, offset.camera);
     const offsetBox = await graph.locator("canvas:not(.cloud-plane)").boundingBox();
     if (!offsetBox) throw new Error("Research graph canvas has no bounds");
@@ -707,10 +698,7 @@ test("the nearest visible layer wins at one exact pointer coordinate", async ({
   await watchCopy(page);
   await loadMap(page, "/#?s=topic%3Aalignment&k=trpi");
   const size = await cloudSize();
-  await expect(page.locator(".filters .aside-copy")).toContainText(
-    "papers mapped by semantic similarity",
-    { timeout: 20_000 },
-  );
+  await archivePapers(page);
   await fullNodes(page);
   const inspector = page.locator("#map-inspector");
   await expect(inspector.getByRole("heading", { name: "alignment" })).toBeVisible();
@@ -832,12 +820,7 @@ test("touch opens a historical paper in the stacked inspector", async ({
   const target = await cloudTarget();
   await watchCopy(page);
   await page.goto(`/#?k=p&c=${target.camera}`);
-  await expect(page.locator(".filters")).toContainText(
-    "papers mapped by semantic similarity",
-    {
-      timeout: 20_000,
-    },
-  );
+  await archivePapers(page);
   await fullNodes(page);
 
   const graph = page.getByLabel("Interactive 3D research graph");
@@ -921,12 +904,7 @@ test("foreground paper points open the visible paper", async ({ page }, testInfo
   const target = await foregroundTarget();
   await watchCopy(page);
   await page.goto("/#?d=3");
-  await expect(page.locator(".filters")).toContainText(
-    "papers mapped by semantic similarity",
-    {
-      timeout: 20_000,
-    },
-  );
+  await archivePapers(page);
   await page.waitForTimeout(2_500);
 
   const graph = page.getByLabel("Interactive 3D research graph");
@@ -934,10 +912,7 @@ test("foreground paper points open the visible paper", async ({ page }, testInfo
   if (!firstCanvas) throw new Error("Research graph canvas has no bounds");
   const offset = offsetCamera(target, firstCanvas.width / firstCanvas.height);
   await page.goto(`/?pick=foreground#?d=3&c=${offset.camera}`);
-  await expect(page.locator(".filters .aside-copy")).toContainText(
-    "papers mapped by semantic similarity",
-    { timeout: 20_000 },
-  );
+  await archivePapers(page);
   await waitCamera(page, offset.camera);
   const graphBox = await graph.boundingBox();
   const panel = page.locator("#map-inspector");

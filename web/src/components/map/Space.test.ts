@@ -6,19 +6,18 @@ import { cameraControl } from "./Space";
 import {
   FRAME_HOVER_ROTATE_WAIT,
   FRAME_IDLE_WAIT,
-  FRAME_ROTATE_PACE,
-  FRAME_ROTATE_SLOW_PACE,
+  FRAME_ROTATE_BUDGET,
+  FRAME_ROTATE_SLOW_FRAME,
+  FRAME_ROTATE_SLOW_LIMIT,
   FRAME_ROTATE_SPEED,
   FRAME_ROTATE_WAIT,
   enableCursorZoom,
   makeFrameIdle,
-  rotationPace,
-  rotationSpeed,
 } from "../../hooks/idle";
 
 type Pending = { callback: () => void; delay: number };
 
-function setup(rotate = false, frameTime = 0) {
+function setup(rotate = false, frameTime = 0, frameInterval = 16, ready = true) {
   const eventTarget = () => {
     const listeners = new Map<string, Set<(event: Event) => void>>();
     return {
@@ -55,7 +54,8 @@ function setup(rotate = false, frameTime = 0) {
     now += frameTime;
   });
   const pending = new Map<number, Pending>();
-  const frames = new Map<number, () => void>();
+  const frames = new Map<number, (time: number) => void>();
+  let frameNow = 0;
   let next = 1;
   const timer = {
     clear: (id: number) => pending.delete(id),
@@ -68,7 +68,7 @@ function setup(rotate = false, frameTime = 0) {
   };
   const loop = {
     cancel: (id: number) => frames.delete(id),
-    request: (callback: () => void) => {
+    request: (callback: (time: number) => void) => {
       const id = next++;
       frames.set(id, callback);
       return id;
@@ -84,6 +84,7 @@ function setup(rotate = false, frameTime = 0) {
     timer,
     loop,
   );
+  idle.ready(ready);
   const flush = () => {
     const jobs = [...pending.values()];
     pending.clear();
@@ -92,7 +93,8 @@ function setup(rotate = false, frameTime = 0) {
   const flushFrames = () => {
     const jobs = [...frames.values()];
     frames.clear();
-    jobs.forEach((callback) => callback());
+    frameNow += frameInterval;
+    jobs.forEach((callback) => callback(frameNow));
   };
   const flushDelay = (delay: number) => {
     const jobs = [...pending].filter(([, job]) => job.delay === delay);
@@ -257,35 +259,67 @@ describe("3D idle frames", () => {
     run.flushDelay(FRAME_ROTATE_WAIT);
     expect(run.controls.autoRotate).toBe(true);
     expect(run.controls.autoRotateSpeed).toBe(FRAME_ROTATE_SPEED);
-    expect(run.resumeAnimation).toHaveBeenCalledOnce();
-    expect(run.pauseAnimation).toHaveBeenCalledTimes(2);
-    expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
-      FRAME_ROTATE_PACE,
-    ]);
-
-    run.flushDelay(FRAME_ROTATE_PACE);
-    expect(run.resumeAnimation).toHaveBeenCalledTimes(2);
+    expect(run.resumeAnimation).toHaveBeenCalledTimes(3);
     expect(run.pauseAnimation).toHaveBeenCalledTimes(3);
-    expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
-      FRAME_ROTATE_PACE,
-    ]);
+    expect(run.resumeRotations.slice(-2)).toEqual([false, true]);
+    expect(run.pending.size).toBe(0);
   });
 
-  it("backs off between expensive full-cloud rotation frames", () => {
-    const run = setup(true, 80);
+  it("keeps a slow full-cloud renderer static instead of pulsing", () => {
+    const run = setup(true, FRAME_ROTATE_BUDGET + 1);
     run.idle.engineStop();
     run.flushDelay(FRAME_IDLE_WAIT);
     run.flushDelay(FRAME_ROTATE_WAIT);
 
-    expect(run.controls.autoRotate).toBe(true);
+    expect(run.controls.autoRotate).toBe(false);
     expect(run.resumeAnimation).toHaveBeenCalledOnce();
     expect(run.resumeRotations).toEqual([false]);
     expect(run.pauseAnimation).toHaveBeenCalledTimes(2);
+    expect(run.pending.size).toBe(0);
+  });
+
+  it("stops continuous rotation after sustained slow animation frames", () => {
+    const run = setup(true, 0, FRAME_ROTATE_SLOW_FRAME + 1);
+    run.idle.engineStop();
+    run.flushDelay(FRAME_ROTATE_WAIT);
+    expect(run.controls.autoRotate).toBe(true);
+
+    for (let frame = 0; frame <= FRAME_ROTATE_SLOW_LIMIT; frame += 1) {
+      run.flushFrames();
+    }
+
+    expect(run.controls.autoRotate).toBe(false);
+    expect(run.pauseAnimation).toHaveBeenCalledTimes(3);
+    expect(run.frames.size).toBe(0);
+    expect(run.pending.size).toBe(0);
+  });
+
+  it("does not arm rotation until the complete cloud and view are ready", () => {
+    const run = setup(true, 0, 16, false);
+    run.idle.engineStop();
     expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
-      FRAME_ROTATE_SLOW_PACE,
+      FRAME_IDLE_WAIT,
     ]);
-    expect(rotationPace(500)).toBe(1_000);
-    expect(rotationSpeed(500, 1_000)).toBeCloseTo(FRAME_ROTATE_SPEED * 1.5);
+
+    run.idle.ready(true);
+    expect([...run.pending.values()].map(({ delay }) => delay).sort()).toEqual([
+      FRAME_IDLE_WAIT,
+      FRAME_ROTATE_WAIT,
+    ]);
+  });
+
+  it("stops and pauses continuous rotation when readiness is lost", () => {
+    const run = setup(true);
+    run.idle.engineStop();
+    run.flushDelay(FRAME_ROTATE_WAIT);
+    expect(run.controls.autoRotate).toBe(true);
+
+    run.idle.ready(false);
+
+    expect(run.controls.autoRotate).toBe(false);
+    expect(run.pauseAnimation).toHaveBeenCalledTimes(3);
+    expect(run.frames.size).toBe(0);
+    expect(run.pending.size).toBe(0);
   });
 
   it("stops on pointer activity and wheel then waits before resuming", () => {
@@ -324,23 +358,22 @@ describe("3D idle frames", () => {
     run.flushFrames();
     expect(run.controls.autoRotate).toBe(false);
     expect([...run.pending.values()].map(({ delay }) => delay).sort()).toEqual([
+      0,
       FRAME_HOVER_ROTATE_WAIT,
     ]);
     run.idle.hover(true);
-    expect(run.pending.size).toBe(0);
-    expect(run.controls.autoRotate).toBe(false);
-    run.flushDelay(FRAME_HOVER_ROTATE_WAIT);
-    expect(run.controls.autoRotate).toBe(false);
-
-    run.idle.hover(false);
-    expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
+    expect([...run.pending.values()].map(({ delay }) => delay).sort()).toEqual([
+      0,
       FRAME_HOVER_ROTATE_WAIT,
     ]);
+    expect(run.controls.autoRotate).toBe(false);
+    run.flushDelay(0);
     run.flushDelay(FRAME_HOVER_ROTATE_WAIT);
     expect(run.controls.autoRotate).toBe(true);
-    expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
-      FRAME_ROTATE_PACE,
-    ]);
+
+    run.idle.hover(false);
+    expect(run.controls.autoRotate).toBe(true);
+    expect(run.pending.size).toBe(0);
   });
 
   it("stops on keyboard focus, holds through activation, and re-arms", () => {
@@ -351,7 +384,7 @@ describe("3D idle frames", () => {
 
     run.focus();
     expect(run.controls.autoRotate).toBe(false);
-    expect(run.pauseAnimation).toHaveBeenCalledOnce();
+    expect(run.pauseAnimation).toHaveBeenCalledTimes(3);
     expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
       FRAME_ROTATE_WAIT,
     ]);
@@ -398,11 +431,8 @@ describe("3D idle frames", () => {
 
     run.idle.motion(true);
     expect(run.controls.autoRotate).toBe(false);
-    expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
-      FRAME_IDLE_WAIT,
-    ]);
-    run.flushDelay(FRAME_IDLE_WAIT);
-    expect(run.pauseAnimation).toHaveBeenCalledOnce();
+    expect(run.pending.size).toBe(0);
+    expect(run.pauseAnimation).toHaveBeenCalledTimes(3);
 
     run.idle.motion(false);
     expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
@@ -422,11 +452,11 @@ describe("3D idle frames", () => {
 
     run.idle.visibility(true);
     expect(run.controls.autoRotate).toBe(false);
-    expect(run.pauseAnimation).toHaveBeenCalledOnce();
+    expect(run.pauseAnimation).toHaveBeenCalledTimes(3);
     expect(run.pending.size).toBe(0);
 
     run.idle.visibility(false);
-    expect(run.resumeAnimation).toHaveBeenCalledOnce();
+    expect(run.resumeAnimation).toHaveBeenCalledTimes(3);
     expect([...run.pending.values()].map(({ delay }) => delay).sort()).toEqual([
       FRAME_IDLE_WAIT,
       FRAME_ROTATE_WAIT,

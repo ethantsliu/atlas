@@ -3,28 +3,10 @@ import { beginAutoChange } from "./control";
 export const FRAME_IDLE_WAIT = 240;
 export const FRAME_ROTATE_WAIT = 2_500;
 export const FRAME_HOVER_ROTATE_WAIT = 1_800;
-export const FRAME_ROTATE_PACE = 16;
-export const FRAME_ROTATE_SLOW_PACE = 240;
-export const FRAME_ROTATE_SLOW_FRAME = 48;
 export const FRAME_ROTATE_SPEED = 1;
-const FRAME_ROTATE_PACE_RATIO = 2;
-const FRAME_ROTATE_SPEED_CAP = 4;
-
-export function rotationPace(frameTime: number): number {
-  if (frameTime < FRAME_ROTATE_SLOW_FRAME) return FRAME_ROTATE_PACE;
-  return Math.max(
-    FRAME_ROTATE_SLOW_PACE,
-    Math.ceil(frameTime * FRAME_ROTATE_PACE_RATIO),
-  );
-}
-
-export function rotationSpeed(frameTime: number, pace: number): number {
-  const cadence = Math.min(
-    FRAME_ROTATE_SPEED_CAP,
-    Math.max(1, (frameTime + pace) / 1_000),
-  );
-  return FRAME_ROTATE_SPEED * cadence;
-}
+export const FRAME_ROTATE_BUDGET = 18;
+export const FRAME_ROTATE_SLOW_FRAME = 28;
+export const FRAME_ROTATE_SLOW_LIMIT = 3;
 
 export type FrameControl = {
   addEventListener?: (type: string, listener: (event: Event) => void) => void;
@@ -50,7 +32,7 @@ type FrameTimer = {
 
 type FrameLoop = {
   cancel: (frame: number) => void;
-  request: (callback: () => void) => number;
+  request: (callback: (time: number) => void) => number;
 };
 
 export type FrameIdle = {
@@ -59,6 +41,7 @@ export type FrameIdle = {
   engineTick: () => void;
   hover: (active: boolean) => void;
   motion: (reduced: boolean) => void;
+  ready: (ready: boolean) => void;
   start: () => void;
   touch: () => void;
   visibility: (hidden: boolean) => void;
@@ -75,18 +58,18 @@ type IdleState = {
   controlActive: boolean;
   drawPending: number;
   hidden: boolean;
-  hoverActive: boolean;
-  hoverInterrupted: boolean;
   hoverPending: number;
   keys: Set<string>;
   paused: boolean;
   pending: number;
   pointers: Set<number>;
   probeFrame: number;
+  ready: boolean;
   reducedMotion: boolean;
-  rotateCost: number;
-  rotatePulse: number;
+  rotateFrame: number;
+  rotateLast: number;
   rotatePending: number;
+  rotateSlow: number;
   running: boolean;
 };
 
@@ -99,61 +82,150 @@ type IdleCore = Omit<FrameIdle, "dispose"> & {
   stopRotate: () => void;
 };
 
-function pulseRotate(
-  controls: FrameControl,
-  timer: FrameTimer,
-  state: IdleState,
-  blocked: () => boolean,
-  resume: () => void,
-  pause: () => void,
-) {
-  const pulse = () => {
-    state.rotatePulse = 0;
-    if (blocked() || !controls.autoRotate) return;
-    // ForceGraph renders once synchronously from resumeAnimation(), then
-    // schedules its next frame. Cancel that next frame immediately and leave
-    // an event-loop gap so a 3.15M-point draw cannot starve input/network work.
-    const started = timer.now?.() ?? performance.now();
-    resume();
-    pause();
-    if (blocked() || !controls.autoRotate) return;
-    const elapsed = (timer.now?.() ?? performance.now()) - started;
-    // React immediately to a slow frame, but decay the measured cost across
-    // later fast frames so borderline devices do not oscillate between the
-    // fast and protected cadences.
-    state.rotateCost = Math.max(elapsed, state.rotateCost * 0.75);
-    const pace = rotationPace(state.rotateCost);
-    controls.autoRotateSpeed = rotationSpeed(state.rotateCost, pace);
-    state.rotatePulse = timer.set(pulse, pace);
-  };
-  const pace = rotationPace(state.rotateCost);
-  controls.autoRotateSpeed = rotationSpeed(state.rotateCost, pace);
-  state.rotatePulse = timer.set(pulse, pace);
-}
-
 function primeRotation(
   timer: FrameTimer,
   state: IdleState,
   blocked: () => boolean,
   resume: () => void,
   pause: () => void,
-): boolean {
-  const wasPaused = state.paused;
+): number | null {
+  // Benchmark one stationary full-cloud frame before committing to a
+  // continuous loop. Fast renderers get native requestAnimationFrame motion;
+  // slow/software renderers stay still instead of producing visible pulses or
+  // starving the input event queue.
+  pause();
   const started = timer.now?.() ?? performance.now();
   resume();
   pause();
-  if (blocked()) return false;
-  if (wasPaused) {
-    const elapsed = (timer.now?.() ?? performance.now()) - started;
-    state.rotateCost = Math.max(elapsed, state.rotateCost * 0.75);
-  }
-  return true;
+  if (blocked()) return null;
+  return Math.max(0, (timer.now?.() ?? performance.now()) - started);
+}
+
+function watchRotation(
+  controls: FrameControl,
+  loop: FrameLoop,
+  state: IdleState,
+  blocked: () => boolean,
+  stop: () => void,
+) {
+  const watch = (time: number) => {
+    state.rotateFrame = 0;
+    if (blocked() || !controls.autoRotate) return;
+    if (state.rotateLast > 0) {
+      state.rotateSlow =
+        time - state.rotateLast > FRAME_ROTATE_SLOW_FRAME ? state.rotateSlow + 1 : 0;
+      if (state.rotateSlow >= FRAME_ROTATE_SLOW_LIMIT) {
+        stop();
+        return;
+      }
+    }
+    state.rotateLast = time;
+    state.rotateFrame = loop.request(watch);
+  };
+  state.rotateFrame = loop.request(watch);
+}
+
+type IdleLifecycle = Pick<
+  IdleCore,
+  | "engineStop"
+  | "engineTick"
+  | "hover"
+  | "motion"
+  | "ready"
+  | "start"
+  | "touch"
+  | "visibility"
+  | "wake"
+>;
+
+function makeIdleLifecycle(
+  state: IdleState,
+  actions: Pick<
+    IdleCore,
+    "armRotate" | "cancel" | "pause" | "resume" | "stopRotate"
+  > & { rest: (delay?: number) => void },
+): IdleLifecycle {
+  const { armRotate, cancel, pause, resume, rest, stopRotate } = actions;
+  const start = () => {
+    state.running = true;
+    stopRotate();
+    resume();
+  };
+  const wake = () => {
+    resume();
+    rest();
+  };
+  const touch = () => {
+    stopRotate();
+    wake();
+    armRotate();
+  };
+  // Hover labels do not pin the scene. Pointer motion already opens a brief,
+  // stable picking window; once the pointer rests, full-cloud rotation may
+  // continue beneath it until an actual drag, wheel, key, or touch begins.
+  const hover = () => undefined;
+  const engineTick = () => {
+    state.running = true;
+    stopRotate();
+    cancel();
+  };
+  const engineStop = (delay = FRAME_IDLE_WAIT) => {
+    state.running = false;
+    rest(delay);
+    armRotate();
+  };
+  const motion = (reduced: boolean) => {
+    state.reducedMotion = reduced;
+    if (reduced) {
+      stopRotate();
+      if (state.running) cancel();
+      else pause();
+    } else {
+      armRotate();
+    }
+  };
+  const ready = (value: boolean) => {
+    if (value === state.ready) return;
+    state.ready = value;
+    if (!value) {
+      stopRotate();
+      if (!state.running) pause();
+      return;
+    }
+    armRotate();
+  };
+  const visibility = (hidden: boolean) => {
+    state.hidden = hidden;
+    if (hidden) {
+      state.keys.clear();
+      state.pointers.clear();
+      state.controlActive = false;
+      stopRotate();
+      pause();
+      return;
+    }
+    resume();
+    rest();
+    armRotate();
+  };
+  return {
+    engineStop,
+    engineTick,
+    hover,
+    motion,
+    ready,
+    start,
+    touch,
+    visibility,
+    wake,
+  };
 }
 
 function makeIdleCore(
   graph: FrameGraph,
   controls: FrameControl,
   timer: FrameTimer,
+  loop: FrameLoop,
   state: IdleState,
 ): IdleCore {
   const canRotate = "autoRotate" in controls;
@@ -166,8 +238,10 @@ function makeIdleCore(
     state.rotatePending = 0;
     if (state.hoverPending) timer.clear(state.hoverPending);
     state.hoverPending = 0;
-    if (state.rotatePulse) timer.clear(state.rotatePulse);
-    state.rotatePulse = 0;
+    if (state.rotateFrame) loop.cancel(state.rotateFrame);
+    state.rotateFrame = 0;
+    state.rotateLast = 0;
+    state.rotateSlow = 0;
   };
   const rotate = (active: boolean) => {
     if (!canRotate) return;
@@ -214,19 +288,25 @@ function makeIdleCore(
   const blocked = () =>
     state.reducedMotion ||
     state.hidden ||
+    !state.ready ||
     state.running ||
     state.controlActive ||
-    state.hoverActive ||
     state.keys.size > 0 ||
     state.pointers.size > 0;
   const beginRotate = () => {
-    if (blocked() || !primeRotation(timer, state, blocked, resume, pause)) return;
+    if (blocked()) return;
     // OrbitControls' internal timer otherwise includes the entire idle pause.
     // Render one stationary frame first to reset that delta, then enable
-    // rotation for the following paced frame. This avoids a visible catch-up
-    // jump without starting a continuous animation loop.
+    // rotation on a native continuous animation loop. This avoids both a
+    // catch-up jump and the visible stepping caused by timer-driven pulses.
+    const cost = primeRotation(timer, state, blocked, resume, pause);
+    if (cost === null || cost > FRAME_ROTATE_BUDGET) return;
     rotate(true);
-    pulseRotate(controls, timer, state, blocked, resume, pause);
+    resume();
+    watchRotation(controls, loop, state, blocked, () => {
+      stopRotate();
+      pause();
+    });
   };
   const armRotate = () => {
     cancelRotate();
@@ -236,95 +316,22 @@ function makeIdleCore(
       beginRotate();
     }, FRAME_ROTATE_WAIT);
   };
-  const start = () => {
-    state.running = true;
-    stopRotate();
-    resume();
-  };
-  const wake = () => {
-    resume();
-    rest();
-  };
-  const touch = () => {
-    stopRotate();
-    wake();
-    armRotate();
-  };
-  const hover = (active: boolean) => {
-    if (active === state.hoverActive) return;
-    state.hoverActive = active;
-    if (active) {
-      const interrupted = Boolean(
-        controls.autoRotate || state.hoverPending || state.hoverInterrupted,
-      );
-      if (!interrupted) return;
-      state.hoverInterrupted = true;
-      stopRotate();
-      pause();
-      return;
-    }
-    // Preserve an untouched pre-rotation deadline. If that deadline elapsed
-    // while metadata was busy, or this hover interrupted rotation, use the
-    // shorter post-hover idle window.
-    if (!state.hoverInterrupted && state.rotatePending) return;
-    state.hoverInterrupted = false;
-    if (!canRotate) return;
-    if (state.hoverPending) timer.clear(state.hoverPending);
-    state.hoverPending = timer.set(() => {
-      state.hoverPending = 0;
-      beginRotate();
-    }, FRAME_HOVER_ROTATE_WAIT);
-  };
-  const engineTick = () => {
-    state.running = true;
-    stopRotate();
-    cancel();
-  };
-  const engineStop = (delay = FRAME_IDLE_WAIT) => {
-    state.running = false;
-    rest(delay);
-    armRotate();
-  };
-  const motion = (reduced: boolean) => {
-    state.reducedMotion = reduced;
-    if (reduced) {
-      stopRotate();
-      rest();
-    } else {
-      armRotate();
-    }
-  };
-  const visibility = (hidden: boolean) => {
-    state.hidden = hidden;
-    if (hidden) {
-      state.keys.clear();
-      state.pointers.clear();
-      state.controlActive = false;
-      state.hoverActive = false;
-      state.hoverInterrupted = false;
-      stopRotate();
-      pause();
-      return;
-    }
-    resume();
-    rest();
-    armRotate();
-  };
+  const lifecycle = makeIdleLifecycle(state, {
+    armRotate,
+    cancel,
+    pause,
+    resume,
+    rest,
+    stopRotate,
+  });
   return {
     armRotate,
     beginRotate,
     cancel,
-    engineStop,
-    engineTick,
-    hover,
-    motion,
     pause,
     resume,
-    start,
     stopRotate,
-    touch,
-    visibility,
-    wake,
+    ...lifecycle,
   };
 }
 
@@ -369,13 +376,16 @@ function bindIdle(
     // Once rotating, passive hover opens a stable-camera picking window.
     const interrupted = Boolean(controls.autoRotate || state.hoverPending);
     if (interrupted) {
-      state.hoverInterrupted = true;
       core.stopRotate();
       state.hoverPending = timer.set(() => {
         state.hoverPending = 0;
         core.beginRotate();
       }, FRAME_HOVER_ROTATE_WAIT);
       core.pause();
+      // Let ForceGraph process the pointer with one coalesced frame after the
+      // continuous idle loop stops, then return to rest. Its foreground-node
+      // raycaster otherwise retains the last automatic-rotation frame.
+      draw();
     } else {
       core.wake();
     }
@@ -489,14 +499,14 @@ export function makeFrameIdle(
     pointers: new Set(),
     probeFrame: 0,
     reducedMotion: false,
-    rotateCost: 0,
+    ready: false,
+    rotateFrame: 0,
+    rotateLast: 0,
     rotatePending: 0,
+    rotateSlow: 0,
     running: true,
-    hoverActive: false,
-    hoverInterrupted: false,
-    rotatePulse: 0,
   };
-  const core = makeIdleCore(graph, controls, timer, state);
+  const core = makeIdleCore(graph, controls, timer, loop, state);
   const dispose = bindIdle(graph, controls, timer, loop, state, core);
   return {
     dispose,
@@ -504,6 +514,7 @@ export function makeFrameIdle(
     engineTick: core.engineTick,
     hover: core.hover,
     motion: core.motion,
+    ready: core.ready,
     start: core.start,
     touch: core.touch,
     visibility: core.visibility,

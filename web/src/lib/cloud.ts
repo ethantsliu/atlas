@@ -105,10 +105,10 @@ const POINT = /^\d{4}-\d{2}\.bin$/;
 const META = /^\d{4}-\d{2}\.json$/;
 const ROUTES = /^\d{4}-\d{2}\.routes$/;
 const ANCHORS = /^anchors\.json$/;
-// Point packs are already large, ordered transfer units. Two concurrent packs
+// Point packs are already large, ordered transfer units. Four concurrent packs
 // keep the network busy without retaining up to five verified ArrayBuffers
 // beside the final CPU position/scopes stores while an earlier pack commits.
-export const CLOUD_WINDOW = 2;
+export const CLOUD_WINDOW = 4;
 
 export function cloudPath(asset: CloudAsset): string {
   return `/data/cloud/${asset.path}?sha=${asset.sha256}`;

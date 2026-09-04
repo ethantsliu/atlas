@@ -20,12 +20,12 @@ describe("MapFilters", () => {
     );
 
     expect(markup).toContain("289</small>");
-    expect(markup).toContain("2 mapped papers");
     expect(markup).toContain("Topics");
     expect(markup).toContain("Techniques");
     expect(markup).toContain("Ideas");
     expect(markup).toContain("Papers");
     expect(markup).not.toContain("historical arXiv records");
     expect(markup).not.toContain("foreground papers");
+    expect(markup).not.toContain("mapped by semantic similarity");
   });
 });

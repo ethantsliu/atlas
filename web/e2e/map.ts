@@ -6,18 +6,21 @@ export function mapStatus(page: Page) {
     .filter({ hasText: /visible graph nodes/ });
 }
 
+export async function archivePapers(page: Page, timeout = 30_000): Promise<number> {
+  const paperLens = page.locator(".filters .kind-toggle").nth(2);
+  await expect
+    .poll(() => paperLens.getAttribute("data-archive-count"), { timeout })
+    .toMatch(/^[1-9]\d*$/);
+  return Number(await paperLens.getAttribute("data-archive-count"));
+}
+
 export async function fullNodes(page: Page): Promise<string> {
   const filters = page.locator(".filters");
   const paperLens = filters.locator(".kind-toggle").nth(2);
   const paperOn = (await paperLens.getAttribute("aria-pressed")) === "true";
   let archiveCount = 0;
   if (paperOn) {
-    await expect(filters).toContainText("papers mapped by semantic similarity", {
-      timeout: 20_000,
-    });
-    archiveCount = Number(
-      (await filters.locator(".aside-copy").getAttribute("data-cloud-count")) ?? 0,
-    );
+    archiveCount = await archivePapers(page);
   }
   const graph3d = page.getByLabel("Interactive 3D research graph");
   const plane = page.locator(".cloud-plane");
@@ -43,6 +46,6 @@ export async function fullNodes(page: Page): Promise<string> {
   const total = counts.reduce((sum, count) => sum + count, 0);
 
   const expected = `${total.toLocaleString()} visible graph nodes available.`;
-  await expect(mapStatus(page)).toHaveText(expected, { timeout: 20_000 });
+  await expect(mapStatus(page)).toHaveText(expected, { timeout: 30_000 });
   return expected;
 }

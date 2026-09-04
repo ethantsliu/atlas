@@ -71,6 +71,7 @@ describe("renderer parity", () => {
     expect(states.every((markup) => markup.includes("3,100,000 nodes"))).toBe(true);
     expect(states[0]).toContain("2D overview · semantic frame");
     expect(states[1]).toContain("3D · semantic frame");
+    expect(states[1]).not.toContain("Arrows select");
     expect(states[2]).toBe(states[0]);
   });
 });

@@ -100,6 +100,10 @@ function useFrameHover(frame: MutableRefObject<FrameIdle | null>, active: boolea
   useEffect(() => frame.current?.hover(active), [active, frame]);
 }
 
+function useFrameReady(frame: MutableRefObject<FrameIdle | null>, ready: boolean) {
+  useEffect(() => frame.current?.ready(ready), [frame, ready]);
+}
+
 function useCloudOpen(selected: boolean) {
   const open = useRef(selected);
   useEffect(() => {
@@ -141,6 +145,7 @@ type SpaceProps = {
   theme: Theme;
   layout: LayoutMode;
   camera: CameraView | null;
+  idleReady: boolean;
   viewReady: boolean;
   onChoose: (node: GraphNode) => void;
   onCloudPick: (pick: CloudPick) => void;
@@ -224,6 +229,84 @@ function useSpaceQuality(
   );
 }
 
+type SpaceGraphProps = {
+  activeIds: Set<string | undefined>;
+  controlType: ReturnType<typeof cameraControl>;
+  graphRef: GraphRef;
+  height: number;
+  layout: LayoutMode;
+  makeNode: (node: GraphNode) => ReturnType<typeof buildNode>;
+  onBackgroundClick: () => void;
+  onEngineStop: () => void;
+  onEngineTick: () => void;
+  onNodeClick: (node: GraphNode) => void;
+  onNodeHover: (node: GraphNode | null) => void;
+  onNodeRightClick: (node: GraphNode) => void;
+  quality: ReturnType<typeof useSpaceQuality>;
+  sceneGraph: GraphData;
+  simple: boolean;
+  theme: Theme;
+  width: number;
+};
+
+function SpaceGraph({
+  activeIds,
+  controlType,
+  graphRef,
+  height,
+  layout,
+  makeNode,
+  onBackgroundClick,
+  onEngineStop,
+  onEngineTick,
+  onNodeClick,
+  onNodeHover,
+  onNodeRightClick,
+  quality,
+  sceneGraph,
+  simple,
+  theme,
+  width,
+}: SpaceGraphProps) {
+  return (
+    <ForceGraph3D
+      ref={graphRef as MutableRefObject<ForceGraphMethods<GraphNode, GraphLink>>}
+      width={width}
+      height={height}
+      graphData={sceneGraph}
+      backgroundColor={theme === "dark" ? "#0f1511" : "#f0eadf"}
+      showNavInfo={false}
+      controlType={controlType}
+      numDimensions={3}
+      nodeLabel={() => ""}
+      nodeThreeObject={makeNode}
+      linkColor={() => (theme === "dark" ? "#617065" : "#9d9285")}
+      linkWidth={0}
+      linkVisibility={(link) => {
+        if (layout === "connections") return true;
+        const active =
+          activeIds.has(graphEndpointId(link.source)) ||
+          activeIds.has(graphEndpointId(link.target));
+        return showLink(quality, { selected: active });
+      }}
+      linkOpacity={
+        layout === "connections"
+          ? Math.max(0.12, quality.linkOpacity)
+          : quality.linkOpacity
+      }
+      cooldownTicks={layoutTicks(quality.cooldownTicks, simple)}
+      d3VelocityDecay={0.24}
+      enableNodeDrag={false}
+      onEngineTick={onEngineTick}
+      onEngineStop={onEngineStop}
+      onNodeClick={onNodeClick}
+      onNodeHover={onNodeHover}
+      onNodeRightClick={onNodeRightClick}
+      onBackgroundClick={onBackgroundClick}
+    />
+  );
+}
+
 export function GraphSpace({
   graph,
   cloud,
@@ -237,6 +320,7 @@ export function GraphSpace({
   theme,
   layout,
   camera,
+  idleReady,
   viewReady,
   onChoose,
   onCloudPick,
@@ -254,6 +338,7 @@ export function GraphSpace({
   const controlType = useRef(cameraControl(width)).current;
   const showView = useView(graphRef, camera, viewReady);
   const frameRef = useFrameIdle(graphRef);
+  useFrameReady(frameRef, idleReady);
   useCursorZoom(graphRef, controlType);
   const cameraKey = formatCamera(camera);
   const cloudOpenRef = useCloudOpen(cloudSelected);
@@ -299,7 +384,10 @@ export function GraphSpace({
   const hoverRank = hoverFront(core.tip, tip, cloudHit.tip, cloudHit.probing);
   const hovered =
     hoverRank === 3 ? (core.tip?.node ?? null) : hoverRank === 2 ? swarmHovered : null;
-  useFrameHover(frameRef, cloudHit.probing || Boolean(cloudHit.tip));
+  useFrameHover(
+    frameRef,
+    cloudHit.probing || Boolean(core.tip) || Boolean(tip) || Boolean(cloudHit.tip),
+  );
   useMarks({
     graphRef,
     nodes: sceneGraph.nodes,
@@ -344,34 +432,18 @@ export function GraphSpace({
   );
   return (
     <>
-      <ForceGraph3D
-        ref={graphRef as MutableRefObject<ForceGraphMethods<GraphNode, GraphLink>>}
+      <SpaceGraph
+        graphRef={graphRef}
         width={width}
         height={height}
-        graphData={sceneGraph}
-        backgroundColor={theme === "dark" ? "#0f1511" : "#f0eadf"}
-        showNavInfo={false}
+        sceneGraph={sceneGraph}
+        theme={theme}
         controlType={controlType}
-        numDimensions={3}
-        nodeLabel={() => ""}
-        nodeThreeObject={makeNode}
-        linkColor={() => (theme === "dark" ? "#617065" : "#9d9285")}
-        linkWidth={0}
-        linkVisibility={(link) => {
-          if (layout === "connections") return true;
-          const active =
-            activeIds.has(graphEndpointId(link.source)) ||
-            activeIds.has(graphEndpointId(link.target));
-          return showLink(quality, { selected: active });
-        }}
-        linkOpacity={
-          layout === "connections"
-            ? Math.max(0.12, quality.linkOpacity)
-            : quality.linkOpacity
-        }
-        cooldownTicks={layoutTicks(quality.cooldownTicks, simple)}
-        d3VelocityDecay={0.24}
-        enableNodeDrag={false}
+        makeNode={makeNode}
+        layout={layout}
+        activeIds={activeIds}
+        quality={quality}
+        simple={simple}
         onEngineTick={() => {
           enableCursorZoom(graphRef.current?.controls() as FrameControl | undefined);
           engineReadyRef.current = true;

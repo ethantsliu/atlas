@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { archivePapers } from "./map";
 
 const desktop = new Set(["chrome", "safari"]);
 const touch = new Set(["android", "iphone"]);
@@ -16,6 +17,13 @@ function heading(page: Page) {
     .getByRole("heading", { name: "pretraining", exact: true });
 }
 
+async function expectToolbarClear(page: Page, graph: Locator) {
+  const toolbar = await page.locator(".graph-toolbar").boundingBox();
+  const canvas = await graph.locator("canvas:not(.cloud-plane)").boundingBox();
+  if (!toolbar || !canvas) throw new Error("Graph toolbar or canvas has no bounds");
+  expect(canvas.y).toBeGreaterThanOrEqual(toolbar.y + toolbar.height + 8);
+}
+
 async function overview(page: Page, layout = "semantic") {
   const graph = page.getByLabel("Interactive research graph", { exact: true });
   await expect(graph).toContainText(`2D overview · ${layout}`, { timeout: 20_000 });
@@ -23,13 +31,14 @@ async function overview(page: Page, layout = "semantic") {
     timeout: 20_000,
   });
   await expect(dimension(page, "2D")).toHaveAttribute("aria-pressed", "true");
+  await expectToolbarClear(page, graph);
   return graph;
 }
 
 async function selectTopic(page: Page) {
   const label = "Choose a visible graph node";
   const input = page.getByRole("combobox", { name: label }).and(page.locator("input"));
-  await expect(input).toHaveAttribute("placeholder", "Find a paper or node…", {
+  await expect(input).toHaveAttribute("placeholder", "Find a node…", {
     timeout: 20_000,
   });
   await input.fill("pretraining");
@@ -39,9 +48,7 @@ async function selectTopic(page: Page) {
 
 async function completeCloud(page: Page) {
   const filters = page.locator(".filters");
-  await expect(filters).toContainText("papers mapped by semantic similarity", {
-    timeout: 30_000,
-  });
+  await archivePapers(page);
   const toggles = filters.locator(".kind-toggle");
   const counts = await Promise.all(
     [0, 1, 2, 3].map(async (index) => {
@@ -126,6 +133,10 @@ test("both dimensions share one cloud while 3D code stays lazy", async ({
   ).toBeVisible({
     timeout: 20_000,
   });
+  await expectToolbarClear(
+    page,
+    page.getByLabel("Interactive 3D research graph", { exact: true }),
+  );
   await expect
     .poll(() =>
       requests.some((url) =>
@@ -233,6 +244,7 @@ test("3D fallback shares the requested dimension", async ({ page }, testInfo) =>
   await expect(page.locator(".graph-status")).toContainText(
     "3D unavailable; using the 2D fallback.",
   );
+  await expect(page.locator(".plane-force canvas")).toBeVisible();
   await page.getByRole("button", { name: "Copy a link to this atlas view" }).click();
   const copied = await page.evaluate(
     () => (window as typeof window & { __atlasCopied?: string }).__atlasCopied ?? "",

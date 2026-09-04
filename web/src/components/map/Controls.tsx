@@ -27,13 +27,6 @@ export function GraphControls({
           <span className="live-dot" />
           {`${mode === "3d" ? `3D · ${space}` : `2D overview · ${space}`} · ${count.toLocaleString()} nodes`}
         </div>
-        <span>
-          {count > 0
-            ? mode === "3d"
-              ? "Arrows select · drag rotates · scroll travels · pinch zooms"
-              : "Arrows select · drag pans · scroll/pinch zooms"
-            : "Adjust the active search or lenses"}
-        </span>
       </div>
 
       {count > 0 && (
