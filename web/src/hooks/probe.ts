@@ -66,6 +66,7 @@ type ClickInput = {
   order: PickOrder;
   pointer?: string;
   refs: PointRefs;
+  setProbing: (value: boolean) => void;
   setTip: (tip: PointTip | null) => void;
   start: { x: number; y: number };
   token: number;
@@ -150,6 +151,7 @@ function queueClaim(
   refs: PointRefs,
   setTip: (tip: PointTip | null) => void,
   load: PointLoad,
+  setProbing: (value: boolean) => void,
   claim: Claim,
   at: { x: number; y: number },
 ): void {
@@ -160,6 +162,7 @@ function queueClaim(
     }
     const token = ++refs.select.current;
     claim.committed = true;
+    setProbing(true);
     setTip({ depth: claim.distance, label: "Loading Paper…", ...at });
     void load(claim.index)
       .then((paper) => {
@@ -188,6 +191,9 @@ function queueClaim(
           label: "Paper details unavailable · select to retry",
           ...at,
         });
+      })
+      .finally(() => {
+        if (token === refs.select.current) setProbing(false);
       });
   });
 }
@@ -216,8 +222,8 @@ export async function showPoint(args: ShowInput): Promise<void> {
   ) {
     return;
   }
-  setProbing(false);
   if (match.index == null) {
+    setProbing(false);
     clearHover(refs, setTip);
     return;
   }
@@ -246,6 +252,9 @@ export async function showPoint(args: ShowInput): Promise<void> {
           y: match.y,
         });
       }
+    })
+    .finally(() => {
+      if (token === refs.request.current) setProbing(false);
     });
 }
 
@@ -275,7 +284,7 @@ function claimPoint(args: ClickInput, match: PointMatch): void {
   }
   const rect = canvas.getBoundingClientRect();
   const at = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-  queueClaim(order, refs, setTip, load, claim, at);
+  queueClaim(order, refs, setTip, load, args.setProbing, claim, at);
 }
 
 export function choosePoint(args: ClickInput): void {

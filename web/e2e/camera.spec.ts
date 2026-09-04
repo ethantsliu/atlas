@@ -24,7 +24,7 @@ async function copyCamera(page: Page) {
   return new URLSearchParams(new URL(copied).hash.replace(/^#\?/, "")).get("c");
 }
 
-async function readCameraWithoutInput(page: Page) {
+async function readCameraQuiet(page: Page) {
   await page
     .getByRole("button", { name: "Copy a link to this atlas view" })
     .evaluate((button) => (button as HTMLButtonElement).click());
@@ -275,14 +275,14 @@ test("idle orbit yields to input and resumes around the same target", async ({
   await page.goto(`/#?k=tri&c=${view}`);
   const graph = page.getByLabel("Interactive 3D research graph");
   await expect(graph).toBeVisible({ timeout: 20_000 });
-  await expect.poll(() => readCameraWithoutInput(page), { timeout: 20_000 }).toBe(view);
+  await expect.poll(() => readCameraQuiet(page), { timeout: 20_000 }).toBe(view);
   const initial = cameraSnapshot(view);
 
   let rotating = initial;
   await expect
     .poll(
       async () => {
-        rotating = cameraSnapshot(await readCameraWithoutInput(page));
+        rotating = cameraSnapshot(await readCameraQuiet(page));
         return Math.abs(rotating.yaw - initial.yaw);
       },
       { timeout: 15_000 },
@@ -297,36 +297,36 @@ test("idle orbit yields to input and resumes around the same target", async ({
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.waitForTimeout(800);
-  const held = cameraSnapshot(await readCameraWithoutInput(page));
+  const held = cameraSnapshot(await readCameraQuiet(page));
   await page.waitForTimeout(800);
-  const stillHeld = cameraSnapshot(await readCameraWithoutInput(page));
+  const stillHeld = cameraSnapshot(await readCameraQuiet(page));
   expectOrbitPreserved(held, stillHeld);
   expect(Math.abs(stillHeld.yaw - held.yaw)).toBeLessThanOrEqual(1);
   expect(length(targetDelta(held, stillHeld))).toBeLessThan(0.35);
 
   await page.mouse.up();
   await page.waitForTimeout(1_500);
-  const released = cameraSnapshot(await readCameraWithoutInput(page));
+  const released = cameraSnapshot(await readCameraQuiet(page));
   expectOrbitPreserved(stillHeld, released);
   expect(Math.abs(released.yaw - stillHeld.yaw)).toBeLessThanOrEqual(1);
 
   await expect
     .poll(
       async () => {
-        const resumed = cameraSnapshot(await readCameraWithoutInput(page));
+        const resumed = cameraSnapshot(await readCameraQuiet(page));
         return Math.abs(resumed.yaw - released.yaw);
       },
       { timeout: 15_000 },
     )
     .toBeGreaterThan(1);
 
-  const beforeWheel = cameraSnapshot(await readCameraWithoutInput(page));
+  const beforeWheel = cameraSnapshot(await readCameraQuiet(page));
   await wheelOnGraph(page, -120, 2, { x: 0.7, y: 0.35 });
   await page.waitForTimeout(800);
-  const afterWheel = cameraSnapshot(await readCameraWithoutInput(page));
+  const afterWheel = cameraSnapshot(await readCameraQuiet(page));
   expect(afterWheel.radius).toBeLessThan(beforeWheel.radius);
   await page.waitForTimeout(1_200);
-  const wheelIdle = cameraSnapshot(await readCameraWithoutInput(page));
+  const wheelIdle = cameraSnapshot(await readCameraQuiet(page));
   expectOrbitPreserved(afterWheel, wheelIdle);
 });
 
@@ -344,16 +344,16 @@ test("keyboard Center selected interrupts and later resumes idle orbit", async (
   await page.goto(`/#?k=tri&c=${view}`);
   const graph = page.getByLabel("Interactive 3D research graph");
   await expect(graph).toBeVisible({ timeout: 20_000 });
-  await expect.poll(() => readCameraWithoutInput(page), { timeout: 20_000 }).toBe(view);
+  await expect.poll(() => readCameraQuiet(page), { timeout: 20_000 }).toBe(view);
   await chooseAlignment(page);
   const center = page.getByRole("button", { name: "Center selected" });
   await expect(center).toBeVisible();
 
-  const waiting = cameraSnapshot(await readCameraWithoutInput(page));
+  const waiting = cameraSnapshot(await readCameraQuiet(page));
   await expect
     .poll(
       async () => {
-        const rotating = cameraSnapshot(await readCameraWithoutInput(page));
+        const rotating = cameraSnapshot(await readCameraQuiet(page));
         return Math.abs(rotating.yaw - waiting.yaw);
       },
       { timeout: 15_000 },
@@ -363,15 +363,15 @@ test("keyboard Center selected interrupts and later resumes idle orbit", async (
   await center.focus();
   await page.keyboard.press("Enter");
   await page.waitForTimeout(1_000);
-  const centered = cameraSnapshot(await readCameraWithoutInput(page));
+  const centered = cameraSnapshot(await readCameraQuiet(page));
   await page.waitForTimeout(1_200);
-  const held = cameraSnapshot(await readCameraWithoutInput(page));
+  const held = cameraSnapshot(await readCameraQuiet(page));
   expectOrbitPreserved(centered, held);
 
   await expect
     .poll(
       async () => {
-        const resumed = cameraSnapshot(await readCameraWithoutInput(page));
+        const resumed = cameraSnapshot(await readCameraQuiet(page));
         return Math.abs(resumed.yaw - held.yaw);
       },
       { timeout: 15_000 },

@@ -396,7 +396,7 @@ test("search views announce empty results and offer working resets", async ({
   ).toBeVisible();
   await scan(page);
 
-  await page.getByRole("button", { name: "Briefs" }).click();
+  await page.getByRole("button", { name: "Briefs", exact: true }).click();
   await search.fill("zzzz-no-results-zzzz");
   await expect(page.getByText(/No briefs match/)).toBeVisible();
   await expect(page.getByRole("status")).toContainText(
@@ -411,7 +411,7 @@ test("brief dialog exposes provenance, traps focus, and restores focus", async (
   page,
 }) => {
   await page.goto(corePath);
-  await page.getByRole("button", { name: "Briefs" }).click();
+  await page.getByRole("button", { name: "Briefs", exact: true }).click();
   const trigger = page.getByRole("button", { name: "Open brief" }).first();
   await trigger.click();
 
@@ -442,7 +442,7 @@ test("alternate-source paper dialog passes an accessibility scan", async ({ page
 
 test("researched briefs are ranked by one-decimal feasibility", async ({ page }) => {
   await page.goto(corePath);
-  await page.getByRole("button", { name: "Briefs" }).click();
+  await page.getByRole("button", { name: "Briefs", exact: true }).click();
 
   const scoreCards = page.locator(".featured-briefs .card-score");
   await expect(scoreCards.first()).toBeVisible({ timeout: 15_000 });
@@ -457,7 +457,7 @@ test("cross-scale calibration exposes its complete validation protocol", async (
   page,
 }) => {
   await page.goto(corePath);
-  await page.getByRole("button", { name: "Briefs" }).click();
+  await page.getByRole("button", { name: "Briefs", exact: true }).click();
 
   const card = page
     .locator(".brief-card")

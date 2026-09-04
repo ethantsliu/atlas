@@ -9,8 +9,9 @@ import {
   pickSize,
   reuseHit,
   shownHit,
-  waitForHoverRest,
+  waitHoverRest,
 } from "./points";
+import { choosePoint, showPoint } from "./probe";
 
 const paper = {
   id: "2001.00001",
@@ -30,10 +31,158 @@ describe("paper point input", () => {
   it("requires a stable dwell before probing a dense cloud", () => {
     expect(hoverWait(100_000)).toBe(120);
     expect(hoverWait(100_001)).toBe(700);
-    expect(waitForHoverRest(true, 0)).toBe(true);
-    expect(waitForHoverRest(true, 13)).toBe(true);
-    expect(waitForHoverRest(true, 14)).toBe(false);
-    expect(waitForHoverRest(false, 0)).toBe(false);
+    expect(waitHoverRest(true, 0)).toBe(true);
+    expect(waitHoverRest(true, 13)).toBe(true);
+    expect(waitHoverRest(true, 14)).toBe(false);
+    expect(waitHoverRest(false, 0)).toBe(false);
+  });
+
+  it("keeps dense probing busy until paper metadata settles", async () => {
+    let resolveLoad!: (value: typeof bound) => void;
+    const load = vi.fn(
+      () => new Promise<typeof bound>((resolve) => (resolveLoad = resolve)),
+    );
+    const setProbing = vi.fn();
+    const setTip = vi.fn();
+    const refs = {
+      block: { current: 0 },
+      claim: { current: null },
+      hidden: { current: false },
+      hover: { current: null },
+      pick: { current: vi.fn() },
+      points: { current: null },
+      request: { current: 0 },
+      select: { current: 0 },
+      target: { current: null },
+    };
+    const event = {
+      clientX: 10,
+      clientY: 20,
+    } as PointerEvent;
+
+    await showPoint({
+      event,
+      hit: async () => ({ distance: 1, index: 4, x: 10, y: 20 }),
+      load,
+      refs,
+      setProbing,
+      setTip,
+    });
+
+    expect(setTip).toHaveBeenLastCalledWith({
+      depth: 1,
+      label: "Loading Paper…",
+      x: 10,
+      y: 20,
+    });
+    expect(setProbing).not.toHaveBeenCalled();
+
+    resolveLoad(bound);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(setTip).toHaveBeenLastCalledWith({
+      depth: 1,
+      label: `Paper · ${paper.title}`,
+      x: 10,
+      y: 20,
+    });
+    expect(setProbing).toHaveBeenCalledOnce();
+    expect(setProbing).toHaveBeenCalledWith(false);
+  });
+
+  it("releases dense probing when paper metadata fails", async () => {
+    const setProbing = vi.fn();
+    const setTip = vi.fn();
+    const refs = {
+      block: { current: 0 },
+      claim: { current: null },
+      hidden: { current: false },
+      hover: { current: null },
+      pick: { current: vi.fn() },
+      points: { current: null },
+      request: { current: 0 },
+      select: { current: 0 },
+      target: { current: null },
+    };
+
+    await showPoint({
+      event: { clientX: 10, clientY: 20 } as PointerEvent,
+      hit: async () => ({ distance: 1, index: 4, x: 10, y: 20 }),
+      load: async () => {
+        throw new Error("bad metadata");
+      },
+      refs,
+      setProbing,
+      setTip,
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(setTip).toHaveBeenLastCalledWith({
+      depth: 1,
+      label: "Paper details unavailable · hover to retry",
+      x: 10,
+      y: 20,
+    });
+    expect(setProbing).toHaveBeenLastCalledWith(false);
+  });
+
+  it("keeps a click claim busy until paper metadata settles", async () => {
+    let resolveLoad!: (value: typeof bound) => void;
+    const setProbing = vi.fn();
+    const setTip = vi.fn();
+    const refs = {
+      block: { current: 0 },
+      claim: { current: null },
+      hidden: { current: false },
+      hover: { current: null },
+      pick: { current: vi.fn() },
+      points: { current: null },
+      request: { current: 0 },
+      select: { current: 0 },
+      target: { current: null },
+    };
+    const event = { button: 0, clientX: 10, clientY: 20 } as MouseEvent;
+    const bounds = () => ({ left: 0, top: 0 });
+    const canvas = {
+      getBoundingClientRect: bounds,
+    } as HTMLCanvasElement;
+    const order = {
+      claim: vi.fn((_rank, _depth, commit: () => void) => commit()),
+    };
+
+    choosePoint({
+      canvas,
+      event,
+      hit: async () => ({ distance: 1, index: 4, x: 10, y: 20 }),
+      load: () => new Promise<typeof bound>((resolve) => (resolveLoad = resolve)),
+      order: order as never,
+      refs,
+      setProbing,
+      setTip,
+      start: { x: 10, y: 20 },
+      token: 0,
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(setProbing).toHaveBeenLastCalledWith(true);
+    expect(setTip).toHaveBeenLastCalledWith({
+      depth: 1,
+      label: "Loading Paper…",
+      x: 10,
+      y: 20,
+    });
+
+    resolveLoad(bound);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(setProbing).toHaveBeenLastCalledWith(false);
   });
 
   it("hides a stale dense-cloud label after meaningful pointer movement", () => {

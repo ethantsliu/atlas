@@ -114,6 +114,10 @@ class HookHarness {
     this.effects = [];
   }
 
+  state<Value>(index: number): Value {
+    return this.states[index] as Value;
+  }
+
   private flushEffects(): void {
     this.pending.forEach(({ index, setup, deps }) => {
       this.effects[index]?.cleanup?.();
@@ -215,6 +219,39 @@ describe("progressive point mounting", () => {
     expect(scene.remove).toHaveBeenCalledOnce();
     expect(swarmMocks.dropCloud).toHaveBeenCalledWith(points);
     expect(picker.dispose).toHaveBeenCalledOnce();
+  });
+
+  it("clears a dense hover hold when the point layer is torn down", () => {
+    const canvas = new EventTarget() as HTMLCanvasElement;
+    const renderer = { domElement: canvas };
+    const scene = { add: vi.fn(), remove: vi.fn() };
+    const graph = { camera: () => ({}), renderer: () => renderer, scene: () => scene };
+    const points = {
+      geometry: { dispose: vi.fn() },
+      material: { dispose: vi.fn() },
+      userData: { moving: false },
+      visible: true,
+    };
+    swarmMocks.buildCloud.mockReturnValue(points);
+    gpuMocks.makeGpuPick.mockReturnValue({ dispose: vi.fn(), pick: vi.fn() });
+    const data = cloudData();
+    data.loaded = 100_001;
+    const harness = new HookHarness();
+    const input = {
+      active: true,
+      data,
+      graphRef: { current: graph },
+      onPick: vi.fn(),
+      order: { begin: vi.fn(), claim: vi.fn() },
+      theme: "light",
+    } as unknown as Parameters<typeof usePoints>[0];
+
+    harness.render(input);
+    canvas.dispatchEvent(pointEvent("pointermove"));
+    expect(harness.render(input).probing).toBe(true);
+
+    harness.unmount();
+    expect(harness.state<boolean>(1)).toBe(false);
   });
 
   it("discards a pending click after a newer pointer claim", async () => {

@@ -96,6 +96,18 @@ function useFrameWake(frame: MutableRefObject<FrameIdle | null>, values: unknown
   useEffect(() => frame.current?.wake(), values);
 }
 
+function useFrameHover(frame: MutableRefObject<FrameIdle | null>, active: boolean) {
+  useEffect(() => frame.current?.hover(active), [active, frame]);
+}
+
+function useCloudOpen(selected: boolean) {
+  const open = useRef(selected);
+  useEffect(() => {
+    open.current = selected;
+  }, [selected]);
+  return open;
+}
+
 function stopFrames(
   frame: MutableRefObject<FrameIdle | null>,
   graph: GraphRef,
@@ -226,18 +238,12 @@ export function GraphSpace({
   const engineReadyRef = useRef(false);
   const fitRef = useRef(!camera);
   const fitKeyRef = useRef<string>();
-  // react-force-graph treats controlType as constructor-only. Keep it stable
-  // for this mount so every scene, picking, and frame hook owns one controller;
-  // switching 2D/3D remounts GraphSpace and selects again for the current width.
   const controlType = useRef(cameraControl(width)).current;
   const showView = useView(graphRef, camera, viewReady);
   const frameRef = useFrameIdle(graphRef);
   useCursorZoom(graphRef, controlType);
   const cameraKey = formatCamera(camera);
-  const cloudOpenRef = useRef(cloudSelected);
-  useEffect(() => {
-    cloudOpenRef.current = cloudSelected;
-  }, [cloudSelected]);
+  const cloudOpenRef = useCloudOpen(cloudSelected);
   const split = useMemo(() => splitPapers(graph), [graph]);
   const showSwarm = layout === "semantic" && split.papers.length >= 1_000;
   const sceneGraph = showSwarm ? split.core : graph;
@@ -280,6 +286,7 @@ export function GraphSpace({
   const hoverRank = hoverFront(core.tip, tip, cloudHit.tip, cloudHit.probing);
   const hovered =
     hoverRank === 3 ? (core.tip?.node ?? null) : hoverRank === 2 ? swarmHovered : null;
+  useFrameHover(frameRef, cloudHit.probing);
   useMarks({
     graphRef,
     nodes: sceneGraph.nodes,

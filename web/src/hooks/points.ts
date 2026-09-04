@@ -124,7 +124,7 @@ export function hoverWait(count: number): number {
   return count <= CLOUD_HOVER_LIMIT ? HOVER_WAIT : DENSE_HOVER_WAIT;
 }
 
-export function waitForHoverRest(moving: boolean, tries: number): boolean {
+export function waitHoverRest(moving: boolean, tries: number): boolean {
   return moving && tries < HOVER_SETTLE_TRIES;
 }
 
@@ -285,7 +285,7 @@ function mountPoints(
   let choosing: number | null = null;
   let pressed = false;
   const show = (event: PointerEvent, tries = 0) => {
-    if (waitForHoverRest(points.userData.moving, tries)) {
+    if (waitHoverRest(points.userData.moving, tries)) {
       timer = setTimeout(() => {
         timer = undefined;
         if (moved === event) show(event, tries + 1);
@@ -397,6 +397,7 @@ function mountPoints(
       order: input.order,
       pointer: start.pointer,
       refs,
+      setProbing,
       setTip,
       start,
       token,
@@ -406,6 +407,7 @@ function mountPoints(
   const dropEvents = bindPoints(canvas, { choose, leave, move, press, release });
   return () => {
     if (timer) clearTimeout(timer);
+    setProbing(false);
     controller.abort();
     dropControl();
     dropEvents();
