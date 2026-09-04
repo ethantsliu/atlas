@@ -56,9 +56,45 @@ PROCESS_HEADS = {
     "segmentation",
     "training",
 }
+PROCESS_PLURALS = {
+    "adaptations": "adaptation",
+    "attentions": "attention",
+    "augmentations": "augmentation",
+    "clusterings": "clustering",
+    "compressions": "compression",
+    "decodings": "decoding",
+    "distillations": "distillation",
+    "embeddings": "embedding",
+    "estimations": "estimation",
+    "inferences": "inference",
+    "normalizations": "normalization",
+    "optimizations": "optimization",
+    "pretrainings": "pretraining",
+    "prunings": "pruning",
+    "quantizations": "quantization",
+    "rankings": "ranking",
+    "regularizations": "regularization",
+    "retrievals": "retrieval",
+    "routings": "routing",
+    "samplings": "sampling",
+    "searches": "search",
+    "segmentations": "segmentation",
+}
+WRAPPER_HEADS = frozenset({"approach", "framework", "method"})
+NOISE_LABELS = frozenset(
+    {
+        "during training",
+        "few training",
+        "mass loss",
+        "most existing method",
+        "physical mechanism",
+        "resulting framework",
+    }
+)
 HEAD_FORMS = {
     **{head: head for head in METHOD_HEADS | PROCESS_HEADS},
     **{f"{head}s": head for head in METHOD_HEADS},
+    **PROCESS_PLURALS,
     "approaches": "approach",
     "architectures": "architecture",
     "losses": "loss",
@@ -78,10 +114,12 @@ HEAD = re.compile(
 BOUNDARY = {
     "a",
     "an",
+    "and",
     "are",
     "as",
     "at",
     "by",
+    "but",
     "called",
     "develop",
     "developed",
@@ -97,9 +135,12 @@ BOUNDARY = {
     "introduced",
     "introduces",
     "is",
+    "nor",
     "of",
     "on",
+    "or",
     "our",
+    "plus",
     "present",
     "presented",
     "presents",
@@ -177,15 +218,20 @@ def phrase_label(text: str, head: str) -> str | None:
     tokens = [token for word in words for token in word.split()]
     if not tokens:
         return None
-    canonical = head_value(" ".join(tokens[-2:])) or head_value(tokens[-1])
-    if canonical != head:
+    two = head_value(" ".join(tokens[-2:])) if len(tokens) >= 2 else None
+    one = head_value(tokens[-1])
+    if two == head:
+        width = 2
+    elif one == head:
+        width = 1
+    else:
         return None
-    prefix = tokens[: -len(canonical.split())]
+    prefix = tokens[:-width]
     while prefix and prefix[0] in GENERIC:
         prefix.pop(0)
     if not prefix:
         return None
-    label = " ".join([*prefix, canonical])
+    label = " ".join([*prefix, head])
     meaningful = [token for token in prefix if token not in GENERIC]
     if (
         not label
@@ -214,6 +260,27 @@ def phrase_start(clause: str, start: int) -> int:
     return chosen[-1].start() if chosen else start
 
 
+def unwrap_process(
+    clause: str, start: int, end: int, head: str
+) -> tuple[str, str] | None:
+    """Canonicalize a direct generic wrapper around one process phrase."""
+    if head not in WRAPPER_HEADS:
+        return None
+    prefix = clause[start:end]
+    matches = list(HEAD.finditer(prefix))
+    if not matches:
+        return None
+    inner = matches[-1]
+    inner_head = head_value(inner.group())
+    if (
+        inner_head not in PROCESS_HEADS
+        or prefix[inner.end() :].strip()
+        or (label := phrase_label(prefix[: inner.end()], inner_head)) is None
+    ):
+        return None
+    return label, inner_head
+
+
 def extract_methods(abstract: str, *, prechecked: bool = False) -> list[dict]:
     """Extract normalized open-vocabulary phrases with exact abstract spans."""
     if (
@@ -240,6 +307,11 @@ def extract_methods(abstract: str, *, prechecked: bool = False) -> list[dict]:
             text = clause[start:end]
             label = phrase_label(text, head)
             if label is None:
+                continue
+            unwrapped = unwrap_process(clause, start, match.start(), head)
+            if unwrapped is not None:
+                label, head = unwrapped
+            if label in NOISE_LABELS:
                 continue
             rows.append(
                 {

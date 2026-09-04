@@ -30,6 +30,7 @@ jobs:
       DISPATCH_TAG: ${{ github.event.client_payload.tag }}
       INPUT_TAG: ${{ inputs.tag }}
       CATALOG_OUTPUT: web/public/data/catalog.json
+      QUESTIONS_OUTPUT: ${{ runner.temp }}/atlas-questions/questions.json
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
@@ -85,6 +86,43 @@ jobs:
             --check
           python -m unittest tests.test_catalog -v
 
+      - name: Build unreviewed question candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          python pipeline/questions.py \
+            --catalog "$CATALOG_OUTPUT" \
+            --output "$QUESTIONS_OUTPUT"
+          python pipeline/questions.py \
+            --catalog "$CATALOG_OUTPUT" \
+            --output "$QUESTIONS_OUTPUT" \
+            --check
+          python -m unittest tests.test_questions -v
+
+          directions=$(jq -r '.directions | length' "$CATALOG_OUTPUT")
+          questions=$(jq -r '.candidates | length' "$QUESTIONS_OUTPUT")
+          declared=$(jq -r '.counts.unreviewed_candidate_questions' "$QUESTIONS_OUTPUT")
+          catalog_sha=$(jq -r '.content_sha256' "$CATALOG_OUTPUT")
+          source_sha=$(jq -r '.source_catalog.content_sha256' "$QUESTIONS_OUTPUT")
+          content_sha=$(jq -r '.content_sha256' "$QUESTIONS_OUTPUT")
+          bytes=$(wc -c < "$QUESTIONS_OUTPUT")
+          test "$directions" -gt 310
+          test "$questions" -eq "$directions"
+          test "$declared" -eq "$directions"
+          test "$source_sha" = "$catalog_sha"
+          [[ "$content_sha" =~ ^[0-9a-f]{64}$ ]]
+          test "$bytes" -gt 0
+          test "$bytes" -le 12582912
+
+      - name: Preserve expanded question artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-question-candidates-${{ steps.corpus.outputs.tag }}
+          path: ${{ env.QUESTIONS_OUTPUT }}
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 9
+
       - name: Publish compact catalog
         id: publish
         shell: bash
@@ -111,6 +149,7 @@ jobs:
       - name: Summarize complete catalog
         run: |
           jq '{corpus, coverage, counts}' "$CATALOG_OUTPUT" >> "$GITHUB_STEP_SUMMARY"
+          jq '{source_catalog, counts, content_sha256}' "$QUESTIONS_OUTPUT" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Certify published catalog
         if: steps.publish.outputs.changed == 'true'

@@ -44,8 +44,20 @@ const cloud = {
 
 const catalog = {
   schema_version: 1,
-  generator_version: "catalog-1",
+  generator_version: "catalog-2",
   status: "corpus-derived",
+  content_sha256: "b".repeat(64),
+  policy: {
+    digest: "c".repeat(64),
+    identity_version: "catalog-1",
+    ontology_sha256: "d".repeat(64),
+    scopes: ["likely", "possible"],
+    min_direction_support: 10,
+    min_direction_years: 2,
+    min_author_groups: 3,
+    max_directions: 1_710,
+    published_supports: 6,
+  },
   corpus: {
     manifest_sha256: "a".repeat(64),
     source_count: 3_148_342,
@@ -82,7 +94,7 @@ const catalog = {
   subjects: [{ id: "cs.LG", label: "cs.LG", paper_count: 75, primary_paper_count: 60 }],
   directions: [
     {
-      id: "direction:1234567890abcdef",
+      id: `direction:${"1".repeat(64)}`,
       status: "candidate",
       subject_id: "cs.LG",
       technique_id: "retrieval-and-memory",
@@ -91,6 +103,22 @@ const catalog = {
       independent_author_groups_at_least: 3,
       npmi: 0.2,
       support_ids: ["arxiv:2401.00001", "arxiv:2501.00002"],
+      support_refs: [
+        {
+          id: "arxiv:2401.00001",
+          month: "2024-01",
+          path: "2024-01.json.gz",
+          sha256: "e".repeat(64),
+          row: 0,
+        },
+        {
+          id: "arxiv:2501.00002",
+          month: "2025-01",
+          path: "2025-01.json.gz",
+          sha256: "f".repeat(64),
+          row: 1,
+        },
+      ],
     },
   ],
   notice: "Candidate directions are not reviewed claims.",
@@ -99,8 +127,7 @@ const catalog = {
 async function showMobileFilters(page: Page) {
   if ((page.viewportSize()?.width ?? 1_000) > 720) return;
   const toggle = page.getByRole("button", { name: "Show filters" });
-  await expect(toggle).toBeVisible();
-  await toggle.click();
+  if (await toggle.isVisible()) await toggle.click();
 }
 
 async function mockTinyCloud(page: Page) {
@@ -128,6 +155,8 @@ test("the corpus catalog exposes subjects, candidate directions, and evidence", 
   await expect(
     page.getByRole("region", { name: "Full-corpus taxonomy" }),
   ).toBeVisible();
+  await expect(page.getByText("Unreviewed candidate question")).toBeVisible();
+  await page.getByRole("button", { name: /Subjects \(1\)/ }).click();
   await expect(page.getByText("cs.LG", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: /cs\.LG/ }).click();
@@ -159,4 +188,32 @@ test("a missing catalog is explicit and leaves curated lenses available", async 
   );
   await expect(page.getByRole("button", { name: /Broad areas/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Screened briefs/ })).toBeVisible();
+});
+
+test("2D, 3D, and an open catalog never preload method assets", async ({ page }) => {
+  const methods: string[] = [];
+  page.on("request", (request) => {
+    const url = request.url();
+    if (url.includes("/data/methods/") || /\/assets\/Methods-[^/]+\.js/.test(url)) {
+      methods.push(url);
+    }
+  });
+  await mockTinyCloud(page);
+  await page.route(/\/data\/catalog\.json(?:\?.*)?$/, (route) =>
+    route.fulfill({ contentType: "application/json", json: catalog }),
+  );
+
+  for (const dimension of [2, 3]) {
+    await page.goto(`/#?d=${dimension}&k=trpi`);
+    await showMobileFilters(page);
+    const region = page.getByRole("region", { name: "Full-corpus taxonomy" });
+    if (!(await region.isVisible())) {
+      const explore = page.getByRole("button", { name: "Explore corpus" });
+      await expect(explore).toBeVisible({ timeout: 20_000 });
+      await explore.click();
+    }
+    await expect(region).toBeVisible();
+    await expect(page.getByText("Unreviewed candidate question")).toBeVisible();
+  }
+  expect(methods).toEqual([]);
 });

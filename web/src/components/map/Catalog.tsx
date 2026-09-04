@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   fetchCatalog,
   type Catalog,
@@ -9,6 +9,14 @@ import { labelOf } from "../../lib/text";
 import "./Catalog.css";
 
 const PAGE_SIZE = 40;
+const Methods = lazy(() => import("./Methods"));
+
+type CatalogTab = "subjects" | "directions" | "questions" | "methods";
+
+const QUESTION_NOTICE =
+  "These are automatically projected research-question candidates, not reviewed ideas, recommendations, novelty findings, or feasibility assessments. The reviewed Atlas idea collection remains separate.";
+const QUESTION_EVIDENCE =
+  "The references establish only corpus co-occurrence between this arXiv subject and curated technique family; they do not establish novelty, causality, feasibility, or effectiveness.";
 
 export function catalogDescription(summary: CatalogSummary, ideas: number): string {
   return `${summary.broadAreas.toLocaleString()} broad areas and ${summary.techniqueFamilies.toLocaleString()} technique families are navigation lenses. The full ${summary.sourceCount.toLocaleString()}-paper catalog adds ${summary.arxivSubjects.toLocaleString()} arXiv subjects and ${summary.candidateDirections.toLocaleString()} of ${summary.eligibleDirections.toLocaleString()} qualifying candidate directions. The ${ideas.toLocaleString()} ideas remain separately screened briefs.`;
@@ -25,10 +33,68 @@ function directionName(
   return `${direction.subjectId} × ${techniques.get(direction.techniqueId) ?? labelOf(direction.techniqueId)}`;
 }
 
+export function candidateQuestion(subject: string, technique: string): string {
+  return `Across research classified under ${subject}, under which documented conditions is ${technique} associated with better, worse, or unchanged reported outcomes?`;
+}
+
+function CandidateQuestions({
+  directions,
+  techniques,
+}: {
+  directions: readonly CatalogDirection[];
+  techniques: ReadonlyMap<string, string>;
+}) {
+  return (
+    <div className="question-browser">
+      <ul className="catalog-list directions" aria-label="Candidate questions">
+        {directions.map((direction) => (
+          <li key={direction.id}>
+            <details>
+              <summary>
+                <b>
+                  {candidateQuestion(
+                    direction.subjectId,
+                    techniques.get(direction.techniqueId) ??
+                      labelOf(direction.techniqueId),
+                  )}
+                </b>
+                <span>Unreviewed candidate question</span>
+                <small>
+                  {direction.supportCount.toLocaleString()} supporting papers · novelty
+                  and feasibility not assessed
+                </small>
+              </summary>
+              <p>{QUESTION_EVIDENCE}</p>
+              <ul>
+                {direction.supportIds.map((id) => {
+                  const identifier = id.replace(/^arxiv:/, "");
+                  return (
+                    <li key={id}>
+                      <a
+                        href={`https://arxiv.org/abs/${identifier}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {identifier}
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </details>
+          </li>
+        ))}
+      </ul>
+      <p className="catalog-notice">{QUESTION_NOTICE}</p>
+    </div>
+  );
+}
+
 export function CorpusExplorer({ catalog }: { catalog: Catalog }) {
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"subjects" | "directions">("subjects");
+  const [tab, setTab] = useState<CatalogTab>("questions");
   const [query, setQuery] = useState("");
+  const [methodCount, setMethodCount] = useState<number | null>(null);
   const techniques = useMemo(
     () => new Map(catalog.techniques.map((row) => [row.id, row.label])),
     [catalog.techniques],
@@ -73,6 +139,14 @@ export function CorpusExplorer({ catalog }: { catalog: Catalog }) {
           <div className="catalog-tabs" role="group" aria-label="Catalog layer">
             <button
               type="button"
+              aria-pressed={tab === "questions"}
+              onClick={() => setTab("questions")}
+            >
+              Candidate questions (
+              {catalog.summary.candidateDirections.toLocaleString()})
+            </button>
+            <button
+              type="button"
               aria-pressed={tab === "subjects"}
               onClick={() => setTab("subjects")}
             >
@@ -85,15 +159,25 @@ export function CorpusExplorer({ catalog }: { catalog: Catalog }) {
             >
               Directions ({catalog.summary.candidateDirections.toLocaleString()})
             </button>
+            <button
+              type="button"
+              aria-pressed={tab === "methods"}
+              onClick={() => setTab("methods")}
+            >
+              Extracted method phrases
+              {methodCount === null ? "" : ` (${methodCount.toLocaleString()})`}
+            </button>
           </div>
-          <label className="catalog-search">
-            Search {tab}
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={tab === "subjects" ? "cs.LG" : "subject or technique"}
-            />
-          </label>
+          {tab !== "methods" && (
+            <label className="catalog-search">
+              Search {tab}
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={tab === "subjects" ? "cs.LG" : "subject or technique"}
+              />
+            </label>
+          )}
           {tab === "subjects" ? (
             <ul className="catalog-list">
               {subjects.map((subject) => (
@@ -112,7 +196,7 @@ export function CorpusExplorer({ catalog }: { catalog: Catalog }) {
                 </li>
               ))}
             </ul>
-          ) : (
+          ) : tab === "directions" ? (
             <ul className="catalog-list directions">
               {directions.map((direction) => (
                 <li key={direction.id}>
@@ -149,12 +233,24 @@ export function CorpusExplorer({ catalog }: { catalog: Catalog }) {
                 </li>
               ))}
             </ul>
+          ) : tab === "questions" ? (
+            <CandidateQuestions directions={directions} techniques={techniques} />
+          ) : (
+            <Suspense fallback={<p className="catalog-results">Loading methods…</p>}>
+              <Methods onCount={setMethodCount} />
+            </Suspense>
           )}
-          <p className="catalog-results">
-            Showing {tab === "subjects" ? subjects.length : directions.length} matching{" "}
-            {tab}. Refine the search to narrow the catalog.
-          </p>
-          <p className="catalog-notice">{catalog.summary.notice}</p>
+          {tab !== "methods" && (
+            <>
+              <p className="catalog-results">
+                Showing {tab === "subjects" ? subjects.length : directions.length}{" "}
+                matching {tab}. Refine the search to narrow the catalog.
+              </p>
+              {tab !== "questions" && (
+                <p className="catalog-notice">{catalog.summary.notice}</p>
+              )}
+            </>
+          )}
         </section>
       )}
     </div>

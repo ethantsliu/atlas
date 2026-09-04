@@ -136,9 +136,10 @@ class DiscoverTests(unittest.TestCase):
                 str(output),
                 "--defer-check",
             ]
-            with patch.object(sys, "argv", arguments), patch(
-                "discover.check_artifact"
-            ) as check:
+            with (
+                patch.object(sys, "argv", arguments),
+                patch("discover.check_artifact") as check,
+            ):
                 main()
 
             self.assertTrue(output.is_file())

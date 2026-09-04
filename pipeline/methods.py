@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import filecmp
 import gzip
 import hashlib
 import json
@@ -301,7 +302,9 @@ def build_artifact(
                     unsafe = unsafe_text(abstract)
                     if unsafe:
                         quarantined += 1
-                    extracted = [] if unsafe else extract_methods(abstract, prechecked=True)
+                    extracted = (
+                        [] if unsafe else extract_methods(abstract, prechecked=True)
+                    )
                     mentions += add_paper(database, paper, manifest_hash, extracted)
                 database.commit()
             distinct = database.execute("SELECT COUNT(*) FROM candidates").fetchone()[0]
@@ -508,7 +511,7 @@ def verify_sources(
 
 
 def check_artifact(root: Path, output: Path) -> dict:
-    """Strictly verify schema, provenance binding, rows, and sampled source spans."""
+    """Rebuild and strictly verify every source-bound extraction aggregate."""
     try:
         value = json.loads((output / "index.json").read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
@@ -552,9 +555,16 @@ def check_artifact(root: Path, output: Path) -> dict:
                 or count != value["coverage"]["qualified_candidates"]
             ):
                 raise ValueError("Method candidate row counts disagree")
-            verify_sources(root, database, value["curated_families"])
         finally:
             database.close()
+    with tempfile.TemporaryDirectory() as directory:
+        rebuilt_root = Path(directory) / "rebuilt"
+        rebuilt = build_artifact(root, rebuilt_root, minimum)
+        rebuilt_path = rebuilt_root / ASSET_NAME
+        if rebuilt != value or not filecmp.cmp(path, rebuilt_path, shallow=False):
+            raise ValueError(
+                "Method artifact does not match deterministic corpus extraction"
+            )
     return value
 
 

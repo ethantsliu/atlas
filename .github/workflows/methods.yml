@@ -28,7 +28,11 @@ concurrency:
 jobs:
   extract:
     runs-on: ubuntu-latest
-    timeout-minutes: 330
+    timeout-minutes: 360
+    outputs:
+      source_sha: ${{ steps.source.outputs.sha }}
+    permissions:
+      contents: read
     env:
       GH_TOKEN: ${{ github.token }}
       DISPATCH_TAG: ${{ github.event.client_payload.tag }}
@@ -36,6 +40,16 @@ jobs:
       INPUT_SUPPORT: ${{ inputs.minimum_support }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+      - id: source
+        name: Bind extraction implementation
+        run: |
+          sha=$(git rev-parse HEAD)
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+          test "$sha" = "$GITHUB_SHA"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -83,7 +97,7 @@ jobs:
             --min-support "$support"
 
       - name: Preserve unvalidated method candidates
-        continue-on-error: true
+        if: ${{ always() && steps.corpus.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: atlas-method-candidates-unvalidated-${{ github.run_id }}
@@ -92,16 +106,51 @@ jobs:
           retention-days: 1
 
       - name: Validate method candidate contracts
-        timeout-minutes: 120
+        timeout-minutes: 150
         run: |
           python pipeline/methods.py \
             --archive "$ARCHIVE_ROOT" \
             --output "$OUTPUT_ROOT" \
             --check
-          python -m unittest tests.test_methods tests.test_architecture -v
+          python -m unittest \
+            tests.test_methods tests.test_methodpack tests.test_methodbundle \
+            tests.test_architecture -v
+
+      - name: Package bounded same-origin browser assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="methods-v1"
+          release="$RUNNER_TEMP/atlas-methods-release"
+          browser="$RUNNER_TEMP/atlas-methods-browser"
+          restored="$RUNNER_TEMP/atlas-methods-restored"
+          mkdir -p "$release"
+          candidate_sha=$(jq -er '.assets[0].sha256' "$OUTPUT_ROOT/index.json")
+          [[ "$candidate_sha" =~ ^[0-9a-f]{64}$ ]]
+          candidate="candidates-$candidate_sha.jsonl.gz"
+          cp "$OUTPUT_ROOT/candidates.jsonl.gz" "$release/$candidate"
+          url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$tag/$candidate"
+          python pipeline/methodpack.py \
+            --input "$OUTPUT_ROOT" \
+            --output "$browser" \
+            --release-url "$url"
+          python pipeline/methodpack.py --output "$browser" --check
+          python pipeline/methodbundle.py --source "$browser" --output "$release/bundle"
+          archive=$(jq -er '.browser.path' "$release/bundle/browser.json")
+          [[ "$archive" =~ ^browser-[0-9a-f]{64}\.tar\.gz$ ]]
+          python pipeline/methodbundle.py \
+            --receipt "$release/bundle/browser.json" \
+            --archive "$release/bundle/$archive" \
+            --output "$restored" \
+            --unpack
+          test "$(stat -c %s "$release/bundle/$archive")" -le 104857600
+          echo "METHOD_RELEASE=$release" >> "$GITHUB_ENV"
 
       - name: Summarize extraction
-        run: jq '{corpus, extraction, coverage}' "$OUTPUT_ROOT/index.json" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          jq '{corpus, extraction, coverage}' "$OUTPUT_ROOT/index.json" >> "$GITHUB_STEP_SUMMARY"
+          jq '{status, tier, corpus, browser, candidates}' \
+            "$METHOD_RELEASE/bundle/browser.json" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish candidate artifact
         uses: actions/upload-artifact@v4
@@ -110,3 +159,108 @@ jobs:
           path: ${{ env.OUTPUT_ROOT }}
           if-no-files-found: error
           retention-days: 30
+
+      - name: Hand off verified release files
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-method-release-${{ github.run_id }}
+          path: ${{ env.METHOD_RELEASE }}
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  publish:
+    needs: extract
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: write
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      METHOD_TAG: methods-v1
+      METHOD_RELEASE: ${{ runner.temp }}/atlas-methods-release
+      SOURCE_SHA: ${{ needs.extract.outputs.source_sha }}
+    steps:
+      - name: Retrieve verified release files
+        uses: actions/download-artifact@v5
+        with:
+          name: atlas-method-release-${{ github.run_id }}
+          path: ${{ env.METHOD_RELEASE }}
+
+      - name: Publish durable validated method release
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          current_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          test "$current_sha" = "$SOURCE_SHA"
+          receipt="$METHOD_RELEASE/bundle/browser.json"
+          candidate=$(jq -er '.candidates.path' "$receipt")
+          archive=$(jq -er '.browser.path' "$receipt")
+          [[ "$candidate" =~ ^candidates-[0-9a-f]{64}\.jsonl\.gz$ ]]
+          [[ "$archive" =~ ^browser-[0-9a-f]{64}\.tar\.gz$ ]]
+          candidate_sha=$(jq -er '.candidates.sha256' "$receipt")
+          browser_sha=$(jq -er '.browser.sha256' "$receipt")
+          test "$(sha256sum "$METHOD_RELEASE/$candidate" | cut -d ' ' -f1)" = "$candidate_sha"
+          test "$(sha256sum "$METHOD_RELEASE/bundle/$archive" | cut -d ' ' -f1)" = "$browser_sha"
+          test "$(stat -c %s "$METHOD_RELEASE/$candidate")" = \
+            "$(jq -er '.candidates.bytes' "$receipt")"
+          test "$(stat -c %s "$METHOD_RELEASE/bundle/$archive")" = \
+            "$(jq -er '.browser.bytes' "$receipt")"
+          if ! gh release view "$METHOD_TAG" >/dev/null 2>&1; then
+            gh release create "$METHOD_TAG" \
+              --target "$SOURCE_SHA" \
+              --title "Atlas validated method candidates" \
+              --notes "Corpus-bound candidate vocabulary and browser-safe assets. Candidates are lexical extractions, not reviewed techniques."
+          fi
+          assets=$(gh release view "$METHOD_TAG" --json assets --jq '.assets[].name')
+          for path in \
+            "$METHOD_RELEASE/$candidate" \
+            "$METHOD_RELEASE/bundle/$archive"; do
+            name=$(basename "$path")
+            if grep -Fxq "$name" <<<"$assets"; then
+              verify="$RUNNER_TEMP/method-release-$name"
+              mkdir -p "$verify"
+              gh release download "$METHOD_TAG" --pattern "$name" --dir "$verify"
+              cmp "$path" "$verify/$name"
+            else
+              gh release upload "$METHOD_TAG" "$path"
+            fi
+          done
+          current_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          test "$current_sha" = "$SOURCE_SHA"
+          gh release upload \
+            "$METHOD_TAG" "$receipt" --clobber
+          gh release view "$METHOD_TAG" --json assets > "$METHOD_RELEASE/assets.json"
+          for path in \
+            "$METHOD_RELEASE/$candidate" \
+            "$METHOD_RELEASE/bundle/$archive"; do
+            name=$(basename "$path")
+            sha=$(sha256sum "$path" | cut -d ' ' -f1)
+            size=$(stat -c %s "$path")
+            test "$(jq -r --arg name "$name" \
+              '[.assets[] | select(.name == $name)] | length' \
+              "$METHOD_RELEASE/assets.json")" = 1
+            test "$(jq -r --arg name "$name" \
+              '.assets[] | select(.name == $name) | .state' \
+              "$METHOD_RELEASE/assets.json")" = uploaded
+            test "$(jq -r --arg name "$name" \
+              '.assets[] | select(.name == $name) | .digest' \
+              "$METHOD_RELEASE/assets.json")" = "sha256:$sha"
+            test "$(jq -r --arg name "$name" \
+              '.assets[] | select(.name == $name) | .size' \
+              "$METHOD_RELEASE/assets.json")" = "$size"
+          done
+          mkdir "$METHOD_RELEASE/fresh"
+          gh release download \
+            "$METHOD_TAG" --pattern browser.json --dir "$METHOD_RELEASE/fresh"
+          cmp "$receipt" "$METHOD_RELEASE/fresh/browser.json"
+
+      - name: Request certified Pages rollout
+        run: |
+          current_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          test "$current_sha" = "$SOURCE_SHA"
+          gh workflow run check.yml --ref main
