@@ -287,15 +287,20 @@ async function otherNode(
   box: { x: number; y: number; width: number; height: number },
   blocked: string,
   kind?: "Topic" | "Trick" | "Paper" | "Idea",
+  anchor?: { x: number; y: number },
 ) {
   const tips = page.locator(
     ".core-tip:visible, .swarm-tip:visible, .float-tooltip-kap:visible",
   );
   const offsets = [0, -24, 24, -48, 48, -96, 96];
+  const center = anchor ?? {
+    x: box.x + box.width / 2,
+    y: box.y + box.height / 2,
+  };
   const points = offsets.flatMap((y) =>
     offsets.map((x) => ({
-      x: box.x + box.width / 2 + x,
-      y: box.y + box.height / 2 + y,
+      x: center.x + x,
+      y: center.y + y,
     })),
   );
   for (const y of [0.25, 0.4, 0.6, 0.75]) {
@@ -511,7 +516,12 @@ test("hover labels a node and click keeps details in the inspector", async ({
   const graph = page.getByLabel(/Interactive (3D )?research graph/);
   const box = await graph.locator("canvas:not(.cloud-plane)").boundingBox();
   if (!box) throw new Error("Research graph has no bounds");
-  const entry = await otherNode(page, box, "^@");
+  const toolbar = await page.locator(".graph-toolbar").boundingBox();
+  const centerY = box.y + box.height / 2;
+  const entry = await otherNode(page, box, "^@", undefined, {
+    x: box.x + box.width / 2,
+    y: Math.max(centerY, toolbar ? toolbar.y + toolbar.height + 12 : centerY),
+  });
   const tooltip = page
     .locator(".core-tip:visible, .swarm-tip:visible, .float-tooltip-kap:visible")
     .filter({ hasText: entry.label })

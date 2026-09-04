@@ -66,7 +66,10 @@ test("3D cloud keeps a stable rotation level", async ({ page }, testInfo) => {
   const y = box.y + box.height / 2;
   await page.mouse.move(x, y);
   await page.mouse.down();
-  await page.mouse.move(x + 120, y + 60, { steps: 12 });
+  // One real drag update is sufficient to exercise OrbitControls. Twelve
+  // interpolated updates force twelve full 3.15M-point software-GPU renders in
+  // CI and can consume the entire test timeout without changing the invariant.
+  await page.mouse.move(x + 120, y + 60);
   await expect.poll(() => drawCount(page), { timeout: 10_000 }).toBe(full);
   await page.mouse.up();
   await expect.poll(() => drawCount(page), { timeout: 10_000 }).toBe(full);
