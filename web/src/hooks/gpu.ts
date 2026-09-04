@@ -113,7 +113,7 @@ export function pickIndex(
   return ids instanceof Uint32Array ? (ids[index] ?? null) : index;
 }
 
-const PICK_MATRIX_EPSILON = 1e-7;
+const PICK_MATRIX_EPSILON = 1e-4;
 
 function sameValues(left: number[], right: number[]): boolean {
   return left.every(

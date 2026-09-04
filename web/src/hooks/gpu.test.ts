@@ -86,7 +86,7 @@ describe("GPU pick alignment", () => {
     camera.position.z = 2;
     const stamp = stampPick(points, camera);
 
-    camera.position.x = 1e-8;
+    camera.position.x = 1e-5;
     expect(validPick(stamp, points, camera)).toBe(true);
   });
 

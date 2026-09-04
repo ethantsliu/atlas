@@ -450,8 +450,9 @@ export function GraphSpace({
           stopFrames(frameRef, graphRef, camera, fitRef, showView, coreIds)
         }
         onNodeClick={(node) => {
-          order.claim(3, nodeDepth(graphRef.current, node), () =>
-            pickFront(cloudHit, cloudOpenRef, onChoose, node),
+          const visible = hoverRank === 3 ? (core.tip?.node ?? node) : node;
+          order.claim(3, nodeDepth(graphRef.current, visible), () =>
+            pickFront(cloudHit, cloudOpenRef, onChoose, visible),
           );
           order.settle();
         }}
