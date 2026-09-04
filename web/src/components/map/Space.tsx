@@ -215,6 +215,23 @@ function hoverFront(
   ]);
 }
 
+function useCorePress(
+  graphRef: GraphRef,
+  visible: MutableRefObject<GraphNode | null>,
+  pressed: MutableRefObject<GraphNode | null>,
+) {
+  useEffect(() => {
+    const canvas = graphRef.current?.renderer().domElement;
+    if (!canvas) return;
+    const target = canvas.ownerDocument ?? document;
+    const press = (event: Event) => {
+      if (event.target === canvas) pressed.current = visible.current;
+    };
+    target.addEventListener("pointerdown", press, true);
+    return () => target.removeEventListener("pointerdown", press, true);
+  }, [graphRef, pressed, visible]);
+}
+
 function useSpaceQuality(
   graph: GraphData,
   cloud: CloudData | null,
@@ -387,17 +404,7 @@ export function GraphSpace({
   const hovered =
     hoverRank === 3 ? (core.tip?.node ?? null) : hoverRank === 2 ? swarmHovered : null;
   useFrameHover(frameRef, cloudHit.probing);
-  useEffect(() => {
-    const canvas = graphRef.current?.renderer().domElement;
-    if (!canvas) return;
-    const target = canvas.ownerDocument ?? document;
-    const press = (event: Event) => {
-      if (event.target !== canvas) return;
-      pressedCoreRef.current = visibleCoreRef.current;
-    };
-    target.addEventListener("pointerdown", press, true);
-    return () => target.removeEventListener("pointerdown", press, true);
-  }, [graphRef]);
+  useCorePress(graphRef, visibleCoreRef, pressedCoreRef);
   useMarks({
     graphRef,
     nodes: sceneGraph.nodes,
