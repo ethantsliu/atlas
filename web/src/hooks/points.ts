@@ -12,6 +12,7 @@ import {
 import {
   bindCloud,
   buildCloud,
+  CLOUD_REST_MS,
   dropCloud,
   growCloud,
   paintCloud,
@@ -37,6 +38,7 @@ import { bindChange } from "./control";
 import type { PickOrder } from "../lib/order";
 const HOVER_WAIT = 120;
 const DENSE_HOVER_WAIT = 700;
+const HOVER_SETTLE_TRIES = 14;
 const META_LIMIT = 2;
 export const CLOUD_HOVER_LIMIT = 100_000;
 export { clearHover, pickBound, reuseHit, shownHit, type PointTip } from "./probe";
@@ -120,6 +122,10 @@ export function pickSize(pointer?: string): number {
 
 export function hoverWait(count: number): number {
   return count <= CLOUD_HOVER_LIMIT ? HOVER_WAIT : DENSE_HOVER_WAIT;
+}
+
+export function waitForHoverRest(moving: boolean, tries: number): boolean {
+  return moving && tries < HOVER_SETTLE_TRIES;
 }
 
 export function hoverMoved(
@@ -278,8 +284,16 @@ function mountPoints(
   let released: Down | null = null;
   let choosing: number | null = null;
   let pressed = false;
-  const show = (event: PointerEvent) =>
-    showPoint({ event, hit, load, refs, setProbing, setTip });
+  const show = (event: PointerEvent, tries = 0) => {
+    if (waitForHoverRest(points.userData.moving, tries)) {
+      timer = setTimeout(() => {
+        timer = undefined;
+        if (moved === event) show(event, tries + 1);
+      }, CLOUD_REST_MS + 20);
+      return;
+    }
+    void showPoint({ event, hit, load, refs, setProbing, setTip });
+  };
   const stop = () => {
     if (timer) clearTimeout(timer);
     timer = undefined;
@@ -313,7 +327,7 @@ function mountPoints(
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = undefined;
-      if (moved) void show(moved);
+      if (moved) show(moved);
     }, hoverWait(data.loaded));
   };
   const leave = () => {

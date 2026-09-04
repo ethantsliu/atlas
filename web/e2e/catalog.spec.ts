@@ -189,8 +189,10 @@ test("a missing catalog is explicit and leaves curated lenses available", async 
     "full-corpus taxonomy is temporarily unavailable",
     { timeout: 20_000 },
   );
-  await expect(page.getByRole("button", { name: /Broad areas/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Screened briefs/ })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Curated topic lenses/ }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: /Curated briefs/ })).toBeVisible();
 });
 
 test("2D, 3D, and an open catalog never preload method assets", async ({ page }) => {
@@ -211,7 +213,9 @@ test("2D, 3D, and an open catalog never preload method assets", async ({ page })
     await showMobileFilters(page);
     const region = page.getByRole("region", { name: "Full-corpus taxonomy" });
     if (!(await region.isVisible())) {
-      const explore = page.getByRole("button", { name: "Explore corpus" });
+      const explore = page.getByRole("button", {
+        name: /Explore [\d,]+ candidate questions/,
+      });
       await expect(explore).toBeVisible({ timeout: 20_000 });
       await explore.click();
     }

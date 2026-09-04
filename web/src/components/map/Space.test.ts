@@ -2,36 +2,47 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("react-force-graph-3d", () => ({ default: () => null }));
 
+import { cameraControl } from "./Space";
 import {
+  FRAME_HOVER_ROTATE_WAIT,
   FRAME_IDLE_WAIT,
-  cameraControl,
+  FRAME_ROTATE_SPEED,
+  FRAME_ROTATE_WAIT,
   enableCursorZoom,
   makeFrameIdle,
-} from "./Space";
+} from "../../hooks/idle";
 
 type Pending = { callback: () => void; delay: number };
 
-function setup() {
+function setup(rotate = false) {
   const eventTarget = () => {
-    const listeners = new Map<string, Set<() => void>>();
+    const listeners = new Map<string, Set<(event: Event) => void>>();
     return {
       target: {
-        addEventListener: (type: string, listener: () => void) => {
+        addEventListener: (type: string, listener: (event: Event) => void) => {
           const values = listeners.get(type) ?? new Set();
           values.add(listener);
           listeners.set(type, values);
         },
-        removeEventListener: (type: string, listener: () => void) => {
+        removeEventListener: (type: string, listener: (event: Event) => void) => {
           listeners.get(type)?.delete(listener);
         },
       },
-      emit: (type: string) => listeners.get(type)?.forEach((listener) => listener()),
+      emit: (type: string, event = new Event(type)) =>
+        listeners.get(type)?.forEach((listener) => listener(event)),
     };
   };
   const canvasEvents = eventTarget();
   const controlEvents = eventTarget();
+  const documentEvents = eventTarget();
+  const windowEvents = eventTarget();
+  Object.assign(documentEvents.target, { defaultView: windowEvents.target });
+  Object.assign(canvasEvents.target, { ownerDocument: documentEvents.target });
   const canvas = canvasEvents.target as unknown as HTMLCanvasElement;
-  const controls = controlEvents.target;
+  const controls = Object.assign(
+    controlEvents.target,
+    rotate ? { autoRotate: false, autoRotateSpeed: 2 } : {},
+  );
   const pauseAnimation = vi.fn();
   const resumeAnimation = vi.fn();
   const pending = new Map<number, Pending>();
@@ -73,6 +84,28 @@ function setup() {
     frames.clear();
     jobs.forEach((callback) => callback());
   };
+  const flushDelay = (delay: number) => {
+    const jobs = [...pending].filter(([, job]) => job.delay === delay);
+    jobs.forEach(([id, { callback }]) => {
+      pending.delete(id);
+      callback();
+    });
+  };
+  const pointer = (type: string, id: number) => {
+    const event = new Event(type);
+    Object.defineProperty(event, "pointerId", { value: id });
+    if (type === "pointerdown") documentEvents.emit(type, event);
+    else windowEvents.emit(type, event);
+  };
+  const key = (type: string, value: string) => {
+    const event = new Event(type);
+    Object.defineProperties(event, {
+      code: { value },
+      key: { value },
+    });
+    if (type === "keydown") documentEvents.emit(type, event);
+    else windowEvents.emit(type, event);
+  };
   return {
     canvas,
     controls,
@@ -83,8 +116,11 @@ function setup() {
     pending,
     resumeAnimation,
     flush,
+    flushDelay,
     flushFrames,
     frames,
+    key,
+    pointer,
   };
 }
 
@@ -176,5 +212,156 @@ describe("3D idle frames", () => {
     expect(run.frames.size).toBe(0);
     run.flushFrames();
     expect(run.resumeAnimation).not.toHaveBeenCalled();
+  });
+
+  it("starts subtle rotation after genuine idle time", () => {
+    const run = setup(true);
+
+    run.idle.engineStop();
+    expect([...run.pending.values()].map(({ delay }) => delay).sort()).toEqual([
+      FRAME_IDLE_WAIT,
+      FRAME_ROTATE_WAIT,
+    ]);
+    run.flushDelay(FRAME_IDLE_WAIT);
+    expect(run.pauseAnimation).toHaveBeenCalledOnce();
+    expect(run.controls.autoRotate).toBe(false);
+
+    const rotationTimer = [...run.pending].find(
+      ([, { delay }]) => delay === FRAME_ROTATE_WAIT,
+    )?.[0];
+    run.emitCanvas("pointermove");
+    expect(
+      [...run.pending].find(([, { delay }]) => delay === FRAME_ROTATE_WAIT)?.[0],
+    ).toBe(rotationTimer);
+    run.flushFrames();
+
+    run.flushDelay(FRAME_ROTATE_WAIT);
+    expect(run.controls.autoRotate).toBe(true);
+    expect(run.controls.autoRotateSpeed).toBe(FRAME_ROTATE_SPEED);
+    expect(run.resumeAnimation).toHaveBeenCalledOnce();
+
+    expect(run.pending.size).toBe(0);
+  });
+
+  it("stops on pointer activity and wheel then waits before resuming", () => {
+    const run = setup(true);
+    run.idle.engineStop();
+    run.flushDelay(FRAME_ROTATE_WAIT);
+    expect(run.controls.autoRotate).toBe(true);
+
+    run.pointer("pointerdown", 7);
+    run.emitControl("start");
+    expect(run.controls.autoRotate).toBe(false);
+    expect(run.pending.size).toBe(0);
+    run.emitControl("end");
+    expect(run.pending.size).toBe(0);
+    run.pointer("pointerup", 7);
+    expect([...run.pending.values()].map(({ delay }) => delay).sort()).toEqual([
+      FRAME_IDLE_WAIT,
+      FRAME_ROTATE_WAIT,
+    ]);
+
+    run.flushDelay(FRAME_ROTATE_WAIT);
+    expect(run.controls.autoRotate).toBe(true);
+    run.emitCanvas("wheel");
+    expect(run.controls.autoRotate).toBe(false);
+    expect([...run.pending.values()].map(({ delay }) => delay).sort()).toEqual([
+      FRAME_IDLE_WAIT,
+      FRAME_ROTATE_WAIT,
+    ]);
+
+    run.flushDelay(FRAME_ROTATE_WAIT);
+    expect(run.controls.autoRotate).toBe(true);
+    run.emitCanvas("pointermove");
+    run.flushFrames();
+    expect(run.controls.autoRotate).toBe(false);
+    expect([...run.pending.values()].map(({ delay }) => delay).sort()).toEqual([
+      FRAME_IDLE_WAIT,
+      FRAME_HOVER_ROTATE_WAIT,
+    ]);
+    run.flushDelay(FRAME_HOVER_ROTATE_WAIT);
+    expect(run.controls.autoRotate).toBe(true);
+    expect(run.pending.size).toBe(0);
+  });
+
+  it("holds rotation through keyboard activation and re-arms on key release", () => {
+    const run = setup(true);
+    run.idle.engineStop();
+    run.flushDelay(FRAME_ROTATE_WAIT);
+    expect(run.controls.autoRotate).toBe(true);
+
+    run.key("keydown", "Enter");
+    expect(run.controls.autoRotate).toBe(false);
+    expect(run.pending.size).toBe(0);
+    run.key("keyup", "Enter");
+    expect([...run.pending.values()].map(({ delay }) => delay).sort()).toEqual([
+      FRAME_IDLE_WAIT,
+      FRAME_ROTATE_WAIT,
+    ]);
+    run.flushDelay(FRAME_ROTATE_WAIT);
+    expect(run.controls.autoRotate).toBe(true);
+
+    run.key("keydown", "Space");
+    expect(run.controls.autoRotate).toBe(false);
+    run.key("keyup", "Space");
+    expect([...run.pending.values()].map(({ delay }) => delay).sort()).toEqual([
+      FRAME_IDLE_WAIT,
+      FRAME_ROTATE_WAIT,
+    ]);
+  });
+
+  it("keeps the mobile trackball idle instead of emulating unsupported rotation", () => {
+    const run = setup(false);
+    run.idle.engineStop();
+
+    expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
+      FRAME_IDLE_WAIT,
+    ]);
+    run.flushDelay(FRAME_IDLE_WAIT);
+    expect(run.pauseAnimation).toHaveBeenCalledOnce();
+    expect(run.controls).not.toHaveProperty("autoRotate");
+  });
+
+  it("honors reduced motion dynamically and restores control settings", () => {
+    const run = setup(true);
+    run.idle.engineStop();
+    run.flushDelay(FRAME_ROTATE_WAIT);
+    expect(run.controls.autoRotate).toBe(true);
+
+    run.idle.motion(true);
+    expect(run.controls.autoRotate).toBe(false);
+    expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
+      FRAME_IDLE_WAIT,
+    ]);
+    run.flushDelay(FRAME_IDLE_WAIT);
+    expect(run.pauseAnimation).toHaveBeenCalledOnce();
+
+    run.idle.motion(false);
+    expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
+      FRAME_ROTATE_WAIT,
+    ]);
+    run.idle.dispose();
+    expect(run.controls.autoRotate).toBe(false);
+    expect(run.controls.autoRotateSpeed).toBe(2);
+    expect(run.pending.size).toBe(0);
+  });
+
+  it("disables rendering while hidden and re-arms only after visibility returns", () => {
+    const run = setup(true);
+    run.idle.engineStop();
+    run.flushDelay(FRAME_ROTATE_WAIT);
+    expect(run.controls.autoRotate).toBe(true);
+
+    run.idle.visibility(true);
+    expect(run.controls.autoRotate).toBe(false);
+    expect(run.pauseAnimation).toHaveBeenCalledOnce();
+    expect(run.pending.size).toBe(0);
+
+    run.idle.visibility(false);
+    expect(run.resumeAnimation).toHaveBeenCalledOnce();
+    expect([...run.pending.values()].map(({ delay }) => delay).sort()).toEqual([
+      FRAME_IDLE_WAIT,
+      FRAME_ROTATE_WAIT,
+    ]);
   });
 });

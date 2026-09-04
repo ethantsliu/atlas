@@ -9,17 +9,20 @@ import { labelOf } from "../../lib/text";
 import "./Catalog.css";
 
 const PAGE_SIZE = 40;
+// The count in the currently published, immutable full-corpus method release.
+// The interactive method browser validates its own index before showing any rows.
+export const PUBLISHED_METHOD_CANDIDATES = 129_806;
 const Methods = lazy(() => import("./Methods"));
 
 type CatalogTab = "subjects" | "directions" | "questions" | "methods";
 
 const QUESTION_NOTICE =
-  "These are automatically projected research-question candidates, not reviewed ideas, recommendations, novelty findings, or feasibility assessments. The reviewed Atlas idea collection remains separate.";
+  "These are automatically projected research-question candidates, not reviewed ideas, recommendations, novelty findings, or feasibility assessments. The curated Atlas brief collection remains separate, with review status shown per brief.";
 const QUESTION_EVIDENCE =
   "The references establish only corpus co-occurrence between this arXiv subject and curated technique family; they do not establish novelty, causality, feasibility, or effectiveness.";
 
 export function catalogDescription(summary: CatalogSummary, ideas: number): string {
-  return `${summary.broadAreas.toLocaleString()} broad areas and ${summary.techniqueFamilies.toLocaleString()} technique families are navigation lenses. The full ${summary.sourceCount.toLocaleString()}-paper catalog adds ${summary.arxivSubjects.toLocaleString()} arXiv subjects and ${summary.candidateDirections.toLocaleString()} of ${summary.eligibleDirections.toLocaleString()} qualifying candidate directions. The ${ideas.toLocaleString()} ideas remain separately screened briefs.`;
+  return `${summary.broadAreas.toLocaleString()} curated broad-topic lenses and ${summary.techniqueFamilies.toLocaleString()} curated technique-family lenses organize the map; they are not corpus totals. Corpus-derived layers cover ${summary.sourceCount.toLocaleString()} papers, ${summary.arxivSubjects.toLocaleString()} arXiv subjects, and ${summary.candidateDirections.toLocaleString()} of ${summary.eligibleDirections.toLocaleString()} qualifying unreviewed research-question candidates. The ${ideas.toLocaleString()} curated briefs remain separate, with review status shown per brief.`;
 }
 
 function includes(value: string, query: string): boolean {
@@ -94,7 +97,9 @@ export function CorpusExplorer({ catalog }: { catalog: Catalog }) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<CatalogTab>("questions");
   const [query, setQuery] = useState("");
-  const [methodCount, setMethodCount] = useState<number | null>(null);
+  const [methodCount, setMethodCount] = useState<number | null>(
+    PUBLISHED_METHOD_CANDIDATES,
+  );
   const techniques = useMemo(
     () => new Map(catalog.techniques.map((row) => [row.id, row.label])),
     [catalog.techniques],
@@ -132,7 +137,9 @@ export function CorpusExplorer({ catalog }: { catalog: Catalog }) {
         aria-controls="corpus-catalog"
         onClick={() => setOpen((value) => !value)}
       >
-        {open ? "Close corpus explorer" : "Explore corpus"}
+        {open
+          ? "Close corpus explorer"
+          : `Explore ${catalog.summary.candidateDirections.toLocaleString()} candidate questions`}
       </button>
       {open && (
         <section id="corpus-catalog" aria-label="Full-corpus taxonomy">
@@ -290,10 +297,32 @@ export default function CatalogCopy({
         {catalog
           ? catalogDescription(catalog.summary, ideas)
           : failed
-            ? "The full-corpus taxonomy is temporarily unavailable. Broad-area and screened-brief lenses remain available."
+            ? "The full-corpus taxonomy is temporarily unavailable. Curated map lenses and briefs remain available."
             : "Loading full-corpus taxonomy…"}
       </p>
-      {catalog && <CorpusExplorer catalog={catalog} />}
+      {catalog && (
+        <>
+          <dl className="catalog-stats" aria-label="Full-corpus layers">
+            <div>
+              <dt>{catalog.summary.sourceCount.toLocaleString()}</dt>
+              <dd>papers</dd>
+            </div>
+            <div>
+              <dt>{catalog.summary.arxivSubjects.toLocaleString()}</dt>
+              <dd>arXiv subjects</dd>
+            </div>
+            <div>
+              <dt>{catalog.summary.candidateDirections.toLocaleString()}</dt>
+              <dd>unreviewed questions</dd>
+            </div>
+            <div>
+              <dt>{PUBLISHED_METHOD_CANDIDATES.toLocaleString()}</dt>
+              <dd>method candidates</dd>
+            </div>
+          </dl>
+          <CorpusExplorer catalog={catalog} />
+        </>
+      )}
     </div>
   );
 }

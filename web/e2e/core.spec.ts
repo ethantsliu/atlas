@@ -379,16 +379,20 @@ async function watchCopy(page: Page) {
   });
 }
 
+async function copiedCamera(page: Page, input = false) {
+  const copy = page.getByRole("button", { name: "Copy a link to this atlas view" });
+  if (input) await copy.click();
+  else await copy.evaluate((button: HTMLButtonElement) => button.click());
+  const copied = await page.evaluate(
+    () => (window as typeof window & { __atlasCopied?: string }).__atlasCopied ?? "",
+  );
+  return copied
+    ? new URLSearchParams(new URL(copied).hash.replace(/^#\?/, "")).get("c")
+    : null;
+}
+
 async function waitCamera(page: Page, camera: string) {
-  const read = async () => {
-    await page.getByRole("button", { name: "Copy a link to this atlas view" }).click();
-    const copied = await page.evaluate(
-      () => (window as typeof window & { __atlasCopied?: string }).__atlasCopied ?? "",
-    );
-    return copied
-      ? new URLSearchParams(new URL(copied).hash.replace(/^#\?/, "")).get("c")
-      : null;
-  };
+  const read = () => copiedCamera(page, true);
   await expect.poll(read, { timeout: 20_000 }).toBe(camera);
   await page.waitForTimeout(120);
   await expect.poll(read, { timeout: 20_000 }).toBe(camera);
@@ -574,7 +578,14 @@ test("historical paper points open the inline inspector", async ({
     },
   );
   await page.waitForTimeout(2_500);
-  if (target) await waitCamera(page, target.camera);
+  if (target) {
+    await waitCamera(page, target.camera);
+    // Exercise the real idle-orbit → stable full-cloud hover transition. The
+    // camera continues orbiting around this exact paper-centered target.
+    await expect
+      .poll(() => copiedCamera(page), { timeout: 15_000 })
+      .not.toBe(target.camera);
+  }
   const graph = page.getByLabel("Interactive 3D research graph");
   const inspector = page.locator("#map-inspector");
   const beforeGraph = await graph.boundingBox();
@@ -674,7 +685,7 @@ test("historical paper points open the inline inspector", async ({
   await expect(inspector.getByRole("heading", { name: title })).toBeVisible();
 
   const picker = page.getByLabel("Choose a visible graph node");
-  await page.getByRole("button", { name: /Broad areas\s+17/ }).click();
+  await page.getByRole("button", { name: /Curated topic lenses\s+17/ }).click();
   await picker.fill("pretraining");
   await page.getByRole("option", { name: /Topic\s+pretraining/i }).click();
   await expect(inspector.getByRole("heading", { name: "pretraining" })).toBeVisible();
@@ -1104,12 +1115,11 @@ test("URL state hydrates all map controls", async ({ page }) => {
     page.getByRole("button", { name: "connections", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   const filters = page.locator(".filters");
-  await expect(filters.getByRole("button", { name: /^Broad areas\s/ })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
   await expect(
-    filters.getByRole("button", { name: /^Technique families\s/ }),
+    filters.getByRole("button", { name: /^Curated topic lenses\s/ }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    filters.getByRole("button", { name: /^Curated technique lenses\s/ }),
   ).toHaveAttribute("aria-pressed", "false");
 });
 

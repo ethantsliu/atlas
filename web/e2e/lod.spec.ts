@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 type TraceHost = Window & {
   lodCount?: number;
+  lodDraws?: number;
   lodTrace?: number[];
 };
 
@@ -20,6 +21,10 @@ async function stopTrace(page: Page): Promise<number[]> {
   return page.evaluate(() => (window as TraceHost).lodTrace ?? []);
 }
 
+async function drawFrames(page: Page): Promise<number> {
+  return page.evaluate(() => (window as TraceHost).lodDraws ?? 0);
+}
+
 test("3D cloud keeps a stable rotation level", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chrome", "Chromium traces WebGL draw levels");
   test.setTimeout(120_000);
@@ -31,6 +36,7 @@ test("3D cloud keeps a stable rotation level", async ({ page }, testInfo) => {
       prototype.drawArrays = function (mode, first, count) {
         if (mode === this.POINTS && count >= 50_000) {
           host.lodCount = count;
+          host.lodDraws = (host.lodDraws ?? 0) + 1;
           if (host.lodTrace && host.lodTrace.at(-1) !== count) {
             host.lodTrace.push(count);
           }
@@ -74,6 +80,13 @@ test("3D cloud keeps a stable rotation level", async ({ page }, testInfo) => {
   await page.mouse.up();
   await expect.poll(() => drawCount(page), { timeout: 10_000 }).toBe(full);
   await page.waitForTimeout(1_000);
+  expect(await drawCount(page)).toBe(full);
+  expect(await stopTrace(page)).toEqual([full]);
+
+  const restingFrames = await drawFrames(page);
+  await expect
+    .poll(() => drawFrames(page), { timeout: 15_000 })
+    .toBeGreaterThan(restingFrames);
   expect(await drawCount(page)).toBe(full);
   expect(await stopTrace(page)).toEqual([full]);
 

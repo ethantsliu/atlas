@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronRight, FlaskConical, Sparkles, Workflow } from "lucide-react";
 import { BriefModal } from "../components/briefs/Brief";
+import { DiscoveryReviewQueue } from "../components/briefs/Discovery";
 import { PaperDetailModal } from "../components/papers/Paper";
 import { EmptyState, ResultStatus } from "../components/shared/Empty";
 import { PageHead } from "../components/shared/Head";
@@ -86,6 +87,8 @@ export function BriefsView({ atlas, query, onClearQuery }: BriefsViewProps) {
         copy="Scores measure how readily a decisive first experiment can run, not scientific importance. Researched drafts include competitor review; screening research candidates and blog leads remain provisional routes."
       />
       <ResultStatus count={ideas.length} label="research or blog brief" query={query} />
+
+      <DiscoveryReviewQueue query={query} />
 
       {ideas.length === 0 && (
         <EmptyState

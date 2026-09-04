@@ -24,6 +24,16 @@ async function copyCamera(page: Page) {
   return new URLSearchParams(new URL(copied).hash.replace(/^#\?/, "")).get("c");
 }
 
+async function readCameraWithoutInput(page: Page) {
+  await page
+    .getByRole("button", { name: "Copy a link to this atlas view" })
+    .evaluate((button) => (button as HTMLButtonElement).click());
+  const copied = await page.evaluate(
+    () => (window as typeof window & { __atlasCopied?: string }).__atlasCopied ?? "",
+  );
+  return new URLSearchParams(new URL(copied).hash.replace(/^#\?/, "")).get("c");
+}
+
 async function steadyCamera(page: Page) {
   let prior: string | null = null;
   for (let attempt = 0; attempt < 12; attempt += 1) {
@@ -249,6 +259,124 @@ test("wheel zoom follows the cursor and rotation keeps its new center", async ({
   expect(Math.abs(restored.pitch - orbited.pitch)).toBeLessThanOrEqual(1);
   await page.waitForTimeout(1_500);
   expect(await copyCamera(page)).toBe(restoredValue);
+});
+
+test("idle orbit yields to input and resumes around the same target", async ({
+  context,
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chrome",
+    "Chromium covers the native OrbitControls idle lifecycle",
+  );
+  test.setTimeout(60_000);
+  await mockCopy(context);
+  await page.setViewportSize({ width: 1_440, height: 900 });
+  await page.goto(`/#?k=tri&c=${view}`);
+  const graph = page.getByLabel("Interactive 3D research graph");
+  await expect(graph).toBeVisible({ timeout: 20_000 });
+  await expect.poll(() => readCameraWithoutInput(page), { timeout: 20_000 }).toBe(view);
+  const initial = cameraSnapshot(view);
+
+  let rotating = initial;
+  await expect
+    .poll(
+      async () => {
+        rotating = cameraSnapshot(await readCameraWithoutInput(page));
+        return Math.abs(rotating.yaw - initial.yaw);
+      },
+      { timeout: 15_000 },
+    )
+    .toBeGreaterThan(1);
+  expect(length(targetDelta(initial, rotating))).toBeLessThan(0.35);
+  expect(rotating.radius).toBeCloseTo(initial.radius, 1);
+  expect(rotating.pitch).toBeCloseTo(initial.pitch, 0);
+
+  const box = await graph.boundingBox();
+  if (!box) throw new Error("Research graph has no bounds");
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(800);
+  const held = cameraSnapshot(await readCameraWithoutInput(page));
+  await page.waitForTimeout(800);
+  const stillHeld = cameraSnapshot(await readCameraWithoutInput(page));
+  expectOrbitPreserved(held, stillHeld);
+  expect(Math.abs(stillHeld.yaw - held.yaw)).toBeLessThanOrEqual(1);
+  expect(length(targetDelta(held, stillHeld))).toBeLessThan(0.35);
+
+  await page.mouse.up();
+  await page.waitForTimeout(1_500);
+  const released = cameraSnapshot(await readCameraWithoutInput(page));
+  expectOrbitPreserved(stillHeld, released);
+  expect(Math.abs(released.yaw - stillHeld.yaw)).toBeLessThanOrEqual(1);
+
+  await expect
+    .poll(
+      async () => {
+        const resumed = cameraSnapshot(await readCameraWithoutInput(page));
+        return Math.abs(resumed.yaw - released.yaw);
+      },
+      { timeout: 15_000 },
+    )
+    .toBeGreaterThan(1);
+
+  const beforeWheel = cameraSnapshot(await readCameraWithoutInput(page));
+  await wheelOnGraph(page, -120, 2, { x: 0.7, y: 0.35 });
+  await page.waitForTimeout(800);
+  const afterWheel = cameraSnapshot(await readCameraWithoutInput(page));
+  expect(afterWheel.radius).toBeLessThan(beforeWheel.radius);
+  await page.waitForTimeout(1_200);
+  const wheelIdle = cameraSnapshot(await readCameraWithoutInput(page));
+  expectOrbitPreserved(afterWheel, wheelIdle);
+});
+
+test("keyboard Center selected interrupts and later resumes idle orbit", async ({
+  context,
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "chrome",
+    "Chromium covers keyboard interruption of OrbitControls",
+  );
+  test.setTimeout(60_000);
+  await mockCopy(context);
+  await page.setViewportSize({ width: 1_440, height: 900 });
+  await page.goto(`/#?k=tri&c=${view}`);
+  const graph = page.getByLabel("Interactive 3D research graph");
+  await expect(graph).toBeVisible({ timeout: 20_000 });
+  await expect.poll(() => readCameraWithoutInput(page), { timeout: 20_000 }).toBe(view);
+  await chooseAlignment(page);
+  const center = page.getByRole("button", { name: "Center selected" });
+  await expect(center).toBeVisible();
+
+  const waiting = cameraSnapshot(await readCameraWithoutInput(page));
+  await expect
+    .poll(
+      async () => {
+        const rotating = cameraSnapshot(await readCameraWithoutInput(page));
+        return Math.abs(rotating.yaw - waiting.yaw);
+      },
+      { timeout: 15_000 },
+    )
+    .toBeGreaterThan(1);
+
+  await center.focus();
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(1_000);
+  const centered = cameraSnapshot(await readCameraWithoutInput(page));
+  await page.waitForTimeout(1_200);
+  const held = cameraSnapshot(await readCameraWithoutInput(page));
+  expectOrbitPreserved(centered, held);
+
+  await expect
+    .poll(
+      async () => {
+        const resumed = cameraSnapshot(await readCameraWithoutInput(page));
+        return Math.abs(resumed.yaw - held.yaw);
+      },
+      { timeout: 15_000 },
+    )
+    .toBeGreaterThan(1);
 });
 
 test("WebKit keeps cursor-aware fractional trackpad and pinch zoom native", async ({

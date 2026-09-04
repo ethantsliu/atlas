@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 /// <reference types="vite/client" />
 
-import { catalogDescription, candidateQuestion } from "./Catalog";
+import {
+  PUBLISHED_METHOD_CANDIDATES,
+  catalogDescription,
+  candidateQuestion,
+} from "./Catalog";
 import catalogSource from "./Catalog.tsx?raw";
 
 describe("full-corpus catalog copy", () => {
-  it("keeps archive-derived directions separate from screened ideas", () => {
+  it("keeps archive-derived directions separate from curated briefs", () => {
     const copy = catalogDescription(
       {
         corpusDigest: "a".repeat(64),
@@ -22,9 +26,13 @@ describe("full-corpus catalog copy", () => {
       310,
     );
 
+    expect(copy).toContain("17 curated broad-topic lenses");
+    expect(copy).toContain("not corpus totals");
     expect(copy).toContain("176 arXiv subjects");
-    expect(copy).toContain("1,710 of 1,710 qualifying candidate directions");
-    expect(copy).toContain("310 ideas remain separately screened briefs");
+    expect(copy).toContain(
+      "1,710 of 1,710 qualifying unreviewed research-question candidates",
+    );
+    expect(copy).toContain("310 curated briefs remain separate");
   });
 
   it("projects neutral questions without calling them reviewed ideas", () => {
@@ -37,6 +45,10 @@ describe("full-corpus catalog copy", () => {
   });
 
   it("keeps methods behind the third-layer interaction boundary", () => {
+    expect(PUBLISHED_METHOD_CANDIDATES).toBe(129_806);
+    expect(catalogSource).toContain('<dl className="catalog-stats"');
+    expect(catalogSource).toContain("unreviewed questions");
+    expect(catalogSource).toContain("method candidates");
     expect(catalogSource).toContain('lazy(() => import("./Methods"))');
     expect(catalogSource).not.toContain('from "./Methods"');
     expect(catalogSource).toContain("Extracted method phrases");

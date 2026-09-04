@@ -21,9 +21,17 @@ import type { Theme } from "../../hooks/theme";
 import { useView } from "../../hooks/view";
 import { useCore, type CoreTip } from "../../hooks/core";
 import { useBegin } from "../../hooks/begin";
+import {
+  enableCursorZoom,
+  FRAME_IDLE_WAIT,
+  makeFrameIdle,
+  type FrameControl,
+  type FrameGraph,
+  type FrameIdle,
+} from "../../hooks/idle";
 import { graphEndpointId, graphKey, largestGroup, splitPapers } from "../../lib/graph";
 import { showLink } from "../../lib/quality";
-import type { CameraView } from "../../lib/camera";
+import { formatCamera, type CameraView } from "../../lib/camera";
 import { buildNode } from "../../lib/scene";
 import { labelOf } from "../../lib/text";
 import type { GraphData, GraphLink, GraphNode } from "../../types";
@@ -35,142 +43,23 @@ import { pickFront } from "./Front";
 import { RouteMark } from "./Route";
 import { frontRank, makeOrder } from "../../lib/order";
 
-export const FRAME_IDLE_WAIT = 240;
-
-type FrameControl = {
-  addEventListener?: (type: string, listener: () => void) => void;
-  removeEventListener?: (type: string, listener: () => void) => void;
-  zoomToCursor?: boolean;
-};
-
-type FrameGraph = {
-  controls: () => FrameControl;
-  pauseAnimation: () => unknown;
-  renderer: () => { domElement: HTMLCanvasElement };
-  resumeAnimation: () => unknown;
-};
-
-type FrameTimer = {
-  clear: (timer: number) => void;
-  set: (callback: () => void, delay: number) => number;
-};
-
-type FrameLoop = {
-  cancel: (frame: number) => void;
-  request: (callback: () => void) => number;
-};
-
-export type FrameIdle = {
-  dispose: () => void;
-  engineStop: (delay?: number) => void;
-  engineTick: () => void;
-  start: () => void;
-  touch: () => void;
-};
-
-export function enableCursorZoom(control: FrameControl | null | undefined): boolean {
-  if (!control || !("zoomToCursor" in control)) return false;
-  control.zoomToCursor = true;
-  return true;
-}
-
-export function makeFrameIdle(
-  graph: FrameGraph,
-  timer: FrameTimer = {
-    clear: (value) => window.clearTimeout(value),
-    set: (callback, delay) => window.setTimeout(callback, delay),
-  },
-  loop: FrameLoop = {
-    cancel: (value) => window.cancelAnimationFrame(value),
-    request: (callback) => window.requestAnimationFrame(callback),
-  },
-): FrameIdle {
-  const canvas = graph.renderer().domElement;
-  const controls = graph.controls();
-  enableCursorZoom(controls);
-  let running = true;
-  let paused = false;
-  let pending = 0;
-  let probeFrame = 0;
-  const cancel = () => {
-    if (pending) timer.clear(pending);
-    pending = 0;
-  };
-  const resume = () => {
-    cancel();
-    if (!paused) return;
-    paused = false;
-    graph.resumeAnimation();
-  };
-  const rest = (delay = FRAME_IDLE_WAIT) => {
-    cancel();
-    if (running) return;
-    pending = timer.set(() => {
-      pending = 0;
-      paused = true;
-      graph.pauseAnimation();
-    }, delay);
-  };
-  const start = () => {
-    running = true;
-    resume();
-  };
-  const touch = () => {
-    resume();
-    rest();
-  };
-  const probe = () => {
-    if (probeFrame) return;
-    touch();
-    probeFrame = loop.request(() => {
-      probeFrame = 0;
-    });
-  };
-  const engineTick = () => {
-    running = true;
-    cancel();
-  };
-  const engineStop = (delay = FRAME_IDLE_WAIT) => {
-    running = false;
-    rest(delay);
-  };
-  const press = () => resume();
-  const release = () => touch();
-  controls.addEventListener?.("start", press);
-  controls.addEventListener?.("change", touch);
-  controls.addEventListener?.("end", release);
-  canvas.addEventListener("pointermove", probe, true);
-  canvas.addEventListener("pointerup", release, true);
-  canvas.addEventListener("pointerleave", release, true);
-  canvas.addEventListener("wheel", touch, true);
-  return {
-    dispose: () => {
-      cancel();
-      if (probeFrame) loop.cancel(probeFrame);
-      probeFrame = 0;
-      controls.removeEventListener?.("start", press);
-      controls.removeEventListener?.("change", touch);
-      controls.removeEventListener?.("end", release);
-      canvas.removeEventListener("pointermove", probe, true);
-      canvas.removeEventListener("pointerup", release, true);
-      canvas.removeEventListener("pointerleave", release, true);
-      canvas.removeEventListener("wheel", touch, true);
-    },
-    engineStop,
-    engineTick,
-    start,
-    touch,
-  };
-}
-
 function useFrameIdle(graphRef: GraphRef) {
   const frameRef = useRef<FrameIdle | null>(null);
   useEffect(() => {
     const graph = graphRef.current as FrameGraph | undefined;
     if (!graph) return;
     const frame = makeFrameIdle(graph);
+    const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    const syncMotion = () => frame.motion(Boolean(motion?.matches));
+    const syncVisibility = () => frame.visibility(document.hidden);
+    syncMotion();
+    syncVisibility();
+    motion?.addEventListener("change", syncMotion);
+    document.addEventListener("visibilitychange", syncVisibility);
     frameRef.current = frame;
     return () => {
+      motion?.removeEventListener("change", syncMotion);
+      document.removeEventListener("visibilitychange", syncVisibility);
       if (frameRef.current === frame) frameRef.current = null;
       frame.dispose();
     };
@@ -178,9 +67,12 @@ function useFrameIdle(graphRef: GraphRef) {
   return frameRef;
 }
 
-function useCursorZoom(graphRef: GraphRef, width: number) {
+function useCursorZoom(
+  graphRef: GraphRef,
+  controlType: ReturnType<typeof cameraControl>,
+) {
   useEffect(() => {
-    if (cameraControl(width) !== "orbit") return;
+    if (controlType !== "orbit") return;
     let frame = 0;
     let active = true;
     const configure = () => {
@@ -193,11 +85,15 @@ function useCursorZoom(graphRef: GraphRef, width: number) {
       active = false;
       if (frame) window.cancelAnimationFrame(frame);
     };
-  }, [graphRef, width]);
+  }, [controlType, graphRef]);
 }
 
 function useFrameTouch(frame: MutableRefObject<FrameIdle | null>, values: unknown[]) {
   useEffect(() => frame.current?.touch(), values);
+}
+
+function useFrameWake(frame: MutableRefObject<FrameIdle | null>, values: unknown[]) {
+  useEffect(() => frame.current?.wake(), values);
 }
 
 function stopFrames(
@@ -330,9 +226,14 @@ export function GraphSpace({
   const engineReadyRef = useRef(false);
   const fitRef = useRef(!camera);
   const fitKeyRef = useRef<string>();
+  // react-force-graph treats controlType as constructor-only. Keep it stable
+  // for this mount so every scene, picking, and frame hook owns one controller;
+  // switching 2D/3D remounts GraphSpace and selects again for the current width.
+  const controlType = useRef(cameraControl(width)).current;
   const showView = useView(graphRef, camera, viewReady);
   const frameRef = useFrameIdle(graphRef);
-  useCursorZoom(graphRef, width);
+  useCursorZoom(graphRef, controlType);
+  const cameraKey = formatCamera(camera);
   const cloudOpenRef = useRef(cloudSelected);
   useEffect(() => {
     cloudOpenRef.current = cloudSelected;
@@ -409,13 +310,14 @@ export function GraphSpace({
     cloud?.loaded,
     cloudHidden,
     cloudMark,
+    cameraKey,
     height,
-    hovered?.id,
     selected?.id,
     theme,
     topology,
     width,
   ]);
+  useFrameWake(frameRef, [hovered?.id]);
   const activeIds = useMemo(
     () => new Set([selected?.id, hovered?.id].filter(Boolean)),
     [hovered?.id, selected?.id],
@@ -429,7 +331,7 @@ export function GraphSpace({
         graphData={sceneGraph}
         backgroundColor={theme === "dark" ? "#0f1511" : "#f0eadf"}
         showNavInfo={false}
-        controlType={cameraControl(width)}
+        controlType={controlType}
         numDimensions={3}
         nodeLabel={() => ""}
         nodeThreeObject={makeNode}

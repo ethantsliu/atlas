@@ -9,6 +9,7 @@ import {
   pickSize,
   reuseHit,
   shownHit,
+  waitForHoverRest,
 } from "./points";
 
 const paper = {
@@ -29,6 +30,10 @@ describe("paper point input", () => {
   it("requires a stable dwell before probing a dense cloud", () => {
     expect(hoverWait(100_000)).toBe(120);
     expect(hoverWait(100_001)).toBe(700);
+    expect(waitForHoverRest(true, 0)).toBe(true);
+    expect(waitForHoverRest(true, 13)).toBe(true);
+    expect(waitForHoverRest(true, 14)).toBe(false);
+    expect(waitForHoverRest(false, 0)).toBe(false);
   });
 
   it("hides a stale dense-cloud label after meaningful pointer movement", () => {
