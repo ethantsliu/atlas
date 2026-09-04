@@ -152,7 +152,9 @@ test("the corpus catalog exposes subjects, candidate directions, and evidence", 
   await page.goto("/#?d=2&k=trpi");
   await showMobileFilters(page);
 
-  const explore = page.getByRole("button", { name: "Explore corpus" });
+  const explore = page.getByRole("button", {
+    name: /Explore [\d,]+ candidate questions/,
+  });
   await expect(explore).toBeVisible({ timeout: 20_000 });
   await explore.click();
   await expect(
