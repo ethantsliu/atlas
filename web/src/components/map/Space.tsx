@@ -286,7 +286,7 @@ export function GraphSpace({
   const hoverRank = hoverFront(core.tip, tip, cloudHit.tip, cloudHit.probing);
   const hovered =
     hoverRank === 3 ? (core.tip?.node ?? null) : hoverRank === 2 ? swarmHovered : null;
-  useFrameHover(frameRef, cloudHit.probing);
+  useFrameHover(frameRef, cloudHit.probing || Boolean(cloudHit.tip));
   useMarks({
     graphRef,
     nodes: sceneGraph.nodes,

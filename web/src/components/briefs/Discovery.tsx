@@ -5,6 +5,7 @@ import {
   type DiscoveryCandidate,
   type DiscoveryQueue,
 } from "../../lib/discovery";
+import "./Discovery.css";
 
 const INITIAL_ROWS = 12;
 

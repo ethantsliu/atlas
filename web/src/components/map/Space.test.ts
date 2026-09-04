@@ -12,6 +12,8 @@ import {
   FRAME_ROTATE_WAIT,
   enableCursorZoom,
   makeFrameIdle,
+  rotationPace,
+  rotationSpeed,
 } from "../../hooks/idle";
 
 type Pending = { callback: () => void; delay: number };
@@ -278,6 +280,8 @@ describe("3D idle frames", () => {
     expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
       FRAME_ROTATE_SLOW_PACE,
     ]);
+    expect(rotationPace(500)).toBe(1_000);
+    expect(rotationSpeed(500, 1_000)).toBeCloseTo(FRAME_ROTATE_SPEED * 1.5);
   });
 
   it("stops on pointer activity and wheel then waits before resuming", () => {

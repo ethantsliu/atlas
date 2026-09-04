@@ -7,6 +7,24 @@ export const FRAME_ROTATE_PACE = 16;
 export const FRAME_ROTATE_SLOW_PACE = 240;
 export const FRAME_ROTATE_SLOW_FRAME = 48;
 export const FRAME_ROTATE_SPEED = 0.3;
+const FRAME_ROTATE_PACE_RATIO = 2;
+const FRAME_ROTATE_SPEED_CAP = 4;
+
+export function rotationPace(frameTime: number): number {
+  if (frameTime < FRAME_ROTATE_SLOW_FRAME) return FRAME_ROTATE_PACE;
+  return Math.max(
+    FRAME_ROTATE_SLOW_PACE,
+    Math.ceil(frameTime * FRAME_ROTATE_PACE_RATIO),
+  );
+}
+
+export function rotationSpeed(frameTime: number, pace: number): number {
+  const cadence = Math.min(
+    FRAME_ROTATE_SPEED_CAP,
+    Math.max(1, (frameTime + pace) / 1_000),
+  );
+  return FRAME_ROTATE_SPEED * cadence;
+}
 
 export type FrameControl = {
   addEventListener?: (type: string, listener: (event: Event) => void) => void;
@@ -99,10 +117,9 @@ function pulseRotate(
     pause();
     if (blocked() || !controls.autoRotate) return;
     const elapsed = (timer.now?.() ?? performance.now()) - started;
-    state.rotatePulse = timer.set(
-      pulse,
-      elapsed >= FRAME_ROTATE_SLOW_FRAME ? FRAME_ROTATE_SLOW_PACE : FRAME_ROTATE_PACE,
-    );
+    const pace = rotationPace(elapsed);
+    controls.autoRotateSpeed = rotationSpeed(elapsed, pace);
+    state.rotatePulse = timer.set(pulse, pace);
   };
   pulse();
 }
