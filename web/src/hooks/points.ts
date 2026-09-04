@@ -117,7 +117,7 @@ async function gpuHit(
 }
 
 export function pickSize(pointer?: string): number {
-  return pointer === "touch" ? 24 : 8;
+  return pointer === "touch" ? 44 : 8;
 }
 
 export function hoverWait(count: number): number {

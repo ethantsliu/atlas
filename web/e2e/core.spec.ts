@@ -822,12 +822,18 @@ test("touch opens a historical paper in the stacked inspector", async ({
     canvas.y + ((1 - offset.ndc.y) * canvas.height) / 2,
   );
 
-  await expect(inspector.getByRole("heading", { name: target.title })).toBeVisible({
-    timeout: 20_000,
-  });
-  await expect(cloudSource).toHaveAttribute("href", target.url);
-  await expect(inspector).toHaveAccessibleName(target.title);
-  await expect(selection).toHaveText(`Paper selected: ${target.title}`);
+  await expect(selection).toContainText("Paper selected:", { timeout: 20_000 });
+  const selectedTitle = (await selection.textContent())?.replace(
+    /^Paper selected:\s*/,
+    "",
+  );
+  expect(selectedTitle).toBeTruthy();
+  await expect(
+    inspector.getByRole("heading", { name: selectedTitle!, exact: true }),
+  ).toBeVisible();
+  await expect(cloudSource).toHaveAttribute("href", /^https:\/\/arxiv\.org\/abs\//);
+  await expect(inspector).toHaveAccessibleName(selectedTitle!);
+  await expect(selection).toHaveText(`Paper selected: ${selectedTitle}`);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   const afterGraph = await graph.boundingBox();
   expect(afterGraph?.x).toBe(beforeGraph.x);

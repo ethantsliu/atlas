@@ -25,7 +25,7 @@ const bound = { index: 4, paper };
 describe("paper point input", () => {
   it("keeps dense points usable with touch-sized picking", () => {
     expect(pickSize("mouse")).toBe(8);
-    expect(pickSize("touch")).toBe(24);
+    expect(pickSize("touch")).toBe(44);
   });
 
   it("requires a stable dwell before probing a dense cloud", () => {
