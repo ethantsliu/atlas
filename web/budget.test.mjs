@@ -2,13 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  limits,
-  loadProfile,
-  outputAssets,
-  routeAssets,
-  sizeProfile,
-} from "./budget.mjs";
+import { limits, loadProfile, routeAssets } from "./budget.mjs";
 
 function assertBudget(name, actual) {
   const limit = limits[name];
@@ -39,21 +33,16 @@ test("2D and non-map routes cannot reach the 3D entry", () => {
     (key) => manifest[key].src === "src/lib/relation.ts",
   );
   const rowKey = mapDynamic.find((key) => manifest[key].src === "src/lib/cloudrow.ts");
-  const catalogKey = mapDynamic.find(
-    (key) => manifest[key].src === "src/components/map/Catalog.tsx",
-  );
   assert.ok(relationKey);
   assert.ok(rowKey);
-  assert.ok(catalogKey);
   assert.deepEqual(
     new Set(mapDynamic),
-    new Set([keys.fallbackKey, keys.spaceKey, relationKey, rowKey, catalogKey]),
+    new Set([keys.fallbackKey, keys.spaceKey, relationKey, rowKey]),
   );
   assert.equal(manifest[keys.fallbackKey].isDynamicEntry, true);
   assert.equal(manifest[keys.spaceKey].isDynamicEntry, true);
   assert.equal(manifest[relationKey].isDynamicEntry, true);
   assert.equal(manifest[rowKey].isDynamicEntry, true);
-  assert.equal(manifest[catalogKey].isDynamicEntry, true);
 
   const threeDEntry = manifest[keys.spaceKey].file;
   const forcedTwoD = routeAssets(profile, [
@@ -64,7 +53,6 @@ test("2D and non-map routes cannot reach the 3D entry", () => {
   assert.equal(forcedTwoD.has(threeDEntry), false);
   assert.equal(forcedTwoD.has(manifest[relationKey].file), false);
   assert.equal(forcedTwoD.has(manifest[rowKey].file), false);
-  assert.equal(forcedTwoD.has(manifest[catalogKey].file), false);
 
   for (const key of keys.nonMapKeys) {
     const assets = routeAssets(profile, [keys.shellKey, key]);
@@ -95,36 +83,9 @@ test("initial route inventory contains core data before papers", () => {
   assert.equal(eagerText.includes(core.paper_asset.path), false);
 });
 
-test("method explorer code and CSS load only after its catalog tab", () => {
+test("map routes exclude the retired catalog and method explorers", () => {
   const profile = loadProfile();
-  const { manifest, keys } = profile;
-  const catalogKey = (manifest[keys.mapKey].dynamicImports ?? []).find(
-    (key) => manifest[key].src === "src/components/map/Catalog.tsx",
-  );
-  assert.ok(catalogKey);
-  const methodKeys = manifest[catalogKey].dynamicImports ?? [];
-  assert.equal(methodKeys.length, 1);
-  const methodsKey = methodKeys[0];
-  assert.equal(manifest[methodsKey].src, "src/components/map/Methods.tsx");
-  assert.equal(manifest[methodsKey].isDynamicEntry, true);
-
-  const methodAssets = outputAssets(manifest, [methodsKey]);
-  const beforeSelection = routeAssets(profile, [
-    keys.shellKey,
-    keys.mapKey,
-    catalogKey,
-    keys.fallbackKey,
-    keys.spaceKey,
-  ]);
-  for (const asset of methodAssets) assert.equal(beforeSelection.has(asset), false);
-  assert.equal(methodAssets.size, 2);
-
-  const size = sizeProfile(profile.root, methodAssets);
-  assert.ok(size.raw <= 32 * 1024, `methods are ${size.raw} raw bytes`);
-  assert.ok(size.gzip <= 10 * 1024, `methods are ${size.gzip} gzip bytes`);
-  const eagerText = [...beforeSelection]
-    .filter((file) => file.startsWith("assets/"))
-    .map((file) => readFileSync(join(profile.root, "dist", file), "utf8"))
-    .join("\n");
-  assert.equal(eagerText.includes("/data/methods/"), false);
+  const sources = Object.values(profile.manifest).map((entry) => entry.src);
+  assert.equal(sources.includes("src/components/map/Catalog.tsx"), false);
+  assert.equal(sources.includes("src/components/map/Methods.tsx"), false);
 });

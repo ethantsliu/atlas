@@ -360,6 +360,7 @@ describe("paper swarm", () => {
 
   it("keeps all 3.1M points stable when full detail is selected", () => {
     const count = 3_100_000;
+    const redraw = vi.fn();
     const cloud = buildCloud(
       {
         positions: new Float32Array(count * 3),
@@ -369,22 +370,29 @@ describe("paper swarm", () => {
         radius: 1,
       },
       "light",
+      undefined,
+      redraw,
+      "full",
     );
     try {
-      expect(setCloudDetail(cloud, "full")).toBe(true);
       expect(setCloudDetail(cloud, "full")).toBe(false);
+      expect(setCloudDetail(cloud, "sample")).toBe(false);
+      expect(cloud.userData.coarseIds).toHaveLength(0);
+      expect(cloud.userData.coarseData).toHaveLength(0);
+      expect(cloud.userData.coarse).toBe(cloud.userData.full);
       expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.full);
       expect(cloud.geometry.drawRange.count).toBe(count);
       expect(cloud.material.uniforms.pointSize.value).toBe(1.2);
       expect(cloud.material.uniforms.pointOpacity.value).toBe(0.3);
 
-      moveCloud(cloud);
+      moveCloud(cloud, redraw);
       expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.full);
       expect(cloud.geometry.drawRange.count).toBe(count);
 
       restCloud(cloud);
       expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.full);
       expect(cloud.geometry.drawRange.count).toBe(count);
+      expect(redraw).not.toHaveBeenCalled();
     } finally {
       dropCloud(cloud);
       cloud.geometry.dispose();

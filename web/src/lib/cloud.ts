@@ -105,7 +105,10 @@ const POINT = /^\d{4}-\d{2}\.bin$/;
 const META = /^\d{4}-\d{2}\.json$/;
 const ROUTES = /^\d{4}-\d{2}\.routes$/;
 const ANCHORS = /^anchors\.json$/;
-const CLOUD_WINDOW = 5;
+// Point packs are already large, ordered transfer units. Two concurrent packs
+// keep the network busy without retaining up to five verified ArrayBuffers
+// beside the final CPU position/scopes stores while an earlier pack commits.
+export const CLOUD_WINDOW = 2;
 
 export function cloudPath(asset: CloudAsset): string {
   return `/data/cloud/${asset.path}?sha=${asset.sha256}`;
@@ -467,7 +470,9 @@ export async function streamCloud(
       }
     }
   };
-  const workers = Array.from({ length: Math.min(4, units.length) }, () => work());
+  const workers = Array.from({ length: Math.min(CLOUD_WINDOW, units.length) }, () =>
+    work(),
+  );
   try {
     for (let index = 0; index < units.length; index += 1) {
       const result = await results[index]!;

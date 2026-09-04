@@ -240,7 +240,12 @@ export function bindCloud(
 export function moveCloud(points: CloudSwarm, after?: () => void): void {
   const store = points.userData;
   store.moving = true;
-  if (after) store.after = after;
+  const count = store.data.positions.length / 3;
+  const changes =
+    cloudReduced(count, store.detail, true) !==
+    cloudReduced(count, store.detail, false);
+  if (after && changes) store.after = after;
+  else if (!changes) store.after = null;
   showCloud(points, true);
   armRest(points);
 }
@@ -382,7 +387,9 @@ export function buildCloud(
 ): CloudSwarm {
   const count = data.scopes.length;
   const geometry = new BufferGeometry();
-  const coarseIds = lodIds(count);
+  // Full-only rendering never reads the motion sample. Avoid retaining its
+  // CPU array, index map, and GPU buffer beside the exact 3.15M-point store.
+  const coarseIds = detail === "full" ? new Uint32Array(0) : lodIds(count);
   const coarseData = new Float32Array(coarseIds.length * 3);
   let gl: WebGL2RenderingContext | null = null;
   let buffer: WebGLBuffer | null = null;
@@ -392,16 +399,18 @@ export function buildCloud(
   if (renderer) {
     gl = renderer.getContext() as WebGL2RenderingContext;
     buffer = gl.createBuffer();
-    coarseBuffer = gl.createBuffer();
-    if (!buffer || !coarseBuffer) {
+    coarseBuffer = coarseIds.length > 0 ? gl.createBuffer() : null;
+    if (!buffer || (coarseIds.length > 0 && !coarseBuffer)) {
       if (buffer) gl.deleteBuffer(buffer);
       if (coarseBuffer) gl.deleteBuffer(coarseBuffer);
       throw new Error("Paper cloud GPU allocation failed");
     }
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, data.positions.byteLength, gl.DYNAMIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, coarseBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, coarseData.byteLength, gl.DYNAMIC_DRAW);
+    if (coarseBuffer) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, coarseBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, coarseData.byteLength, gl.DYNAMIC_DRAW);
+    }
     full = new GLBufferAttribute(
       buffer,
       gl.FLOAT,
@@ -409,20 +418,22 @@ export function buildCloud(
       4,
       count,
     ) as unknown as BufferAttribute;
-    coarse = new GLBufferAttribute(
-      coarseBuffer,
-      gl.FLOAT,
-      3,
-      4,
-      coarseIds.length,
-    ) as unknown as BufferAttribute;
+    coarse = coarseBuffer
+      ? (new GLBufferAttribute(
+          coarseBuffer,
+          gl.FLOAT,
+          3,
+          4,
+          coarseIds.length,
+        ) as unknown as BufferAttribute)
+      : full;
     geometry.setAttribute("position", full);
     geometry.setDrawRange(0, 0);
   } else {
     full = new BufferAttribute(data.positions, 3);
     full.setUsage(DynamicDrawUsage);
-    coarse = new BufferAttribute(coarseData, 3);
-    coarse.setUsage(DynamicDrawUsage);
+    coarse = coarseIds.length > 0 ? new BufferAttribute(coarseData, 3) : full;
+    if (coarse !== full) coarse.setUsage(DynamicDrawUsage);
     geometry.setAttribute("position", full);
     geometry.setDrawRange(0, data.loaded);
   }
@@ -473,6 +484,7 @@ export function buildCloud(
 
 export function setCloudDetail(points: CloudSwarm, detail: CloudDetail): boolean {
   if (points.userData.detail === detail) return false;
+  if (detail === "sample" && points.userData.coarseIds.length === 0) return false;
   points.userData.detail = detail;
   showCloud(points, points.userData.moving);
   return true;

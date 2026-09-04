@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronRight, FlaskConical, Sparkles, Workflow } from "lucide-react";
 import { BriefModal } from "../components/briefs/Brief";
-import { DiscoveryReviewQueue } from "../components/briefs/Discovery";
+import { DirectionReviewQueue } from "../components/briefs/Directions";
 import { PaperDetailModal } from "../components/papers/Paper";
 import { EmptyState, ResultStatus } from "../components/shared/Empty";
 import { PageHead } from "../components/shared/Head";
@@ -29,6 +29,7 @@ function isFeaturedDraft(idea: Idea): boolean {
 export function BriefsView({ atlas, query, onClearQuery }: BriefsViewProps) {
   const [openIdea, setOpenIdea] = useState<Idea | null>(null);
   const [openPaper, setOpenPaper] = useState<Paper | null>(null);
+  const [directionCount, setDirectionCount] = useState<number | null>(null);
   const ideas = filterIdeaQuery(atlas.ideas, query);
   const independentRanks = new Map(
     sortIdeaScores(independentlyRankedIdeas(atlas.ideas)).map((idea, index) => [
@@ -49,7 +50,7 @@ export function BriefsView({ atlas, query, onClearQuery }: BriefsViewProps) {
   const featuredDrafts = sortIdeaScores(
     ideas.filter((idea) => isFeaturedDraft(idea) && ideaRole(idea) === "standalone"),
   );
-  const screeningCandidates = sortIdeaScores(
+  const provisionalIdeas = sortIdeaScores(
     ideas.filter(
       (idea) =>
         !isFeaturedDraft(idea) &&
@@ -66,7 +67,7 @@ export function BriefsView({ atlas, query, onClearQuery }: BriefsViewProps) {
     ),
   );
   const researchedCount = ideas.filter(isFeaturedDraft).length;
-  const screeningCount = ideas.filter(
+  const provisionalCount = ideas.filter(
     (idea) => !isFeaturedDraft(idea) && idea.kind === "research",
   ).length;
   const blogCount = ideas.filter(
@@ -83,19 +84,19 @@ export function BriefsView({ atlas, query, onClearQuery }: BriefsViewProps) {
       <PageHead
         icon={<FlaskConical />}
         kicker="Project studio"
-        title={`${researchedCount} researched ${researchedCount === 1 ? "draft" : "drafts"} · ${screeningCount} screening ${screeningCount === 1 ? "candidate" : "candidates"} · ${blogCount} blog ${blogCount === 1 ? "lead" : "leads"}`}
-        copy="Scores measure how readily a decisive first experiment can run, not scientific importance. Researched drafts include competitor review; screening research candidates and blog leads remain provisional routes."
+        title={`${researchedCount} researched ${researchedCount === 1 ? "draft" : "drafts"} · ${provisionalCount} provisional research ${provisionalCount === 1 ? "idea" : "ideas"}${directionCount === null ? "" : ` · ${directionCount.toLocaleString()} paper-grounded community ${directionCount === 1 ? "idea" : "ideas"}`} · ${blogCount} blog ${blogCount === 1 ? "lead" : "leads"}`}
+        copy="Scores measure how readily a decisive first experiment can run, not scientific importance. Researched drafts include a documented related-work check. Provisional and paper-grounded research ideas are open for community review; neither label implies expert validation."
       />
-      <ResultStatus count={ideas.length} label="research or blog idea" query={query} />
-
-      <DiscoveryReviewQueue query={query} />
+      <ResultStatus count={ideas.length} label="structured Atlas idea" query={query} />
 
       {ideas.length === 0 && (
         <EmptyState
           title={
-            query.trim() ? `No ideas match “${query.trim()}”` : "No ideas available"
+            query.trim()
+              ? `No structured Atlas ideas match “${query.trim()}”`
+              : "No structured Atlas ideas available"
           }
-          copy="Try a broader research area, technique, or paper name."
+          copy="Try a broader research area, technique, or paper name. Paper-grounded community ideas are searched independently below."
           action={query.trim() ? "Clear search" : undefined}
           onReset={query.trim() ? onClearQuery : undefined}
         />
@@ -163,8 +164,7 @@ export function BriefsView({ atlas, query, onClearQuery }: BriefsViewProps) {
             <h2>Deeper evidence, ranked without hiding uncertainty</h2>
             <p>
               These ideas include field comparison and a developed validation protocol.
-              Their honest feasibility score may be lower than a quick screening
-              estimate.
+              Their honest feasibility score may be lower than a preliminary estimate.
             </p>
           </header>
           <div className="card-grid featured-grid">
@@ -181,10 +181,12 @@ export function BriefsView({ atlas, query, onClearQuery }: BriefsViewProps) {
       )}
 
       <CandidateGroups
-        screeningCandidates={screeningCandidates}
+        provisionalIdeas={provisionalIdeas}
         blogLeads={blogLeads}
         onOpen={setOpenIdea}
       />
+
+      <DirectionReviewQueue query={query} onCount={setDirectionCount} />
 
       {openIdea && (
         <BriefModal
@@ -203,33 +205,34 @@ export function BriefsView({ atlas, query, onClearQuery }: BriefsViewProps) {
 }
 
 type CandidateGroupsProps = {
-  screeningCandidates: Idea[];
+  provisionalIdeas: Idea[];
   blogLeads: Idea[];
   onOpen: (idea: Idea) => void;
 };
 
 function CandidateGroups({
-  screeningCandidates,
+  provisionalIdeas,
   blogLeads,
   onOpen,
 }: CandidateGroupsProps) {
   return (
     <>
-      {screeningCandidates.length > 0 && (
+      {provisionalIdeas.length > 0 && (
         <section className="brief-catalog">
           <header className="brief-section-head compact">
             <span>
-              {screeningCandidates.length} feasibility-ranked screening{" "}
-              {screeningCandidates.length === 1 ? "candidate" : "candidates"}
+              {provisionalIdeas.length} provisional research{" "}
+              {provisionalIdeas.length === 1 ? "idea" : "ideas"}
             </span>
-            <h2>Research leads awaiting competitor review</h2>
+            <h2>Research ideas open for community review</h2>
             <p>
               These are provisional, corpus-routed hypotheses with test plans and risk
-              notes. They are not researched drafts or completed novelty claims.
+              notes. They are not expert-reviewed, researched drafts, or completed
+              novelty claims.
             </p>
           </header>
           <div className="card-grid">
-            {screeningCandidates.map((idea) => (
+            {provisionalIdeas.map((idea) => (
               <BriefCard idea={idea} onOpen={() => onOpen(idea)} key={idea.id} />
             ))}
           </div>
@@ -275,7 +278,7 @@ function BriefCard({
 }: BriefCardProps) {
   const role = ideaRole(idea);
   const scoreLabel = idea.feasibility.screening_estimate
-    ? "screening estimate"
+    ? "preliminary feasibility"
     : role === "work-package"
       ? "module feasibility"
       : role === "program"

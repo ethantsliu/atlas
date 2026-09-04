@@ -131,6 +131,42 @@ describe("progressive paper cloud geometry", () => {
     points.material.dispose();
   });
 
+  it("does not allocate or upload an unused sample for full detail", () => {
+    const buffer = {} as WebGLBuffer;
+    const bufferSubData = vi.fn();
+    const gl = {
+      ARRAY_BUFFER: 34_962,
+      DYNAMIC_DRAW: 35_048,
+      FLOAT: 5_126,
+      bindBuffer: vi.fn(),
+      bufferData: vi.fn(),
+      bufferSubData,
+      createBuffer: vi.fn(() => buffer),
+      deleteBuffer: vi.fn(),
+    } as unknown as WebGL2RenderingContext;
+    const renderer = { getContext: () => gl } as unknown as WebGLRenderer;
+    const data = dataOf(100_001, 100_001);
+    const points = buildCloud(data, "light", renderer, undefined, "full");
+
+    expect(gl.createBuffer).toHaveBeenCalledOnce();
+    expect(gl.bufferData).toHaveBeenCalledOnce();
+    expect(points.userData.coarseIds).toHaveLength(0);
+    expect(points.userData.coarseData).toHaveLength(0);
+    expect(points.userData.coarse).toBe(points.userData.full);
+
+    growCloud(points, data);
+    runFrame();
+    expect(bufferSubData).toHaveBeenCalledOnce();
+    expect((bufferSubData.mock.calls[0][2] as Float32Array).length).toBe(
+      data.positions.length,
+    );
+
+    dropCloud(points);
+    expect(gl.deleteBuffer).toHaveBeenCalledOnce();
+    points.geometry.dispose();
+    points.material.dispose();
+  });
+
   it("uploads a completed cached cloud in one remount frame", () => {
     const buffers = [{}, {}] as WebGLBuffer[];
     const bufferSubData = vi.fn();

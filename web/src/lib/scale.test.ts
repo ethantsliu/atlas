@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import {
+  CLOUD_WINDOW,
   createCloud,
   loadCloud,
   streamCloud,
@@ -277,7 +278,7 @@ describe("paper cloud scale boundaries", () => {
       fetcher,
     );
 
-    expect(maximum).toBeLessThanOrEqual(4);
+    expect(maximum).toBeLessThanOrEqual(CLOUD_WINDOW);
     expect(maximum).toBeGreaterThan(1);
     expect([...data.positions.filter((_, index) => index % 3 === 0)]).toEqual(
       Array.from({ length: 18 }, (_, index) => index),
@@ -293,7 +294,7 @@ describe("paper cloud scale boundaries", () => {
     );
   });
 
-  it("keeps all four worker slots busy while commits wait for manifest order", async () => {
+  it("keeps both worker slots busy while commits wait for manifest order", async () => {
     const { assets, manifest } = scaleCase(Array.from({ length: 9 }, () => 2));
     const gates = new Map(
       [...assets].map(([path, asset]) => [
@@ -323,21 +324,24 @@ describe("paper cloud scale boundaries", () => {
       (step) => steps.push(step),
       fetcher,
     );
-    await vi.waitFor(() => expect(started).toHaveLength(4));
+    await vi.waitFor(() => expect(started).toHaveLength(CLOUD_WINDOW));
 
-    const fourth = manifest.shards[3].points.path;
-    gates.get(fourth)!.response.resolve(new Response(gates.get(fourth)!.asset.bytes));
-    await vi.waitFor(() => expect(started).toContain(manifest.shards[4].points.path));
+    const second = manifest.shards[1].points.path;
+    gates.get(second)!.response.resolve(new Response(gates.get(second)!.asset.bytes));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(started).toHaveLength(CLOUD_WINDOW);
 
-    expect(active).toBe(4);
     expect(steps).toHaveLength(0);
+    const first = manifest.shards[0].points.path;
+    gates.get(first)!.response.resolve(new Response(gates.get(first)!.asset.bytes));
+    await vi.waitFor(() => expect(started).toContain(manifest.shards[2].points.path));
     for (const shard of manifest.shards) {
       const gate = gates.get(shard.points.path)!;
       gate.response.resolve(new Response(gate.asset.bytes));
     }
     await loading;
 
-    expect(maximum).toBe(4);
+    expect(maximum).toBe(CLOUD_WINDOW);
     expect(started).toHaveLength(9);
     expect(steps.map((step) => step.start)).toEqual(
       Array.from({ length: 9 }, (_, index) => index * 2),
@@ -365,18 +369,13 @@ describe("paper cloud scale boundaries", () => {
       undefined,
       fetcher,
     );
-    await vi.waitFor(() => expect(started).toHaveLength(4));
-    for (const shard of manifest.shards.slice(1, 4)) {
-      const gate = gates.get(shard.points.path)!;
-      gate.response.resolve(new Response(gate.asset.bytes));
-    }
-    await vi.waitFor(() => expect(started).toHaveLength(5));
-    const fifth = gates.get(manifest.shards[4].points.path)!;
-    fifth.response.resolve(new Response(fifth.asset.bytes));
+    await vi.waitFor(() => expect(started).toHaveLength(CLOUD_WINDOW));
+    const second = gates.get(manifest.shards[1].points.path)!;
+    second.response.resolve(new Response(second.asset.bytes));
     await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(started).toEqual(
-      manifest.shards.slice(0, 5).map((shard) => shard.points.path),
+      manifest.shards.slice(0, CLOUD_WINDOW).map((shard) => shard.points.path),
     );
 
     for (const shard of manifest.shards) {
@@ -450,19 +449,19 @@ describe("paper cloud scale boundaries", () => {
       fetcher,
     );
     await Promise.resolve();
-    expect(started).toHaveLength(4);
+    expect(started).toHaveLength(CLOUD_WINDOW);
 
-    // Abort before any response is available, while all four worker slots are busy.
+    // Abort before any response is available, while both worker slots are busy.
     controller.abort();
 
     await expect(loading).rejects.toMatchObject({ name: "AbortError" });
-    expect(signals).toHaveLength(4);
+    expect(signals).toHaveLength(CLOUD_WINDOW);
     expect(signals.every((signal) => signal === signals[0] && signal.aborted)).toBe(
       true,
     );
     expect(signals[0]).not.toBe(controller.signal);
     expect(started).toEqual(
-      manifest.shards.slice(0, 4).map((shard) => shard.points.path),
+      manifest.shards.slice(0, CLOUD_WINDOW).map((shard) => shard.points.path),
     );
     expect(steps).toHaveLength(0);
     expect(data.loaded).toBe(0);

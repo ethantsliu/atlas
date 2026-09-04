@@ -51,6 +51,18 @@ describe("GPU pick alignment", () => {
     expect(pickIndex(points, 0)).toBe(0);
   });
 
+  it("keeps full-only alias indices directly pickable", () => {
+    const geometry = new BufferGeometry();
+    const full = new Float32BufferAttribute([0, 0, 0, 1, 1, 1], 3);
+    geometry.setAttribute("position", full);
+    const points = new Points(geometry, new ShaderMaterial());
+    points.userData.full = full;
+    points.userData.coarse = full;
+    points.userData.coarseIds = new Uint32Array(0);
+
+    expect(pickIndex(points, 1)).toBe(1);
+  });
+
   it("invalidates an asynchronous pick when the camera moves", () => {
     const geometry = new BufferGeometry();
     geometry.setAttribute("position", new Float32BufferAttribute([0, 0, 0], 3));

@@ -48,8 +48,10 @@ function setup(rotate = false, frameTime = 0) {
     rotate ? { autoRotate: false, autoRotateSpeed: 2 } : {},
   );
   let now = 0;
+  const resumeRotations: boolean[] = [];
   const pauseAnimation = vi.fn();
   const resumeAnimation = vi.fn(() => {
+    resumeRotations.push(Boolean(controls.autoRotate));
     now += frameTime;
   });
   const pending = new Map<number, Pending>();
@@ -124,6 +126,7 @@ function setup(rotate = false, frameTime = 0) {
     pauseAnimation,
     pending,
     resumeAnimation,
+    resumeRotations,
     flush,
     flushDelay,
     flushFrames,
@@ -276,6 +279,7 @@ describe("3D idle frames", () => {
 
     expect(run.controls.autoRotate).toBe(true);
     expect(run.resumeAnimation).toHaveBeenCalledOnce();
+    expect(run.resumeRotations).toEqual([false]);
     expect(run.pauseAnimation).toHaveBeenCalledTimes(2);
     expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
       FRAME_ROTATE_SLOW_PACE,

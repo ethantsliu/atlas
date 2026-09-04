@@ -84,6 +84,7 @@ type IdleState = {
   pointers: Set<number>;
   probeFrame: number;
   reducedMotion: boolean;
+  rotateCost: number;
   rotatePulse: number;
   rotatePending: number;
   running: boolean;
@@ -117,11 +118,36 @@ function pulseRotate(
     pause();
     if (blocked() || !controls.autoRotate) return;
     const elapsed = (timer.now?.() ?? performance.now()) - started;
-    const pace = rotationPace(elapsed);
-    controls.autoRotateSpeed = rotationSpeed(elapsed, pace);
+    // React immediately to a slow frame, but decay the measured cost across
+    // later fast frames so borderline devices do not oscillate between the
+    // fast and protected cadences.
+    state.rotateCost = Math.max(elapsed, state.rotateCost * 0.75);
+    const pace = rotationPace(state.rotateCost);
+    controls.autoRotateSpeed = rotationSpeed(state.rotateCost, pace);
     state.rotatePulse = timer.set(pulse, pace);
   };
-  pulse();
+  const pace = rotationPace(state.rotateCost);
+  controls.autoRotateSpeed = rotationSpeed(state.rotateCost, pace);
+  state.rotatePulse = timer.set(pulse, pace);
+}
+
+function primeRotation(
+  timer: FrameTimer,
+  state: IdleState,
+  blocked: () => boolean,
+  resume: () => void,
+  pause: () => void,
+): boolean {
+  const wasPaused = state.paused;
+  const started = timer.now?.() ?? performance.now();
+  resume();
+  pause();
+  if (blocked()) return false;
+  if (wasPaused) {
+    const elapsed = (timer.now?.() ?? performance.now()) - started;
+    state.rotateCost = Math.max(elapsed, state.rotateCost * 0.75);
+  }
+  return true;
 }
 
 function makeIdleCore(
@@ -194,7 +220,11 @@ function makeIdleCore(
     state.keys.size > 0 ||
     state.pointers.size > 0;
   const beginRotate = () => {
-    if (blocked()) return;
+    if (blocked() || !primeRotation(timer, state, blocked, resume, pause)) return;
+    // OrbitControls' internal timer otherwise includes the entire idle pause.
+    // Render one stationary frame first to reset that delta, then enable
+    // rotation for the following paced frame. This avoids a visible catch-up
+    // jump without starting a continuous animation loop.
     rotate(true);
     pulseRotate(controls, timer, state, blocked, resume, pause);
   };
@@ -459,6 +489,7 @@ export function makeFrameIdle(
     pointers: new Set(),
     probeFrame: 0,
     reducedMotion: false,
+    rotateCost: 0,
     rotatePending: 0,
     running: true,
     hoverActive: false,

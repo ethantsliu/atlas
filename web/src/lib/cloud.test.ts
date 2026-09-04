@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   cloudPaper,
   cloudRange,
+  CLOUD_WINDOW,
   createCloud,
   fetchCloudMeta,
   isCloud,
@@ -205,6 +206,7 @@ describe("paper cloud", () => {
   });
 
   it("commits concurrent shard responses in manifest order", async () => {
+    expect(CLOUD_WINDOW).toBe(2);
     const first = pointBytes();
     const second = pointBytes(7);
     const index = manifest(first);
@@ -250,6 +252,54 @@ describe("paper cloud", () => {
     expect(data.ranges.map((range) => range.month)).toEqual(["2020-01", "2020-02"]);
     expect([...data.positions]).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
     expect([...data.scopes]).toEqual([0, 2, 0, 2]);
+  });
+
+  it("retains no more than two uncommitted point packs", async () => {
+    const assets = [pointBytes(), pointBytes(7), pointBytes(13)];
+    const index = manifest(assets[0]);
+    const first = index.shards[0];
+    index.shards = assets.map((bytes, item) => {
+      const month = `2020-0${item + 1}`;
+      return {
+        ...structuredClone(first),
+        month,
+        points: {
+          path: `${month}.bin`,
+          sha256: createHash("sha256").update(Buffer.from(bytes)).digest("hex"),
+          bytes: bytes.byteLength,
+        },
+        meta: { ...first.meta, path: `${month}.json` },
+      };
+    });
+    index.count = 6;
+    index.source_count = 9;
+    index.counts = { likely: 3, possible: 0, outside: 3 };
+    index.omitted_count = 3;
+    index.omitted_counts = { likely: 0, possible: 3, outside: 0 };
+    const releases: (() => void)[] = [];
+    const request = vi.fn(
+      (_input: RequestInfo | URL) =>
+        new Promise<Response>((resolve) => {
+          const item = releases.length;
+          releases.push(() => resolve(new Response(assets[item])));
+        }),
+    );
+
+    const loading = streamCloud(
+      index,
+      createCloud(index),
+      new AbortController().signal,
+      undefined,
+      request as unknown as typeof fetch,
+    );
+    await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(CLOUD_WINDOW));
+    expect(releases).toHaveLength(2);
+
+    releases[0]();
+    await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(3));
+    releases[1]();
+    releases[2]();
+    await expect(loading).resolves.toMatchObject({ loaded: 6 });
   });
 
   it("prefers one verified point pack while retaining monthly ranges", async () => {

@@ -35,12 +35,13 @@ describe("search states", () => {
     );
 
     expect(markup).toContain('role="status"');
-    expect(markup).toContain("0 research or blog ideas match “missing”.");
-    expect(markup).toContain("No ideas match “missing”");
+    expect(markup).toContain("0 structured Atlas ideas match “missing”.");
+    expect(markup).toContain("No structured Atlas ideas match “missing”");
+    expect(markup).toContain("community ideas are searched independently below");
     expect(markup).toContain("Clear search");
   });
 
-  it("distinguishes researched drafts, screening candidates, and blog leads", () => {
+  it("distinguishes researched drafts, provisional research ideas, and blog leads", () => {
     const base = makeIdea();
     const researchedBrief = {
       ...base.brief,
@@ -90,11 +91,12 @@ describe("search states", () => {
     );
 
     expect(markup).toContain(
-      "3 researched drafts · 1 screening candidate · 1 blog lead",
+      "3 researched drafts · 1 provisional research idea · 1 blog lead",
     );
-    expect(markup).toContain("Research leads awaiting competitor review");
+    expect(markup).toContain("Research ideas open for community review");
     expect(markup).toContain("Blog concepts awaiting source development");
-    expect(markup).toContain(">screening candidate<");
+    expect(markup).toContain(">provisional research idea<");
+    expect(markup).toContain("neither label implies expert validation");
     expect(markup).toContain(">blog lead<");
     expect(markup).toContain("Automatically synthesized from corpus routes");
     expect(markup).toContain("Researched draft · Related work checked");

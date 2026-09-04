@@ -27,7 +27,8 @@ describe("BriefModal", () => {
 
     expect(markup).toContain("Evidence basis");
     expect(markup).toContain(idea.brief.evidence_note);
-    expect(markup).toContain("Screening candidate");
+    expect(markup).toContain("Provisional research idea");
+    expect(markup).toContain("Preliminary feasibility");
     expect(markup).toContain("Automatically synthesized from corpus routes");
     expect(markup).not.toContain("cross-paper");
   });

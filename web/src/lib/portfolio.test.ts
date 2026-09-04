@@ -40,7 +40,7 @@ describe("portfolio hierarchy", () => {
       brief: { ...standalone.brief, status: "researched-draft" },
     });
 
-    expect(ideaStage(standalone)).toBe("Screening candidate");
+    expect(ideaStage(standalone)).toBe("Provisional research idea");
     expect(ideaBasis(standalone)).toContain("Automatically synthesized");
     expect(ideaStage(researched)).toBe("Researched draft");
     expect(ideaBasis(researched)).toContain("not a validated result");

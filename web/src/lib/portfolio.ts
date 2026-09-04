@@ -5,13 +5,13 @@ export type ProgramGroup = {
   workPackages: Idea[];
 };
 
-export type IdeaStage = "Blog lead" | "Researched draft" | "Screening candidate";
+export type IdeaStage = "Blog lead" | "Researched draft" | "Provisional research idea";
 
 export function ideaStage(idea: Idea): IdeaStage {
   if (idea.kind === "blog") return "Blog lead";
   return idea.brief.status === "researched-draft"
     ? "Researched draft"
-    : "Screening candidate";
+    : "Provisional research idea";
 }
 
 export function ideaBasis(idea: Idea): string {

@@ -80,8 +80,9 @@ export function FeasibilityFrontier({
       <small className="chart-note">
         Horizontal position is evidence confidence; vertical position is the 1–10
         feasibility score. Upper-right combines both. Exact overlaps are separated
-        slightly for visibility. Small blue points are screening estimates; larger gold
-        points are researched drafts. Scientific importance is separate.
+        slightly for visibility. Small blue points are provisional research ideas with
+        preliminary feasibility estimates; larger gold points are researched drafts.
+        Scientific importance is separate.
         {workPackageCount > 0 &&
           ` ${workPackageCount} subordinate work ${workPackageCount === 1 ? "package is" : "packages are"} scored inside the program view, not ranked here as independent programs.`}
       </small>
@@ -119,7 +120,7 @@ export function FeasibilityDistribution({ atlas }: { atlas: Atlas }) {
           <div key={bin.label}>
             <i
               className="feasibility-stack"
-              title={`${bin.label}: ${bin.researched} researched, ${bin.screening} screening-stage`}
+              title={`${bin.label}: ${bin.researched} researched, ${bin.screening} provisional`}
             >
               <em
                 className="histogram-researched"
@@ -140,7 +141,7 @@ export function FeasibilityDistribution({ atlas }: { atlas: Atlas }) {
           <i className="histogram-researched" /> Researched draft
         </span>
         <span>
-          <i className="histogram-screening" /> Screening estimate
+          <i className="histogram-screening" /> Provisional research idea
         </span>
       </div>
       <small className="chart-note">
@@ -149,12 +150,7 @@ export function FeasibilityDistribution({ atlas }: { atlas: Atlas }) {
       </small>
       <ChartDataTable
         label="Idea feasibility score distribution"
-        columns={[
-          "Score interval",
-          "Researched drafts",
-          "Screening estimates",
-          "Total",
-        ]}
+        columns={["Score interval", "Researched drafts", "Provisional ideas", "Total"]}
         rows={bins.map((bin) => [bin.label, bin.researched, bin.screening, bin.total])}
       />
     </article>

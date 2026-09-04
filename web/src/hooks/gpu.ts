@@ -105,9 +105,11 @@ export function pickIndex(
   source: Points<BufferGeometry, ShaderMaterial>,
   index: number,
 ): number | null {
+  const position = source.geometry.getAttribute("position");
+  if (position === source.userData.full) return index;
   const ids = source.userData.coarseIds;
   const coarse = source.userData.coarse;
-  if (source.geometry.getAttribute("position") !== coarse) return index;
+  if (position !== coarse) return index;
   return ids instanceof Uint32Array ? (ids[index] ?? null) : index;
 }
 

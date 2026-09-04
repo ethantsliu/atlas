@@ -53,7 +53,7 @@ export function IdeaDetails({ idea, atlas, onSelectNode }: IdeaProps) {
         <b>{idea.feasibility.score.toFixed(1)}</b>
         <span>
           {idea.feasibility.screening_estimate
-            ? "Screening estimate"
+            ? "Preliminary feasibility"
             : role === "work-package"
               ? "Module feasibility"
               : role === "program"

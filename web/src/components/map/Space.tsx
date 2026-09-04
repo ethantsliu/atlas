@@ -211,6 +211,19 @@ function hoverFront(
   ]);
 }
 
+function useSpaceQuality(
+  graph: GraphData,
+  cloud: CloudData | null,
+  width: number,
+  height: number,
+) {
+  return useQuality(
+    graph.nodes.length + (cloud?.positions.length ?? 0) / 3,
+    width,
+    height,
+  );
+}
+
 export function GraphSpace({
   graph,
   cloud,
@@ -234,7 +247,7 @@ export function GraphSpace({
   const core = useCore(graphRef);
   const order = useMemo(() => makeOrder(), []);
   useBegin(graphRef, order);
-  const quality = useQuality(graph.nodes.length + (cloud?.loaded ?? 0), width, height);
+  const quality = useSpaceQuality(graph, cloud, width, height);
   const engineReadyRef = useRef(false);
   const fitRef = useRef(!camera);
   const fitKeyRef = useRef<string>();

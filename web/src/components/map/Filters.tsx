@@ -1,11 +1,10 @@
-import { lazy, Suspense, useState } from "react";
+import { useState } from "react";
 import { ChevronDown, SlidersHorizontal, X } from "lucide-react";
 import { getCoverageSnapshot } from "../../lib/coverage";
 import { ALL_NODE_KINDS, NODE_COLORS } from "../../lib/graph";
 import type { GraphNodeKind } from "../../types";
 import type { AtlasRead } from "../../lib/payload";
 
-const CatalogCopy = lazy(() => import("./Catalog"));
 import { CoverageMini } from "../shared/Coverage";
 
 type MapFiltersProps = {
@@ -84,10 +83,6 @@ export function MapFilters({
             : `${atlas.meta.paper_count.toLocaleString()} mapped papers.`}
         </p>
 
-        <Suspense fallback={null}>
-          <CatalogCopy enabled={Boolean(archiveCount)} ideas={atlas.meta.idea_count} />
-        </Suspense>
-
         {ALL_NODE_KINDS.map((kind) => (
           <button
             className={`kind-toggle ${kinds.has(kind) ? "on" : ""}`}
@@ -118,7 +113,7 @@ export function MapFilters({
         />
         <p className="range-copy">
           Practical testability, not scientific importance. Provisional ideas use
-          screening estimates.
+          preliminary feasibility estimates.
         </p>
 
         <div className="divider" />

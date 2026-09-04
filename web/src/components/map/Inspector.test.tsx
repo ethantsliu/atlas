@@ -68,7 +68,7 @@ describe("Inspector", () => {
     expect(html).not.toContain(">Isolate connections<");
   });
 
-  it("labels an automatic screening idea and exposes its caveat", () => {
+  it("labels a provisional research idea and exposes its caveat", () => {
     const atlas = makeAtlas();
     const idea = createGraphNodes(atlas, 1).find((node) => node.kind === "idea")!;
     const html = renderToStaticMarkup(
@@ -90,7 +90,7 @@ describe("Inspector", () => {
       />,
     );
 
-    expect(html).toContain("Screening candidate");
+    expect(html).toContain("Provisional research idea");
     expect(html).toContain("Automatically synthesized from corpus routes");
     expect(html).not.toContain("cross-paper");
   });
