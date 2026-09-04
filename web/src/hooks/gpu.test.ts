@@ -77,6 +77,19 @@ describe("GPU pick alignment", () => {
     expect(validPick(stamp, points, camera)).toBe(false);
   });
 
+  it("keeps a pick valid through subpixel camera-matrix noise", () => {
+    const geometry = new BufferGeometry();
+    geometry.setAttribute("position", new Float32BufferAttribute([0, 0, 0], 3));
+    geometry.setDrawRange(0, 1);
+    const points = new Points(geometry, new ShaderMaterial());
+    const camera = new OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+    camera.position.z = 2;
+    const stamp = stampPick(points, camera);
+
+    camera.position.x = 1e-8;
+    expect(validPick(stamp, points, camera)).toBe(true);
+  });
+
   it("invalidates an asynchronous pick when corpus geometry changes", () => {
     const geometry = new BufferGeometry();
     geometry.setAttribute("position", new Float32BufferAttribute([0, 0, 0], 3));

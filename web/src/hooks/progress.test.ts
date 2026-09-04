@@ -362,7 +362,7 @@ describe("progressive point mounting", () => {
     await Promise.resolve();
 
     expect(pick).toHaveBeenCalledOnce();
-    expect(pick.mock.calls[0][4]).toBe(24);
+    expect(pick.mock.calls[0][4]).toBe(44);
     expect(order.claim).toHaveBeenCalledOnce();
     harness.unmount();
   });

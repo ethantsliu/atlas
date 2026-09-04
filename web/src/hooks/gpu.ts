@@ -113,8 +113,12 @@ export function pickIndex(
   return ids instanceof Uint32Array ? (ids[index] ?? null) : index;
 }
 
+const PICK_MATRIX_EPSILON = 1e-7;
+
 function sameValues(left: number[], right: number[]): boolean {
-  return left.every((value, index) => value === right[index]);
+  return left.every(
+    (value, index) => Math.abs(value - right[index]) <= PICK_MATRIX_EPSILON,
+  );
 }
 
 export function stampPick(

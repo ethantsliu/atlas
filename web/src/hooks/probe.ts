@@ -3,6 +3,7 @@ import type { PickOrder } from "../lib/order";
 import { CLOUD_REST_MS, type CloudSwarm } from "../lib/swarm";
 
 const CLICK_SETTLE_TRIES = 20;
+const CLICK_EMPTY_TRIES = 3;
 
 export type PointTip = { depth: number; label: string; x: number; y: number };
 
@@ -71,6 +72,7 @@ type ClickInput = {
   start: { x: number; y: number };
   token: number;
   tries?: number;
+  misses?: number;
 };
 
 type ShowInput = {
@@ -319,9 +321,29 @@ export function choosePoint(args: ClickInput): void {
     return;
   }
   void hit(event, args.pointer)
-    .then((match) => claimPoint(args, match))
+    .then((match) => {
+      const misses = args.misses ?? 0;
+      if (
+        match.index == null &&
+        args.pointer === "touch" &&
+        misses < CLICK_EMPTY_TRIES &&
+        token === refs.select.current &&
+        !isHidden(refs)
+      ) {
+        window.setTimeout(
+          () => choosePoint({ ...args, misses: misses + 1 }),
+          CLOUD_REST_MS + 20,
+        );
+        return false;
+      }
+      claimPoint(args, match);
+      return true;
+    })
     .catch(() => {
       if (token === refs.select.current) refs.claim.current = null;
+      return true;
     })
-    .finally(() => args.done?.());
+    .then((done) => {
+      if (done) args.done?.();
+    });
 }
