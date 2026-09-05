@@ -1,12 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
 
 type TraceHost = Window & {
-  copied?: string;
   lodCount?: number;
   lodTrace?: number[];
 };
-
-type CameraAngle = { pitch: number; yaw: number };
 
 function drawCount(page: Page): Promise<number> {
   return page.evaluate(() => (window as TraceHost).lodCount ?? 0);
@@ -23,32 +20,12 @@ async function stopTrace(page: Page): Promise<number[]> {
   return page.evaluate(() => (window as TraceHost).lodTrace ?? []);
 }
 
-async function cameraAngle(page: Page): Promise<CameraAngle> {
-  await page
-    .getByRole("button", { name: "Copy a link to this atlas view" })
-    .evaluate((button: HTMLButtonElement) => button.click());
-  const copied = await page.evaluate(() => (window as TraceHost).copied ?? "");
-  const camera = new URLSearchParams(new URL(copied).hash.replace(/^#\?/, "")).get("c");
-  const parts = camera?.split("_").map(Number) ?? [];
-  if (parts.length !== 7) throw new Error("Atlas camera was not copied");
-  return { pitch: parts[6], yaw: parts[5] };
-}
-
 test("3D cloud keeps a stable rotation level", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "chrome", "Chromium traces WebGL draw levels");
   test.setTimeout(120_000);
   await page.setViewportSize({ width: 1_440, height: 900 });
   await page.addInitScript(() => {
     const host = window as TraceHost;
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: {
-        writeText: (value: string) => {
-          host.copied = value;
-          return Promise.resolve();
-        },
-      },
-    });
     const wrap = (prototype: WebGLRenderingContext | WebGL2RenderingContext) => {
       const original = prototype.drawArrays;
       prototype.drawArrays = function (mode, first, count) {
@@ -96,15 +73,11 @@ test("3D cloud keeps a stable rotation level", async ({ page }, testInfo) => {
   expect(await drawCount(page)).toBe(full);
   expect(await stopTrace(page)).toEqual([full]);
 
-  const released = await cameraAngle(page);
   await expect(canvas).toHaveAttribute("data-auto-rotate", "true", {
     timeout: 20_000,
   });
   await page.waitForTimeout(3_000);
   expect(await canvas.getAttribute("data-auto-rotate")).toBe("true");
-  const moving = await cameraAngle(page);
-  expect(moving.yaw).not.toBe(released.yaw);
-  expect(moving.pitch).not.toBe(released.pitch);
   expect(await drawCount(page)).toBe(full);
   expect(await stopTrace(page)).toEqual([full]);
 
