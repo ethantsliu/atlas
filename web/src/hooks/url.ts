@@ -114,7 +114,7 @@ function cleanState(state: AtlasUrlState): AtlasUrlState {
     minFeasibility:
       score >= 1 && score <= 10 && score * 2 === Math.round(score * 2) ? score : 1,
     focus: validId(state.focus),
-    layout: state.layout === "connections" ? "connections" : "semantic",
+    layout: "semantic",
     render: state.render === "3d" ? "3d" : "2d",
     camera: formatCamera(state.camera) ? state.camera : null,
   };
@@ -151,7 +151,7 @@ export function decodeUrl(input: string | URL): AtlasUrlState {
     kinds: readKinds(params),
     minFeasibility: readScore(params.get("f")),
     focus: validId(params.get("x")),
-    layout: params.get("l") === "c" ? "connections" : "semantic",
+    layout: "semantic",
     render: readRender(params),
     camera: parseCamera(params.get("c")),
   };
@@ -171,7 +171,6 @@ export function encodeUrl(state: AtlasUrlState, base: string | URL): URL {
   }
   if (clean.minFeasibility !== 1) params.set("f", String(clean.minFeasibility));
   if (clean.focus) params.set("x", clean.focus);
-  if (clean.layout === "connections") params.set("l", "c");
   const camera = clean.view === "map" ? formatCamera(clean.camera) : null;
   if (camera) params.set("c", camera);
   if (clean.render === "2d") params.set("d", "2");

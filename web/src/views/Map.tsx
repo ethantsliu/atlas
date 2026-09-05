@@ -243,7 +243,6 @@ export function MapView({
         cameraReady={ready.camera}
         viewReady={ready.view}
         shareUrl={shareUrl}
-        onLayout={(layout) => onReplace({ layout })}
       />
       <PanelResize />
       <Inspector

@@ -52,7 +52,7 @@ function manifest(): CloudManifest {
 
 function show(mode: RenderMode, count: number): string {
   return renderToStaticMarkup(
-    <GraphControls count={count} layout="semantic" mode={mode} onReset={vi.fn()}>
+    <GraphControls count={count} mode={mode} onReset={vi.fn()}>
       <span>tools</span>
     </GraphControls>,
   );
@@ -69,8 +69,8 @@ describe("renderer parity", () => {
     );
 
     expect(states.every((markup) => markup.includes("3,100,000 nodes"))).toBe(true);
-    expect(states[0]).toContain("Compatibility · semantic frame");
-    expect(states[1]).toContain("3D · semantic frame");
+    expect(states[0]).toContain("Compatibility · 3,100,000 nodes");
+    expect(states[1]).toContain("3D · 3,100,000 nodes");
     expect(states[1]).not.toContain("Arrows select");
     expect(states[2]).toBe(states[0]);
   });

@@ -33,7 +33,7 @@ function fullState(): AtlasUrlState {
     kinds: ["topic", "paper", "idea"],
     minFeasibility: 6.5,
     focus: "topic:world-models",
-    layout: "connections",
+    layout: "semantic",
     render: "3d",
     camera: null,
   };
@@ -64,7 +64,7 @@ describe("atlas URLs", () => {
     const url = encodeUrl(fullState(), "https://example.com/atlas/?old=value#map");
     expect(url.search).toBe("");
     expect(url.hash).toBe(
-      "#?v=l&q=world+models&s=paper%3A2401.01234&k=tpi&f=6.5&x=topic%3Aworld-models&l=c",
+      "#?v=l&q=world+models&s=paper%3A2401.01234&k=tpi&f=6.5&x=topic%3Aworld-models",
     );
     expect(decodeUrl(url)).toEqual(fullState());
   });
@@ -77,6 +77,15 @@ describe("atlas URLs", () => {
     expect(url.hash).toBe("#?k=-");
     expect(decodeUrl(url).kinds).toEqual([]);
     expect(decodeUrl(url).render).toBe("3d");
+  });
+
+  it("retires legacy connection layouts into the semantic map", () => {
+    expect(decodeUrl("https://example.com/atlas/#?l=c").layout).toBe("semantic");
+    const url = encodeUrl(
+      { ...DEFAULT_URL_STATE, layout: "connections" },
+      "https://example.com/atlas/",
+    );
+    expect(url.hash).not.toContain("l=c");
   });
 
   it("round trips a bounded camera snapshot in the fragment", () => {
@@ -148,7 +157,7 @@ describe("atlas URLs", () => {
       2,
       expect.objectContaining({
         query: "forward",
-        layout: "connections",
+        layout: "semantic",
         render: "3d",
       }),
     );

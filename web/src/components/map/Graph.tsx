@@ -51,7 +51,6 @@ type GraphCanvasProps = {
   layout: LayoutMode;
   render: RenderMode;
   shareUrl: (camera?: CameraView | null, render?: RenderMode) => string;
-  onLayout: (mode: LayoutMode) => void;
   camera: CameraView | null;
   cameraReady: boolean;
   viewReady: boolean;
@@ -251,7 +250,6 @@ export function GraphCanvas({
   layout,
   render,
   shareUrl,
-  onLayout,
   camera,
   cameraReady,
   viewReady,
@@ -266,7 +264,7 @@ export function GraphCanvas({
   const cloudReady = mode === "3d" || planeReady;
   const visibleCount = nodeCount(graph, cloud, cloudHidden, cloudMark, cloudReady);
   const hasContent = visibleCount > 0;
-  const viewportTop = chromeHeight ? chromeHeight + 24 : width <= 480 ? 268 : 100;
+  const viewportTop = chromeHeight ? chromeHeight + 10 : width <= 480 ? 104 : 54;
   const viewportHeight = Math.max(0, height - viewportTop);
   const archive = Boolean(
     cloudReady && !cloudHidden && cloud?.loaded && layout === "semantic",
@@ -298,21 +296,14 @@ export function GraphCanvas({
       >
         <GraphHelp cloudLabel={cloudLabel} selected={selected} />
         <div className="graph-chrome" ref={chromeRef}>
-          <GraphControls
-            count={visibleCount}
-            mode={mode}
-            layout={layout}
-            onReset={resetView}
-          >
+          <GraphControls count={visibleCount} mode={mode} onReset={resetView}>
             <GraphTools
               graphRef={graphRef}
               fallbackRef={fallbackRef}
               height={viewportHeight}
-              layout={layout}
               mode={mode}
               nodes={graph.nodes}
               onChoose={onChoose}
-              onLayout={onLayout}
               selected={selected}
               selectedId={selectedId}
               shareUrl={shareUrl}

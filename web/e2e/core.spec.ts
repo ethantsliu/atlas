@@ -1065,9 +1065,8 @@ test("URL state hydrates all map controls", async ({ page }) => {
     "topic:alignment",
   );
   await expect(page.getByLabel("Minimum feasibility")).toHaveValue("5.5");
-  await expect(
-    page.getByRole("button", { name: "connections", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("group", { name: "map layout" })).toHaveCount(0);
+  await expect(page.locator(".graph-header")).toContainText(/(?:3D|Compatibility)/);
   const filters = page.locator(".filters");
   await expect(filters.getByRole("button", { name: /^Topics\s/ })).toHaveAttribute(
     "aria-pressed",
@@ -1166,7 +1165,6 @@ test("the graph has no ambient labels", async ({ page }) => {
   await page.getByLabel("Search the atlas").fill("alignment");
   await expect(tooltip).toBeHidden();
   await page.getByLabel("Search the atlas").fill("");
-  await page.getByRole("button", { name: "connections", exact: true }).click();
   await expect(tooltip).toBeHidden();
 });
 
@@ -1236,7 +1234,7 @@ test("context loss falls back to 2D", async ({ page }) => {
       .first()
       .dispatchEvent("webglcontextlost");
     await expect(page.getByLabel("Interactive research graph")).toContainText(
-      "Compatibility · semantic frame",
+      "Compatibility ·",
     );
     await expect(
       page.locator(".graph-status").filter({

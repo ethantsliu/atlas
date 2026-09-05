@@ -8,9 +8,10 @@ test("3D is the only exposed map dimension", async ({ page }) => {
     .or(page.getByLabel("Interactive research graph", { exact: true }));
   await expect(graph).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("group", { name: "map dimension" })).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "map layout" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "2D", exact: true })).toHaveCount(0);
   await expect(page.locator(".graph-header")).toContainText(
-    /(?:3D|Compatibility) · semantic frame/,
+    /(?:3D|Compatibility) · [\d,]+ nodes/,
   );
 });
 
