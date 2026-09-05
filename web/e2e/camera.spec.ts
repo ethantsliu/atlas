@@ -142,7 +142,7 @@ test("3D defaults on and a plain focused click keeps idle rotation", async ({
       .getByRole("group", { name: "map dimension" })
       .getByRole("button", { name: "3D", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".auto-rotate-status")).toHaveText("Auto-rotating");
+  await expect(page.locator(".auto-rotate-status")).toHaveCount(0);
 
   const canvas = graph.locator("canvas").first();
   await expect(canvas).toHaveAttribute("data-auto-rotate", "true", {
@@ -174,7 +174,6 @@ test("cloud streaming does not delay immediate rotation", async ({
   const graph = page.getByLabel("Interactive 3D research graph", { exact: true });
   await expect(graph).toBeVisible({ timeout: 20_000 });
   const canvas = graph.locator("canvas").first();
-  await expect(page.locator(".auto-rotate-status")).toHaveText("Auto-rotating");
   await expect(canvas).toHaveAttribute("data-auto-rotate", "true", {
     timeout: 8_000,
   });
@@ -373,9 +372,7 @@ test("idle orbit yields to input and resumes around the same target", async ({
   expectOrbitPreserved(stillHeld, released);
   expect(Math.abs(released.yaw - stillHeld.yaw)).toBeLessThanOrEqual(1);
 
-  await expect(page.locator(".auto-rotate-status")).toContainText(
-    /Auto-rotate in [1-3]s/,
-  );
+  await expect(canvas).toHaveAttribute("data-auto-rotate-at", /\d+/);
   expect(await waitForOrbit(page, released)).not.toBeNull();
 
   const beforeWheel = cameraSnapshot(await readCameraQuiet(page));
@@ -411,9 +408,7 @@ test("a selected node holds the camera until the inspector closes", async ({
   expectOrbitPreserved(selected, cameraSnapshot(await readCameraQuiet(page)));
 
   await page.getByRole("button", { name: "Close inspector" }).click();
-  await expect(page.locator(".auto-rotate-status")).toContainText(
-    /Auto-rotate in [1-3]s/,
-  );
+  await expect(canvas).toHaveAttribute("data-auto-rotate-at", /\d+/);
   await expect(canvas).toHaveAttribute("data-auto-rotate", "true", {
     timeout: 4_000,
   });

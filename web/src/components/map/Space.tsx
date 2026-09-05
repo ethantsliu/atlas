@@ -116,33 +116,6 @@ function useCloudOpen(selected: boolean) {
   return open;
 }
 
-function RotationStatus({ graphRef }: { graphRef: GraphRef }) {
-  const [label, setLabel] = useState<string | null>(null);
-  useEffect(() => {
-    const update = () => {
-      const canvas = graphRef.current?.renderer().domElement;
-      if (!canvas) return setLabel(null);
-      if (canvas.dataset.autoRotate === "true") {
-        setLabel("Auto-rotating");
-        return;
-      }
-      const deadline = Number(canvas.dataset.autoRotateAt);
-      const seconds = Number.isFinite(deadline)
-        ? Math.max(0, Math.ceil((deadline - Date.now()) / 1_000))
-        : 0;
-      setLabel(seconds > 0 ? `Auto-rotate in ${seconds}s` : null);
-    };
-    update();
-    const timer = window.setInterval(update, 200);
-    return () => window.clearInterval(timer);
-  }, [graphRef]);
-  return label ? (
-    <div className="auto-rotate-status" aria-hidden="true">
-      {label}
-    </div>
-  ) : null;
-}
-
 function stopFrames(
   frame: MutableRefObject<FrameIdle | null>,
   graph: GraphRef,
@@ -410,7 +383,6 @@ function SpaceGraph({
         onNodeRightClick={onNodeRightClick}
         onBackgroundClick={onBackgroundClick}
       />
-      <RotationStatus graphRef={graphRef} />
     </>
   );
 }
