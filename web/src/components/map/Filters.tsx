@@ -86,12 +86,6 @@ export function MapFilters({
             <small>{countForKind(atlas, kind, archiveCount).toLocaleString()}</small>
           </button>
         ))}
-        {archiveCount !== undefined && (
-          <p className="depth-copy">
-            Full map: {archiveCount.toLocaleString()} semantic points +{" "}
-            {atlas.meta.paper_count.toLocaleString()} paper profiles.
-          </p>
-        )}
 
         <div className="divider" />
         <div className="range-label">

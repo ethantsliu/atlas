@@ -25,10 +25,8 @@ describe("MapFilters", () => {
     expect(markup).toContain("Techniques");
     expect(markup).toContain("Ideas");
     expect(markup).toContain("Papers");
-    expect(markup).toContain("Full map: 3,145,393 semantic points");
-    expect(markup).toContain(
-      `${atlas.meta.paper_count.toLocaleString()} paper profiles`,
-    );
+    expect(markup).not.toContain("semantic points");
+    expect(markup).not.toContain("paper profiles");
     expect(markup).not.toContain("Profile reading depth");
     expect(markup).not.toContain("Verified + Full Text");
     expect(markup).not.toContain("Metadata");
