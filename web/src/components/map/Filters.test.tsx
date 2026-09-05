@@ -4,7 +4,7 @@ import { makeAtlas } from "../../test/fixtures";
 import { MapFilters } from "./Filters";
 
 describe("MapFilters", () => {
-  it("separates mapped-paper inventory from Atlas reading-depth coverage", () => {
+  it("shows the mapped-paper inventory without unrelated reading-depth coverage", () => {
     const atlas = makeAtlas();
     atlas.meta.idea_count = 289;
     const markup = renderToStaticMarkup(
@@ -25,17 +25,14 @@ describe("MapFilters", () => {
     expect(markup).toContain("Techniques");
     expect(markup).toContain("Ideas");
     expect(markup).toContain("Papers");
-    expect(markup).toContain("3,145,393 semantic map points");
+    expect(markup).toContain("Full map: 3,145,393 semantic points");
     expect(markup).toContain(
       `${atlas.meta.paper_count.toLocaleString()} paper profiles`,
     );
-    expect(markup).toContain(
-      `Profile reading depth · ${atlas.coverage.collection_entries.toLocaleString()} papers`,
-    );
-    expect(markup).toContain("not the full semantic map");
-    expect(markup).toContain(
-      `aria-label="Reading depth for ${atlas.coverage.collection_entries.toLocaleString()} paper profiles"`,
-    );
+    expect(markup).not.toContain("Profile reading depth");
+    expect(markup).not.toContain("Verified + Full Text");
+    expect(markup).not.toContain("Metadata");
+    expect(markup).not.toContain("Context");
     expect(markup).not.toContain("mapped by semantic similarity");
   });
 });

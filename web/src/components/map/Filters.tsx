@@ -1,11 +1,8 @@
 import { useState } from "react";
 import { ChevronDown, SlidersHorizontal, X } from "lucide-react";
-import { getCoverageSnapshot } from "../../lib/coverage";
 import { ALL_NODE_KINDS, NODE_COLORS } from "../../lib/graph";
 import type { GraphNodeKind } from "../../types";
 import type { AtlasRead } from "../../lib/payload";
-
-import { CoverageMini } from "../shared/Coverage";
 
 type MapFiltersProps = {
   atlas: AtlasRead;
@@ -52,7 +49,6 @@ export function MapFilters({
   onMinFeasibilityChange,
   onClearFocus,
 }: MapFiltersProps) {
-  const coverage = getCoverageSnapshot(atlas);
   const [mobileExpanded, setMobileExpanded] = useState(false);
 
   return (
@@ -92,7 +88,7 @@ export function MapFilters({
         ))}
         {archiveCount !== undefined && (
           <p className="depth-copy">
-            {archiveCount.toLocaleString()} semantic map points +{" "}
+            Full map: {archiveCount.toLocaleString()} semantic points +{" "}
             {atlas.meta.paper_count.toLocaleString()} paper profiles.
           </p>
         )}
@@ -116,23 +112,6 @@ export function MapFilters({
           Practical testability, not scientific importance. Provisional ideas use
           preliminary feasibility estimates.
         </p>
-
-        <div className="divider" />
-        <div className="eyebrow">
-          Profile reading depth · {coverage.collectionEntries.toLocaleString()} papers
-        </div>
-        <p className="depth-copy">
-          These exclusive counts cover only paper profiles—not the full semantic map.
-          Full text is page-anchored; Verified also adds an independent passage and
-          competitor check. Verified + Full Text ={" "}
-          {coverage.fullReadings.toLocaleString()} page-anchored readings.
-        </p>
-        <CoverageMini
-          papers={atlas.papers}
-          counts={coverage.depthCounts}
-          total={coverage.collectionEntries}
-          label={`Reading depth for ${coverage.collectionEntries.toLocaleString()} paper profiles`}
-        />
 
         <div className="divider" />
         <button className="clear-focus" disabled={!focus} onClick={onClearFocus}>
