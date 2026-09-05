@@ -15,6 +15,7 @@ import {
 import type { Theme } from "../hooks/theme";
 import type { GraphNode } from "../types";
 import type { CloudData } from "./cloud";
+import { CLOUD_VERTEX } from "./cloudshader";
 import {
   CLOUD_LOD_MAX,
   CLOUD_REST_MS,
@@ -60,31 +61,6 @@ const VERTEX = `
     vec4 view = modelViewMatrix * vec4(position, 1.0);
     gl_Position = projectionMatrix * view;
     gl_PointSize = pointSize * scale;
-  }
-`;
-
-const CLOUD_VERTEX = `
-  varying vec3 pointColor;
-  varying float pointAlpha;
-  uniform vec3 paperColor;
-  uniform vec3 paperAccent;
-  uniform vec3 paperWarm;
-  uniform float cloudRadius;
-  uniform float pointOpacity;
-  uniform float pointSize;
-  void main() {
-    vec4 view = modelViewMatrix * vec4(position, 1.0);
-    float radius = max(cloudRadius, 0.001);
-    float horizontal = smoothstep(-radius, radius, position.x);
-    float vertical = smoothstep(-radius, radius, position.y);
-    vec3 cool = mix(paperColor, paperAccent, horizontal * 0.58);
-    pointColor = mix(cool, paperWarm, vertical * (0.34 - horizontal * 0.1));
-    float relativeDepth = clamp((-view.z - length(cameraPosition)) / radius, -1.0, 1.0);
-    float radial = smoothstep(0.12, 0.82, length(position) / radius);
-    float density = mix(0.46, 1.0, radial);
-    pointAlpha = pointOpacity * density * mix(1.12, 0.58, relativeDepth * 0.5 + 0.5);
-    gl_Position = projectionMatrix * view;
-    gl_PointSize = pointSize;
   }
 `;
 
@@ -335,11 +311,7 @@ function paperColor(theme: Theme): Color {
   return new Color(theme === "dark" ? "#83b5bf" : "#4f7f89");
 }
 
-function paperColors(theme: Theme): {
-  base: Color;
-  accent: Color;
-  warm: Color;
-} {
+function paperColors(theme: Theme): Record<"base" | "accent" | "warm", Color> {
   return {
     base: paperColor(theme),
     accent: new Color(theme === "dark" ? "#91a8e8" : "#526fa2"),
