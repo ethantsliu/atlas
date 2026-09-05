@@ -201,6 +201,7 @@ test("dark mode follows the system and remembers a choice", async ({ page }) => 
 
 test("connection isolation toggles back to the full map", async ({ page }) => {
   test.setTimeout(90_000);
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto(cloudPath);
   const status = mapStatus(page);
   const fullState = await fullNodes(page);
@@ -265,6 +266,7 @@ test("search excludes the unfiltered historical cloud", async ({ page }) => {
 
 test("paper lens and arrow-key graph navigation stay concise", async ({ page }) => {
   test.setTimeout(90_000);
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto(corePath);
   const filters = page.locator(".filters");
   const showFilters = filters.locator(".mobile-filter-toggle");
