@@ -1,5 +1,11 @@
 import type { CloudData } from "./cloud";
-import type { CameraPoint, CameraView } from "./camera";
+import {
+  read3d,
+  show3d,
+  type Camera3d,
+  type CameraPoint,
+  type CameraView,
+} from "./camera";
 
 export const CLOUD_VIEW_MARGIN = 1.32;
 export const CLOUD_VIEW_HORIZONTAL_BIAS = -0.22;
@@ -97,4 +103,16 @@ export function fitCloudView(
     target,
     radius,
   };
+}
+
+export function showCloudView(
+  data: CloudData,
+  graph: Camera3d,
+  width: number,
+  height: number,
+  duration = 0,
+): boolean {
+  const current = read3d(graph);
+  const next = current && fitCloudView(data, current, width, height);
+  return Boolean(next && show3d(graph, next, duration));
 }

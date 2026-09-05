@@ -373,12 +373,8 @@ describe("3D idle frames", () => {
     expect(run.pending.size).toBe(0);
 
     run.idle.ready(true);
-    expect(run.controls.autoRotate).toBe(false);
-    expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
-      FRAME_ROTATE_WAIT,
-    ]);
-    run.flushDelay(FRAME_ROTATE_WAIT);
     expect(run.controls.autoRotate).toBe(true);
+    expect(run.pending.size).toBe(0);
   });
 
   it("stops on pointer activity and wheel then waits before resuming", () => {
@@ -428,7 +424,7 @@ describe("3D idle frames", () => {
     expect(run.controls.autoRotate).toBe(true);
   });
 
-  it("ignores focus and holds only through active keyboard input", () => {
+  it("ignores focus and keyboard input", () => {
     const run = setup(true);
     run.idle.engineStop();
     run.flushDelay(FRAME_ROTATE_WAIT);
@@ -438,24 +434,12 @@ describe("3D idle frames", () => {
     expect(run.controls.autoRotate).toBe(true);
     expect(run.pending.size).toBe(0);
 
-    const keyResumes = run.resumeAnimation.mock.calls.length;
-    run.key("keydown", "Enter");
-    expect(run.controls.autoRotate).toBe(false);
-    expect(run.resumeAnimation).toHaveBeenCalledTimes(keyResumes);
-    expect(run.pending.size).toBe(0);
-    run.key("keyup", "Enter");
-    expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
-      FRAME_ROTATE_WAIT,
-    ]);
-    run.flushDelay(FRAME_ROTATE_WAIT);
-    expect(run.controls.autoRotate).toBe(true);
-
-    run.key("keydown", "Space");
-    expect(run.controls.autoRotate).toBe(false);
-    run.key("keyup", "Space");
-    expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
-      FRAME_ROTATE_WAIT,
-    ]);
+    for (const key of ["Enter", "Space", "MetaLeft"]) {
+      run.key("keydown", key);
+      run.key("keyup", key);
+      expect(run.controls.autoRotate).toBe(true);
+      expect(run.pending.size).toBe(0);
+    }
   });
 
   it("continues rotation after a plain click and ignores focus or hover", () => {

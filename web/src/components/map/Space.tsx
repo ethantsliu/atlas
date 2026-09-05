@@ -31,8 +31,8 @@ import {
 } from "../../hooks/idle";
 import { graphEndpointId, graphKey, largestGroup, splitPapers } from "../../lib/graph";
 import { showLink } from "../../lib/quality";
-import { formatCamera, read3d, show3d, type CameraView } from "../../lib/camera";
-import { fitCloudView } from "../../lib/cloudframe";
+import { formatCamera, type CameraView } from "../../lib/camera";
+import { showCloudView } from "../../lib/cloudframe";
 import { buildNode } from "../../lib/scene";
 import { labelOf } from "../../lib/text";
 import type { GraphData, GraphLink, GraphNode } from "../../types";
@@ -244,6 +244,7 @@ function useCloudFit(
   camera: CameraView | null,
   selected: GraphNode | null,
   active: boolean,
+  viewReady: boolean,
   width: number,
   height: number,
 ) {
@@ -254,30 +255,25 @@ function useCloudFit(
   useEffect(() => {
     const canvas = graphRef.current?.renderer().domElement;
     if (!canvas) return;
-    const keyboard = canvas.ownerDocument ?? document;
     const cancel = () => {
       pending.current = false;
     };
     canvas.addEventListener("pointerdown", cancel, true);
     canvas.addEventListener("wheel", cancel, true);
-    keyboard.addEventListener("keydown", cancel, true);
     return () => {
       canvas.removeEventListener("pointerdown", cancel, true);
       canvas.removeEventListener("wheel", cancel, true);
-      keyboard.removeEventListener("keydown", cancel, true);
     };
   }, [graphRef]);
   useEffect(() => {
     const graph = graphRef.current;
     if (!graph) return;
-    const fit = (_duration = 0) => {
+    const fit = (duration = 0) => {
+      if (camera || selected) return false;
       if (!cloud || cloud.loaded !== cloud.positions.length / 3) return false;
-      const current = read3d(graph);
-      const next = current && fitCloudView(cloud, current, width, height);
-      if (!next) return false;
+      if (!showCloudView(cloud, graph, width, height, duration)) return false;
       pending.current = false;
       fitRef.current = false;
-      show3d(graph, next, 0);
       frame.current?.wake();
       return true;
     };
@@ -285,13 +281,15 @@ function useCloudFit(
     return () => {
       if (graph.atlasFitCloud === fit) delete graph.atlasFitCloud;
     };
-  }, [cloud, cloud?.loaded, fitRef, frame, graphRef, height, width]);
+  }, [camera, cloud, cloud?.loaded, fitRef, frame, graphRef, height, selected, width]);
   useEffect(() => {
-    if (!pending.current || !active || !cloud) return;
+    if (!pending.current || !active || !viewReady || camera || selected || !cloud) {
+      return;
+    }
     if (cloud.loaded !== cloud.positions.length / 3) return;
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     graphRef.current?.atlasFitCloud?.(layoutTime(Boolean(reduced), 700));
-  }, [active, cloud, cloud?.loaded, frame, graphRef, height, width]);
+  }, [active, camera, cloud, cloud?.loaded, graphRef, selected, viewReady]);
 }
 
 function useSpaceQuality(
@@ -430,6 +428,7 @@ export function GraphSpace({
     camera,
     selected,
     !cloudHidden && layout === "semantic",
+    viewReady,
     width,
     height,
   );

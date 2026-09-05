@@ -1,11 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { CloudData } from "./cloud";
+import type { Camera3d } from "./camera";
 import {
   CLOUD_VIEW_HORIZONTAL_BIAS,
   CLOUD_VIEW_MARGIN,
   CLOUD_VIEW_VERTICAL_BIAS,
   cloudFrame,
   fitCloudView,
+  showCloudView,
 } from "./cloudframe";
 
 function cloud(positions: number[], loaded = positions.length / 3): CloudData {
@@ -62,5 +64,19 @@ describe("cloud camera frame", () => {
     const fitted = fitCloudView(data, view, 800, 800);
 
     expect(fitted?.target[1]).toBeGreaterThan(0);
+  });
+
+  it("smoothly applies a completed cloud frame", () => {
+    const data = cloud([-10, 0, 0, 10, 0, 0]);
+    const cameraPosition = vi.fn();
+    const graph = {
+      camera: () => ({ position: { x: 0, y: 0, z: 40 }, fov: 50 }),
+      controls: () => ({ target: { x: 0, y: 0, z: 0 } }),
+      cameraPosition,
+    } as unknown as Camera3d;
+
+    expect(showCloudView(data, graph, 800, 400, 700)).toBe(true);
+    expect(cameraPosition).toHaveBeenCalledOnce();
+    expect(cameraPosition.mock.calls[0]?.[2]).toBe(700);
   });
 });

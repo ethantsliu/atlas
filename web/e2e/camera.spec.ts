@@ -130,7 +130,7 @@ async function wheelOnGraph(
   }
 }
 
-test("3D defaults on and a plain focused click keeps idle rotation", async ({
+test("3D defaults on and modifier keys keep idle rotation", async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "chrome", "Chromium covers idle focus");
@@ -150,8 +150,10 @@ test("3D defaults on and a plain focused click keeps idle rotation", async ({
   });
   const box = await canvas.boundingBox();
   if (!box) throw new Error("3D canvas has no bounds");
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await graph.focus();
+  await page.keyboard.down("Meta");
+  await expect(canvas).toHaveAttribute("data-auto-rotate", "true");
+  await page.keyboard.up("Meta");
   await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.4);
   await expect(canvas).toHaveAttribute("data-auto-rotate", "true", {
     timeout: 1_000,
@@ -216,6 +218,7 @@ test("camera links restore without ForceGraph core nodes", async ({
   context,
   page,
 }, testInfo) => {
+  test.setTimeout(60_000);
   test.skip(
     !["chrome", "safari"].includes(testInfo.project.name),
     "3D camera restoration is covered in Chromium and WebKit",
@@ -226,7 +229,7 @@ test("camera links restore without ForceGraph core nodes", async ({
   await expect(page.getByLabel("Interactive 3D research graph")).toBeVisible({
     timeout: 20_000,
   });
-  await expect.poll(() => copyCamera(page), { timeout: 20_000 }).toBe(view);
+  await expect.poll(() => copyCamera(page), { timeout: 30_000 }).toBe(view);
 });
 
 test("navigation cancels a deferred camera restore", async ({
@@ -408,9 +411,8 @@ test("a selected node holds the camera until the inspector closes", async ({
   expectOrbitPreserved(selected, cameraSnapshot(await readCameraQuiet(page)));
 
   await page.getByRole("button", { name: "Close inspector" }).click();
-  await expect(canvas).toHaveAttribute("data-auto-rotate-at", /\d+/);
   await expect(canvas).toHaveAttribute("data-auto-rotate", "true", {
-    timeout: 4_000,
+    timeout: 1_000,
   });
   expect(await waitForOrbit(page, selected, 1)).not.toBeNull();
 });

@@ -63,7 +63,6 @@ type IdleState = {
   everReady: boolean;
   hidden: boolean;
   hiddenAt: number | null;
-  keys: Set<string>;
   paused: boolean;
   pending: number;
   pointerChanged: boolean;
@@ -194,6 +193,10 @@ function makeIdleLifecycle(
     rest();
   };
   const touch = () => {
+    if (state.rotating) {
+      wake();
+      return;
+    }
     stopRotate();
     wake();
     armRotate();
@@ -234,15 +237,13 @@ function makeIdleLifecycle(
       state.hiddenAt ??= actions.now();
       return;
     }
-    if (firstReady) beginRotate();
-    else armRotate();
+    beginRotate();
   };
   const visibility = (hidden: boolean) => {
     state.hidden = hidden;
     if (hidden) {
       state.resumeRotation = state.rotating;
       state.hiddenAt = state.resumeRotation ? actions.now() : null;
-      state.keys.clear();
       state.pointers.clear();
       state.pointerChanged = false;
       state.pointerOrigins.clear();
@@ -337,7 +338,6 @@ function makeIdleCore(
     if (
       state.running ||
       state.controlActive ||
-      state.keys.size > 0 ||
       state.pointers.size > 0 ||
       controls.autoRotate
     ) {
@@ -353,7 +353,6 @@ function makeIdleCore(
     state.hidden ||
     !state.ready ||
     state.controlActive ||
-    state.keys.size > 0 ||
     state.pointers.size > 0;
   const beginRotate = () => {
     if (!canRotate || blocked()) return;
@@ -484,20 +483,6 @@ function bindIdle(
     else rearm();
     state.pointerRotating = false;
   };
-  const keyName = (event: Event) => {
-    const keyboard = event as KeyboardEvent;
-    return keyboard.code || keyboard.key;
-  };
-  const keyPress = (event: Event) => {
-    state.keys.add(keyName(event));
-    stopInput();
-  };
-  const keyRelease = (event: Event) => {
-    state.keys.delete(keyName(event));
-    if (state.keys.size === 0 && state.pointers.size === 0 && !state.controlActive) {
-      rearm();
-    }
-  };
   const wheel = () => rearm();
   const change = () => {
     if (!controls.autoRotate) {
@@ -512,10 +497,8 @@ function bindIdle(
   canvas.addEventListener("pointermove", probe, true);
   pressTarget.addEventListener("pointerdown", press, true);
   pressTarget.addEventListener("pointermove", drag, true);
-  pressTarget.addEventListener("keydown", keyPress, true);
   releaseTarget.addEventListener("pointerup", release, true);
   releaseTarget.addEventListener("pointercancel", release, true);
-  releaseTarget.addEventListener("keyup", keyRelease, true);
   canvas.addEventListener("wheel", wheel, true);
   return () => {
     cancelDraw();
@@ -533,10 +516,8 @@ function bindIdle(
     canvas.removeEventListener("pointermove", probe, true);
     pressTarget.removeEventListener("pointerdown", press, true);
     pressTarget.removeEventListener("pointermove", drag, true);
-    pressTarget.removeEventListener("keydown", keyPress, true);
     releaseTarget.removeEventListener("pointerup", release, true);
     releaseTarget.removeEventListener("pointercancel", release, true);
-    releaseTarget.removeEventListener("keyup", keyRelease, true);
     canvas.removeEventListener("wheel", wheel, true);
   };
 }
@@ -560,7 +541,6 @@ export function makeFrameIdle(
     everReady: false,
     hidden: false,
     hiddenAt: null,
-    keys: new Set(),
     paused: false,
     pending: 0,
     pointerChanged: false,
