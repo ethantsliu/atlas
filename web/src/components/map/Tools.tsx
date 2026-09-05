@@ -8,7 +8,6 @@ import type { RenderMode } from "./Controls";
 import { CenterButton } from "./Center";
 import { LayoutControl } from "./Layout";
 import { NodePicker } from "./Picker";
-import { ViewControl } from "./View";
 
 type ToolsProps = {
   graphRef: GraphRef;
@@ -16,11 +15,9 @@ type ToolsProps = {
   height: number;
   layout: LayoutMode;
   mode: RenderMode;
-  render: RenderMode;
   nodes: GraphNode[];
   onChoose: (node: GraphNode) => void;
   onLayout: (mode: LayoutMode) => void;
-  onRender: (mode: RenderMode) => void;
   selected: GraphNode | null;
   selectedId: string;
   shareUrl: (camera?: CameraView | null, render?: RenderMode) => string;
@@ -32,11 +29,9 @@ export function GraphTools({
   height,
   layout,
   mode,
-  render,
   nodes,
   onChoose,
   onLayout,
-  onRender,
   selected,
   selectedId,
   shareUrl,
@@ -44,7 +39,6 @@ export function GraphTools({
   return (
     <>
       <NodePicker nodes={nodes} selectedId={selectedId} onChoose={onChoose} />
-      <ViewControl mode={mode} onChange={onRender} />
       <LayoutControl mode={layout} onChange={onLayout} />
       {selected && (
         <CenterButton
@@ -61,7 +55,7 @@ export function GraphTools({
             mode === "3d"
               ? read3d(graphRef.current)
               : read2d(fallbackRef.current, height),
-            render,
+            "3d",
           )
         }
       />

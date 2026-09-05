@@ -25,7 +25,7 @@ export function GraphControls({
       <div className="graph-header">
         <div>
           <span className="live-dot" />
-          {`${mode === "3d" ? `3D · ${space}` : `2D overview · ${space}`} · ${count.toLocaleString()} nodes`}
+          {`${mode === "3d" ? `3D · ${space}` : `Compatibility · ${space}`} · ${count.toLocaleString()} nodes`}
         </div>
       </div>
 

@@ -3,18 +3,9 @@ import { expect, test, type Page } from "@playwright/test";
 const engines = new Set(["chrome", "safari", "iphone"]);
 
 async function loadGraph(page: Page, project: string) {
-  await page.goto("/#?d=2&k=tri&s=topic%3Apre-training");
-  if (project !== "iphone") {
-    await page
-      .getByRole("group", { name: "map dimension" })
-      .getByRole("button", { name: "3D", exact: true })
-      .click();
-  }
-  const label =
-    project === "iphone"
-      ? "Interactive research graph"
-      : "Interactive 3D research graph";
-  return page.getByLabel(label, { exact: true });
+  void project;
+  await page.goto("/#?k=tri&s=topic%3Apre-training");
+  return page.getByLabel("Interactive 3D research graph", { exact: true });
 }
 
 test("keyboard close restores graph focus", async ({ page }, testInfo) => {

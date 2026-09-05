@@ -12,9 +12,9 @@ export function WebglStatus({ status, requested, onRetry }: StatusProps) {
   if (status === "ready" || requested === "2d") return null;
   const message =
     status === "lost"
-      ? "3D stopped; using the 2D fallback."
+      ? "3D stopped; showing the compatibility view."
       : status === "unsupported"
-        ? "3D unavailable; using the 2D fallback."
+        ? "3D unavailable; showing the compatibility view."
         : "Checking 3D…";
   return (
     <aside className="graph-status" role="status" aria-live="polite" aria-atomic="true">

@@ -11,7 +11,7 @@ describe("WebglStatus", () => {
     expect(markup).toContain('role="status"');
     expect(markup).toContain('aria-live="polite"');
     expect(markup).toContain("3D stopped");
-    expect(markup).toContain("2D fallback");
+    expect(markup).toContain("compatibility view");
     expect(markup).toContain("Retry 3D");
   });
 

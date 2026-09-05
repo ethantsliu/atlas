@@ -244,7 +244,6 @@ export function MapView({
         viewReady={ready.view}
         shareUrl={shareUrl}
         onLayout={(layout) => onReplace({ layout })}
-        onRender={(render) => onPush({ render })}
       />
       <PanelResize />
       <Inspector

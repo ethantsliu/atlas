@@ -67,12 +67,22 @@ const CLOUD_VERTEX = `
   varying vec3 pointColor;
   varying float pointAlpha;
   uniform vec3 paperColor;
+  uniform vec3 paperAccent;
+  uniform vec3 paperWarm;
+  uniform float cloudRadius;
   uniform float pointOpacity;
   uniform float pointSize;
   void main() {
-    pointColor = paperColor;
-    pointAlpha = pointOpacity;
     vec4 view = modelViewMatrix * vec4(position, 1.0);
+    float radius = max(cloudRadius, 0.001);
+    float horizontal = smoothstep(-radius, radius, position.x);
+    float vertical = smoothstep(-radius, radius, position.y);
+    vec3 cool = mix(paperColor, paperAccent, horizontal * 0.58);
+    pointColor = mix(cool, paperWarm, vertical * (0.34 - horizontal * 0.1));
+    float relativeDepth = clamp((-view.z - length(cameraPosition)) / radius, -1.0, 1.0);
+    float radial = smoothstep(0.12, 0.82, length(position) / radius);
+    float density = mix(0.46, 1.0, radial);
+    pointAlpha = pointOpacity * density * mix(1.12, 0.58, relativeDepth * 0.5 + 0.5);
     gl_Position = projectionMatrix * view;
     gl_PointSize = pointSize;
   }
@@ -301,7 +311,9 @@ function cloudMaterial(
   pointSize: number,
   pointOpacity: number,
   theme: Theme,
+  radius: number,
 ): ShaderMaterial {
+  const colors = paperColors(theme);
   return new ShaderMaterial({
     vertexShader: CLOUD_VERTEX,
     fragmentShader: FRAGMENT,
@@ -309,8 +321,11 @@ function cloudMaterial(
     depthTest: true,
     depthWrite: false,
     uniforms: {
+      cloudRadius: { value: Math.max(radius, Number.EPSILON) },
       pointSize: { value: pointSize },
-      paperColor: { value: paperColor(theme) },
+      paperColor: { value: colors.base },
+      paperAccent: { value: colors.accent },
+      paperWarm: { value: colors.warm },
       pointOpacity: { value: pointOpacity },
     },
   });
@@ -318,6 +333,18 @@ function cloudMaterial(
 
 function paperColor(theme: Theme): Color {
   return new Color(theme === "dark" ? "#83b5bf" : "#4f7f89");
+}
+
+function paperColors(theme: Theme): {
+  base: Color;
+  accent: Color;
+  warm: Color;
+} {
+  return {
+    base: paperColor(theme),
+    accent: new Color(theme === "dark" ? "#91a8e8" : "#526fa2"),
+    warm: new Color(theme === "dark" ? "#dfa6bb" : "#a96578"),
+  };
 }
 
 function setTone(points: CloudSwarm, moving: boolean): void {
@@ -447,7 +474,7 @@ export function buildCloud(
   const opacity = cloudOpacity(count);
   const points = new Points(
     geometry,
-    cloudMaterial(size, opacity, theme),
+    cloudMaterial(size, opacity, theme, data.radius),
   ) as CloudSwarm;
   points.name = "archive-cloud";
   points.renderOrder = 1;
@@ -497,6 +524,7 @@ export function growCloud(points: CloudSwarm, data: CloudData): void {
   if (store.dropped) return;
   store.data = data;
   points.geometry.boundingSphere!.radius = Math.max(data.radius, Number.EPSILON);
+  points.material.uniforms.cloudRadius.value = Math.max(data.radius, Number.EPSILON);
   if (store.frame || store.loaded >= data.loaded) return;
   store.frame = requestAnimationFrame(() => {
     store.frame = 0;

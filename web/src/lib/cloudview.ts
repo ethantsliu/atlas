@@ -54,8 +54,8 @@ export function cloudSize(count: number): number {
 }
 
 export function cloudOpacity(count: number): number {
-  if (count >= 5_000_000) return 0.24;
-  if (count >= 3_000_000) return 0.3;
+  if (count >= 5_000_000) return 0.14;
+  if (count >= 3_000_000) return 0.18;
   if (count >= 1_000_000) return 0.42;
   if (count >= 250_000) return 0.6;
   if (count >= 100_000) return 0.78;

@@ -1236,11 +1236,11 @@ test("context loss falls back to 2D", async ({ page }) => {
       .first()
       .dispatchEvent("webglcontextlost");
     await expect(page.getByLabel("Interactive research graph")).toContainText(
-      "2D overview · semantic frame",
+      "Compatibility · semantic frame",
     );
     await expect(
       page.locator(".graph-status").filter({
-        hasText: "3D stopped; using the 2D fallback.",
+        hasText: "3D stopped; showing the compatibility view.",
       }),
     ).toBeVisible();
     await page.getByRole("button", { name: "Retry 3D" }).click();
@@ -1253,7 +1253,7 @@ test("context loss falls back to 2D", async ({ page }) => {
   } else {
     await expect(
       page.locator(".graph-status").filter({
-        hasText: "3D unavailable; using the 2D fallback.",
+        hasText: "3D unavailable; showing the compatibility view.",
       }),
     ).toBeVisible();
     await expect(

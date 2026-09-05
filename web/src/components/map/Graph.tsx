@@ -52,7 +52,6 @@ type GraphCanvasProps = {
   render: RenderMode;
   shareUrl: (camera?: CameraView | null, render?: RenderMode) => string;
   onLayout: (mode: LayoutMode) => void;
-  onRender: (mode: RenderMode) => void;
   camera: CameraView | null;
   cameraReady: boolean;
   viewReady: boolean;
@@ -253,7 +252,6 @@ export function GraphCanvas({
   render,
   shareUrl,
   onLayout,
-  onRender,
   camera,
   cameraReady,
   viewReady,
@@ -312,11 +310,9 @@ export function GraphCanvas({
               height={viewportHeight}
               layout={layout}
               mode={mode}
-              render={render}
               nodes={graph.nodes}
               onChoose={onChoose}
               onLayout={onLayout}
-              onRender={onRender}
               selected={selected}
               selectedId={selectedId}
               shareUrl={shareUrl}

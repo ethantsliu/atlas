@@ -137,11 +137,8 @@ test("3D defaults on and modifier keys keep idle rotation", async ({
   await page.goto("/#?k=tri");
   const graph = page.getByLabel("Interactive 3D research graph", { exact: true });
   await expect(graph).toBeVisible({ timeout: 20_000 });
-  await expect(
-    page
-      .getByRole("group", { name: "map dimension" })
-      .getByRole("button", { name: "3D", exact: true }),
-  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("group", { name: "map dimension" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "2D", exact: true })).toHaveCount(0);
   await expect(page.locator(".auto-rotate-status")).toHaveCount(0);
 
   const canvas = graph.locator("canvas").first();

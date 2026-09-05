@@ -49,7 +49,7 @@ describe("paper swarm", () => {
     expect(cloudSize(5_000_000)).toBe(1);
     expect(cloudOpacity(100_000)).toBe(0.78);
     expect(cloudOpacity(1_000_000)).toBe(0.42);
-    expect(cloudOpacity(5_000_000)).toBe(0.24);
+    expect(cloudOpacity(5_000_000)).toBe(0.14);
   });
 
   it("makes an even deterministic motion level", () => {
@@ -72,7 +72,7 @@ describe("paper swarm", () => {
     expect(motionTone(80_000)).toEqual({ opacity: 0.96, size: 4.8 });
     expect(motionTone(225_000)).toEqual(cloudTone(225_000));
     expect(motionTone(3_151_000).size).toBeCloseTo(2.64);
-    expect(motionTone(3_151_000).opacity).toBeCloseTo(0.495);
+    expect(motionTone(3_151_000).opacity).toBeCloseTo(0.297);
     expect(motionTone(3_151_000).size / cloudSize(3_151_000)).toBeLessThanOrEqual(2.2);
     expect(motionTone(3_151_000).opacity).toBeLessThanOrEqual(0.72);
   });
@@ -109,9 +109,13 @@ describe("paper swarm", () => {
     expect(cloud.geometry.getAttribute("opacity")).toBeUndefined();
     expect(cloud.geometry.getAttribute("scale")).toBeUndefined();
     expect(cloud.material.uniforms.paperColor.value.getHexString()).toBe("83b5bf");
+    expect(cloud.material.uniforms.paperAccent.value.getHexString()).toBe("91a8e8");
+    expect(cloud.material.uniforms.paperWarm.value.getHexString()).toBe("dfa6bb");
+    expect(cloud.material.uniforms.cloudRadius.value).toBe(9);
     expect(cloud.material.uniforms.pointOpacity.value).toBe(0.96);
     expect(cloud.material.uniforms.pointSize.value).toBe(4.8);
     expect(cloud.material.vertexShader).not.toContain("scope");
+    expect(cloud.material.vertexShader).toContain("relativeDepth");
 
     moveCloud(cloud);
     expect(cloud.userData.moving).toBe(true);
@@ -345,13 +349,13 @@ describe("paper swarm", () => {
       expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.coarse);
       expect(cloud.geometry.drawRange.count).toBe(100_000);
       expect(cloud.material.uniforms.pointSize.value).toBeCloseTo(2.64);
-      expect(cloud.material.uniforms.pointOpacity.value).toBeCloseTo(0.495);
+      expect(cloud.material.uniforms.pointOpacity.value).toBeCloseTo(0.297);
 
       restCloud(cloud);
       expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.coarse);
       expect(cloud.geometry.drawRange.count).toBe(100_000);
       expect(cloud.material.uniforms.pointSize.value).toBeCloseTo(2.64);
-      expect(cloud.material.uniforms.pointOpacity.value).toBeCloseTo(0.495);
+      expect(cloud.material.uniforms.pointOpacity.value).toBeCloseTo(0.297);
     } finally {
       dropCloud(cloud);
       cloud.geometry.dispose();
@@ -384,7 +388,7 @@ describe("paper swarm", () => {
       expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.full);
       expect(cloud.geometry.drawRange.count).toBe(count);
       expect(cloud.material.uniforms.pointSize.value).toBe(1.2);
-      expect(cloud.material.uniforms.pointOpacity.value).toBe(0.3);
+      expect(cloud.material.uniforms.pointOpacity.value).toBe(0.18);
 
       moveCloud(cloud, redraw);
       expect(cloud.geometry.getAttribute("position")).toBe(cloud.userData.full);
