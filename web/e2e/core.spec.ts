@@ -875,6 +875,7 @@ test("foreground paper points open the visible paper", async ({ page }, testInfo
     !["chrome", "safari"].includes(testInfo.project.name),
     "Foreground point picking requires hosted 3D support",
   );
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 1_440, height: 900 });
   const target = await foregroundTarget();
   await watchCopy(page);
