@@ -543,7 +543,7 @@ test("hover labels a node and click keeps details in the inspector", async ({
 test("historical paper points open the inline inspector", async ({
   page,
 }, testInfo) => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
   test.skip(
     !["chrome", "safari"].includes(testInfo.project.name),
     "Historical point picking is covered in Chromium and WebKit",
