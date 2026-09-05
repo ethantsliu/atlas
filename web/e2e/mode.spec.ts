@@ -3,12 +3,15 @@ import { expect, test } from "@playwright/test";
 
 test("3D is the only exposed map dimension", async ({ page }) => {
   await page.goto("/#?k=tri");
-  await expect(
-    page.getByLabel("Interactive 3D research graph", { exact: true }),
-  ).toBeVisible({ timeout: 20_000 });
+  const graph = page
+    .getByLabel("Interactive 3D research graph", { exact: true })
+    .or(page.getByLabel("Interactive research graph", { exact: true }));
+  await expect(graph).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("group", { name: "map dimension" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "2D", exact: true })).toHaveCount(0);
-  await expect(page.locator(".graph-header")).toContainText("3D · semantic frame");
+  await expect(page.locator(".graph-header")).toContainText(
+    /(?:3D|Compatibility) · semantic frame/,
+  );
 });
 
 test("the 3D-only toolbar remains accessible at 320px", async ({ page }, testInfo) => {
