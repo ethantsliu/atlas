@@ -7,20 +7,9 @@ const LEGEND_LABELS = {
   idea: "Ideas",
 } as const;
 
-export function GraphLegend({ archive }: { archive: boolean }) {
+export function GraphLegend() {
   return (
     <div className="legend">
-      {archive && (
-        <span>
-          <i
-            style={{
-              background: NODE_COLORS.paper,
-              opacity: 0.4,
-            }}
-          />
-          Archive papers
-        </span>
-      )}
       {ALL_NODE_KINDS.map((kind) => (
         <span key={kind}>
           <i className={kind} style={{ background: NODE_COLORS[kind] }} />

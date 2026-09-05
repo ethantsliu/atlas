@@ -266,9 +266,6 @@ export function GraphCanvas({
   const hasContent = visibleCount > 0;
   const viewportTop = chromeHeight ? chromeHeight + 10 : width <= 480 ? 104 : 54;
   const viewportHeight = Math.max(0, height - viewportTop);
-  const archive = Boolean(
-    cloudReady && !cloudHidden && cloud?.loaded && layout === "semantic",
-  );
   const resetView = useCallback(
     () => resetGraphView(mode, graphRef, fallbackRef),
     [fallbackRef, graphRef, mode],
@@ -349,7 +346,7 @@ export function GraphCanvas({
           onClear={onClearSelection}
         />
 
-        {hasContent && <GraphLegend archive={archive} />}
+        {hasContent && <GraphLegend />}
       </section>
     </>
   );

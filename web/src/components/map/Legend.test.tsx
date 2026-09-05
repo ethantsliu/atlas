@@ -4,7 +4,7 @@ import { GraphLegend } from "./Legend";
 
 describe("GraphLegend", () => {
   it("shows only graph object kinds", () => {
-    const html = renderToStaticMarkup(<GraphLegend archive={false} />);
+    const html = renderToStaticMarkup(<GraphLegend />);
 
     for (const label of ["Topics", "Techniques", "Papers", "Ideas"]) {
       expect(html).toContain(label);
@@ -14,10 +14,9 @@ describe("GraphLegend", () => {
     expect(html).not.toContain("archive context");
   });
 
-  it("distinguishes archive papers from foreground papers", () => {
-    const html = renderToStaticMarkup(<GraphLegend archive />);
-    expect(html).toContain("Archive papers");
-    expect(html).toContain("Papers");
-    expect(html).not.toContain("Curated");
+  it("presents every paper depth as one Papers category", () => {
+    const html = renderToStaticMarkup(<GraphLegend />);
+    expect(html.match(/Papers/g)).toHaveLength(1);
+    expect(html).not.toContain("Archive papers");
   });
 });
