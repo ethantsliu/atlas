@@ -9,6 +9,7 @@ import {
   FRAME_ROTATE_WAIT,
   FRAME_TILT_FREQUENCY,
   FRAME_TILT_RATE,
+  FRAME_YAW_RATE,
   enableCursorZoom,
   makeFrameIdle,
   tiltControl,
@@ -285,9 +286,11 @@ describe("3D idle frames", () => {
     expect(run.resumeRotations).toEqual([false]);
     run.flushFrames();
     run.flushFrames();
+    expect(run.controls.object?.position.x).not.toBe(0);
     expect(run.controls.object?.position.y).not.toBe(0);
     expect(FRAME_TILT_FREQUENCY).toBeGreaterThan(0);
     expect(FRAME_TILT_RATE).toBeGreaterThan(0);
+    expect(FRAME_YAW_RATE).toBeGreaterThan(0);
     expect(run.pending.size).toBe(0);
   });
 

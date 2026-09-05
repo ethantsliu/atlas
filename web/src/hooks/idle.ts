@@ -2,7 +2,8 @@ import { beginAutoChange } from "./control";
 
 export const FRAME_IDLE_WAIT = 240;
 export const FRAME_ROTATE_WAIT = 5_000;
-export const FRAME_ROTATE_SPEED = 1.25;
+export const FRAME_ROTATE_SPEED = 0;
+export const FRAME_YAW_RATE = 0.22;
 export const FRAME_TILT_RATE = 0.068;
 export const FRAME_TILT_FREQUENCY = 0.4;
 
@@ -84,24 +85,39 @@ type IdleCore = Omit<FrameIdle, "dispose"> & {
   stopRotate: () => void;
 };
 
-export function tiltControl(controls: FrameControl, angle: number): boolean {
+export function orbitControl(
+  controls: FrameControl,
+  yawAngle: number,
+  pitchAngle: number,
+): boolean {
   const position = controls.object?.position;
   const target = controls.target;
-  if (!position || !target || !Number.isFinite(angle)) return false;
+  if (
+    !position ||
+    !target ||
+    !Number.isFinite(yawAngle) ||
+    !Number.isFinite(pitchAngle)
+  ) {
+    return false;
+  }
   const dx = position.x - target.x;
   const dy = position.y - target.y;
   const dz = position.z - target.z;
   const radius = Math.hypot(dx, dy, dz);
   if (!Number.isFinite(radius) || radius < 0.01) return false;
   const polar = Math.acos(Math.max(-1, Math.min(1, dy / radius)));
-  const next = Math.max(0.15, Math.min(Math.PI - 0.15, polar - angle));
+  const next = Math.max(0.15, Math.min(Math.PI - 0.15, polar - pitchAngle));
   const level = Math.sin(next) * radius;
-  const yaw = Math.atan2(dx, dz);
+  const yaw = Math.atan2(dx, dz) + yawAngle;
   position.x = target.x + Math.sin(yaw) * level;
   position.y = target.y + Math.cos(next) * radius;
   position.z = target.z + Math.cos(yaw) * level;
   controls.object?.lookAt?.(target);
   return true;
+}
+
+export function tiltControl(controls: FrameControl, angle: number): boolean {
+  return orbitControl(controls, 0, angle);
 }
 
 function watchRotation(
@@ -115,11 +131,12 @@ function watchRotation(
     if (blocked() || !controls.autoRotate) return;
     if (state.rotateStart === 0) state.rotateStart = time;
     if (state.rotateLast > 0) {
-      const seconds = Math.min(0.05, (time - state.rotateLast) / 1_000);
+      const seconds = Math.min(0.1, (time - state.rotateLast) / 1_000);
       const elapsed = (time - state.rotateStart) / 1_000;
-      tiltControl(
+      orbitControl(
         controls,
-        Math.sin(elapsed * FRAME_TILT_FREQUENCY) * FRAME_TILT_RATE * seconds,
+        -FRAME_YAW_RATE * seconds,
+        Math.cos(elapsed * FRAME_TILT_FREQUENCY) * FRAME_TILT_RATE * seconds,
       );
     }
     state.rotateLast = time;
