@@ -1,7 +1,7 @@
 import { beginAutoChange } from "./control";
 
 export const FRAME_IDLE_WAIT = 240;
-export const FRAME_ROTATE_WAIT = 5_000;
+export const FRAME_ROTATE_WAIT = 3_000;
 export const FRAME_ROTATE_SPEED = 0;
 export const FRAME_YAW_RATE = 0.22;
 export const FRAME_TILT_RATE = 0.068;
@@ -60,6 +60,7 @@ export function enableCursorZoom(control: FrameControl | null | undefined): bool
 type IdleState = {
   controlActive: boolean;
   drawPending: number;
+  everReady: boolean;
   hidden: boolean;
   keys: Set<string>;
   paused: boolean;
@@ -77,6 +78,7 @@ type IdleState = {
   rotateStart: number;
   rotating: boolean;
   running: boolean;
+  resumeRotation: boolean;
 };
 
 type IdleCore = Omit<FrameIdle, "dispose"> & {
@@ -165,10 +167,10 @@ function makeIdleLifecycle(
   state: IdleState,
   actions: Pick<
     IdleCore,
-    "armRotate" | "cancel" | "pause" | "resume" | "stopRotate"
+    "armRotate" | "beginRotate" | "cancel" | "pause" | "resume" | "stopRotate"
   > & { rest: (delay?: number) => void },
 ): IdleLifecycle {
-  const { armRotate, cancel, pause, resume, rest, stopRotate } = actions;
+  const { armRotate, beginRotate, cancel, pause, resume, rest, stopRotate } = actions;
   const start = () => {
     state.running = true;
     stopRotate();
@@ -185,14 +187,12 @@ function makeIdleLifecycle(
   };
   const hover = (_active: boolean) => undefined;
   const engineTick = () => {
-    if (state.rotating) return;
     state.running = true;
-    stopRotate();
     cancel();
   };
   const engineStop = (delay = FRAME_IDLE_WAIT) => {
-    if (state.rotating) return;
     state.running = false;
+    if (state.rotating) return;
     rest(delay);
     armRotate();
   };
@@ -208,17 +208,21 @@ function makeIdleLifecycle(
   };
   const ready = (value: boolean) => {
     if (value === state.ready) return;
+    const firstReady = value && !state.everReady;
     state.ready = value;
+    if (value) state.everReady = true;
     if (!value) {
       stopRotate();
       if (!state.running) pause();
       return;
     }
-    armRotate();
+    if (firstReady) beginRotate();
+    else armRotate();
   };
   const visibility = (hidden: boolean) => {
     state.hidden = hidden;
     if (hidden) {
+      state.resumeRotation = state.rotating;
       state.keys.clear();
       state.pointers.clear();
       state.pointerChanged = false;
@@ -231,7 +235,12 @@ function makeIdleLifecycle(
     }
     resume();
     rest();
-    armRotate();
+    if (state.resumeRotation) {
+      state.resumeRotation = false;
+      beginRotate();
+    } else {
+      armRotate();
+    }
   };
   return {
     engineStop,
@@ -317,17 +326,17 @@ function makeIdleCore(
     state.reducedMotion ||
     state.hidden ||
     !state.ready ||
-    state.running ||
     state.controlActive ||
     state.keys.size > 0 ||
     state.pointers.size > 0;
   const beginRotate = () => {
-    if (blocked()) return;
+    if (!canRotate || blocked()) return;
     rotate(true);
     resume();
     watchRotation(controls, loop, state, blocked);
   };
   const armRotate = () => {
+    if (state.rotatePending || state.rotating) return;
     cancelRotate();
     if (!canRotate || blocked()) return;
     if (canvas.dataset) {
@@ -340,6 +349,7 @@ function makeIdleCore(
   };
   const lifecycle = makeIdleLifecycle(state, {
     armRotate,
+    beginRotate,
     cancel,
     pause,
     resume,
@@ -519,6 +529,7 @@ export function makeFrameIdle(
   const state: IdleState = {
     controlActive: false,
     drawPending: 0,
+    everReady: false,
     hidden: false,
     keys: new Set(),
     paused: false,
@@ -536,6 +547,7 @@ export function makeFrameIdle(
     rotateStart: 0,
     rotating: false,
     running: true,
+    resumeRotation: false,
   };
   const core = makeIdleCore(graph, controls, timer, loop, state);
   const dispose = bindIdle(graph, controls, timer, loop, state, core);

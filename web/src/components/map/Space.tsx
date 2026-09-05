@@ -90,15 +90,18 @@ function useCursorZoom(
 }
 
 function useFrameTouch(frame: MutableRefObject<FrameIdle | null>, values: unknown[]) {
-  useEffect(() => frame.current?.touch(), values);
+  const mounted = useRef(false);
+  useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+    frame.current?.touch();
+  }, values);
 }
 
 function useFrameWake(frame: MutableRefObject<FrameIdle | null>, values: unknown[]) {
   useEffect(() => frame.current?.wake(), values);
-}
-
-function useFrameHover(frame: MutableRefObject<FrameIdle | null>, active: boolean) {
-  useEffect(() => frame.current?.hover(active), [active, frame]);
 }
 
 function useFrameReady(frame: MutableRefObject<FrameIdle | null>, ready: boolean) {
@@ -302,7 +305,7 @@ function useCloudFit(
       pending.current = false;
       fitRef.current = false;
       show3d(graph, next, 0);
-      frame.current?.touch();
+      frame.current?.wake();
       return true;
     };
     graph.atlasFitCloud = fit;
@@ -442,6 +445,7 @@ export function GraphSpace({
   const engineReadyRef = useRef(false);
   const fitRef = useRef(!camera);
   const fitKeyRef = useRef<string>();
+  const layoutRef = useRef(layout);
   const controlType = useRef(cameraControl(width)).current;
   const showView = useView(graphRef, camera, viewReady);
   const frameRef = useFrameIdle(graphRef);
@@ -500,7 +504,6 @@ export function GraphSpace({
   visibleCoreRef.current = hoverRank === 3 ? (core.tip?.node ?? null) : null;
   const hovered =
     hoverRank === 3 ? (core.tip?.node ?? null) : hoverRank === 2 ? swarmHovered : null;
-  useFrameHover(frameRef, cloudHit.probing);
   useCorePress(graphRef, visibleCoreRef, pressedCoreRef);
   useMarks({
     graphRef,
@@ -523,22 +526,22 @@ export function GraphSpace({
   }, [camera, topology]);
   useEffect(() => {
     if (graphRef.current) {
-      frameRef.current?.start();
+      const changed = layoutRef.current !== layout;
+      layoutRef.current = layout;
+      if (changed) frameRef.current?.start();
       applyLayout(graphRef.current, layout, engineReadyRef.current);
       graphRef.current.refresh();
     }
   }, [graphRef, layout, simple, topology]);
   useFrameTouch(frameRef, [
-    cloud?.loaded,
     cloudHidden,
     cloudMark,
     formatCamera(camera),
     height,
     theme,
-    topology,
     width,
   ]);
-  useFrameWake(frameRef, [hovered?.id]);
+  useFrameWake(frameRef, [cloud?.loaded, hovered?.id]);
   const activeIds = useMemo(
     () => new Set([selected?.id, hovered?.id].filter(Boolean)),
     [hovered?.id, selected?.id],

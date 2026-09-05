@@ -17,7 +17,13 @@ import {
 
 type Pending = { callback: () => void; delay: number };
 
-function setup(rotate = false, frameTime = 0, frameInterval = 16, ready = true) {
+function setup(
+  rotate = false,
+  frameTime = 0,
+  frameInterval = 16,
+  ready = true,
+  immediate = false,
+) {
   const eventTarget = () => {
     const listeners = new Map<string, Set<(event: Event) => void>>();
     return {
@@ -98,6 +104,7 @@ function setup(rotate = false, frameTime = 0, frameInterval = 16, ready = true) 
     loop,
   );
   idle.ready(ready);
+  if (rotate && ready && !immediate) idle.touch();
   const flush = () => {
     const jobs = [...pending.values()];
     pending.clear();
@@ -262,36 +269,18 @@ describe("3D idle frames", () => {
     expect(run.resumeAnimation).not.toHaveBeenCalled();
   });
 
-  it("starts continuous diagonal rotation after five idle seconds", () => {
-    const run = setup(true);
+  it("starts continuous diagonal rotation as soon as the view is ready", () => {
+    const run = setup(true, 0, 16, true, true);
 
-    run.idle.engineStop();
-    expect([...run.pending.values()].map(({ delay }) => delay).sort()).toEqual([
-      FRAME_IDLE_WAIT,
-      FRAME_ROTATE_WAIT,
-    ]);
-    expect(Number(run.canvas.dataset.autoRotateAt)).toBeGreaterThan(Date.now());
-    run.flushDelay(FRAME_IDLE_WAIT);
-    expect(run.pauseAnimation).toHaveBeenCalledOnce();
-    expect(run.controls.autoRotate).toBe(false);
-
-    const rotationTimer = [...run.pending].find(
-      ([, { delay }]) => delay === FRAME_ROTATE_WAIT,
-    )?.[0];
-    run.emitCanvas("pointermove");
-    expect(
-      [...run.pending].find(([, { delay }]) => delay === FRAME_ROTATE_WAIT)?.[0],
-    ).toBe(rotationTimer);
-    run.flushFrames();
-
-    run.flushDelay(FRAME_ROTATE_WAIT);
     expect(run.controls.autoRotate).toBe(true);
     expect(run.canvas.dataset.autoRotateAt).toBeUndefined();
     expect(run.controls.autoRotateSpeed).toBe(FRAME_ROTATE_SPEED);
-    expect(FRAME_ROTATE_WAIT).toBe(5_000);
-    expect(run.resumeAnimation).toHaveBeenCalledOnce();
-    expect(run.pauseAnimation).toHaveBeenCalledOnce();
-    expect(run.resumeRotations).toEqual([false]);
+    expect(FRAME_ROTATE_WAIT).toBe(3_000);
+    expect(run.resumeAnimation).not.toHaveBeenCalled();
+    expect(run.pauseAnimation).not.toHaveBeenCalled();
+    run.emitCanvas("pointermove");
+    run.flushFrames();
+    expect(run.controls.autoRotate).toBe(true);
     run.flushFrames();
     run.flushFrames();
     expect(run.controls.object?.position.x).not.toBe(0);
@@ -300,6 +289,27 @@ describe("3D idle frames", () => {
     expect(FRAME_TILT_RATE).toBeGreaterThan(0);
     expect(FRAME_YAW_RATE).toBeGreaterThan(0);
     expect(run.pending.size).toBe(0);
+  });
+
+  it("keeps the visible countdown running while the layout settles", () => {
+    const run = setup(true);
+
+    run.emitCanvas("wheel");
+
+    const rotationTimer = [...run.pending].find(
+      ([, { delay }]) => delay === FRAME_ROTATE_WAIT,
+    )?.[0];
+    expect(rotationTimer).toBeDefined();
+
+    run.idle.engineTick();
+    run.idle.engineTick();
+    run.idle.engineStop();
+
+    expect(
+      [...run.pending].find(([, { delay }]) => delay === FRAME_ROTATE_WAIT)?.[0],
+    ).toBe(rotationTimer);
+    run.flushDelay(FRAME_ROTATE_WAIT);
+    expect(run.controls.autoRotate).toBe(true);
   });
 
   it("keeps rotating continuously across slow animation frames", () => {
@@ -328,10 +338,8 @@ describe("3D idle frames", () => {
     ]);
 
     run.idle.ready(true);
-    expect([...run.pending.values()].map(({ delay }) => delay).sort()).toEqual([
-      FRAME_IDLE_WAIT,
-      FRAME_ROTATE_WAIT,
-    ]);
+    expect(run.controls.autoRotate).toBe(true);
+    expect(run.pending.size).toBe(0);
   });
 
   it("stops and pauses continuous rotation when readiness is lost", () => {
@@ -346,6 +354,14 @@ describe("3D idle frames", () => {
     expect(run.pauseAnimation).toHaveBeenCalledOnce();
     expect(run.frames.size).toBe(0);
     expect(run.pending.size).toBe(0);
+
+    run.idle.ready(true);
+    expect(run.controls.autoRotate).toBe(false);
+    expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
+      FRAME_ROTATE_WAIT,
+    ]);
+    run.flushDelay(FRAME_ROTATE_WAIT);
+    expect(run.controls.autoRotate).toBe(true);
   });
 
   it("stops on pointer activity and wheel then waits before resuming", () => {
@@ -443,6 +459,18 @@ describe("3D idle frames", () => {
     expect(run.pending.size).toBe(0);
   });
 
+  it("resumes rotation immediately after returning to the tab", () => {
+    const run = setup(true, 0, 16, true, true);
+    expect(run.controls.autoRotate).toBe(true);
+
+    run.idle.visibility(true);
+    expect(run.controls.autoRotate).toBe(false);
+    run.idle.visibility(false);
+
+    expect(run.controls.autoRotate).toBe(true);
+    expect(run.canvas.dataset.autoRotateAt).toBeUndefined();
+  });
+
   it("keeps the mobile trackball idle instead of emulating unsupported rotation", () => {
     const run = setup(false);
     run.idle.engineStop();
@@ -476,7 +504,7 @@ describe("3D idle frames", () => {
     expect(run.pending.size).toBe(0);
   });
 
-  it("disables rendering while hidden and re-arms only after visibility returns", () => {
+  it("disables hidden rendering and resumes active rotation without a delay", () => {
     const run = setup(true);
     run.idle.engineStop();
     run.flushDelay(FRAME_ROTATE_WAIT);
@@ -489,9 +517,7 @@ describe("3D idle frames", () => {
 
     run.idle.visibility(false);
     expect(run.resumeAnimation).toHaveBeenCalledOnce();
-    expect([...run.pending.values()].map(({ delay }) => delay).sort()).toEqual([
-      FRAME_IDLE_WAIT,
-      FRAME_ROTATE_WAIT,
-    ]);
+    expect(run.controls.autoRotate).toBe(true);
+    expect(run.pending.size).toBe(0);
   });
 });

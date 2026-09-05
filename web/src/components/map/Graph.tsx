@@ -199,7 +199,7 @@ function GraphViewport(props: GraphViewportProps) {
             theme={theme}
             layout={layout}
             camera={camera}
-            idleReady={cameraReady}
+            idleReady={!selected}
             viewReady={cameraReady}
             onChoose={choose}
             onCloudPick={onCloudPick}

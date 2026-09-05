@@ -48,10 +48,7 @@ async function steadyCamera(page: Page) {
 
 async function chooseAlignment(page: Page) {
   const picker = page.getByLabel("Choose a visible graph node");
-  if ((await picker.evaluate((element) => element.tagName)) === "SELECT") {
-    await picker.selectOption("topic:alignment");
-    return;
-  }
+  await expect.poll(() => picker.evaluate((element) => element.tagName)).toBe("INPUT");
   await picker.fill("alignment");
   await page.getByRole("option", { name: /Topic\s+alignment/i }).click();
 }
@@ -145,9 +142,7 @@ test("3D defaults on and a plain focused click keeps idle rotation", async ({
       .getByRole("group", { name: "map dimension" })
       .getByRole("button", { name: "3D", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".auto-rotate-status")).toContainText(
-    /Auto-rotate in [1-5]s|Auto-rotating/,
-  );
+  await expect(page.locator(".auto-rotate-status")).toHaveText("Auto-rotating");
 
   const canvas = graph.locator("canvas").first();
   await expect(canvas).toHaveAttribute("data-auto-rotate", "true", {
@@ -163,6 +158,29 @@ test("3D defaults on and a plain focused click keeps idle rotation", async ({
   });
 });
 
+test("cloud streaming does not delay immediate rotation", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chrome", "Chromium covers streamed rotation");
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(/\/data\/cloud\/p000\.bin(?:\?.*)?$/, async (route) => {
+    await gate;
+    await route.continue();
+  });
+  await page.goto("/");
+  const graph = page.getByLabel("Interactive 3D research graph", { exact: true });
+  await expect(graph).toBeVisible({ timeout: 20_000 });
+  const canvas = graph.locator("canvas").first();
+  await expect(page.locator(".auto-rotate-status")).toHaveText("Auto-rotating");
+  await expect(canvas).toHaveAttribute("data-auto-rotate", "true", {
+    timeout: 8_000,
+  });
+  release();
+});
+
 test("camera links restore once and leave navigation in control", async ({
   context,
   page,
@@ -171,6 +189,7 @@ test("camera links restore once and leave navigation in control", async ({
     !["chrome", "safari"].includes(testInfo.project.name),
     "3D camera restoration is covered in Chromium and WebKit",
   );
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await mockCopy(context);
   await page.goto(`/#?k=tri&c=${view}`);
   const graph = page.getByLabel("Interactive 3D research graph");
@@ -202,6 +221,7 @@ test("camera links restore without ForceGraph core nodes", async ({
     !["chrome", "safari"].includes(testInfo.project.name),
     "3D camera restoration is covered in Chromium and WebKit",
   );
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await mockCopy(context);
   await page.goto(`/#?k=p&c=${view}`);
   await expect(page.getByLabel("Interactive 3D research graph")).toBeVisible({
@@ -262,6 +282,7 @@ test("wheel zoom follows the cursor and rotation keeps its new center", async ({
     !["chrome", "safari"].includes(testInfo.project.name),
     "Desktop orbit zoom is covered in Chromium and WebKit",
   );
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await mockCopy(context);
   await page.goto(`/#?k=tri&c=${view}`);
   const graph = page.getByLabel("Interactive 3D research graph");
@@ -320,8 +341,9 @@ test("idle orbit yields to input and resumes around the same target", async ({
   await page.goto(`/#?k=tri&c=${view}`);
   const graph = page.getByLabel("Interactive 3D research graph");
   await expect(graph).toBeVisible({ timeout: 20_000 });
-  await expect.poll(() => readCameraQuiet(page), { timeout: 20_000 }).toBe(view);
-  const initial = cameraSnapshot(view);
+  const canvas = graph.locator("canvas").first();
+  await expect(canvas).toHaveAttribute("data-auto-rotate", "true");
+  const initial = cameraSnapshot(await readCameraQuiet(page));
 
   const rotating = await waitForOrbit(page, initial);
   expect(rotating).not.toBeNull();
@@ -334,6 +356,9 @@ test("idle orbit yields to input and resumes around the same target", async ({
   if (!box) throw new Error("Research graph has no bounds");
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 24, box.y + box.height / 2 + 10, {
+    steps: 4,
+  });
   await page.waitForTimeout(800);
   const held = cameraSnapshot(await readCameraQuiet(page));
   await page.waitForTimeout(800);
@@ -348,6 +373,9 @@ test("idle orbit yields to input and resumes around the same target", async ({
   expectOrbitPreserved(stillHeld, released);
   expect(Math.abs(released.yaw - stillHeld.yaw)).toBeLessThanOrEqual(1);
 
+  await expect(page.locator(".auto-rotate-status")).toContainText(
+    /Auto-rotate in [1-3]s/,
+  );
   expect(await waitForOrbit(page, released)).not.toBeNull();
 
   const beforeWheel = cameraSnapshot(await readCameraQuiet(page));
@@ -360,7 +388,7 @@ test("idle orbit yields to input and resumes around the same target", async ({
   expectOrbitPreserved(afterWheel, wheelIdle);
 });
 
-test("keyboard Center selected interrupts and later resumes idle orbit", async ({
+test("a selected node holds the camera until the inspector closes", async ({
   context,
   page,
 }, testInfo) => {
@@ -374,23 +402,22 @@ test("keyboard Center selected interrupts and later resumes idle orbit", async (
   await page.goto(`/#?k=tri&c=${view}`);
   const graph = page.getByLabel("Interactive 3D research graph");
   await expect(graph).toBeVisible({ timeout: 20_000 });
-  await expect.poll(() => readCameraQuiet(page), { timeout: 20_000 }).toBe(view);
+  const canvas = graph.locator("canvas").first();
+  await expect(canvas).toHaveAttribute("data-auto-rotate", "true");
   await chooseAlignment(page);
-  const center = page.getByRole("button", { name: "Center selected" });
-  await expect(center).toBeVisible();
-
-  const waiting = cameraSnapshot(await readCameraQuiet(page));
-  expect(await waitForOrbit(page, waiting)).not.toBeNull();
-
-  await center.focus();
-  await page.keyboard.press("Enter");
-  await page.waitForTimeout(1_000);
-  const centered = cameraSnapshot(await readCameraQuiet(page));
+  await expect(canvas).toHaveAttribute("data-auto-rotate", "false");
+  const selected = cameraSnapshot(await readCameraQuiet(page));
   await page.waitForTimeout(1_200);
-  const held = cameraSnapshot(await readCameraQuiet(page));
-  expectOrbitPreserved(centered, held);
+  expectOrbitPreserved(selected, cameraSnapshot(await readCameraQuiet(page)));
 
-  expect(await waitForOrbit(page, held, 1)).not.toBeNull();
+  await page.getByRole("button", { name: "Close inspector" }).click();
+  await expect(page.locator(".auto-rotate-status")).toContainText(
+    /Auto-rotate in [1-3]s/,
+  );
+  await expect(canvas).toHaveAttribute("data-auto-rotate", "true", {
+    timeout: 4_000,
+  });
+  expect(await waitForOrbit(page, selected, 1)).not.toBeNull();
 });
 
 test("WebKit keeps cursor-aware fractional trackpad and pinch zoom native", async ({
@@ -401,6 +428,7 @@ test("WebKit keeps cursor-aware fractional trackpad and pinch zoom native", asyn
     testInfo.project.name !== "safari",
     "Trackpad regression is WebKit-specific",
   );
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await mockCopy(context);
   await page.goto(`/#?k=tri&c=${view}`);
   const graph = page.getByLabel("Interactive 3D research graph");
