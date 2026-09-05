@@ -155,6 +155,11 @@ test("historical paper loading can recover without resetting the map", async ({
   resumePapers();
   await expect(alert).toBeVisible({ timeout: 20_000 });
   await expect(page.getByLabel(/Interactive (3D )?research graph/)).toBeVisible();
+  const noticeBox = await alert.boundingBox();
+  const toolbarBox = await page.locator(".graph-toolbar").boundingBox();
+  expect(noticeBox).not.toBeNull();
+  expect(toolbarBox).not.toBeNull();
+  expect(noticeBox!.y).toBeGreaterThanOrEqual(toolbarBox!.y + toolbarBox!.height + 4);
 
   const picker = page.getByLabel("Choose a visible graph node");
   await expect(picker).toHaveAttribute("role", "combobox", { timeout: 20_000 });
