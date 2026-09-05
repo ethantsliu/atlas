@@ -38,16 +38,19 @@ export function CoverageView({ atlas }: CoverageViewProps) {
         icon={<FileText />}
         kicker="Coverage ledger"
         title="What has actually been read?"
-        copy="This page is the guardrail against claiming corpus-wide synthesis before the evidence exists."
+        copy="Reading depth covers paper profiles, not every embedded paper in the arXiv map."
       />
-      <section className="coverage-board">
+      <section
+        className="coverage-board"
+        aria-label={`Reading depth for ${coverage.collectionEntries.toLocaleString()} paper profiles`}
+      >
         <div className="metric">
           <b>{coverage.collectionEntries.toLocaleString()}</b>
-          <span>collection entries</span>
+          <span>paper profiles</span>
         </div>
         <div className="metric">
           <b>{coverage.fulltextExtracted}</b>
-          <span>full texts extracted</span>
+          <span>full-text sources extracted</span>
         </div>
         <div className="metric">
           <b>{coverage.fullReadings}</b>
@@ -61,23 +64,25 @@ export function CoverageView({ atlas }: CoverageViewProps) {
           papers={atlas.papers}
           counts={coverage.depthCounts}
           total={coverage.collectionEntries}
+          label={`Exclusive reading depths among ${coverage.collectionEntries.toLocaleString()} paper profiles`}
         />
       </section>
 
       {archive && (
         <section className="access-board">
           <header>
-            <span>Historical Papers</span>
-            <h2>Historical intake stays complete without loading it all at once</h2>
+            <span>arXiv map corpus</span>
+            <h2>The full corpus stays mapped without loading every record at once</h2>
             <p>
-              Every harvested arXiv paper is retained as a Paper. Month bodies load only
-              when a search or map action requests them.
+              These papers are embedded from title, an abstract excerpt, and arXiv
+              categories for discovery. They are not counted as read, reviewed, or full
+              text above. Month metadata loads only when search or selection needs it.
             </p>
           </header>
           <div className="access-metrics">
             <div>
               <b>{archive.counts.all.toLocaleString()}</b>
-              <span>historical Papers</span>
+              <span>arXiv source records</span>
             </div>
             <div>
               <b>

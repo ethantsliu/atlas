@@ -10,8 +10,8 @@ export function ReadingBalance({ rows }: { rows: ReadingBalanceRow[] }) {
     <article className="viz-card balance-card">
       <VizHead
         icon={<GitCompareArrows />}
-        title="Corpus × full-text coverage"
-        copy="How do research-area shares compare between the full corpus and page-anchored readings?"
+        title="Paper profiles × page-anchored coverage"
+        copy="How do research-area shares compare between paper profiles and page-anchored readings?"
       />
       <div className="balance-bars" aria-hidden="true">
         {rows.map((row) => (
@@ -28,10 +28,10 @@ export function ReadingBalance({ rows }: { rows: ReadingBalanceRow[] }) {
       </div>
       <div className="balance-legend" aria-hidden="true">
         <span>
-          <i /> Corpus papers
+          <i /> Paper profiles
         </span>
         <span>
-          <i /> Full-text readings
+          <i /> Page-anchored readings
         </span>
       </div>
       <small className="chart-note">
@@ -39,12 +39,12 @@ export function ReadingBalance({ rows }: { rows: ReadingBalanceRow[] }) {
         research area.
       </small>
       <ChartDataTable
-        label="Corpus and full-text-reading research-area footprint"
+        label="Paper profiles and page-anchored reading research-area footprint"
         columns={[
           "Research area",
           "Papers",
           "Paper share",
-          "Full-text readings",
+          "Page-anchored readings",
           "Reading share",
         ]}
         rows={rows.map((row) => [

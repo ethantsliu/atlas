@@ -29,8 +29,12 @@ export function CloudDetail({
       tabIndex={-1}
     >
       <CloseButton onClose={onClose} />
-      <span className="type-pill paper">Paper</span>
+      <span className="type-pill paper">Embedded arXiv paper</span>
       <h2 id="map-inspector-title">{paper.title}</h2>
+      <p className="cloud-relation">
+        Mapped from title, an abstract excerpt, and arXiv categories; not included in
+        Atlas paper-profile reading-depth counts.
+      </p>
       <div className="confidence">
         <span>Published</span>
         <b>

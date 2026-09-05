@@ -90,6 +90,12 @@ export function MapFilters({
             <small>{countForKind(atlas, kind, archiveCount).toLocaleString()}</small>
           </button>
         ))}
+        {archiveCount !== undefined && (
+          <p className="depth-copy">
+            {archiveCount.toLocaleString()} semantic map points +{" "}
+            {atlas.meta.paper_count.toLocaleString()} paper profiles.
+          </p>
+        )}
 
         <div className="divider" />
         <div className="range-label">
@@ -112,15 +118,20 @@ export function MapFilters({
         </p>
 
         <div className="divider" />
-        <div className="eyebrow">Entry reading depth</div>
+        <div className="eyebrow">
+          Profile reading depth · {coverage.collectionEntries.toLocaleString()} papers
+        </div>
         <p className="depth-copy">
-          Full text means a page-anchored reading. Verified adds an independent passage
-          and competitor check.
+          These exclusive counts cover only paper profiles—not all 3.15M map points.
+          Full text is page-anchored; Verified also adds an independent passage and
+          competitor check. Verified + Full Text ={" "}
+          {coverage.fullReadings.toLocaleString()} page-anchored readings.
         </p>
         <CoverageMini
           papers={atlas.papers}
           counts={coverage.depthCounts}
           total={coverage.collectionEntries}
+          label={`Reading depth for ${coverage.collectionEntries.toLocaleString()} paper profiles`}
         />
 
         <div className="divider" />

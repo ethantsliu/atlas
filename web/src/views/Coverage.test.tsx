@@ -24,11 +24,16 @@ vi.mock("../hooks/archive", () => ({
 }));
 
 describe("CoverageView", () => {
-  it("presents historical scope as one Paper aggregate", () => {
-    const html = renderToStaticMarkup(<CoverageView atlas={makeAtlas()} />);
+  it("separates the arXiv map corpus from Atlas reading-depth coverage", () => {
+    const atlas = makeAtlas();
+    const html = renderToStaticMarkup(<CoverageView atlas={atlas} />);
 
-    expect(html).toContain("Historical Papers");
-    expect(html).toContain("historical Papers");
+    expect(html).toContain("arXiv map corpus");
+    expect(html).toContain("arXiv source records");
+    expect(html).toContain("not counted as read, reviewed, or full text above");
+    expect(html).toContain(
+      `aria-label="Reading depth for ${atlas.coverage.collection_entries.toLocaleString()} paper profiles"`,
+    );
     expect(html).toContain(">10<");
     expect(html).not.toContain("likely ML");
     expect(html).not.toContain("possible ML");

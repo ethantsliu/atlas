@@ -102,7 +102,7 @@ export function EvidenceMaturity({
       <VizHead
         icon={<Target />}
         title="Evidence maturity"
-        copy="How much of the corpus supports synthesis now?"
+        copy="How much of the paper-profile collection supports synthesis now?"
       />
       <div className="rings">
         <div
@@ -113,18 +113,18 @@ export function EvidenceMaturity({
         >
           <div>
             <b>{Math.round(readPercent)}%</b>
-            <span>full text</span>
+            <span>page-anchored</span>
           </div>
         </div>
         <div className="depth-list">
           <p>
             <i className="full" />
-            <span>Full text / verified</span>
+            <span>Page-anchored (including verified)</span>
             <b>{read}</b>
           </p>
           <p>
             <i className="abs" />
-            <span>Abstract</span>
+            <span>Abstract-based</span>
             <b>{abstracts}</b>
           </p>
           <p>
@@ -135,15 +135,15 @@ export function EvidenceMaturity({
         </div>
       </div>
       <small className="chart-note">
-        Full text means a page-anchored reading; verified adds an independent passage
-        and competitor check. Coverage is not confidence.
+        Counts cover paper profiles, not the full arXiv map. Verified readings add an
+        independent passage and competitor check; coverage is not confidence.
       </small>
       <ChartDataTable
         label="Evidence maturity counts"
         columns={["Reading depth", "Paper entries"]}
         rows={[
-          ["Full text / verified", read],
-          ["Abstract", abstracts],
+          ["Page-anchored (including verified)", read],
+          ["Abstract-based", abstracts],
           ["Metadata only", coverage.depthCounts.metadata ?? 0],
         ]}
       />

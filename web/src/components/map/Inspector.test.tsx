@@ -156,6 +156,8 @@ describe("Inspector", () => {
     expect(html).toContain("A Historical Paper");
     expect(html).toContain("2020-01-02");
     expect(html).toContain("View on arXiv");
+    expect(html).toContain("Embedded arXiv paper");
+    expect(html).toContain("not included in Atlas paper-profile reading-depth counts");
     expect(html).toContain("Isolate connections");
     expect(html).toContain('aria-pressed="false"');
     expect(html).not.toContain('role="dialog"');

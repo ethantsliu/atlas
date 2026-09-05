@@ -490,7 +490,7 @@ test("insight visualizations provide inspectable data tables", async ({ page }) 
     page.getByRole("heading", { name: "Topic × technique density" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Corpus × full-text coverage" }),
+    page.getByRole("heading", { name: "Paper profiles × page-anchored coverage" }),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Idea feasibility factors" }),
@@ -567,6 +567,6 @@ test("coverage reports partial extraction state honestly", async ({ page }) => {
   } else {
     await expect(partialStatus).toHaveCount(0);
   }
-  await expect(page.getByText("historical Papers", { exact: true })).toBeVisible();
+  await expect(page.getByText("arXiv source records", { exact: true })).toBeVisible();
   await scan(page);
 });
