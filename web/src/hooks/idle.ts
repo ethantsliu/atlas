@@ -64,6 +64,9 @@ type IdleState = {
   keys: Set<string>;
   paused: boolean;
   pending: number;
+  pointerChanged: boolean;
+  pointerOrigins: Map<number, FramePoint>;
+  pointerRotating: boolean;
   pointers: Set<number>;
   probeFrame: number;
   ready: boolean;
@@ -218,6 +221,9 @@ function makeIdleLifecycle(
     if (hidden) {
       state.keys.clear();
       state.pointers.clear();
+      state.pointerChanged = false;
+      state.pointerOrigins.clear();
+      state.pointerRotating = false;
       state.controlActive = false;
       stopRotate();
       pause();
@@ -248,6 +254,7 @@ function makeIdleCore(
   state: IdleState,
 ): IdleCore {
   const canRotate = "autoRotate" in controls;
+  const canvas = graph.renderer().domElement;
   const cancel = () => {
     if (state.pending) timer.clear(state.pending);
     state.pending = 0;
@@ -259,6 +266,7 @@ function makeIdleCore(
     state.rotateFrame = 0;
     state.rotateLast = 0;
     state.rotateStart = 0;
+    if (canvas.dataset) delete canvas.dataset.autoRotateAt;
   };
   const rotate = (active: boolean) => {
     if (!canRotate) return;
@@ -266,8 +274,8 @@ function makeIdleCore(
     state.rotating = active;
     controls.autoRotate = active;
     if (active) controls.autoRotateSpeed = FRAME_ROTATE_SPEED;
-    const canvas = graph.renderer().domElement;
     if (canvas.dataset) canvas.dataset.autoRotate = String(active);
+    if (active && canvas.dataset) delete canvas.dataset.autoRotateAt;
   };
   const stopRotate = () => {
     cancelRotate();
@@ -322,6 +330,9 @@ function makeIdleCore(
   const armRotate = () => {
     cancelRotate();
     if (!canRotate || blocked()) return;
+    if (canvas.dataset) {
+      canvas.dataset.autoRotateAt = String(Date.now() + FRAME_ROTATE_WAIT);
+    }
     state.rotatePending = timer.set(() => {
       state.rotatePending = 0;
       beginRotate();
@@ -397,16 +408,43 @@ function bindIdle(
     state.controlActive = false;
     if (state.pointers.size === 0) {
       draw();
-      rearm();
+      if (state.pointerRotating && !state.pointerChanged) core.beginRotate();
+      else rearm();
+      state.pointerRotating = false;
     }
   };
   const press = (event: Event) => {
-    state.pointers.add((event as PointerEvent).pointerId);
+    const pointer = event as PointerEvent;
+    if (state.pointers.size === 0) {
+      state.pointerChanged = false;
+      state.pointerRotating = Boolean(controls.autoRotate);
+    }
+    state.pointers.add(pointer.pointerId);
+    state.pointerOrigins.set(pointer.pointerId, {
+      x: pointer.clientX,
+      y: pointer.clientY,
+      z: 0,
+    });
     stopInput();
   };
+  const drag = (event: Event) => {
+    const pointer = event as PointerEvent;
+    const origin = state.pointerOrigins.get(pointer.pointerId);
+    if (
+      origin &&
+      Math.hypot(pointer.clientX - origin.x, pointer.clientY - origin.y) > 5
+    ) {
+      state.pointerChanged = true;
+    }
+  };
   const release = (event: Event) => {
-    state.pointers.delete((event as PointerEvent).pointerId);
-    if (state.pointers.size === 0 && !state.controlActive) rearm();
+    const pointer = event as PointerEvent;
+    state.pointers.delete(pointer.pointerId);
+    state.pointerOrigins.delete(pointer.pointerId);
+    if (state.pointers.size !== 0 || state.controlActive) return;
+    if (state.pointerRotating && !state.pointerChanged) core.beginRotate();
+    else rearm();
+    state.pointerRotating = false;
   };
   const keyName = (event: Event) => {
     const keyboard = event as KeyboardEvent;
@@ -422,13 +460,6 @@ function bindIdle(
       rearm();
     }
   };
-  const focus = () => {
-    if (state.running) {
-      core.touch();
-      return;
-    }
-    rearm();
-  };
   const wheel = () => rearm();
   const change = () => {
     if (!controls.autoRotate) {
@@ -442,7 +473,7 @@ function bindIdle(
   controls.addEventListener?.("end", finish);
   canvas.addEventListener("pointermove", probe, true);
   pressTarget.addEventListener("pointerdown", press, true);
-  pressTarget.addEventListener("focusin", focus, true);
+  pressTarget.addEventListener("pointermove", drag, true);
   pressTarget.addEventListener("keydown", keyPress, true);
   releaseTarget.addEventListener("pointerup", release, true);
   releaseTarget.addEventListener("pointercancel", release, true);
@@ -463,7 +494,7 @@ function bindIdle(
     controls.removeEventListener?.("end", finish);
     canvas.removeEventListener("pointermove", probe, true);
     pressTarget.removeEventListener("pointerdown", press, true);
-    pressTarget.removeEventListener("focusin", focus, true);
+    pressTarget.removeEventListener("pointermove", drag, true);
     pressTarget.removeEventListener("keydown", keyPress, true);
     releaseTarget.removeEventListener("pointerup", release, true);
     releaseTarget.removeEventListener("pointercancel", release, true);
@@ -492,6 +523,9 @@ export function makeFrameIdle(
     keys: new Set(),
     paused: false,
     pending: 0,
+    pointerChanged: false,
+    pointerOrigins: new Map(),
+    pointerRotating: false,
     pointers: new Set(),
     probeFrame: 0,
     reducedMotion: false,

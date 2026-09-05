@@ -364,7 +364,9 @@ export function buildSwarm(nodes: GraphNode[], theme: Theme): PaperSwarm {
     new Float32BufferAttribute(new Float32Array(papers.length).fill(0.96), 1),
   );
   geometry.computeBoundingSphere();
-  const material = swarmMaterial(5.8);
+  // Foreground papers and archive papers share one resting screen-space size.
+  // Selection/hover can still enlarge the foreground point intentionally.
+  const material = swarmMaterial(1.2);
   const points = new Points(geometry, material) as PaperSwarm;
   points.name = "paper-swarm";
   points.renderOrder = 2;

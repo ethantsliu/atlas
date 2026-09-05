@@ -52,9 +52,9 @@ describe("atlas URLs", () => {
     ]);
   });
 
-  it("defaults fresh URLs to 2D while preserving legacy Atlas links as 3D", () => {
-    expect(decodeUrl("https://example.com/atlas/").render).toBe("2d");
-    expect(decodeUrl("https://example.com/atlas/#about").render).toBe("2d");
+  it("defaults every URL to 3D while preserving explicit 2D links", () => {
+    expect(decodeUrl("https://example.com/atlas/").render).toBe("3d");
+    expect(decodeUrl("https://example.com/atlas/#about").render).toBe("3d");
     expect(decodeUrl("https://example.com/atlas/#?k=tri").render).toBe("3d");
     expect(decodeUrl("https://example.com/atlas/#?d=2&k=tri").render).toBe("2d");
     expect(decodeUrl("https://example.com/atlas/#?d=3&k=tri").render).toBe("3d");
@@ -64,7 +64,7 @@ describe("atlas URLs", () => {
     const url = encodeUrl(fullState(), "https://example.com/atlas/?old=value#map");
     expect(url.search).toBe("");
     expect(url.hash).toBe(
-      "#?v=l&q=world+models&s=paper%3A2401.01234&k=tpi&f=6.5&x=topic%3Aworld-models&l=c&d=3",
+      "#?v=l&q=world+models&s=paper%3A2401.01234&k=tpi&f=6.5&x=topic%3Aworld-models&l=c",
     );
     expect(decodeUrl(url)).toEqual(fullState());
   });
@@ -74,9 +74,9 @@ describe("atlas URLs", () => {
       encodeUrl(DEFAULT_URL_STATE, "https://example.com/atlas/?q=private#section").href,
     ).toBe("https://example.com/atlas/#section");
     const url = encodeUrl({ ...DEFAULT_URL_STATE, kinds: [] }, "https://example.com/");
-    expect(url.hash).toBe("#?k=-&d=2");
+    expect(url.hash).toBe("#?k=-");
     expect(decodeUrl(url).kinds).toEqual([]);
-    expect(decodeUrl(url).render).toBe("2d");
+    expect(decodeUrl(url).render).toBe("3d");
   });
 
   it("round trips a bounded camera snapshot in the fragment", () => {
@@ -90,7 +90,7 @@ describe("atlas URLs", () => {
       { ...DEFAULT_URL_STATE, camera },
       "https://example.com/atlas/",
     );
-    expect(url.hash).toBe("#?c=1_12.3_-45.6_0_90_35_-20&d=2");
+    expect(url.hash).toBe("#?c=1_12.3_-45.6_0_90_35_-20");
     expect(decodeUrl(url).camera).toEqual(camera);
   });
 

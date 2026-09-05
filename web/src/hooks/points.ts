@@ -16,6 +16,7 @@ import {
   dropCloud,
   growCloud,
   paintCloud,
+  restCloud,
   setCloudDetail,
   type CloudDetail,
   type CloudSwarm,
@@ -390,6 +391,7 @@ function mountPoints(
     ) {
       return;
     }
+    restCloud(points);
     const token = refs.select.current;
     choosing = token;
     choosePoint({

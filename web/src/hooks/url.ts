@@ -58,7 +58,7 @@ export const DEFAULT_URL_STATE: AtlasUrlState = {
   minFeasibility: 1,
   focus: null,
   layout: "semantic",
-  render: "2d",
+  render: "3d",
   camera: null,
 };
 
@@ -120,10 +120,10 @@ function cleanState(state: AtlasUrlState): AtlasUrlState {
   };
 }
 
-function readRender(params: URLSearchParams, atlasHash: boolean): RenderMode {
+function readRender(params: URLSearchParams): RenderMode {
   if (params.get("d") === "2") return "2d";
   if (params.get("d") === "3") return "3d";
-  return atlasHash && !params.has("d") ? "3d" : "2d";
+  return "3d";
 }
 
 function sameKinds(left: readonly GraphNodeKind[], right: readonly GraphNodeKind[]) {
@@ -152,7 +152,7 @@ export function decodeUrl(input: string | URL): AtlasUrlState {
     minFeasibility: readScore(params.get("f")),
     focus: validId(params.get("x")),
     layout: params.get("l") === "c" ? "connections" : "semantic",
-    render: readRender(params, atlasHash),
+    render: readRender(params),
     camera: parseCamera(params.get("c")),
   };
 }
@@ -174,8 +174,7 @@ export function encodeUrl(state: AtlasUrlState, base: string | URL): URL {
   if (clean.layout === "connections") params.set("l", "c");
   const camera = clean.view === "map" ? formatCamera(clean.camera) : null;
   if (camera) params.set("c", camera);
-  if (clean.render === "3d") params.set("d", "3");
-  else if (params.size > 0) params.set("d", "2");
+  if (clean.render === "2d") params.set("d", "2");
   const encoded = params.toString();
   url.search = "";
   url.hash = encoded ? `?${encoded}` : priorHash;

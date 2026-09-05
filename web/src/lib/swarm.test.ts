@@ -81,6 +81,7 @@ describe("paper swarm", () => {
     const swarm = buildSwarm([paper("paper-1", 1), paper("paper-2", 4)], "light");
 
     expect(swarm.geometry.getAttribute("position").count).toBe(2);
+    expect(swarm.material.uniforms.pointSize.value).toBe(1.2);
     expect(swarmNode(swarm, 1)?.id).toBe("paper-2");
     markSwarm(swarm, "paper-1", "paper-2");
     expect(swarm.geometry.getAttribute("scale").getX(0)).toBe(2);

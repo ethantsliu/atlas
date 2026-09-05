@@ -101,14 +101,14 @@ async function touchPoint(canvas: Locator) {
   });
 }
 
-test("both dimensions share one cloud while 3D code stays lazy", async ({
+test("an explicit 2D view shares one cloud while 3D code stays lazy", async ({
   page,
 }, testInfo) => {
   test.setTimeout(180_000);
   test.skip(!desktop.has(testInfo.project.name), "Desktop engines cover 3D opt-in");
   const requests: string[] = [];
   page.on("request", (request) => requests.push(request.url()));
-  await page.goto("/");
+  await page.goto("/#?d=2");
   await overview(page);
   await selectTopic(page);
   const trick = page.getByRole("button", {
@@ -199,12 +199,12 @@ test("explicit 2D supports a centered touch selection", async ({ page }, testInf
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
-test("320px 2D default has no overflow or axe violations", async ({
+test("320px explicit 2D view has no overflow or axe violations", async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== "chrome", "One Chromium pass covers 320px axe");
   await page.setViewportSize({ width: 320, height: 800 });
-  await page.goto("/");
+  await page.goto("/#?d=2");
   await overview(page);
   await page.evaluate(() => document.fonts.ready);
   expect(
@@ -241,9 +241,11 @@ test("3D fallback shares the requested dimension", async ({ page }, testInfo) =>
   });
 
   await page.goto("/#?d=3&k=tri");
-  await expect(page.locator(".graph-status")).toContainText(
-    "3D unavailable; using the 2D fallback.",
-  );
+  await expect(
+    page.locator(".graph-status").filter({
+      hasText: "3D unavailable; using the 2D fallback.",
+    }),
+  ).toBeVisible();
   await expect(page.locator(".plane-force canvas")).toBeVisible();
   await page.getByRole("button", { name: "Copy a link to this atlas view" }).click();
   const copied = await page.evaluate(
@@ -251,7 +253,7 @@ test("3D fallback shares the requested dimension", async ({ page }, testInfo) =>
   );
   const params = new URL(copied).hash.replace(/^#\?/, "");
 
-  expect(new URLSearchParams(params).get("d")).toBe("3");
+  expect(new URLSearchParams(params).get("d")).toBeNull();
   expect(new URLSearchParams(params).get("c")).not.toBeNull();
   expect(new URL(page.url()).hash).toContain("d=3");
 });

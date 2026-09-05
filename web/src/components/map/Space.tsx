@@ -113,6 +113,33 @@ function useCloudOpen(selected: boolean) {
   return open;
 }
 
+function RotationStatus({ graphRef }: { graphRef: GraphRef }) {
+  const [label, setLabel] = useState<string | null>(null);
+  useEffect(() => {
+    const update = () => {
+      const canvas = graphRef.current?.renderer().domElement;
+      if (!canvas) return setLabel(null);
+      if (canvas.dataset.autoRotate === "true") {
+        setLabel("Auto-rotating");
+        return;
+      }
+      const deadline = Number(canvas.dataset.autoRotateAt);
+      const seconds = Number.isFinite(deadline)
+        ? Math.max(0, Math.ceil((deadline - Date.now()) / 1_000))
+        : 0;
+      setLabel(seconds > 0 ? `Auto-rotate in ${seconds}s` : null);
+    };
+    update();
+    const timer = window.setInterval(update, 200);
+    return () => window.clearInterval(timer);
+  }, [graphRef]);
+  return label ? (
+    <div className="auto-rotate-status" aria-hidden="true">
+      {label}
+    </div>
+  ) : null;
+}
+
 function stopFrames(
   frame: MutableRefObject<FrameIdle | null>,
   graph: GraphRef,
@@ -344,41 +371,44 @@ function SpaceGraph({
   width,
 }: SpaceGraphProps) {
   return (
-    <ForceGraph3D
-      ref={graphRef as MutableRefObject<ForceGraphMethods<GraphNode, GraphLink>>}
-      width={width}
-      height={height}
-      graphData={sceneGraph}
-      backgroundColor={theme === "dark" ? "#0f1511" : "#f0eadf"}
-      showNavInfo={false}
-      controlType={controlType}
-      numDimensions={3}
-      nodeLabel={() => ""}
-      nodeThreeObject={makeNode}
-      linkColor={() => (theme === "dark" ? "#617065" : "#9d9285")}
-      linkWidth={0}
-      linkVisibility={(link) => {
-        if (layout === "connections") return true;
-        const active =
-          activeIds.has(graphEndpointId(link.source)) ||
-          activeIds.has(graphEndpointId(link.target));
-        return showLink(quality, { selected: active });
-      }}
-      linkOpacity={
-        layout === "connections"
-          ? Math.max(0.12, quality.linkOpacity)
-          : quality.linkOpacity
-      }
-      cooldownTicks={layoutTicks(quality.cooldownTicks, simple)}
-      d3VelocityDecay={0.24}
-      enableNodeDrag={false}
-      onEngineTick={onEngineTick}
-      onEngineStop={onEngineStop}
-      onNodeClick={onNodeClick}
-      onNodeHover={onNodeHover}
-      onNodeRightClick={onNodeRightClick}
-      onBackgroundClick={onBackgroundClick}
-    />
+    <>
+      <ForceGraph3D
+        ref={graphRef as MutableRefObject<ForceGraphMethods<GraphNode, GraphLink>>}
+        width={width}
+        height={height}
+        graphData={sceneGraph}
+        backgroundColor={theme === "dark" ? "#0f1511" : "#f0eadf"}
+        showNavInfo={false}
+        controlType={controlType}
+        numDimensions={3}
+        nodeLabel={() => ""}
+        nodeThreeObject={makeNode}
+        linkColor={() => (theme === "dark" ? "#617065" : "#9d9285")}
+        linkWidth={0}
+        linkVisibility={(link) => {
+          if (layout === "connections") return true;
+          const active =
+            activeIds.has(graphEndpointId(link.source)) ||
+            activeIds.has(graphEndpointId(link.target));
+          return showLink(quality, { selected: active });
+        }}
+        linkOpacity={
+          layout === "connections"
+            ? Math.max(0.12, quality.linkOpacity)
+            : quality.linkOpacity
+        }
+        cooldownTicks={layoutTicks(quality.cooldownTicks, simple)}
+        d3VelocityDecay={0.24}
+        enableNodeDrag={false}
+        onEngineTick={onEngineTick}
+        onEngineStop={onEngineStop}
+        onNodeClick={onNodeClick}
+        onNodeHover={onNodeHover}
+        onNodeRightClick={onNodeRightClick}
+        onBackgroundClick={onBackgroundClick}
+      />
+      <RotationStatus graphRef={graphRef} />
+    </>
   );
 }
 
@@ -504,7 +534,6 @@ export function GraphSpace({
     cloudMark,
     formatCamera(camera),
     height,
-    selected?.id,
     theme,
     topology,
     width,

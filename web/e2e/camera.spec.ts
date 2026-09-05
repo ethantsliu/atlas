@@ -133,6 +133,36 @@ async function wheelOnGraph(
   }
 }
 
+test("3D defaults on and a plain focused click keeps idle rotation", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chrome", "Chromium covers idle focus");
+  await page.goto("/#?k=tri");
+  const graph = page.getByLabel("Interactive 3D research graph", { exact: true });
+  await expect(graph).toBeVisible({ timeout: 20_000 });
+  await expect(
+    page
+      .getByRole("group", { name: "map dimension" })
+      .getByRole("button", { name: "3D", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".auto-rotate-status")).toContainText(
+    /Auto-rotate in [1-5]s|Auto-rotating/,
+  );
+
+  const canvas = graph.locator("canvas").first();
+  await expect(canvas).toHaveAttribute("data-auto-rotate", "true", {
+    timeout: 15_000,
+  });
+  const box = await canvas.boundingBox();
+  if (!box) throw new Error("3D canvas has no bounds");
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await graph.focus();
+  await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.4);
+  await expect(canvas).toHaveAttribute("data-auto-rotate", "true", {
+    timeout: 1_000,
+  });
+});
+
 test("camera links restore once and leave navigation in control", async ({
   context,
   page,

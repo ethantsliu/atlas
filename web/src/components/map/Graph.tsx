@@ -199,13 +199,7 @@ function GraphViewport(props: GraphViewportProps) {
             theme={theme}
             layout={layout}
             camera={camera}
-            idleReady={Boolean(
-              cameraReady &&
-              (cloudHidden ||
-                layout !== "semantic" ||
-                !cloud ||
-                cloud.loaded === cloud.positions.length / 3),
-            )}
+            idleReady={cameraReady}
             viewReady={cameraReady}
             onChoose={choose}
             onCloudPick={onCloudPick}

@@ -16,6 +16,7 @@ const swarmMocks = vi.hoisted(() => ({
   dropCloud: vi.fn(),
   growCloud: vi.fn(),
   paintCloud: vi.fn(),
+  restCloud: vi.fn(),
   setCloudDetail: vi.fn(() => false),
 }));
 const gpuMocks = vi.hoisted(() => ({ makeGpuPick: vi.fn() }));
@@ -288,6 +289,7 @@ describe("progressive point mounting", () => {
     window.dispatchEvent(pointEvent("pointerup"));
     canvas.dispatchEvent(pointEvent("click", 10, 10, "mouse", false));
     expect(pick).toHaveBeenCalledOnce();
+    expect(swarmMocks.restCloud).toHaveBeenCalledWith(points);
 
     canvas.dispatchEvent(pointEvent("pointerdown", 12, 10));
     resolvePick({ distance: 1, index: 0, valid: () => true });

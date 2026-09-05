@@ -40,7 +40,10 @@ function setup(rotate = false, frameTime = 0, frameInterval = 16, ready = true) 
   const documentEvents = eventTarget();
   const windowEvents = eventTarget();
   Object.assign(documentEvents.target, { defaultView: windowEvents.target });
-  Object.assign(canvasEvents.target, { ownerDocument: documentEvents.target });
+  Object.assign(canvasEvents.target, {
+    dataset: {},
+    ownerDocument: documentEvents.target,
+  });
   const canvas = canvasEvents.target as unknown as HTMLCanvasElement;
   const controls = Object.assign(
     controlEvents.target,
@@ -113,11 +116,16 @@ function setup(rotate = false, frameTime = 0, frameInterval = 16, ready = true) 
       callback();
     });
   };
-  const pointer = (type: string, id: number) => {
+  const pointer = (type: string, id: number, x = 0, y = 0) => {
     const event = new Event(type);
-    Object.defineProperty(event, "pointerId", { value: id });
-    if (type === "pointerdown") documentEvents.emit(type, event);
-    else windowEvents.emit(type, event);
+    Object.defineProperties(event, {
+      clientX: { value: x },
+      clientY: { value: y },
+      pointerId: { value: id },
+    });
+    if (type === "pointerdown" || type === "pointermove") {
+      documentEvents.emit(type, event);
+    } else windowEvents.emit(type, event);
   };
   const key = (type: string, value: string) => {
     const event = new Event(type);
@@ -184,7 +192,6 @@ describe("3D idle frames", () => {
     const run = setup();
 
     run.idle.engineTick();
-    run.focus();
     expect(run.pending.size).toBe(0);
     expect(run.pauseAnimation).not.toHaveBeenCalled();
 
@@ -226,7 +233,6 @@ describe("3D idle frames", () => {
     run.idle.dispose();
     run.emitCanvas("pointermove");
     run.emitControl("start");
-    run.focus();
     expect(run.resumeAnimation).toHaveBeenCalledTimes(2);
     expect(run.pending.size).toBe(0);
     expect(run.frames.size).toBe(0);
@@ -264,6 +270,7 @@ describe("3D idle frames", () => {
       FRAME_IDLE_WAIT,
       FRAME_ROTATE_WAIT,
     ]);
+    expect(Number(run.canvas.dataset.autoRotateAt)).toBeGreaterThan(Date.now());
     run.flushDelay(FRAME_IDLE_WAIT);
     expect(run.pauseAnimation).toHaveBeenCalledOnce();
     expect(run.controls.autoRotate).toBe(false);
@@ -279,6 +286,7 @@ describe("3D idle frames", () => {
 
     run.flushDelay(FRAME_ROTATE_WAIT);
     expect(run.controls.autoRotate).toBe(true);
+    expect(run.canvas.dataset.autoRotateAt).toBeUndefined();
     expect(run.controls.autoRotateSpeed).toBe(FRAME_ROTATE_SPEED);
     expect(FRAME_ROTATE_WAIT).toBe(5_000);
     expect(run.resumeAnimation).toHaveBeenCalledOnce();
@@ -312,7 +320,7 @@ describe("3D idle frames", () => {
     expect(run.pending.size).toBe(0);
   });
 
-  it("does not arm rotation until the complete cloud and view are ready", () => {
+  it("does not arm rotation until the visible 3D view is ready", () => {
     const run = setup(true, 0, 16, false);
     run.idle.engineStop();
     expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
@@ -352,14 +360,12 @@ describe("3D idle frames", () => {
     expect(run.controls.autoRotate).toBe(false);
     expect(run.resumeAnimation).toHaveBeenCalledTimes(pointerResumes);
     expect(run.pending.size).toBe(0);
+    run.pointer("pointermove", 7, 10, 0);
+    run.emitControl("change");
     run.emitControl("end");
-    expect(run.pending.size).toBe(0);
+    expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([0]);
     run.pointer("pointerup", 7);
     expect(run.resumeAnimation).toHaveBeenCalledTimes(pointerResumes);
-    expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
-      FRAME_ROTATE_WAIT,
-    ]);
-    run.emitControl("change");
     expect([...run.pending.values()].map(({ delay }) => delay).sort()).toEqual([
       0,
       FRAME_ROTATE_WAIT,
@@ -389,20 +395,15 @@ describe("3D idle frames", () => {
     expect(run.controls.autoRotate).toBe(true);
   });
 
-  it("stops on keyboard focus, holds through activation, and re-arms", () => {
+  it("ignores focus and holds only through active keyboard input", () => {
     const run = setup(true);
     run.idle.engineStop();
     run.flushDelay(FRAME_ROTATE_WAIT);
     expect(run.controls.autoRotate).toBe(true);
 
     run.focus();
-    expect(run.controls.autoRotate).toBe(false);
-    expect(run.pauseAnimation).toHaveBeenCalledOnce();
-    expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
-      FRAME_ROTATE_WAIT,
-    ]);
-    run.flushDelay(FRAME_ROTATE_WAIT);
     expect(run.controls.autoRotate).toBe(true);
+    expect(run.pending.size).toBe(0);
 
     const keyResumes = run.resumeAnimation.mock.calls.length;
     run.key("keydown", "Enter");
@@ -422,6 +423,24 @@ describe("3D idle frames", () => {
     expect([...run.pending.values()].map(({ delay }) => delay)).toEqual([
       FRAME_ROTATE_WAIT,
     ]);
+  });
+
+  it("continues rotation after a plain click and ignores focus or hover", () => {
+    const run = setup(true);
+    run.idle.engineStop();
+    run.flushDelay(FRAME_ROTATE_WAIT);
+
+    run.pointer("pointerdown", 9);
+    expect(run.controls.autoRotate).toBe(false);
+    run.pointer("pointerup", 9);
+    expect(run.controls.autoRotate).toBe(true);
+    expect(run.pending.size).toBe(0);
+
+    run.focus();
+    run.emitCanvas("pointermove");
+    run.flushFrames();
+    expect(run.controls.autoRotate).toBe(true);
+    expect(run.pending.size).toBe(0);
   });
 
   it("keeps the mobile trackball idle instead of emulating unsupported rotation", () => {
