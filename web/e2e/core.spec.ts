@@ -633,7 +633,9 @@ test("historical paper points open the inline inspector", async ({
   await page.mouse.move(2, 2);
 
   await expect(inspector.getByRole("heading", { name: title })).toBeVisible();
-  await expect(inspector.getByText("Embedded arXiv paper", { exact: true })).toBeVisible();
+  await expect(
+    inspector.getByText("Embedded arXiv paper", { exact: true }),
+  ).toBeVisible();
   await expect(inspector).toContainText(
     "not included in Atlas paper-profile reading-depth counts",
   );
