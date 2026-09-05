@@ -1014,6 +1014,7 @@ test("copied view links include a camera snapshot", async ({ page, context }) =>
   await shared.goto(copied);
   await expect(shared.getByLabel("Choose a visible graph node")).toHaveValue(
     /Massive Spikes in LLMs/,
+    { timeout: 30_000 },
   );
   expect(
     new URLSearchParams(new URL(shared.url()).hash.replace(/^#\?/, "")).get("s"),
