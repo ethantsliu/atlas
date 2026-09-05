@@ -183,17 +183,7 @@ function makeIdleLifecycle(
     rest: (delay?: number) => void;
   },
 ): IdleLifecycle {
-  const {
-    armRotate,
-    beginRotate,
-    cancel,
-    catchUp,
-    now,
-    pause,
-    resume,
-    rest,
-    stopRotate,
-  } = actions;
+  const { armRotate, beginRotate, cancel, pause, resume, rest, stopRotate } = actions;
   const start = () => {
     state.running = true;
     stopRotate();
@@ -241,7 +231,7 @@ function makeIdleLifecycle(
     }
     if (firstReady && state.hidden && !state.reducedMotion) {
       state.resumeRotation = true;
-      state.hiddenAt ??= now();
+      state.hiddenAt ??= actions.now();
       return;
     }
     if (firstReady) beginRotate();
@@ -251,7 +241,7 @@ function makeIdleLifecycle(
     state.hidden = hidden;
     if (hidden) {
       state.resumeRotation = state.rotating;
-      state.hiddenAt = state.resumeRotation ? now() : null;
+      state.hiddenAt = state.resumeRotation ? actions.now() : null;
       state.keys.clear();
       state.pointers.clear();
       state.pointerChanged = false;
@@ -266,7 +256,7 @@ function makeIdleLifecycle(
     rest();
     if (state.resumeRotation) {
       state.resumeRotation = false;
-      catchUp();
+      actions.catchUp();
       beginRotate();
     } else {
       armRotate();
