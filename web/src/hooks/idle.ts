@@ -62,6 +62,7 @@ type IdleState = {
   drawPending: number;
   everReady: boolean;
   hidden: boolean;
+  hiddenAt: number | null;
   keys: Set<string>;
   paused: boolean;
   pending: number;
@@ -73,9 +74,9 @@ type IdleState = {
   ready: boolean;
   reducedMotion: boolean;
   rotateFrame: number;
+  rotateElapsed: number;
   rotateLast: number;
   rotatePending: number;
-  rotateStart: number;
   rotating: boolean;
   running: boolean;
   resumeRotation: boolean;
@@ -125,6 +126,20 @@ export function tiltControl(controls: FrameControl, angle: number): boolean {
   return orbitControl(controls, 0, angle);
 }
 
+export function advanceRotation(
+  controls: FrameControl,
+  seconds: number,
+  elapsed: number,
+): number {
+  if (!Number.isFinite(seconds) || seconds <= 0) return elapsed;
+  const next = elapsed + seconds;
+  const pitch =
+    (Math.sin(next * FRAME_TILT_FREQUENCY) - Math.sin(elapsed * FRAME_TILT_FREQUENCY)) *
+    (FRAME_TILT_RATE / FRAME_TILT_FREQUENCY);
+  orbitControl(controls, (-FRAME_YAW_RATE * seconds) % (Math.PI * 2), pitch);
+  return next;
+}
+
 function watchRotation(
   controls: FrameControl,
   loop: FrameLoop,
@@ -134,15 +149,9 @@ function watchRotation(
   const watch = (time: number) => {
     state.rotateFrame = 0;
     if (blocked() || !controls.autoRotate) return;
-    if (state.rotateStart === 0) state.rotateStart = time;
     if (state.rotateLast > 0) {
       const seconds = Math.min(0.1, (time - state.rotateLast) / 1_000);
-      const elapsed = (time - state.rotateStart) / 1_000;
-      orbitControl(
-        controls,
-        -FRAME_YAW_RATE * seconds,
-        Math.cos(elapsed * FRAME_TILT_FREQUENCY) * FRAME_TILT_RATE * seconds,
-      );
+      state.rotateElapsed = advanceRotation(controls, seconds, state.rotateElapsed);
     }
     state.rotateLast = time;
     state.rotateFrame = loop.request(watch);
@@ -168,9 +177,23 @@ function makeIdleLifecycle(
   actions: Pick<
     IdleCore,
     "armRotate" | "beginRotate" | "cancel" | "pause" | "resume" | "stopRotate"
-  > & { rest: (delay?: number) => void },
+  > & {
+    catchUp: () => void;
+    now: () => number;
+    rest: (delay?: number) => void;
+  },
 ): IdleLifecycle {
-  const { armRotate, beginRotate, cancel, pause, resume, rest, stopRotate } = actions;
+  const {
+    armRotate,
+    beginRotate,
+    cancel,
+    catchUp,
+    now,
+    pause,
+    resume,
+    rest,
+    stopRotate,
+  } = actions;
   const start = () => {
     state.running = true;
     stopRotate();
@@ -223,6 +246,7 @@ function makeIdleLifecycle(
     state.hidden = hidden;
     if (hidden) {
       state.resumeRotation = state.rotating;
+      state.hiddenAt = state.resumeRotation ? now() : null;
       state.keys.clear();
       state.pointers.clear();
       state.pointerChanged = false;
@@ -237,6 +261,7 @@ function makeIdleLifecycle(
     rest();
     if (state.resumeRotation) {
       state.resumeRotation = false;
+      catchUp();
       beginRotate();
     } else {
       armRotate();
@@ -264,6 +289,7 @@ function makeIdleCore(
 ): IdleCore {
   const canRotate = "autoRotate" in controls;
   const canvas = graph.renderer().domElement;
+  const now = () => timer.now?.() ?? Date.now();
   const cancel = () => {
     if (state.pending) timer.clear(state.pending);
     state.pending = 0;
@@ -274,8 +300,13 @@ function makeIdleCore(
     if (state.rotateFrame) loop.cancel(state.rotateFrame);
     state.rotateFrame = 0;
     state.rotateLast = 0;
-    state.rotateStart = 0;
     if (canvas.dataset) delete canvas.dataset.autoRotateAt;
+  };
+  const catchUp = () => {
+    if (state.hiddenAt == null) return;
+    const seconds = Math.max(0, (now() - state.hiddenAt) / 1_000);
+    state.hiddenAt = null;
+    state.rotateElapsed = advanceRotation(controls, seconds, state.rotateElapsed);
   };
   const rotate = (active: boolean) => {
     if (!canRotate) return;
@@ -351,6 +382,8 @@ function makeIdleCore(
     armRotate,
     beginRotate,
     cancel,
+    catchUp,
+    now,
     pause,
     resume,
     rest,
@@ -531,6 +564,7 @@ export function makeFrameIdle(
     drawPending: 0,
     everReady: false,
     hidden: false,
+    hiddenAt: null,
     keys: new Set(),
     paused: false,
     pending: 0,
@@ -542,9 +576,9 @@ export function makeFrameIdle(
     reducedMotion: false,
     ready: false,
     rotateFrame: 0,
+    rotateElapsed: 0,
     rotateLast: 0,
     rotatePending: 0,
-    rotateStart: 0,
     rotating: false,
     running: true,
     resumeRotation: false,

@@ -10,6 +10,7 @@ import {
   FRAME_TILT_FREQUENCY,
   FRAME_TILT_RATE,
   FRAME_YAW_RATE,
+  advanceRotation,
   enableCursorZoom,
   makeFrameIdle,
   tiltControl,
@@ -144,7 +145,11 @@ function setup(
     else windowEvents.emit(type, event);
   };
   const focus = () => documentEvents.emit("focusin");
+  const advanceTime = (milliseconds: number) => {
+    now += milliseconds;
+  };
   return {
+    advanceTime,
     canvas,
     controls,
     emitCanvas: canvasEvents.emit,
@@ -192,6 +197,18 @@ describe("3D idle frames", () => {
 
     expect(tiltControl(controls, 0.1)).toBe(true);
     expect(controls.object.position.y).toBeGreaterThan(0);
+    expect(Math.hypot(...Object.values(controls.object.position))).toBeCloseTo(10);
+  });
+
+  it("advances diagonal rotation by elapsed wall time", () => {
+    const controls = {
+      object: { position: { x: 0, y: 0, z: 10 } },
+      target: { x: 0, y: 0, z: 0 },
+    };
+
+    expect(advanceRotation(controls, 5, 0)).toBe(5);
+    expect(controls.object.position.x).not.toBe(0);
+    expect(controls.object.position.y).not.toBe(0);
     expect(Math.hypot(...Object.values(controls.object.position))).toBeCloseTo(10);
   });
 
@@ -462,13 +479,17 @@ describe("3D idle frames", () => {
   it("resumes rotation immediately after returning to the tab", () => {
     const run = setup(true, 0, 16, true, true);
     expect(run.controls.autoRotate).toBe(true);
+    const before = { ...run.controls.object?.position };
 
     run.idle.visibility(true);
     expect(run.controls.autoRotate).toBe(false);
+    run.advanceTime(5_000);
     run.idle.visibility(false);
 
     expect(run.controls.autoRotate).toBe(true);
     expect(run.canvas.dataset.autoRotateAt).toBeUndefined();
+    expect(run.controls.object?.position.x).not.toBe(before.x);
+    expect(run.controls.object?.position.y).not.toBe(before.y);
   });
 
   it("keeps the mobile trackball idle instead of emulating unsupported rotation", () => {
