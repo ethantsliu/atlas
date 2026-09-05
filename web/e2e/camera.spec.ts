@@ -85,13 +85,19 @@ async function waitForOrbit(
   initial: CameraSnapshot,
   degrees = 8,
 ): Promise<CameraSnapshot | null> {
-  const deadline = Date.now() + 8_000;
-  while (Date.now() < deadline) {
-    const current = cameraSnapshot(await readCameraQuiet(page));
-    if (Math.abs(current.yaw - initial.yaw) > degrees) return current;
-    await page.waitForTimeout(250);
-  }
-  return null;
+  const canvas = page
+    .getByLabel("Interactive 3D research graph", { exact: true })
+    .locator("canvas")
+    .first();
+  await expect(canvas).toHaveAttribute("data-auto-rotate", "true", {
+    timeout: 15_000,
+  });
+  await page.waitForTimeout(2_000);
+  const current = cameraSnapshot(await readCameraQuiet(page));
+  return Math.abs(current.yaw - initial.yaw) > degrees &&
+    current.pitch !== initial.pitch
+    ? current
+    : null;
 }
 
 function targetDelta(from: CameraSnapshot, to: CameraSnapshot) {
@@ -288,13 +294,11 @@ test("idle orbit yields to input and resumes around the same target", async ({
   const initial = cameraSnapshot(view);
 
   const rotating = await waitForOrbit(page, initial);
-  if (!rotating) {
-    test.skip(true, "Software renderer keeps the full cloud static");
-    return;
-  }
+  expect(rotating).not.toBeNull();
+  if (!rotating) throw new Error("Idle orbit did not start");
   expect(length(targetDelta(initial, rotating))).toBeLessThan(0.35);
   expect(rotating.radius).toBeCloseTo(initial.radius, 1);
-  expect(rotating.pitch).toBeCloseTo(initial.pitch, 0);
+  expect(rotating.pitch).not.toBe(initial.pitch);
 
   const box = await graph.boundingBox();
   if (!box) throw new Error("Research graph has no bounds");
@@ -346,10 +350,7 @@ test("keyboard Center selected interrupts and later resumes idle orbit", async (
   await expect(center).toBeVisible();
 
   const waiting = cameraSnapshot(await readCameraQuiet(page));
-  if (!(await waitForOrbit(page, waiting))) {
-    test.skip(true, "Software renderer keeps the full cloud static");
-    return;
-  }
+  expect(await waitForOrbit(page, waiting)).not.toBeNull();
 
   await center.focus();
   await page.keyboard.press("Enter");
@@ -359,15 +360,7 @@ test("keyboard Center selected interrupts and later resumes idle orbit", async (
   const held = cameraSnapshot(await readCameraQuiet(page));
   expectOrbitPreserved(centered, held);
 
-  await expect
-    .poll(
-      async () => {
-        const resumed = cameraSnapshot(await readCameraQuiet(page));
-        return Math.abs(resumed.yaw - held.yaw);
-      },
-      { timeout: 15_000 },
-    )
-    .toBeGreaterThan(1);
+  expect(await waitForOrbit(page, held, 1)).not.toBeNull();
 });
 
 test("WebKit keeps cursor-aware fractional trackpad and pinch zoom native", async ({

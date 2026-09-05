@@ -1,19 +1,21 @@
 import { beginAutoChange } from "./control";
 
 export const FRAME_IDLE_WAIT = 240;
-export const FRAME_ROTATE_WAIT = 2_500;
-export const FRAME_HOVER_ROTATE_WAIT = 1_800;
-export const FRAME_ROTATE_SPEED = 1;
-export const FRAME_ROTATE_BUDGET = 18;
-export const FRAME_ROTATE_SLOW_FRAME = 28;
-export const FRAME_ROTATE_SLOW_LIMIT = 3;
+export const FRAME_ROTATE_WAIT = 5_000;
+export const FRAME_ROTATE_SPEED = 1.25;
+export const FRAME_TILT_RATE = 0.068;
+export const FRAME_TILT_FREQUENCY = 0.4;
+
+type FramePoint = { x: number; y: number; z: number };
 
 export type FrameControl = {
   addEventListener?: (type: string, listener: (event: Event) => void) => void;
   atlasAutoEpoch?: number;
   autoRotate?: boolean;
   autoRotateSpeed?: number;
+  object?: { lookAt?: (target: FramePoint) => void; position: FramePoint };
   removeEventListener?: (type: string, listener: (event: Event) => void) => void;
+  target?: FramePoint;
   zoomToCursor?: boolean;
 };
 
@@ -58,8 +60,6 @@ type IdleState = {
   controlActive: boolean;
   drawPending: number;
   hidden: boolean;
-  hoverActive: boolean;
-  hoverPending: number;
   keys: Set<string>;
   paused: boolean;
   pending: number;
@@ -70,7 +70,8 @@ type IdleState = {
   rotateFrame: number;
   rotateLast: number;
   rotatePending: number;
-  rotateSlow: number;
+  rotateStart: number;
+  rotating: boolean;
   running: boolean;
 };
 
@@ -83,23 +84,24 @@ type IdleCore = Omit<FrameIdle, "dispose"> & {
   stopRotate: () => void;
 };
 
-function primeRotation(
-  timer: FrameTimer,
-  state: IdleState,
-  blocked: () => boolean,
-  resume: () => void,
-  pause: () => void,
-): number | null {
-  // Benchmark one stationary full-cloud frame before committing to a
-  // continuous loop. Fast renderers get native requestAnimationFrame motion;
-  // slow/software renderers stay still instead of producing visible pulses or
-  // starving the input event queue.
-  pause();
-  const started = timer.now?.() ?? performance.now();
-  resume();
-  pause();
-  if (blocked()) return null;
-  return Math.max(0, (timer.now?.() ?? performance.now()) - started);
+export function tiltControl(controls: FrameControl, angle: number): boolean {
+  const position = controls.object?.position;
+  const target = controls.target;
+  if (!position || !target || !Number.isFinite(angle)) return false;
+  const dx = position.x - target.x;
+  const dy = position.y - target.y;
+  const dz = position.z - target.z;
+  const radius = Math.hypot(dx, dy, dz);
+  if (!Number.isFinite(radius) || radius < 0.01) return false;
+  const polar = Math.acos(Math.max(-1, Math.min(1, dy / radius)));
+  const next = Math.max(0.15, Math.min(Math.PI - 0.15, polar - angle));
+  const level = Math.sin(next) * radius;
+  const yaw = Math.atan2(dx, dz);
+  position.x = target.x + Math.sin(yaw) * level;
+  position.y = target.y + Math.cos(next) * radius;
+  position.z = target.z + Math.cos(yaw) * level;
+  controls.object?.lookAt?.(target);
+  return true;
 }
 
 function watchRotation(
@@ -107,18 +109,18 @@ function watchRotation(
   loop: FrameLoop,
   state: IdleState,
   blocked: () => boolean,
-  stop: () => void,
 ) {
   const watch = (time: number) => {
     state.rotateFrame = 0;
     if (blocked() || !controls.autoRotate) return;
+    if (state.rotateStart === 0) state.rotateStart = time;
     if (state.rotateLast > 0) {
-      state.rotateSlow =
-        time - state.rotateLast > FRAME_ROTATE_SLOW_FRAME ? state.rotateSlow + 1 : 0;
-      if (state.rotateSlow >= FRAME_ROTATE_SLOW_LIMIT) {
-        stop();
-        return;
-      }
+      const seconds = Math.min(0.05, (time - state.rotateLast) / 1_000);
+      const elapsed = (time - state.rotateStart) / 1_000;
+      tiltControl(
+        controls,
+        Math.sin(elapsed * FRAME_TILT_FREQUENCY) * FRAME_TILT_RATE * seconds,
+      );
     }
     state.rotateLast = time;
     state.rotateFrame = loop.request(watch);
@@ -161,22 +163,15 @@ function makeIdleLifecycle(
     wake();
     armRotate();
   };
-  const hover = (active: boolean) => {
-    if (active === state.hoverActive) return;
-    state.hoverActive = active;
-    if (active) {
-      stopRotate();
-      pause();
-    } else {
-      armRotate();
-    }
-  };
+  const hover = (_active: boolean) => undefined;
   const engineTick = () => {
+    if (state.rotating) return;
     state.running = true;
     stopRotate();
     cancel();
   };
   const engineStop = (delay = FRAME_IDLE_WAIT) => {
+    if (state.rotating) return;
     state.running = false;
     rest(delay);
     armRotate();
@@ -207,7 +202,6 @@ function makeIdleLifecycle(
       state.keys.clear();
       state.pointers.clear();
       state.controlActive = false;
-      state.hoverActive = false;
       stopRotate();
       pause();
       return;
@@ -244,18 +238,19 @@ function makeIdleCore(
   const cancelRotate = () => {
     if (state.rotatePending) timer.clear(state.rotatePending);
     state.rotatePending = 0;
-    if (state.hoverPending) timer.clear(state.hoverPending);
-    state.hoverPending = 0;
     if (state.rotateFrame) loop.cancel(state.rotateFrame);
     state.rotateFrame = 0;
     state.rotateLast = 0;
-    state.rotateSlow = 0;
+    state.rotateStart = 0;
   };
   const rotate = (active: boolean) => {
     if (!canRotate) return;
     if (active) beginAutoChange(controls);
+    state.rotating = active;
     controls.autoRotate = active;
     if (active) controls.autoRotateSpeed = FRAME_ROTATE_SPEED;
+    const canvas = graph.renderer().domElement;
+    if (canvas.dataset) canvas.dataset.autoRotate = String(active);
   };
   const stopRotate = () => {
     cancelRotate();
@@ -299,23 +294,13 @@ function makeIdleCore(
     !state.ready ||
     state.running ||
     state.controlActive ||
-    state.hoverActive ||
     state.keys.size > 0 ||
     state.pointers.size > 0;
   const beginRotate = () => {
     if (blocked()) return;
-    // OrbitControls' internal timer otherwise includes the entire idle pause.
-    // Render one stationary frame first to reset that delta, then enable
-    // rotation on a native continuous animation loop. This avoids both a
-    // catch-up jump and the visible stepping caused by timer-driven pulses.
-    const cost = primeRotation(timer, state, blocked, resume, pause);
-    if (cost === null || cost > FRAME_ROTATE_BUDGET) return;
     rotate(true);
     resume();
-    watchRotation(controls, loop, state, blocked, () => {
-      stopRotate();
-      pause();
-    });
+    watchRotation(controls, loop, state, blocked);
   };
   const armRotate = () => {
     cancelRotate();
@@ -382,22 +367,7 @@ function bindIdle(
   };
   const probe = () => {
     if (state.probeFrame) return;
-    // Once rotating, passive hover opens a stable-camera picking window.
-    const interrupted = Boolean(controls.autoRotate || state.hoverPending);
-    if (interrupted) {
-      core.stopRotate();
-      state.hoverPending = timer.set(() => {
-        state.hoverPending = 0;
-        core.beginRotate();
-      }, FRAME_HOVER_ROTATE_WAIT);
-      core.pause();
-      // Let ForceGraph process the pointer with one coalesced frame after the
-      // continuous idle loop stops, then return to rest. Its foreground-node
-      // raycaster otherwise retains the last automatic-rotation frame.
-      draw();
-    } else {
-      core.wake();
-    }
+    if (!controls.autoRotate) core.wake();
     state.probeFrame = loop.request(() => {
       state.probeFrame = 0;
     });
@@ -447,6 +417,7 @@ function bindIdle(
     if (!controls.autoRotate) {
       core.stopRotate();
       draw();
+      core.armRotate();
     }
   };
   controls.addEventListener?.("start", begin);
@@ -501,8 +472,6 @@ export function makeFrameIdle(
     controlActive: false,
     drawPending: 0,
     hidden: false,
-    hoverActive: false,
-    hoverPending: 0,
     keys: new Set(),
     paused: false,
     pending: 0,
@@ -513,7 +482,8 @@ export function makeFrameIdle(
     rotateFrame: 0,
     rotateLast: 0,
     rotatePending: 0,
-    rotateSlow: 0,
+    rotateStart: 0,
+    rotating: false,
     running: true,
   };
   const core = makeIdleCore(graph, controls, timer, loop, state);

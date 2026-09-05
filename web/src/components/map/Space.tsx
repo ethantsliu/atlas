@@ -31,7 +31,8 @@ import {
 } from "../../hooks/idle";
 import { graphEndpointId, graphKey, largestGroup, splitPapers } from "../../lib/graph";
 import { showLink } from "../../lib/quality";
-import { formatCamera, type CameraView } from "../../lib/camera";
+import { formatCamera, read3d, show3d, type CameraView } from "../../lib/camera";
+import { fitCloudView } from "../../lib/cloudframe";
 import { buildNode } from "../../lib/scene";
 import { labelOf } from "../../lib/text";
 import type { GraphData, GraphLink, GraphNode } from "../../types";
@@ -232,6 +233,64 @@ function useCorePress(
   }, [graphRef, pressed, visible]);
 }
 
+function useCloudFit(
+  graphRef: GraphRef,
+  frame: MutableRefObject<FrameIdle | null>,
+  fitRef: MutableRefObject<boolean>,
+  cloud: CloudData | null,
+  camera: CameraView | null,
+  selected: GraphNode | null,
+  active: boolean,
+  width: number,
+  height: number,
+) {
+  const pending = useRef(!camera && !selected);
+  useEffect(() => {
+    if (camera || selected) pending.current = false;
+  }, [camera, selected]);
+  useEffect(() => {
+    const canvas = graphRef.current?.renderer().domElement;
+    if (!canvas) return;
+    const keyboard = canvas.ownerDocument ?? document;
+    const cancel = () => {
+      pending.current = false;
+    };
+    canvas.addEventListener("pointerdown", cancel, true);
+    canvas.addEventListener("wheel", cancel, true);
+    keyboard.addEventListener("keydown", cancel, true);
+    return () => {
+      canvas.removeEventListener("pointerdown", cancel, true);
+      canvas.removeEventListener("wheel", cancel, true);
+      keyboard.removeEventListener("keydown", cancel, true);
+    };
+  }, [graphRef]);
+  useEffect(() => {
+    const graph = graphRef.current;
+    if (!graph) return;
+    const fit = (_duration = 0) => {
+      if (!cloud || cloud.loaded !== cloud.positions.length / 3) return false;
+      const current = read3d(graph);
+      const next = current && fitCloudView(cloud, current, width, height);
+      if (!next) return false;
+      pending.current = false;
+      fitRef.current = false;
+      show3d(graph, next, 0);
+      frame.current?.touch();
+      return true;
+    };
+    graph.atlasFitCloud = fit;
+    return () => {
+      if (graph.atlasFitCloud === fit) delete graph.atlasFitCloud;
+    };
+  }, [cloud, cloud?.loaded, fitRef, frame, graphRef, height, width]);
+  useEffect(() => {
+    if (!pending.current || !active || !cloud) return;
+    if (cloud.loaded !== cloud.positions.length / 3) return;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    graphRef.current?.atlasFitCloud?.(layoutTime(Boolean(reduced), 700));
+  }, [active, cloud, cloud?.loaded, frame, graphRef, height, width]);
+}
+
 function useSpaceQuality(
   graph: GraphData,
   cloud: CloudData | null,
@@ -357,8 +416,18 @@ export function GraphSpace({
   const showView = useView(graphRef, camera, viewReady);
   const frameRef = useFrameIdle(graphRef);
   useFrameReady(frameRef, idleReady);
+  useCloudFit(
+    graphRef,
+    frameRef,
+    fitRef,
+    cloud,
+    camera,
+    selected,
+    !cloudHidden && layout === "semantic",
+    width,
+    height,
+  );
   useCursorZoom(graphRef, controlType);
-  const cameraKey = formatCamera(camera);
   const cloudOpenRef = useCloudOpen(cloudSelected);
   const split = useMemo(() => splitPapers(graph), [graph]);
   const showSwarm = layout === "semantic" && split.papers.length >= 1_000;
@@ -393,9 +462,7 @@ export function GraphSpace({
       pickFront(cloudHit, cloudOpenRef, onChoose, node);
     },
     onFocus,
-    onHover: (node) => {
-      setSwarmHovered(node);
-    },
+    onHover: setSwarmHovered,
     order,
   });
   const tip = swarmHit.tip;
@@ -435,7 +502,7 @@ export function GraphSpace({
     cloud?.loaded,
     cloudHidden,
     cloudMark,
-    cameraKey,
+    formatCamera(camera),
     height,
     selected?.id,
     theme,

@@ -6,6 +6,7 @@ import type { Camera, Scene, WebGLRenderer } from "three";
 
 export type GraphApi = LayoutGraph &
   Camera3d & {
+    atlasFitCloud?: (duration?: number) => boolean;
     graph2ScreenCoords: (x: number, y: number, z: number) => { x: number; y: number };
     refresh: () => unknown;
     scene: () => Scene;

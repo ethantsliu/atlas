@@ -89,7 +89,7 @@ export function qualityFor(input: QualityInput): QualityProfile {
     linkOpacity: dense ? Math.min(base.linkOpacity, 0.16) : base.linkOpacity,
     geometryDetail: dense ? 6 : base.geometryDetail,
     pixelRatioCap: archive
-      ? Math.min(base.pixelRatioCap, 0.75)
+      ? Math.min(base.pixelRatioCap, 0.5)
       : dense
         ? Math.min(base.pixelRatioCap, 1)
         : base.pixelRatioCap,

@@ -83,7 +83,7 @@ describe("adaptive quality", () => {
       pixelRatio: 2,
     });
 
-    expect(quality.pixelRatioCap).toBe(0.75);
+    expect(quality.pixelRatioCap).toBe(0.5);
   });
 
   it("shortens motion while preserving focused content", () => {

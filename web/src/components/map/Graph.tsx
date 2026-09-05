@@ -108,8 +108,13 @@ function resetGraphView(
 ): void {
   const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   const duration = layoutTime(Boolean(reduced), 700);
-  if (mode === "3d") graph.current?.zoomToFit(duration, 72);
-  else fallback.current?.zoomToFit(duration, 72);
+  if (mode === "3d") {
+    if (!graph.current?.atlasFitCloud?.(duration)) {
+      graph.current?.zoomToFit(duration, 72);
+    }
+  } else {
+    fallback.current?.zoomToFit(duration, 72);
+  }
 }
 
 function chooseGraphNode(
