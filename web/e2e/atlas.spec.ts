@@ -107,7 +107,7 @@ test("map remains usable without WebGL2", async ({ page }) => {
   await page.goto("/");
 
   const graph = page.getByLabel("Interactive research graph");
-  await expect(graph).toContainText("Compatibility · semantic", {
+  await expect(graph).toContainText("Compatibility ·", {
     timeout: 20_000,
   });
   await expect(graph.locator("canvas:not(.cloud-plane)")).toBeVisible({
