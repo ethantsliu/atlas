@@ -239,6 +239,11 @@ function makeIdleLifecycle(
       if (!state.running) pause();
       return;
     }
+    if (firstReady && state.hidden && !state.reducedMotion) {
+      state.resumeRotation = true;
+      state.hiddenAt ??= now();
+      return;
+    }
     if (firstReady) beginRotate();
     else armRotate();
   };

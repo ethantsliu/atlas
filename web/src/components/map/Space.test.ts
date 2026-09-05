@@ -492,6 +492,20 @@ describe("3D idle frames", () => {
     expect(run.controls.object?.position.y).not.toBe(before.y);
   });
 
+  it("resumes immediately when readiness arrives in a hidden tab", () => {
+    const run = setup(true, 0, 16, false);
+
+    run.idle.visibility(true);
+    run.idle.ready(true);
+    run.advanceTime(2_000);
+    run.idle.visibility(false);
+
+    expect(run.controls.autoRotate).toBe(true);
+    expect(run.canvas.dataset.autoRotateAt).toBeUndefined();
+    expect(run.controls.object?.position.x).not.toBe(0);
+    expect(run.controls.object?.position.y).not.toBe(0);
+  });
+
   it("keeps the mobile trackball idle instead of emulating unsupported rotation", () => {
     const run = setup(false);
     run.idle.engineStop();
