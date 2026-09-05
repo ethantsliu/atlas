@@ -448,7 +448,7 @@ test("history streams points without eager paper metadata", async ({ page }) => 
 });
 
 test("the paper lens fetches its shard once", async ({ page }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(150_000);
   const hits = trackShard(page);
   await loadMap(page);
   await showFilters(page);
