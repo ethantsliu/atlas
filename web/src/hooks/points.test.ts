@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   cacheMeta,
+  canHoverCloud,
   clearHover,
   cloudFront,
   hoverMoved,
@@ -28,9 +29,12 @@ describe("paper point input", () => {
     expect(pickSize("touch")).toBe(44);
   });
 
-  it("requires a stable dwell before probing a dense cloud", () => {
+  it("keeps dense hover off the active rotation path", () => {
     expect(hoverWait(100_000)).toBe(120);
     expect(hoverWait(100_001)).toBe(700);
+    expect(canHoverCloud(100_000, true)).toBe(true);
+    expect(canHoverCloud(100_001, true)).toBe(false);
+    expect(canHoverCloud(100_001, false)).toBe(true);
     expect(waitHoverRest(true, 0)).toBe(true);
     expect(waitHoverRest(true, 13)).toBe(true);
     expect(waitHoverRest(true, 14)).toBe(false);

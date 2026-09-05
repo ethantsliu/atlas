@@ -126,6 +126,16 @@ export function hoverWait(count: number): number {
   return count <= CLOUD_HOVER_LIMIT ? HOVER_WAIT : DENSE_HOVER_WAIT;
 }
 
+export function canHoverCloud(count: number, rotating: boolean): boolean {
+  return count <= CLOUD_HOVER_LIMIT || !rotating;
+}
+
+function cloudCanHover(data: CloudData, graph: PointApi): boolean {
+  const controls = graph.controls?.();
+  const rotating = Boolean(controls && "autoRotate" in controls && controls.autoRotate);
+  return canHoverCloud(data.loaded, rotating);
+}
+
 export function waitHoverRest(moving: boolean, tries: number): boolean {
   return moving && tries < HOVER_SETTLE_TRIES;
 }
@@ -277,6 +287,7 @@ function mountPoints(
   const picker = makeGpuPick(renderer, points, data.positions);
   const controller = new AbortController();
   const cache = new Map<string, Promise<CloudPaper[]>>();
+  const canHover = () => cloudCanHover(data, graph);
   const hit = (event: PointerEvent | MouseEvent, pointer?: string) =>
     gpuHit(canvas, graph, picker, event, input.depth, pointer);
   const load = (index: number) => loadPaper(data, cache, controller.signal, index);
@@ -286,7 +297,19 @@ function mountPoints(
   let released: Down | null = null;
   let choosing: number | null = null;
   let pressed = false;
+  const stop = () => {
+    if (timer) clearTimeout(timer);
+    timer = undefined;
+    moved = null;
+    setProbing(false);
+    setTip(null);
+  };
+  const clear = () => {
+    stop();
+    clearHover(refs, setTip);
+  };
   const show = (event: PointerEvent, tries = 0, misses = 0) => {
+    if (!canHover()) return clear();
     if (waitHoverRest(points.userData.moving, tries)) {
       timer = setTimeout(() => {
         timer = undefined;
@@ -302,17 +325,6 @@ function mountPoints(
       }, CLOUD_REST_MS + 20);
     });
   };
-  const stop = () => {
-    if (timer) clearTimeout(timer);
-    timer = undefined;
-    moved = null;
-    setProbing(false);
-    setTip(null);
-  };
-  const clear = () => {
-    stop();
-    clearHover(refs, setTip);
-  };
   const move = (event: PointerEvent) => {
     if (pressed) {
       if (down && Math.hypot(event.clientX - down.x, event.clientY - down.y) > 5) {
@@ -321,10 +333,7 @@ function mountPoints(
       clear();
       return;
     }
-    if (isHidden(refs)) {
-      clear();
-      return;
-    }
+    if (isHidden(refs) || !canHover()) return clear();
     refs.request.current += 1;
     setProbing(data.loaded > CLOUD_HOVER_LIMIT);
     const prior = refs.target.current ?? refs.hover.current;
