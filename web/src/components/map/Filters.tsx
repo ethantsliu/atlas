@@ -122,7 +122,7 @@ export function MapFilters({
           Profile reading depth · {coverage.collectionEntries.toLocaleString()} papers
         </div>
         <p className="depth-copy">
-          These exclusive counts cover only paper profiles—not all 3.15M map points.
+          These exclusive counts cover only paper profiles—not the full semantic map.
           Full text is page-anchored; Verified also adds an independent passage and
           competitor check. Verified + Full Text ={" "}
           {coverage.fullReadings.toLocaleString()} page-anchored readings.

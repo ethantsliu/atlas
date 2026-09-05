@@ -32,7 +32,7 @@ describe("MapFilters", () => {
     expect(markup).toContain(
       `Profile reading depth · ${atlas.coverage.collection_entries.toLocaleString()} papers`,
     );
-    expect(markup).toContain("not all 3.15M map points");
+    expect(markup).toContain("not the full semantic map");
     expect(markup).toContain(
       `aria-label="Reading depth for ${atlas.coverage.collection_entries.toLocaleString()} paper profiles"`,
     );
