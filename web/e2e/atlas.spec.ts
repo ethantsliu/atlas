@@ -546,7 +546,7 @@ test("coverage reports partial extraction state honestly", async ({ page }) => {
   await page.getByRole("button", { name: "Coverage" }).click();
   await expect(
     page.getByRole("heading", {
-      name: "Historical intake stays complete without loading it all at once",
+      name: "The full corpus stays mapped without loading every record at once",
     }),
   ).toBeVisible();
 
